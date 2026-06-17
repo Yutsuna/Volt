@@ -1,0 +1,6 @@
+res = 1 + 2.5
+puts( typeof res ) # Float64
+
+new_var = "Hello, World!"
+new_var = 42
+puts( typeof new_var ) # Int32

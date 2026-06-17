@@ -1,0 +1,19 @@
+@[Extern]
+def puts( str : UInt8* ) : Int32
+
+def main : Int32
+  sums = 0
+
+  until sums > 100 do
+    sums += 1
+  end
+
+  while sums < 200 do
+    sums += 1
+  end
+
+  return sums
+end
+
+exit 1 if main != 200
+exit 0

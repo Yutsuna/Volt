@@ -1,0 +1,8 @@
+/docs/
+/lib/
+/bin/
+/.shards/
+*.dwarf
+.*/
+.crystal_build_cache.json
+Volt

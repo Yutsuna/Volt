@@ -1,0 +1,7 @@
+@[Extern]
+def exit( status : Int32 ) : Nil
+
+# blabla this is a comment
+a : Int32 = 84
+
+exit a

@@ -1,0 +1,37 @@
+@[Extern]
+def puts( str : UInt8* ) : Int32
+
+# test comment: this is the 01.00 is required to 100% pass before starting the others
+
+puts( typeof 1 ) # Int32
+puts( typeof 1.0 ) # Float64
+puts( typeof 1.0f32 ) # Float32
+puts( typeof 1.0F64 ) # Float64
+puts( typeof true ) # Bool
+puts( typeof false ) # Bool
+
+puts( typeof 'C' ) # Char
+puts( typeof "C" ) # UInt8* - then once we have class, it will be String
+puts( typeof "hello" ) # UInt8* - then once we have class, it will be String
+puts( typeof [1, 2, 3] ) # Int32* - then once we have class, it will be Array(Int32)
+
+puts( typeof 0x1A )      # Int32
+puts( typeof 0b1010 )    # Int32
+puts( typeof 1_000_000 ) # Int32
+
+puts( typeof 1u8 )       # UInt8
+puts( typeof 1u16 )      # UInt16
+puts( typeof 1u32 )      # UInt32
+puts( typeof 1u64 )      # UInt64
+puts( typeof 1i8 )       # Int8
+puts( typeof 1i16 )      # Int16
+puts( typeof 1i64 )      # Int64
+
+a = 10
+puts( typeof a )           # Int32
+puts( typeof pointerof(a)) # Int32*
+
+puts( typeof 1.0e10 ) # Float64
+puts( typeof 1.0e-10 ) # Float64
+
+puts( typeof nil ) # Nil

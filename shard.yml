@@ -1,0 +1,18 @@
+name: Volt
+version: 0.1.0
+
+authors:
+  - Yutsuna
+
+targets:
+  Volt:
+    main: Source/Volt.cr
+
+krystal:
+  extra_args:
+    - "--progress"
+    - "--stats"
+
+crystal: ">= 1.20.2"
+
+license: MIT
