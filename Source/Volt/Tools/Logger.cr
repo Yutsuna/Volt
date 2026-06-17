@@ -19,7 +19,7 @@ module Volt
 
     #--------------------------------------------------------------------------
 
-    def log ( message : String, prefix : String = "Krystal", color : String = EAnsiColor::CYAN)
+    def log ( message : String, prefix : String = "Volt", color : String = EAnsiColor::CYAN)
       tag = "#{color}#{EAnsiColor::BOLD}[#{prefix}]#{EAnsiColor::RESET}"
       STDOUT.puts "#{tag} #{message}"
       STDOUT.flush
