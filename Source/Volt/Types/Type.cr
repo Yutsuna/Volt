@@ -62,7 +62,7 @@ module Volt
         return false if pointer?
         case @base
         when INTEGERS
-          FLOATS   =
+          FLOATS
           true
         else
           false
