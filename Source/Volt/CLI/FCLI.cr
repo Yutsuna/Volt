@@ -18,9 +18,8 @@ module Volt
       #--------------------------------------------------------------------------
 
       private def cmd_build ( args : Array(String) ) : Nil
-        FLog.step "Building..."
-        file = positional( args )
-        return missing_file unless file
+        FLog.step "Volt Build - #{VERSION}"
+        file = validate_file( positional( args ) )
         FLog.info "  Compiling #{file}..."
         output = option( args, "-o" ) || default_output( file )
         ok = Driver::FDriver.new( file ).compile( output )
@@ -32,8 +31,7 @@ module Volt
       end
 
       private def cmd_run ( args : Array(String) ) : Nil
-        file = positional( args )
-        return missing_file unless file
+        file = validate_file( positional( args ) )
         exit Driver::FDriver.new( file ).run
       end
 
@@ -55,11 +53,21 @@ module Volt
         ext.empty? ? "#{base}.out" : base[ 0...( base.size - ext.size ) ]
       end
 
-      private def missing_file : Nil
-        FLog.error "no input file given"
+      private def validate_file( file : String? ) : String
+        return missing_file unless file
+        return file_not_found( file ) unless File.exists?( file )
+        file
+      end
+
+      private def missing_file : NoReturn
+        FLog.error "No input file given"
         exit 1
       end
 
+      private def file_not_found( file : String ) : NoReturn
+        FLog.error "File not found: #{file}"
+        exit 1
+      end
 
       private def help : Nil
         FLog.info("Volt #{VERSION}")
