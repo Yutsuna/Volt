@@ -5,4 +5,3 @@
 *.dwarf
 .*/
 .crystal_build_cache.json
-Volt
