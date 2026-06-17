@@ -1,0 +1,15 @@
+# Dependency-ordered load of the whole compiler library.
+
+require "./Version"
+require "./Tools/**"
+require "./Types/**"
+require "./Diagnostic/**"
+require "./Lexer/**"
+require "./Ast/Node"
+require "./Ast/**"
+require "./Parser/**"
+require "./Sema/**"
+require "./Codegen/**"
+require "./Backend/**"
+require "./Driver/**"
+require "./CLI/**"
