@@ -75,7 +75,7 @@ module Volt
       private def help : Nil
         FLog.info("Volt #{VERSION}")
         FLog.info("usage:")
-        FLog.info("  volt build <file.vl> [-o <output>]")
+        FLog.info("  volt build <file.vl> [-o <output>] [-v|--verbose]")
         FLog.info("  volt run   <file.vl>")
         FLog.info("  volt version")
       end
