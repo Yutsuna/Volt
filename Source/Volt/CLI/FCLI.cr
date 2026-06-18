@@ -18,6 +18,9 @@ module Volt
       #--------------------------------------------------------------------------
 
       private def cmd_build ( args : Array(String) ) : Nil
+        if args.includes?("-v") || args.includes?("--verbose")
+          FLog.verbose true
+        end
         FLog.step "Volt Build - #{VERSION}"
         file = validate_file( positional( args ) )
         FLog.info "  Compiling #{file}..."

@@ -17,9 +17,18 @@ module Volt
 
     extend self
 
+    @@verbose = false
+
     #--------------------------------------------------------------------------
 
-    def log ( message : String, prefix : String = "Volt", color : String = EAnsiColor::CYAN)
+    def verbose ( value : Bool ) : Nil
+      @@verbose = value
+    end
+
+    #--------------------------------------------------------------------------
+
+    def log ( message : String, prefix : String = "Volt", color : String = EAnsiColor::CYAN) : Nil
+      return nil unless @@verbose
       tag = "#{color}#{EAnsiColor::BOLD}[#{prefix}]#{EAnsiColor::RESET}"
       STDOUT.puts "#{tag} #{message}"
       STDOUT.flush
@@ -27,28 +36,30 @@ module Volt
 
     #--------------------------------------------------------------------------
 
-    def ok ( message    : String )
+    def ok ( message    : String ) : Nil
       log message, "  OK  ",    EAnsiColor::GREEN
     end
 
-    def warn ( message  : String )
+    def warn ( message  : String ) : Nil
       log message, "  WARN  ",  EAnsiColor::YELLOW
     end
 
-    def error ( message : String )
+    def error ( message : String ) : Nil
       log message, "  ERR  ",   EAnsiColor::RED
     end
 
-    def step ( message  : String )
+    def step ( message  : String ) : Nil
       log message, "  >>  ",    EAnsiColor::BLUE
     end
 
-    def info ( message  : String )
+    def info ( message  : String ) : Nil
+      return nil unless @@verbose
       STDOUT.puts( "#{EAnsiColor::GREY}#{message}#{EAnsiColor::RESET}" )
       STDOUT.flush
     end
 
-    def command ( message : String )
+    def command ( message : String ) : Nil
+      return nil unless @@verbose
       STDOUT.print( "\r#{EAnsiColor::GREY}#{message}#{EAnsiColor::RESET}" )
       STDOUT.flush
     end
