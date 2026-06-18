@@ -23,7 +23,7 @@ module Volt
         end
         FLog.step "Volt Build - #{VERSION}"
         file = validate_file( positional( args ) )
-        FLog.info "  Compiling #{file}..."
+        FLog.step "Compiling #{file}..."
         output = option( args, "-o" ) || default_output( file )
         ok = Driver::FDriver.new( file ).compile( output )
         if ok
