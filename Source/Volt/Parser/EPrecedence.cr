@@ -8,17 +8,17 @@ module Volt
 
       def binding_power ( kind : Lexer::EToken ) : Int32
         case kind
-        when Lexer::EToken::OrOr                                              then 1
-        when Lexer::EToken::AndAnd                                            then 2
-        when Lexer::EToken::Pipe                                              then 3
-        when Lexer::EToken::Caret                                            then 4
-        when Lexer::EToken::Amp                                              then 5
-        when Lexer::EToken::EqEq, Lexer::EToken::NotEq                       then 6
-        when Lexer::EToken::Lt, Lexer::EToken::Gt, Lexer::EToken::Le, Lexer::EToken::Ge then 7
-        when Lexer::EToken::Shl, Lexer::EToken::Shr                          then 8
-        when Lexer::EToken::Plus, Lexer::EToken::Minus                       then 9
-        when Lexer::EToken::Star, Lexer::EToken::Slash, Lexer::EToken::Percent then 10
-        else                                                                      0
+        when Lexer::EToken::OrOr                                                        then  1
+        when Lexer::EToken::AndAnd                                                      then  2
+        when Lexer::EToken::Pipe                                                        then  3
+        when Lexer::EToken::Caret                                                       then  4
+        when Lexer::EToken::Amp                                                         then  5
+        when Lexer::EToken::EqEq, Lexer::EToken::NotEq                                  then  6
+        when Lexer::EToken::Lt, Lexer::EToken::Gt, Lexer::EToken::Le, Lexer::EToken::Ge then  7
+        when Lexer::EToken::Shl, Lexer::EToken::Shr                                     then  8
+        when Lexer::EToken::Plus, Lexer::EToken::Minus                                  then  9
+        when Lexer::EToken::Star, Lexer::EToken::Slash, Lexer::EToken::Percent          then  10
+        else                                                                                  0
         end
       end
 
