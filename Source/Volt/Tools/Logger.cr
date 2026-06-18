@@ -64,6 +64,12 @@ module Volt
       STDOUT.flush
     end
 
+    def command_done ( message : String ) : Nil
+      return nil unless @@verbose
+      STDOUT.puts( "#{EAnsiColor::GREY}#{message}#{EAnsiColor::RESET}" )
+      STDOUT.flush
+    end
+
     #--------------------------------------------------------------------------
 
   end
