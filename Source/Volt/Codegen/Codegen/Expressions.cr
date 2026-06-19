@@ -42,8 +42,9 @@ module Volt
 
       private def gen_array( expr : Ast::ArrayLit ) : String
         n        = expr.elements.size
-        elem_ty  = Types::Type.new( type_of( expr ).base ).llvm
-        arr_ty   = "[#{n} x #{elem_ty}]"
+        base_ty  = Types::Type.new( type_of( expr ).base )
+        elem_ty  = base_ty.llvm
+        arr_ty   = "[#{n + 1} x #{elem_ty}]"
         slot     = "arr.#{next_seq}"
         ensure_alloca( slot, arr_ty )
 
@@ -53,6 +54,11 @@ module Volt
           emit "#{p} = getelementptr inbounds #{arr_ty}, #{arr_ty}* %s.#{slot}, i64 0, i64 #{i}"
           emit "store #{elem_ty} #{v}, #{elem_ty}* #{p}"
         end
+
+        p = new_temp
+        zero = zero_value( base_ty )
+        emit "#{p} = getelementptr inbounds #{arr_ty}, #{arr_ty}* %s.#{slot}, i64 0, i64 #{n}"
+        emit "store #{elem_ty} #{zero}, #{elem_ty}* #{p}"
 
         ptr = new_temp
         emit "#{ptr} = getelementptr inbounds #{arr_ty}, #{arr_ty}* %s.#{slot}, i64 0, i64 0"
