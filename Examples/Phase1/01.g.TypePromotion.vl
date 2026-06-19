@@ -1,3 +1,6 @@
+@[Extern]
+def exit( code : Int32 ) : Nil
+
 res = 1 + 2.5
 puts( typeof res ) # Float64
 

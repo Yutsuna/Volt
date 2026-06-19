@@ -1,5 +1,7 @@
 @[Extern]
 def puts( str : UInt8* ) : Int32
+@[Extern]
+def exit( code : Int32 ) : Nil
 
 def main : Int32
   sums = 0

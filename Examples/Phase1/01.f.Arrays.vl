@@ -1,5 +1,5 @@
 @[Extern]
-def exit( code : Int32 ) : Void
+def exit( code : Int32 ) : Nil
 
 def raw_array_length( in_arr : Int32* ) : Int32
   length = 0

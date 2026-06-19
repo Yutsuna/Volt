@@ -1,3 +1,6 @@
+@[Extern]
+def exit( code : Int32 ) : Nil
+
 def main : Int32
     a = 10
     b = 20
