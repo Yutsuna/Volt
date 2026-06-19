@@ -40,9 +40,9 @@ def main : Int32
 
     if (b_and == 1 && b_or == 7 && b_xor == 6 && b_shl == 10 && b_shr == 2)
         return 0
-    else
-        return 1
     end
+
+    return 1
 
 end
 

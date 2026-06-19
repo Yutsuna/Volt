@@ -49,7 +49,7 @@ describe "Phase 1 examples" do
   it "01.g.TypePromotion promotes and re-types" do
     code, out = SpecHelper.run_example("01.g.TypePromotion.vl")
     code.should eq(0)
-    out.should eq("Float64\nInt32\n")
+    out.should eq("Float64\nInt32\nInt32*\nFloat64\n")
   end
 
   it "01.h.Comparaison evaluates all operators correctly" do

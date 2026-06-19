@@ -23,22 +23,22 @@ module Volt
 
       def self.execute!( args ) : Int32
         args_tuple = parse!( args )
-        dispatch!( args_tuple[:command], args_tuple )
+        dispatch!( args_tuple[ :command ], args_tuple )
       end
 
       # -------------------------------------------------------------------------
 
       def self.parse!( args : Array(String) ) : CommandArgs
         raise EParseError.new( "No command provided." ) if args.empty?
-        command = args[ 0 ]?
+        command = args[  0  ]?
         unless COMMANDS.includes? command
           raise EParseError.new "Unknown command: #{command.inspect}."
         end
         {
           command:   command,
-          file:      FParse.file(args),
-          output:    FParse.option(args, "-o", "--output"),
-          verbose:   FParse.flag(args, "-v", "--verbose"),
+          file:      FParse.file( args ),
+          output:    FParse.option( args, "-o", "--output"),
+          verbose:   FParse.flag( args, "-v", "--verbose"),
         }
       end
 
@@ -53,15 +53,13 @@ module Volt
       # -------------------------------------------------------------------------
 
       def self.build( args : CommandArgs ) : Int32
-        FLog.verbose(args[:verbose])
+        FLog.verbose(args[ :verbose ])
 
-        file = args[:file]? || raise EParseError.new("Missing input file for `build`")
-        FLog.step("Compiling #{file}...")
+        file = args[ :file ]? || raise EParseError.new "Missing input file for `build`"
+        FLog.step "Compiling #{file}..."
 
-        output = args[:output]? || default_output(file)
-        ok = Driver::FDriver.new(file).compile(output)
-
-        if ok
+        output = args[ :output ]? || default_output( file )
+        if Driver::FDriver.new( file ).compile( output )
           FLog.ok("Compiled #{file} -> #{output}")
           0
         else
@@ -70,16 +68,16 @@ module Volt
       end
 
       def self.run( args : CommandArgs ) : Int32
-        file = args[:file]? || raise EParseError.new("Missing input file for `run`")
-        Driver::FDriver.new(file).run
+        file = args[ :file ]? || raise EParseError.new "Missing input file for `run`"
+        Driver::FDriver.new( file ).run
       end
 
-      def self.version(args : CommandArgs) : Int32
+      def self.version( args : CommandArgs ) : Int32
         FLog.info("Volt #{Volt::VERSION}")
         0
       end
 
-      def self.help(args : CommandArgs) : Int32
+      def self.help( args : CommandArgs ) : Int32
         FLog.info("Volt #{Volt::VERSION}")
         FLog.info("usage:")
         FLog.info("  volt build <file#{EXTENSION}> [-o <output>] [-v|--verbose]")
@@ -88,7 +86,7 @@ module Volt
         0
       end
 
-      def self.default_output(file : String) : String
+      def self.default_output( file : String ) : String
         base = File.basename file
         ext = File.extname base
         ext.empty? ? "#{base}.out" : base[ 0...( base.size - ext.size ) ]
@@ -119,17 +117,17 @@ module Volt
       #--------------------------------------------------------------------------
 
       def file( args : Array(String) ) : String?
-        args.each { |arg| next if arg.starts_with?( '-' ) || COMMANDS.includes?( arg ) ; arg }
+        args.each { |arg| next if arg.starts_with?( '-' ) || COMMANDS.includes?( arg ) ; return arg }
         nil
       end
 
       def option( args : Array(String), short : String, long : String ) : String?
         index = args.index( short ) || args.index( long )
         return nil unless index
-        args[index + 1]
+        args[ index  + 1]
       end
 
-      def flag(args : Array(String), *flags : String) : Bool
+      def flag( args : Array(String), *flags : String ) : Bool
         flags.any? { |f| args.includes? f }
       end
 
