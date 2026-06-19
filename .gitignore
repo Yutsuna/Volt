@@ -5,3 +5,5 @@
 *.dwarf
 .*/
 .crystal_build_cache.json
+*.ll
+*.o
