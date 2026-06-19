@@ -32,8 +32,6 @@ module Volt
         @program.defs.each { |d| @defs[d.name] = d }
 
         @program.defs.each { |d| analyze_def(d) }
-
-        # L'analyse globale s'exécute sur le scope racine globale
         @program.top_level.each { |node| analyze_node(node) }
       end
 
