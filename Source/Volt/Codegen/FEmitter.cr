@@ -13,7 +13,7 @@ module Volt
       #--------------------------------------------------------------------------
 
       def intern ( content : String ) : {String, Int32}
-        if cached = @pool[content]
+        if cached = @pool[content]?
           return cached
         end
         bytes = content.bytes
