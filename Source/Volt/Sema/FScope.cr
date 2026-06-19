@@ -1,23 +1,22 @@
 module Volt
   module Sema
 
-
     class FScope
+      getter parent : FScope?
 
-      def initialize
+      def initialize(@parent : FScope? = nil)
         @vars     = {} of String => {String, Types::Type}
         @versions = {} of String => Int32
       end
 
-      #--------------------------------------------------------------------------
-
       def lookup ( name : String ) : {String, Types::Type}?
-        @vars[name]?
+        @vars[name]? || @parent?.try(&.lookup(name))
       end
 
       def assign ( name : String, type : Types::Type ) : String
-        existing = @vars[name]?
-        return existing[0] if existing && existing[1] == type
+        if existing = lookup(name)
+          return existing[0] if existing[1] == type
+        end
 
         version = @versions[name]? || 0
         slot = version == 0 ? name : "#{name}.#{version}"
@@ -31,9 +30,7 @@ module Volt
         @versions[name] = 1
         name
       end
-
     end
-
 
   end
 end
