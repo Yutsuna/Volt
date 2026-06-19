@@ -28,9 +28,16 @@ module Volt
         "Float64" => EType::Float64,
       }
 
-      INTEGERS = EType::Int8 | EType::Int16 | EType::Int32 | EType::Int64 | EType::UInt8 | EType::UInt16 | EType::UInt32 | EType::UInt64
-      FLOATS   = EType::Float32 | EType::Float64
-      VOIDS    = EType::Void | EType::Nil
+      INTEGERS = {
+        EType::Int8, EType::Int16, EType::Int32, EType::Int64,
+        EType::UInt8, EType::UInt16, EType::UInt32, EType::UInt64
+      }
+      FLOATS   = {
+        EType::Float32, EType::Float64
+      }
+      VOIDS    = {
+        EType::Void, EType::Nil
+      }
 
       #--------------------------------------------------------------------------
 
@@ -41,10 +48,9 @@ module Volt
         @base == other.base && @pointer_depth == other.pointer_depth
       end
 
-      # Resolve a source type name (without `*`) to a Type, or nil if unknown.
       def self.named ( name : String ) : Type?
-        if base = NAMES[name]?
-          Type.new(base)
+        if base = NAMES[ name ]?
+          Type.new( base )
         end
       end
 
@@ -55,38 +61,22 @@ module Volt
       end
 
       def to_pointer : Type
-        Type.new(@base, @pointer_depth + 1)
+        Type.new( @base, @pointer_depth + 1 )
       end
 
       def integer? : Bool
         return false if pointer?
-        case @base
-        when INTEGERS
-          FLOATS
-          true
-        else
-          false
-        end
+        INTEGERS.includes?( @base )
       end
 
       def float? : Bool
         return false if pointer?
-        case @base
-        when FLOATS
-          true
-        else
-          false
-        end
+        FLOATS.includes?( @base )
       end
 
       def void? : Bool
         return false if pointer?
-        case @base
-        when VOIDS
-          true
-        else
-          false
-        end
+        VOIDS.includes?( @base )
       end
 
       #--------------------------------------------------------------------------
