@@ -1,1 +1,29 @@
-raw_array = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+@[Extern]
+def exit( code : Int32 ) : Void
+
+def raw_array_length( in_arr : Int32* ) : Int32
+  length = 0
+  while in_arr[ length ] != nil
+    length += 1
+  end
+  return length
+end
+
+def raw_array_sum( in_arr : Int32* ) : Int32
+  sum = 0
+  length = raw_array_length( in_arr )
+  while length > 0
+    length -= 1
+    sum += in_arr[ length ]
+  end
+  return sum
+end
+
+def main : Int32
+  raw_array = [ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ]
+  return 1 if raw_array_length( raw_array ) != 10
+  return 1 if raw_array_sum( raw_array ) != 55
+  0
+end
+
+exit main
