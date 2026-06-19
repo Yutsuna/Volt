@@ -1,4 +1,4 @@
-# Dependency-ordered load of the whole compiler library.
+# Dependency-ordered load
 
 require "./Version"
 require "./Tools/**"
