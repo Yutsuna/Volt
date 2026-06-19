@@ -14,6 +14,7 @@ module Volt
           FCommands.execute!( args )
         rescue exception : EParseError
           FLog.error exception.message.to_s
+          FLog.error "Use 'volt help' for usage."
           1
         end
       end

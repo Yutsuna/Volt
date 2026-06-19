@@ -1,18 +1,23 @@
 require "./EParseError"
-require "./FParse"
 
 module Volt
   module CLI
 
 
+    # -------------------------------------------------------------------------
+
+    alias CommandArgs = NamedTuple(
+      command: String?,
+      file: String?,
+      output: String?,
+      verbose: Bool
+    )
+
+    # -------------------------------------------------------------------------
+
+
     module FCommands
 
-      alias CommandArgs = NamedTuple(
-        command: String?,
-        file: String?,
-        output: String?,
-        verbose: Bool
-      )
 
       # -------------------------------------------------------------------------
 
@@ -24,10 +29,10 @@ module Volt
       # -------------------------------------------------------------------------
 
       def self.parse!( args : Array(String) ) : CommandArgs
-        raise EParseError.new( "No command provided" ) if args.empty?
+        raise EParseError.new( "No command provided." ) if args.empty?
         command = args[ 0 ]?
         unless COMMANDS.includes? command
-          raise EParseError.new "Unknown command: #{command.inspect}. Use 'volt help' for usage."
+          raise EParseError.new "Unknown command: #{command.inspect}."
         end
         {
           command:   command,
@@ -38,12 +43,10 @@ module Volt
       end
 
       def self.dispatch!( command, args : CommandArgs ) : Int32
-        # On récupère le pointeur de fonction depuis la map
         if proc = COMMANDS_MAP[ command ]?
-          # On l'appelle via .call
           proc.call( args )
         else
-          raise EParseError.new "Unknown command: #{command.inspect}. Use 'volt help' for usage."
+          raise EParseError.new "Unknown command: #{command.inspect}."
         end
       end
 
@@ -91,18 +94,49 @@ module Volt
         ext.empty? ? "#{base}.out" : base[ 0...( base.size - ext.size ) ]
       end
 
-      # -------------------------------------------------------------------------
-
-      COMMANDS_MAP = {
-        "build"   => ->self.build(CommandArgs),
-        "run"     => ->self.run(CommandArgs),
-        "version" => ->self.version(CommandArgs),
-        "help"    => ->self.help(CommandArgs),
-      }
-
-      COMMANDS = COMMANDS_MAP.keys.to_set
-      EXTENSION = ".vl"
+      #--------------------------------------------------------------------------
 
     end
+
+    # -------------------------------------------------------------------------
+
+    COMMANDS_MAP = {
+      "build"   => ->FCommands.build( CommandArgs ),
+      "run"     => ->FCommands.run( CommandArgs ),
+      "version" => ->FCommands.version( CommandArgs ),
+      "help"    => ->FCommands.help( CommandArgs ),
+    }
+
+    COMMANDS = COMMANDS_MAP.keys.to_set
+    EXTENSION = ".vl"
+
+    # -------------------------------------------------------------------------
+
+    module FParse
+
+      extend self
+
+      #--------------------------------------------------------------------------
+
+      def file( args : Array(String) ) : String?
+        args.each { |arg| next if arg.starts_with?( '-' ) || COMMANDS.includes?( arg ) ; arg }
+        nil
+      end
+
+      def option( args : Array(String), short : String, long : String ) : String?
+        index = args.index( short ) || args.index( long )
+        return nil unless index
+        args[index + 1]
+      end
+
+      def flag(args : Array(String), *flags : String) : Bool
+        flags.any? { |f| args.includes? f }
+      end
+
+      #--------------------------------------------------------------------------
+
+    end
+
+
   end
 end
