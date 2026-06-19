@@ -1,4 +1,4 @@
-require "./Context"
+require "./FContext"
 require "./Rules/**"
 
 module Volt
@@ -13,16 +13,12 @@ module Volt
       include Rules::Declarations
       include Rules::Expressions
 
-      COMPARISONS = ["==", "!=", "<", ">", "<=", ">="]
-      LOGICALS    = ["&&", "||"]
-      ARITHMETIC  = ["+", "-", "*", "/", "%"]
-
       #--------------------------------------------------------------------------
 
       def initialize ( @program : Ast::Program, @reporter : Diagnostic::FReporter )
         @externs = {} of String => Ast::ExternDef
         @defs    = {} of String => Ast::Def
-        @context = SemaContext.new
+        @context = FContext.new
       end
 
       #--------------------------------------------------------------------------

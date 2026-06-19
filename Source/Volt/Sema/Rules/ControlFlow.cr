@@ -30,7 +30,9 @@ module Volt
       private def ensure_return_statement( body : Array(Ast::Node), return_type : Types::Type ) : Nil
         last = body.last?
         if !return_type.void? && ( last.nil? || !last.is_a?( Ast::Return ) )
-          @reporter.error( "missing return statement in function of type '#{return_type}'", last&.line || 0, last&.col || 0 )
+          line = last ? last.line : 0
+          col = last ? last.col : 0
+          @reporter.error( "missing return statement in function of type '#{return_type}'", line, col )
         end
       end
 

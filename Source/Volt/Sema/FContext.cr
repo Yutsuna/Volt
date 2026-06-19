@@ -12,7 +12,7 @@ module Volt
       property terminated : Bool
 
       def initialize
-        @urrent_scope = FScope.new
+        @current_scope = FScope.new
         @current_function = nil
         @loop_depth = 0
         @terminated = false
@@ -45,9 +45,10 @@ module Volt
       end
 
       def with_function( def_node : Ast::Def, & )
-        old_func = @current_function
-        old_term = @terminated
-        @current_function = func
+        old_func : Ast::Def? = @current_function
+        old_term : Bool = @terminated
+
+        @current_function = def_node
         @terminated = false
         yield
       ensure

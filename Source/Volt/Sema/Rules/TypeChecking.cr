@@ -4,6 +4,10 @@ module Volt
 
     module Rules::TypeChecking
 
+      COMPARISONS = ["==", "!=", "<", ">", "<=", ">="]
+      LOGICALS    = ["&&", "||"]
+      ARITHMETIC  = ["+", "-", "*", "/", "%"]
+
       #--------------------------------------------------------------------------
 
       private def analyze_binary ( expr : Ast::BinaryOp ) : Ast::Expr
