@@ -13,7 +13,7 @@ module Volt
       # Expressions
       #--------------------------------------------------------------------------
 
-      private def gen_expr ( expr : Ast::Expr ) : String
+      private def gen_expr( expr : Ast::Expr ) : String
         case expr
         when Ast::IntLit    then expr.value.to_s
         when Ast::FloatLit  then f64_hex( expr.value )
@@ -30,16 +30,17 @@ module Volt
         when Ast::Call      then gen_call( expr )
         when Ast::PointerOf then gen_pointerof( expr )
         when Ast::Cast      then gen_cast( expr )
+        when Ast::Index     then gen_index( expr )
         else                     "0"
         end
       end
 
-      private def gen_str ( expr : Ast::StrLit ) : String
+      private def gen_str( expr : Ast::StrLit ) : String
         name, len = @emitter.intern( expr.value)
         "getelementptr inbounds ([#{len} x i8], [#{len} x i8]* #{name}, i32 0, i32 0)"
       end
 
-      private def gen_array ( expr : Ast::ArrayLit ) : String
+      private def gen_array( expr : Ast::ArrayLit ) : String
         n        = expr.elements.size
         elem_ty  = Types::Type.new( type_of( expr ).base ).llvm
         arr_ty   = "[#{n} x #{elem_ty}]"
@@ -58,14 +59,14 @@ module Volt
         ptr
       end
 
-      private def gen_varref ( expr : Ast::VarRef ) : String
+      private def gen_varref( expr : Ast::VarRef ) : String
         ty = type_of( expr ).llvm
         t  = new_temp
         emit "#{t} = load #{ty}, #{ty}* %s.#{expr.slot}"
         t
       end
 
-      private def gen_assign ( expr : Ast::Assign ) : String
+      private def gen_assign( expr : Ast::Assign ) : String
         v  = gen_expr( expr.value )
         ty = type_of( expr ).llvm
         ensure_alloca( expr.slot, ty)
@@ -73,7 +74,7 @@ module Volt
         v
       end
 
-      private def gen_binary ( expr : Ast::BinaryOp ) : String
+      private def gen_binary( expr : Ast::BinaryOp ) : String
         l       = gen_expr( expr.left )
         r       = gen_expr( expr.right )
         operand = type_of( expr.left )
@@ -83,7 +84,7 @@ module Volt
         t
       end
 
-      private def gen_unary ( expr : Ast::UnaryOp ) : String
+      private def gen_unary( expr : Ast::UnaryOp ) : String
         v  = gen_expr( expr.operand )
         ty = type_of( expr.operand )
         t  = new_temp
@@ -102,7 +103,7 @@ module Volt
         t
       end
 
-      private def gen_ternary ( expr : Ast::Ternary ) : String
+      private def gen_ternary( expr : Ast::Ternary ) : String
         ty   = type_of( expr ).llvm
         slot = "tern.#{next_seq}"
         ensure_alloca( slot, ty )
@@ -130,7 +131,7 @@ module Volt
         res
       end
 
-      private def gen_call ( expr : Ast::Call ) : String
+      private def gen_call( expr : Ast::Call ) : String
         symbol, ret = resolve_symbol( expr.name )
         args = expr.args.map { |a| "#{type_of(a).llvm} #{gen_expr(a)}" }.join(", ")
         if ret.void?
@@ -143,7 +144,7 @@ module Volt
         end
       end
 
-      private def gen_pointerof ( expr : Ast::PointerOf ) : String
+      private def gen_pointerof( expr : Ast::PointerOf ) : String
         operand = expr.operand
         if operand.is_a?( Ast::VarRef )
           "%s.#{operand.slot}"
@@ -152,13 +153,28 @@ module Volt
         end
       end
 
-      private def gen_cast ( expr : Ast::Cast ) : String
+      private def gen_cast( expr : Ast::Cast ) : String
         v    = gen_expr( expr.operand)
         from = type_of( expr.operand ).llvm
         to   = type_of( expr ).llvm
         t    = new_temp
         emit "#{t} = sitofp #{from} #{v} to #{to}"
         t
+      end
+
+      private def gen_index( expr : Ast::Index ) : String
+        ptr      = gen_expr(expr.pointer)
+        idx      = gen_expr(expr.index)
+        ptr_type = type_of(expr.pointer)
+        elem_ty  = type_of(expr).llvm
+        idx_ty   = type_of(expr.index).llvm
+
+        ptr_temp = new_temp
+        emit "#{ptr_temp} = getelementptr inbounds #{elem_ty}, #{ptr_type.llvm} #{ptr}, #{idx_ty} #{idx}"
+
+        val_temp = new_temp
+        emit "#{val_temp} = load #{elem_ty}, #{elem_ty}* #{ptr_temp}"
+        val_temp
       end
 
       #--------------------------------------------------------------------------

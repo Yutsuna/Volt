@@ -4,6 +4,7 @@ require "./Rules/**"
 module Volt
   module Sema
 
+
     class FSema
 
       #--------------------------------------------------------------------------
@@ -32,6 +33,7 @@ module Volt
       end
 
     end
+
 
   end
 end

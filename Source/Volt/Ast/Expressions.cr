@@ -102,5 +102,15 @@ module Volt
     end
 
 
+    class Index < Expr
+
+      property pointer : Expr
+      property index : Expr
+
+      def initialize ( @pointer : Expr, @index : Expr )
+      end
+
+    end
+
   end
 end

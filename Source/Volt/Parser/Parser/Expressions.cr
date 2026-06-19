@@ -55,6 +55,16 @@ module Volt
       end
 
       private def parse_primary : Ast::Expr
+        expr = parse_primary_base
+        while accept(Lexer::EToken::LBracket)
+          index_expr = parse_expression
+          expect(Lexer::EToken::RBracket)
+          expr = Ast::Index.new(expr, index_expr)
+        end
+        expr
+      end
+
+      private def parse_primary_base : Ast::Expr
         t = peek
         case t.kind
         when Lexer::EToken::Integer

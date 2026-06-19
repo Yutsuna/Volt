@@ -45,15 +45,15 @@ module Volt
       end
 
       def with_function( def_node : Ast::Def, & )
-        old_func : Ast::Def? = @current_function
-        old_term : Bool = @terminated
+        old_func = @current_function
+        old_term = @terminated
 
         @current_function = def_node
         @terminated = false
         yield
       ensure
         @current_function = old_func
-        @terminated = old_term
+        @terminated = old_term unless old_term.nil?
       end
 
     end
