@@ -15,22 +15,21 @@ module Volt
 
       #--------------------------------------------------------------------------
 
-      # Produce LLVM IR text, or nil if an earlier stage failed.
       def emit_ir : String?
         source  = File.read @source_path
         FLog.command "Lexing #{@source_path}..."
         tokens  = Lexer::FLexer.new( source, @reporter ).scan
-        FLog.command_done "\t#{tokens.size} tokens."
+        FLog.command_done "    #{tokens.size} tokens."
         return nil if @reporter.had_error?
 
         FLog.command "Parsing #{@source_path}..."
         program = Parser::FParser.new( tokens, @reporter ).parse
         return nil if @reporter.had_error?
-        FLog.command_done "\t#{program.top_level.size} top-level declarations."
+        FLog.command_done "   #{program.top_level.size} top-level declarations."
 
         FLog.command "Semantic #{@source_path}..."
         Sema::FSema.new( program, @reporter ).analyze
-        FLog.command_done "\t#{program.top_level.size} top-level declarations."
+        FLog.command_done "  #{program.top_level.size} top-level declarations."
         return nil if @reporter.had_error?
 
         ir = Codegen::FCodegen.new( program, @reporter ).generate

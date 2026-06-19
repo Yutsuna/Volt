@@ -119,8 +119,12 @@ module Volt
         end
       end
 
-      private def f64_hex ( value : Float64 ) : String
-        bits = value.unsafe_as(UInt64)
+      private def f64_hex ( value : Float64, type : Types::Type? = nil ) : String
+        if type && type.base == Types::EType::Float32
+          bits = value.to_f32.to_f64.unsafe_as( UInt64 )
+        else
+          bits = value.unsafe_as( UInt64 )
+        end
         "0x%016X" % bits
       end
 

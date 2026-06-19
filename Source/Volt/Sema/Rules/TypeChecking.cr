@@ -56,9 +56,16 @@ module Volt
 
       private def promote_operands ( expr : Ast::BinaryOp, lt : Types::Type, rt : Types::Type ) : Types::Type
         return lt unless lt.float? || rt.float?
-        ftype = lt.float? ? lt : rt
-        expr.left  = wrap_cast( expr.left, ftype )  unless lt.float?
-        expr.right = wrap_cast( expr.right, ftype ) unless rt.float?
+
+        if lt.float? && rt.float?
+          ftype = (lt.base == Types::EType::Float64 || rt.base == Types::EType::Float64) ?
+                    Types::Type.new(Types::EType::Float64) : lt
+        else
+          ftype = lt.float? ? lt : rt
+        end
+
+        expr.left  = wrap_cast( expr.left, ftype )  unless lt == ftype
+        expr.right = wrap_cast( expr.right, ftype ) unless rt == ftype
         ftype
       end
 

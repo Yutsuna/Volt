@@ -24,13 +24,17 @@ module Volt
 
         if Process.find_executable MOLD
           cpu_count = System.cpu_count
-          FLog.info("Linking with mold with #{cpu_count} threads...")
+          FLog.command "Linking with mold with #{cpu_count} threads..."
           cc_args << "-fuse-ld=mold"
           cc_args << "-Wl,--thread-count=#{System.cpu_count}"
         end
 
-        return false unless run( CC, cc_args )
+        if !run( CC, cc_args )
+          FLog.command_done " failed."
+          return false
+        end
 
+        FLog.command_done " done."
         File.delete? obj_path
         true
       end

@@ -28,8 +28,8 @@ module Volt
         expr.value = analyze_expr( expr.value )
         vtype = expr.declared_type || type_of( expr.value )
 
-        if existing = @context.current_scope.lookup( expr.name )
-          check_assignment_types( existing[ 1 ], vtype, expr.line, expr.col )
+        if decl_type = expr.declared_type
+          check_assignment_types( decl_type, type_of( expr.value ), expr.line, expr.col )
         end
 
         expr.slot = @context.current_scope.assign( expr.name, vtype )

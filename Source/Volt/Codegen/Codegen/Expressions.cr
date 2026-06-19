@@ -16,7 +16,7 @@ module Volt
       private def gen_expr( expr : Ast::Expr ) : String
         case expr
         when Ast::IntLit    then expr.value.to_s
-        when Ast::FloatLit  then f64_hex( expr.value )
+        when Ast::FloatLit  then f64_hex( expr.value, type_of( expr ) )
         when Ast::BoolLit   then expr.value ? "true" : "false"
         when Ast::CharLit   then expr.value.to_s
         when Ast::StrLit    then gen_str( expr )
@@ -55,6 +55,7 @@ module Volt
           emit "store #{elem_ty} #{v}, #{elem_ty}* #{p}"
         end
 
+        # Stocker le terminateur nul (nil) à l'index n
         p = new_temp
         zero = zero_value( base_ty )
         emit "#{p} = getelementptr inbounds #{arr_ty}, #{arr_ty}* %s.#{slot}, i64 0, i64 #{n}"
@@ -160,11 +161,26 @@ module Volt
       end
 
       private def gen_cast( expr : Ast::Cast ) : String
-        v    = gen_expr( expr.operand)
-        from = type_of( expr.operand ).llvm
-        to   = type_of( expr ).llvm
-        t    = new_temp
-        emit "#{t} = sitofp #{from} #{v} to #{to}"
+        v         = gen_expr( expr.operand )
+        from_type = type_of( expr.operand )
+        to_type   = type_of( expr )
+        from      = from_type.llvm
+        to        = to_type.llvm
+        t         = new_temp
+
+        if from_type.integer? && to_type.float?
+          emit "#{t} = sitofp #{from} #{v} to #{to}"
+        elsif from_type.float? && to_type.float?
+          if from_type.base == Types::EType::Float32 && to_type.base == Types::EType::Float64
+            emit "#{t} = fpext #{from} #{v} to #{to}"
+          elsif from_type.base == Types::EType::Float64 && to_type.base == Types::EType::Float32
+            emit "#{t} = fptrunc #{from} #{v} to #{to}"
+          else
+            return v
+          end
+        else
+          emit "#{t} = sitofp #{from} #{v} to #{to}"
+        end
         t
       end
 
