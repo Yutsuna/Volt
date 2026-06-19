@@ -18,16 +18,18 @@ module Volt
     extend self
 
     @@verbose = false
+    @@in_progress = false
 
     #--------------------------------------------------------------------------
 
-    def verbose ( value : Bool ) : Nil
+    def verbose( value : Bool ) : Nil
       @@verbose = value
     end
 
     #--------------------------------------------------------------------------
 
-    def log ( message : String, prefix : String = "Volt", color : String = EAnsiColor::CYAN) : Nil
+    def log( message : String, prefix : String, color : String ) : Nil
+      clear_line
       tag = "#{color}#{EAnsiColor::BOLD}[#{prefix}]#{EAnsiColor::RESET}"
       STDOUT.puts "#{tag} #{message}"
       STDOUT.flush
@@ -35,40 +37,54 @@ module Volt
 
     #--------------------------------------------------------------------------
 
-    def ok ( message    : String ) : Nil
-      nil unless @@verbose
-      log message, "  OK  ",    EAnsiColor::GREEN
-    end
-
-    def warn ( message  : String ) : Nil
-      log message, "  WARN  ",  EAnsiColor::YELLOW
-    end
-
-    def error ( message : String ) : Nil
-      log message, "  ERR  ",   EAnsiColor::RED
-    end
-
-    def step ( message  : String ) : Nil
-      nil unless @@verbose
-      log message, "  >>  ",    EAnsiColor::BLUE
-    end
-
-    def info ( message  : String ) : Nil
-      nil unless @@verbose
-      STDOUT.puts( "#{EAnsiColor::GREY}#{message}#{EAnsiColor::RESET}" )
+    def command( message : String ) : Nil
+      return unless @@verbose
+      clear_line
+      print "#{EAnsiColor::GREY}#{message.ljust( 30, '.' )}#{EAnsiColor::RESET}"
       STDOUT.flush
+      @@in_progress = true
     end
 
-    def command ( message : String ) : Nil
-      nil unless @@verbose
-      STDOUT.print( "\r#{EAnsiColor::GREY}#{message}#{EAnsiColor::RESET}" )
-      STDOUT.flush
+    def command_done( result : String = "done" ) : Nil
+      return unless @@verbose
+      if @@in_progress
+        puts " #{EAnsiColor::GREEN}#{result}#{EAnsiColor::RESET}"
+        @@in_progress = false
+      end
     end
 
-    def command_done ( message : String ) : Nil
-      nil unless @@verbose
-      STDOUT.puts( "#{EAnsiColor::GREY}#{message}#{EAnsiColor::RESET}" )
-      STDOUT.flush
+    #--------------------------------------------------------------------------
+
+    def ok( msg )
+      return unless @@verbose
+      log msg, "  OK  ", EAnsiColor::GREEN
+    end
+
+    def error( msg )
+      log msg, " ERR  ", EAnsiColor::RED
+    end
+
+    def warn( msg )
+      log msg, " WARN ", EAnsiColor::YELLOW
+    end
+
+    def step( msg )
+      return unless @@verbose
+      log msg, " >>   ", EAnsiColor::BLUE
+    end
+
+    def info( msg )
+      return unless @@verbose
+      log msg, " INFO ", EAnsiColor::CYAN
+    end
+
+    #--------------------------------------------------------------------------
+
+    private def clear_line
+      if @@in_progress
+        print "\r\e[K"
+        @@in_progress = false
+      end
     end
 
     #--------------------------------------------------------------------------
