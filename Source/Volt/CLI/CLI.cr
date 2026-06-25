@@ -14,10 +14,10 @@ module Volt::CLI
 
       if command_class
         command_class.new.execute( args )
-        return EXIT_SUCCESS
-      else
-        return EXIT_ERROR
+        EXIT_SUCCESS
       end
+
+      EXIT_ERROR
 
       ensure
       Logger.stop
