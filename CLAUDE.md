@@ -1,0 +1,224 @@
+# Volt — Language Design Assistant
+
+## Context
+
+You are helping design and implement **Volt**, a new high-level scripted/compiled programming language. Your role is to maintain consistency across all language decisions, propose syntax, write spec sections, and help prototype the compiler/interpreter.
+
+---
+
+## What Volt is
+
+Volt is a high-level, fully object-oriented language with the following properties:
+
+- **Scripted by default**, with optional native compilation (via LLVM) and WASM target
+- **Syntax inspired by Ruby and Crystal** — expressive, readable, English-like
+- **Gradually typed** — type inference by default, explicit annotations optional
+- **Frontend-capable** — JSX-like syntax for UI components, targets Web via WASM
+- **Shell-first stdlib** — a fully typed OOP API for filesystem and process manipulation
+
+---
+
+## Core syntax rules
+
+### Variables — no keyword required
+```volt
+message = "Hello World"   # inferred String
+age : Int = 28            # explicit type annotation
+```
+
+### Functions — `def`, return type with `->`
+```volt
+def add(a : Int, b : Int) -> Int
+  a + b
+end
+
+def greet(name : String) -> Void
+  Console.write_line("Hello, #{name}")
+end
+```
+
+### Blocks, lambdas, and chaining — Ruby/Crystal style
+```volt
+numbers.map { |it| it * 2 }.select { |it| it > 5 }.to_s
+
+double = { |x| x * 2 }
+```
+
+### Boolean operators — aliased, English-first
+| Symbol | Alias |
+|--------|-------|
+| `&&`   | `and` |
+| `\|\|`  | `or`  |
+| `!`    | `not` |
+
+```volt
+if logged_in and not banned
+  allow_access
+end
+
+name = user?.profile?.name or "Guest"
+```
+
+### Classes, mixins, generics
+```volt
+mixin Printable
+  def to_s -> String
+    "(Printable)"
+  end
+end
+
+class Box[T] include Printable
+  value : T
+
+  def init(value : T)
+    self.value = value
+  end
+
+  def map[U](block : T -> U) -> Box[U]
+    Box.new(block(value))
+  end
+end
+```
+
+### Pattern matching
+```volt
+match response.status
+  when 200 then response.body
+  when 404 then raise NotFound
+  when 500..599 then raise ServerError
+  else raise UnknownError
+end
+```
+
+### Pipe operator
+```volt
+result = raw_text
+  |> strip
+  |> downcase
+  |> split(",")
+  |> map { |s| s.trim }
+```
+
+### Async / await
+```volt
+async def fetch_user(id : Int) -> User
+  data = await http.get("/users/#{id}")
+  User.from_json(data)
+end
+```
+
+### FFI — External bindings
+```volt
+@[External("libc")]
+def puts(str : String) -> Void
+
+@[External]
+def strlen(s : String) -> Int
+```
+
+### Compile-time annotations
+```volt
+@[Inline]
+def fast_sum(a : Int, b : Int) -> Int
+  a + b
+end
+
+@[Export("volt_add")]
+def add(a : Int32, b : Int32) -> Int32
+  a + b
+end
+```
+
+### CLI
+```sh
+volt run script.volt          # scripted mode
+volt build main.volt -o app   # native binary
+volt build --target wasm      # WebAssembly
+```
+
+---
+
+## Frontend — UI components
+
+Components are declared with `component`, not `class` or `def`, so the compiler can treat them distinctly from pure functions.
+
+```volt
+component UserCard(user : User)
+  label = user.admin? ? "Admin" : "Member"
+
+  return <div class="card">
+    <h2>{ user.name }</h2>
+    <span class="badge">{ label }</span>
+    <button on:click={ logout }>Sign out</button>
+  </div>
+end
+
+# Fragment shorthand
+component Layout()
+  return <>
+    <Header title="Home" />
+    <Main />
+  </>
+end
+```
+
+Async components:
+```volt
+async component UserCard(id : Int)
+  user = await fetch_user(id)
+  return <div>{ user.name }</div>
+end
+```
+
+---
+
+## Shell OOP API — `System::Shell`
+
+The shell stdlib exposes filesystem, process, and IO as fully typed, chainable objects.
+
+```volt
+use System::Shell
+
+# Directory traversal
+Directory.current
+  .files(recursive: true)
+  .filter { |file| file.extension == "log" and file.size > 10.megabytes }
+  .each { |file|
+    destination = Directory.home / "archives" / file.name
+    file.move_to(destination)
+    Console.write_line("Archived: #{file.name} (#{file.size.to_human_string})")
+  }
+
+# Glob
+Path.glob("**/*.tmp").each(&:delete)
+
+# Process
+pid = Proc.spawn("git status")
+pid.wait.stdout.lines.first
+
+# Shell pipe
+out = Shell.pipe(
+  "find . -name '*.volt'",
+  "xargs wc -l"
+)
+```
+
+**Design goals vs PowerShell:**
+- Return types are guaranteed at compile time — no implicit string coercion
+- Every object in the pipeline is strongly typed and IDE-completable
+- Chainable API reduces token count for AI-driven code traversal
+
+---
+
+## What to keep consistent
+
+When proposing new syntax or APIs, always:
+
+1. Prefer English readability over symbol density
+2. Use `def` for all functions — never `fn`, `func`, or `function`
+3. Use `->` for return types, `:` for parameter types
+4. Use `end` to close all blocks — never `}`  except inline lambdas `{ |x| ... }`
+5. Prefer method chaining over nested calls
+6. Keep annotations in `@[AnnotationName]` form
+7. No `let`, `var`, or `val` — plain assignment always
+8. `and`, `or`, `not` preferred over `&&`, `||`, `!` in prose code

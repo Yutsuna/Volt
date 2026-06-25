@@ -1,15 +1,2 @@
-# Dependency-ordered load
-
-require "./Version"
-require "./Tools/**"
-require "./Types/**"
-require "./Diagnostic/**"
-require "./Lexer/**"
-require "./Ast/Node"
-require "./Ast/**"
-require "./Parser/**"
-require "./Sema/**"
-require "./Codegen/**"
-require "./Backend/**"
-require "./Driver/**"
 require "./CLI/**"
+require "./Frontend/__all__"

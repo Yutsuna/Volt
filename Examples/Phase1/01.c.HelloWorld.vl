@@ -1,4 +1,0 @@
-@[Extern]
-def puts( str : UInt8* ) : Int32
-
-puts "Hello, World!"
