@@ -129,7 +129,7 @@ module Volt::Frontend
     #------------------------------------------------------------------------------------
 
 
-    private def parse_func_decl( annots : Array( Annotation ), is_async : Bool ) : Decl
+    private def parse_func_decl( annots : Array( Annotation ), is_async : Bool ) : ADecl
       loc = @current.span
       advance   # consume `def`
       name = expect( TokenKind::Ident ).value
