@@ -1,3 +1,13 @@
 require "./Volt/__all__"
 
-exit Volt::CLI.run
+
+module Volt
+
+
+  VERSION = "0.1.0"
+
+
+  exit CLI.run
+
+
+end
