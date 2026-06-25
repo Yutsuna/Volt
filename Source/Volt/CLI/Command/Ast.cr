@@ -9,28 +9,33 @@ module Volt::CLI
     property output : String?
     property format : String = "json"
     property simplify : Bool = false
-    property color : Bool = false
+    property no_color : Bool = false
     property no_location : Bool = false
 
     def execute(args : Array(String))
       parse args
-      fatal! "Missing input parsing option (-i)" unless @input
+      fatal! "Missing input file" unless @input
 
-      Logger.info("Starting lexer stage token checks", "ast")
+      input_path = @input.not_nil!
+      source = begin
+        File.read(input_path)
+      rescue e
+        fatal! "Cannot read '#{input_path}': #{e.message}"
+      end
 
-      Logger.progress("Scanning tokens from grammar inputs...", "1/3")
-      sleep 0.1.seconds
+      Frontend::ASTDump.show_loc = !@no_location
+      Frontend::ASTDump.color    = !@no_color && (@output.nil? && STDOUT.tty?)
 
-      Logger.progress("Assembling structural parsing tree branch logic...", "2/3")
-      sleep 0.15.seconds
+      program = begin
+        Frontend.parse(source, input_path)
+      rescue e : Frontend::ParseError
+        fatal! e.message || "parse error"
+      end
 
       if target_out = @output
-        Logger.progress("Exporting structured parsing database to: #{target_out}", "3/3", finished: true)
+        File.open(target_out, "w") { |f| program.inspect(f) }
       else
-        Logger.progress("Parsing nodes finished validation", "3/3", finished: true)
-        puts "\nRootNode"
-        puts "└── FunctionNode (main)"
-        puts "    └── ReturnNode (value: 0)"
+        program.inspect(STDOUT)
       end
     end
 
@@ -42,7 +47,7 @@ module Volt::CLI
         p.on("-o OUTPUT", "--output OUTPUT", "Output target path structure") { |v| @output = v }
         p.on("--format FORMAT", "Serialization formats (json|dot|text)") { |v| @format = v }
         p.on("--simplify", "Deduplicate structural tree layout elements") { @simplify = true }
-        p.on("--color", "Output tree layout using shell graphics colors") { @color = true }
+        p.on("--no-color", "Output without colors") { @no_color = true }
         p.on("--no-location", "Omit character and index coordinates") { @no_location = true }
         p.on("-h", "--help", "Show help") { puts p; next }
         p.invalid_option { |flag| fatal! "Invalid option: #{flag}\n#{p}" }
