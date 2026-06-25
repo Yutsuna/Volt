@@ -1,0 +1,13 @@
+circuit "Project"
+{
+    runtime "0.1.0"
+
+    modules(
+        "Core"      =>  "Source/Core"
+        "Models"    =>  "Source/Models"
+        "Network"   =>  "Source/Lib/Network"
+    )
+
+    battery "json"  ,   version:    "1.0.0"
+    battery "json"  ,   version:    "1.0.0"
+}

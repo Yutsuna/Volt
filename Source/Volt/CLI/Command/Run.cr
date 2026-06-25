@@ -11,6 +11,7 @@ module Volt::CLI
     property program_args = [] of String
 
     def execute(args : Array(String))
+      puts args
     end
   end
 

@@ -4,7 +4,20 @@
 
 You are helping design and implement **Volt**, a new high-level scripted/compiled programming language. Your role is to maintain consistency across all language decisions, propose syntax, write spec sections, and help prototype the compiler/interpreter.
 
+
 ---
+
+## Build & Test Commands
+
+To compile, run, or test the project, you **must** use `krystal` instead of `crystal`.
+
+- Compile and run: `krystal -x`
+- Compile release mode: `krystal -r`
+- Compile and run tests (specs): `krystal -s`
+- See all options: `krystal --help`
+
+---
+
 
 ## What Volt is
 
@@ -134,7 +147,34 @@ end
 volt run script.volt          # scripted mode
 volt build main.volt -o app   # native binary
 volt build --target wasm      # WebAssembly
+volt circuit                  # auto-resolve modules and sync with Project.vl
 ```
+
+---
+
+## Project Configuration (`Project.vl`) & `volt circuit`
+
+The `Project.vl` is a compilable Volt file acting as the project manifest, defining architecture, modules, and external dependencies.
+
+### Example `Project.vl`
+```volt
+circuit "MyApp"
+{
+    runtime "0.1.0"
+    modules(
+        "Core"    => "Source/Core"
+        "Models"  => "Source/Models"
+        "Network" => "Source/Lib/Network"
+    )
+    battery "json", version: "1.0.0"
+}
+```
+
+### `volt circuit` Command
+The `volt circuit` command automates project maintenance and module mapping:
+- **Auto-resolution:** Scans the file tree under `Source/`, detects new directories, and updates the `modules(...)` mapping in `Project.vl`.
+- **Preservation:** Intelligently preserves custom configurations and dependencies (`battery` declarations).
+- **Usage:** Run `volt circuit` to sync logical namespace mappings without manual editing.
 
 ---
 
@@ -222,3 +262,30 @@ When proposing new syntax or APIs, always:
 6. Keep annotations in `@[AnnotationName]` form
 7. No `let`, `var`, or `val` — plain assignment always
 8. `and`, `or`, `not` preferred over `&&`, `||`, `!` in prose code
+
+---
+
+## Crystal Coding Standards
+
+For the Crystal codebase of this project, we follow these specific style and coding rules:
+
+### Spacing & Formatting
+* **Module Declarations**: Leave exactly 2 blank lines after a module declaration.
+* **Class Declarations**: Leave exactly 2 blank lines between each class.
+* **Parentheses & Brackets**: Put spaces inside parentheses and brackets for function definitions, parameters, and array/hash access.
+  ```crystal
+  def my_function( param : String, param2 : Int ) : ReturnValue
+    param[ param2 ] = param2
+  end
+  ```
+
+### Naming Conventions
+* **Abstract Classes**: All abstract class names must start with the capital letter `A`.
+  ```crystal
+  abstract class AHuman
+    property name
+  end
+
+  class Alice < AHuman
+  end
+  ```
