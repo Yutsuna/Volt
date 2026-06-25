@@ -17,11 +17,19 @@ module Volt::CLI
         EXIT_SUCCESS
       end
 
+    rescue ex : SystemExit
       EXIT_ERROR
 
-      ensure
+    rescue ex : Exception
+      Logger.error( "#{ex.message}" )
+      Logger.error( ex.backtrace.join( "\n" ) )
+      EXIT_ERROR
+
+    ensure
       Logger.stop
     end
+
+    EXIT_ERROR
   end
 
 

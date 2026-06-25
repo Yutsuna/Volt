@@ -7,8 +7,8 @@ module Volt::CLI
     register "help", "Display the usage"
 
     def execute(args : Array(String))
-      puts( "Volt Language" ).colorize(:yellow).bold
-      puts( "Usage: volt <command> [options]" )
+      puts "Volt Language".colorize(:yellow).bold
+      puts "Usage: volt <command> [options]"
       max_len = ACommand.registry.keys.max_of(&.size)
       ACommand.registry.each do |name, cmd|
         printf "  %s  %s\n", name.ljust(max_len).colorize(:green), cmd.description

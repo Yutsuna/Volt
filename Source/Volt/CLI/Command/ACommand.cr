@@ -1,6 +1,12 @@
 module Volt::CLI
 
 
+  class SystemExit < Exception
+    def initialize
+    end
+  end
+
+
   abstract class ACommand
     @@registry = {} of String => ACommand.class
 
@@ -21,6 +27,12 @@ module Volt::CLI
      end
 
      abstract def execute(args : Array(String))
+
+     def fatal!( message : String ) : NoReturn
+       Logger.error message
+       raise SystemExit.new
+     end
+
   end
 
 
