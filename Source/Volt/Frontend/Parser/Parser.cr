@@ -1,6 +1,16 @@
 module Volt::Frontend
 
 
+  struct MacroDef
+    property name   : String
+    property params : Array( String )
+    property body   : Array( Token )
+
+    def initialize( @name, @params, @body )
+    end
+  end
+
+
   class Parser
 
     private class ParseRecovery < Exception
@@ -9,6 +19,9 @@ module Volt::Frontend
 
     getter bag : DiagnosticBag
 
+    @tokens_stream : Array( Token )? = nil
+    @token_index   : Int32 = 0
+
     def initialize( source : String, file : String = "<unknown>" )
       @lexer       = Lexer.new( source, file )
       @file        = file
@@ -16,6 +29,17 @@ module Volt::Frontend
       @peek        = @lexer.next_token
       @paren_depth = 0
       @bag         = DiagnosticBag.new
+      @macro_table = {} of String => MacroDef
+    end
+
+    def initialize( tokens : Array( Token ), @file : String, @bag : DiagnosticBag )
+      @lexer         = Lexer.new( "", @file )
+      @tokens_stream = tokens
+      @current       = tokens[ 0 ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, Span.new( @file, 1, 1, 0 ) )
+      @peek          = tokens[ 1 ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, Span.new( @file, 1, 1, 0 ) )
+      @token_index   = 2
+      @paren_depth   = 0
+      @macro_table   = {} of String => MacroDef
     end
 
 
@@ -28,9 +52,15 @@ module Volt::Frontend
     #------------------------------------------------------------------------------------
 
     private def advance : Token
-      tok      = @current
-      @current = @peek
-      @peek    = @lexer.next_token
+      tok = @current
+      if stream = @tokens_stream
+        @current = @peek
+        @peek = stream[ @token_index ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, tok.span )
+        @token_index += 1
+      else
+        @current = @peek
+        @peek    = @lexer.next_token
+      end
       tok
     end
 
