@@ -4,6 +4,8 @@
 
 You are helping design and implement **Volt**, a new high-level scripted/compiled programming language. Your role is to maintain consistency across all language decisions, propose syntax, write spec sections, and help prototype the compiler/interpreter.
 
+**Current Version:** v0.1.0 (Tier-0 MVP)
+**Status:** End-to-end execution path is live and working
 
 ---
 
@@ -15,6 +17,14 @@ To compile, run, or test the project, you **must** use `krystal` instead of `cry
 - Compile release mode: `krystal -r`
 - Compile and run tests (specs): `krystal -s`
 - See all options: `krystal --help`
+
+**CLI Commands (after building):**
+- `./bin/Volt run <file.volt>` — Interpret a Volt program
+- `./bin/Volt ast <file.volt>` — Dump abstract syntax tree
+- `./bin/Volt analyse <file.volt>` — Run semantic analysis
+- `./bin/Volt repl` — Start interactive REPL
+- `./bin/Volt version` — Show version
+- `./bin/Volt help` — Show all commands
 
 ---
 
@@ -152,7 +162,36 @@ volt circuit                  # auto-resolve modules and sync with Project.vl
 
 ---
 
-## Project Configuration (`Project.vl`) & `volt circuit`
+## Implementation Status (v0.1.0)
+
+### Fully Working
+All syntax examples in the following sections are implemented and tested:
+- Variables — no keyword required
+- Functions — `def`, return type with `->`
+- Blocks, lambdas, and chaining — Ruby/Crystal style
+- Boolean operators — aliased, English-first
+- Arithmetic operators: `+`, `-`, `*`, `/`, `%`
+- Comparison operators: `<`, `<=`, `>`, `>=`, `==`, `!=`
+- Unary operators: `-`, `!`
+- Control flow: `if`/`elsif`/`else`
+- Loops: `while`
+- Return statements
+- Native calls via `@[External]`
+
+### Partially Working
+- Control flow: `until` — implemented but less tested
+- Logical operators: `and`, `or`, `not` — working but `not` uses `!` internally
+
+### Not Yet Implemented
+- Classes, mixins, generics
+- Pattern matching (`match`/`when`)
+- Async / await
+- FFI — External bindings (only basic `@[External]` works)
+- Compile-time annotations (`@[Inline]`, `@[Export]`)
+- Pipe operator (`|>`)
+- Frontend — UI components
+- Project Configuration (`Project.vl`) & `volt circuit`
+- Shell OOP API — `System::Shell`
 
 The `Project.vl` is a compilable Volt file acting as the project manifest, defining architecture, modules, and external dependencies.
 
