@@ -83,6 +83,7 @@ name = user?.profile?.name or "Guest"
 ```
 
 ### Classes, mixins, generics
+
 ```volt
 mixin Printable
   def to_s -> String
@@ -93,15 +94,65 @@ end
 class Box[T] include Printable
   value : T
 
-  def init(value : T)
-    self.value = value
+  def initialize(@value : T)
   end
 
   def map[U](block : T -> U) -> Box[U]
-    Box.new(block(value))
+    Box.new(block(@value))
   end
 end
 ```
+
+```volt
+abstract class Animal
+  abstract def speak() -> String
+end
+
+class Dog < Animal
+  def speak() -> String
+    "Woof!"
+  end
+end
+```
+
+### Constructors and destructors
+
+Initialize is called at the object creation.
+Finalize is called at the object destruction (RAII)
+
+```volt
+class User
+
+  # STYLE 1: all parameters are instance variables, no need to repeat them
+  def initialize(@name : String, @email : String, @admin : Bool = false)
+  end
+  # END STYLE 1
+
+  # STYLE 2: parameters are not instance variables, must assign them
+  name : String
+  email : String
+  admin : Bool
+
+  def initialize(name : String, email : String, admin : Bool = false)
+    @name = name
+    @email = email
+    @admin = admin
+  end
+  # END STYLE 2
+
+  def finalize
+    # Called at destruction
+  end
+end
+
+user1 = User.new("Léo", "leo@beaugosse.com", false)
+user2 = User.new(name: "Léo", email: "leo@beaugosse.com", admin: false)
+```
+
+Volt doesnt have a garbage collector.
+Volt uses RAII (Resource Acquisition Is Initialization) and deterministic destruction.
+When an object goes out of scope, its `finalize` method is called automatically.
+Like in C++.
 
 ### Pattern matching
 ```volt
@@ -191,7 +242,7 @@ All syntax examples in the following sections are implemented and tested:
 - Pipe operator (`|>`)
 - Frontend — UI components
 - Project Configuration (`Project.vl`) & `volt circuit`
-- Shell OOP API — `System::Shell`
+- Shell OOP API — `System/Shell`
 
 The `Project.vl` is a compilable Volt file acting as the project manifest, defining architecture, modules, and external dependencies.
 
@@ -256,8 +307,6 @@ end
 The shell stdlib exposes filesystem, process, and IO as fully typed, chainable objects.
 
 ```volt
-use System::Shell
-
 # Directory traversal
 Directory.current
   .files(recursive: true)
