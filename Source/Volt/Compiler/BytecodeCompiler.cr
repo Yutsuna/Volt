@@ -174,7 +174,7 @@ module Volt::Compiler
         r = alloc
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
         r
-      when Frontend::Ident      then @scope[ expr.name ]
+      when Frontend::Ident      then compile_ident( expr )
       when Frontend::Assign     then compile_assign( expr )
       when Frontend::BinaryOp   then compile_binary( expr )
       when Frontend::UnaryOp    then compile_unary( expr )
@@ -212,6 +212,22 @@ module Volt::Compiler
       else
         @scope[ name ] = value_reg
         value_reg
+      end
+    end
+
+    private def compile_ident( expr : Frontend::Ident ) : Int32
+      if reg = @scope[ expr.name ]?
+        reg
+      elsif sig = @signatures[ expr.name ]?
+        base = alloc_block 1
+          if sig.extern
+            emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( expr.name ), 0 )
+          else
+            emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
+          end
+          base
+      else
+        raise "internal: unbound identifier #{expr.name}"
       end
     end
 
