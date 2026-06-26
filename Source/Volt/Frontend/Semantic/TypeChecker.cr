@@ -127,6 +127,7 @@ module Volt::Frontend
       unknown = lt.kind.unknown? || rt.kind.unknown?
 
       case expr.op
+
       when .plus?, .minus?, .star?, .slash?, .percent?,
            .amp_plus?, .amp_minus?, .amp_star?, .amp_star_star?,
            .slash_slash?
@@ -136,6 +137,7 @@ module Volt::Frontend
           return Type::UNKNOWN
         end
         lt
+
       when .star_star?
         return lt.numeric? ? lt : ( rt.numeric? ? rt : Type::UNKNOWN ) if unknown
         unless lt.numeric? && lt == rt
@@ -143,12 +145,14 @@ module Volt::Frontend
           return Type::UNKNOWN
         end
         lt
+
       when .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?
         return Type::BOOL if unknown
         unless lt.numeric? && lt == rt
           @bag << Catalog::Sema.comparison_numeric( lt.to_s, rt.to_s, expr.loc )
         end
         expr.op.spaceship? ? Type::INT : Type::BOOL
+
       when .eq_eq?, .bang_eq?, .eq_eq_eq?, .match_op?, .not_match_op?
         return Type::BOOL if unknown
         if expr.op.match_op? || expr.op.not_match_op?
@@ -157,10 +161,20 @@ module Volt::Frontend
           end
           return Type::BOOL
         end
+
+        if expr.op.eq_eq_eq? && lt.kind.regex? && rt.kind.str?
+          return Type::BOOL
+        end
+
+        if lt.numeric? && rt.numeric?
+          return Type::BOOL
+        end
+
         unless lt == rt
           @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
         end
         Type::BOOL
+
       when .and?, .or?, .amp?, .pipe?, .caret?, .lt_lt?, .gt_gt?
         if expr.op.amp? || expr.op.pipe? || expr.op.caret? || expr.op.lt_lt? || expr.op.gt_gt?
           unless lt.integer? && rt.integer?
@@ -177,23 +191,29 @@ module Volt::Frontend
 
     private def infer_unary( expr : UnaryOp, scope : Scope ) : Type
       ot = infer( expr.operand, scope )
+
       case expr.op
+
       when .minus?
         return ot if ot.kind.unknown?
         @bag << Catalog::Sema.unary_numeric( ot.to_s, expr.loc ) unless ot.numeric?
         ot
+
       when .tilde?
         return ot if ot.kind.unknown?
         unless ot.integer?
           @bag << Catalog::Sema.unary_numeric( ot.to_s, expr.loc )
         end
         ot
+
       when .bang?
         Type::BOOL
+
       else
         @bag << Catalog::Sema.unsupported_unary( expr.loc )
         Type::UNKNOWN
       end
+
     end
 
     private def infer_call( expr : Call, scope : Scope ) : Type
