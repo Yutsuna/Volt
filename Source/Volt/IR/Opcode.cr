@@ -52,6 +52,36 @@ module Volt::IR
     CALL          # A,B,C  : reg[A] = chunks[B]( reg[A+1 .. A+C] )
     CALL_NATIVE   # A,B,C  : reg[A] = native[B]( reg[A+1 .. A+C] )
     RET           # A      : return reg[A]
+
+    # --- bitwise ---
+    AND_INT       # A,B,C : reg[A] = reg[B] & reg[C]
+    OR_INT        # A,B,C : reg[A] = reg[B] | reg[C]
+    XOR_INT       # A,B,C : reg[A] = reg[B] ^ reg[C]
+    SHL_INT       # A,B,C : reg[A] = reg[B] << reg[C]
+    SHR_INT       # A,B,C : reg[A] = reg[B] >> reg[C]
+    NOT_INT       # A,B   : reg[A] = ~reg[B]
+
+    # --- integer division ---
+    IDIV_INT      # A,B,C : reg[A] = reg[B] // reg[C]
+
+    # --- power ---
+    POW_INT       # A,B,C : reg[A] = reg[B] ** reg[C]
+
+    # --- wrapping conversion ---
+    CONV_INT      # A,B   : reg[A] = sign_extend(reg[A], B bits)
+
+    # --- spaceship ---
+    CMP_INT       # A,B,C : reg[A] = (reg[B] <=> reg[C])
+
+    # --- regex match ---
+    MATCH_STR     # A,B,C : reg[A] = reg[B] =~ reg[C]
+    NOT_MATCH_STR # A,B,C : reg[A] = !(reg[B] =~ reg[C])
+
+    # --- triple equal ---
+    EQ_CASE       # A,B,C : reg[A] = reg[B] === reg[C]
+
+    # --- raise ---
+    RAISE         # A     : raise reg[A]
   end
 
 
