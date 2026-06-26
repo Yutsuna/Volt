@@ -1,0 +1,18 @@
+class User
+
+  name    : String
+  email   : String
+  admin   : Bool
+
+  def initialize( @name : String, @email : String, @admin : Bool = false )
+  end
+
+  def admin?
+    @admin
+  end
+
+  def inspect
+    "#{@name} <#{@email}>"
+  end
+
+end
