@@ -257,4 +257,13 @@ module Volt::Frontend
   end
 
 
+  class RegexLit < AExpr
+    property value : String
+
+    def initialize( @value : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
 end
