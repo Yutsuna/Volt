@@ -1,0 +1,8 @@
+component Counter( count : Int, on_increment : -> Void )
+
+  <div class="counter">
+    <button on:click={on_increment}>+1</button>
+    <span>Count: {count}</span>
+  </div>
+
+end
