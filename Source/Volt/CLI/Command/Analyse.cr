@@ -29,10 +29,9 @@ module Volt::CLI
 
       typed = begin
         Frontend.analyse(source, file)
-      rescue e : Frontend::ParseError
-        fatal! "#{file}:#{e.span.line}:#{e.span.column}: #{e.message}"
-      rescue e : Frontend::SemanticError
-        fatal! "#{file}:#{e.span.line}:#{e.span.column}: #{e.message}"
+      rescue e : Frontend::CompilationError
+        DiagnosticRenderer.new( { file => source } ).render( e.bag )
+        raise SystemExit.new
       end
 
       fn_count = typed.functions.size
