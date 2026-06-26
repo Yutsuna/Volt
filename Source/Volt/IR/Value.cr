@@ -47,8 +47,12 @@ module Volt::IR
     end
 
     def ==( other : Value ) : Bool
+      r1 = raw
+      r2 = other.raw
+      return r1 == r2 if r1.is_a?( Number ) && r2.is_a?( Number )
       raw == other.raw
     end
+
   end
 
 
