@@ -15,6 +15,24 @@ module Volt::Frontend
           advance
         end
 
+        if min_prec < Prec::Call && ( left.is_a?( Ident ) || left.is_a?( MethodCall ) ) && can_start_expr?( @current.kind )
+          if led_prec( @current.kind ) == Prec::None
+            args = parse_space_call_args
+            blk = if @current.kind.l_brace?
+              parse_brace_block
+            end
+
+            left = if left.is_a?( Ident )
+              Call.new( left, args, blk, left.loc )
+            else # MethodCall
+              left.args.concat( args )
+              left.block = blk if blk
+              left
+            end
+            next
+          end
+        end
+
         bp = led_prec( @current.kind )
         break if bp <= min_prec
         op   = advance
@@ -275,6 +293,30 @@ module Volt::Frontend
 
       sub_parser = Parser.new( expanded_tokens, @file, @bag )
 sub_parser.parse_expr
+    end
+
+    private def can_start_expr?( kind : TokenKind ) : Bool
+      case kind
+      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?,
+            .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?,
+            .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
+            .if?, .unless?, .match?, .while?, .until?, .await?,
+            .return?, .break?, .raise?
+        true
+      else
+        false
+      end
+    end
+
+    private def parse_space_call_args : Array( AExpr )
+      args = [] of AExpr
+      args << parse_expr( Prec::Assignment )
+      while @current.kind.comma?
+        advance
+        skip_newlines
+        args << parse_expr( Prec::Assignment )
+      end
+      args
     end
 
   end
