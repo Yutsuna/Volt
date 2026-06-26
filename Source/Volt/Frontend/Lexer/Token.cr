@@ -9,8 +9,9 @@ module Volt::Frontend
     property line   : UInt32
     property column : UInt32
     property length : UInt32
+    property offset : UInt32
 
-    def initialize( @file : String, @line : UInt32, @column : UInt32, @length : UInt32 )
+    def initialize( @file : String, @line : UInt32, @column : UInt32, @length : UInt32, @offset : UInt32 = 0_u32 )
     end
   end
 
