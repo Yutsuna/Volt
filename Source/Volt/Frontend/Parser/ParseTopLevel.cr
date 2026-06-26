@@ -8,7 +8,11 @@ module Volt::Frontend
       nodes = [] of ANode
       skip_separators
       until at_end?
-        nodes << parse_top_level_node
+        begin
+          nodes << parse_top_level_node
+        rescue ParseRecovery
+          synchronize
+        end
         skip_separators
       end
       Program.new( nodes, @file, loc )
@@ -26,7 +30,7 @@ module Volt::Frontend
         elsif @current.kind.component?
           parse_component_decl( annots, is_async: true )
         else
-          error!( "expected `def` or `component` after `async`", @current.span )
+          error!( Catalog::Parse.expected_after( "`def` or `component`", "async", @current ) )
         end
       when .class?
         parse_class_decl( annots )
@@ -87,7 +91,7 @@ module Volt::Frontend
 
         skip_separators
         body = parse_body
-        expect( TokenKind::End )
+        expect_close( TokenKind::End, loc, "`def`" )
 
         FuncDecl.new( name, type_params, params, return_type, body, annots, is_async, loc )
       end
@@ -106,7 +110,7 @@ module Volt::Frontend
 
         skip_separators
         body = parse_body
-        expect( TokenKind::End )
+        expect_close( TokenKind::End, loc, "`class`" )
 
         ClassDecl.new( name, type_params, mixins, body, annots, loc )
       end
@@ -117,7 +121,7 @@ module Volt::Frontend
         name = expect( TokenKind::Ident ).value
         skip_separators
         body = parse_body
-        expect( TokenKind::End )
+        expect_close( TokenKind::End, loc, "`mixin`" )
         MixinDecl.new( name, body, loc )
       end
 
@@ -128,7 +132,7 @@ module Volt::Frontend
         params = parse_param_list
         skip_separators
         body = parse_body
-        expect( TokenKind::End )
+        expect_close( TokenKind::End, loc, "`component`" )
         ComponentDecl.new( name, params, body, is_async, loc )
       end
 
