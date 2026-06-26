@@ -210,8 +210,9 @@ module Volt::Frontend
 
   class ClassDecl
     def dump(io : IO, prefix : String) : Nil
-      tp_s  = @type_params.empty? ? "" : ASTDump.key("[#{@type_params.join(", ")}]")
-      io << ASTDump.nd("ClassDecl") << " " << ASTDump.val("'#{@name}'") << tp_s << mix_s << ASTDump.loc(@loc) << "\n"
+      tp_s  = @type_params.empty? ? "" : ASTDump.key( "[#{@type_params.join(", ")}]" )
+      mix_s = @mixins.empty? ? "" : " " + ASTDump.key( "include" ) + " " + ASTDump.val( @mixins.join( ", " ) )
+      io << ASTDump.nd( "ClassDecl" ) << " " << ASTDump.val( "'#{@name}'" ) << tp_s << mix_s << ASTDump.loc( @loc ) << "\n"
 
       has_ann  = !@annotations.empty?
       has_body = !@body.empty?
@@ -433,6 +434,14 @@ module Volt::Frontend
       if eb = @else_b
         section(io, "else", eb, prefix, true)
       end
+    end
+  end
+
+  class WhileExpr
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("WhileExpr") << ASTDump.loc(@loc) << "\n"
+      field(io, "cond", @cond, prefix, false)
+      section(io, "body", @body, prefix, true)
     end
   end
 

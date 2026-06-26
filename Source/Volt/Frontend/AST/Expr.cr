@@ -246,4 +246,15 @@ module Volt::Frontend
   end
 
 
+  # while cond \n body \n end
+  class WhileExpr < AExpr
+    property cond : AExpr
+    property body : Array( ANode )
+
+    def initialize( @cond : AExpr, @body : Array( ANode ), loc : Span )
+      super( loc )
+    end
+  end
+
+
 end
