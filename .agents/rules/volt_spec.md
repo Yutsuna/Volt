@@ -272,7 +272,7 @@ The `volt circuit` command automates project maintenance and module mapping:
 
 Components are declared with `component`, not `class` or `def`, so the compiler can treat them distinctly from pure functions.
 
-```volt
+```vlx
 component UserCard(user : User)
   label = user.admin? ? "Admin" : "Member"
 
@@ -293,7 +293,7 @@ end
 ```
 
 Async components:
-```volt
+```vlx
 async component UserCard(id : Int)
   user = await fetch_user(id)
   return <div>{ user.name }</div>
@@ -377,3 +377,36 @@ For the Crystal codebase of this project, we follow these specific style and cod
   class Alice < AHuman
   end
   ```
+
+### JSX
+
+```vlx
+# IDEA: maybe translate the component JSX to:
+#
+# class Counter < Volt::JSX::Component
+#   property count        : Int32
+#   property on_increment : -> Void
+#
+#   def initialize( @count, @on_increment ); end
+#
+#   def render : Volt::JSX::HtmlNode
+#     Volt::JSX.element("div", { "class" => "counter" }, [
+#       Volt::JSX.element("button", { "on:click" => @on_increment }, [
+#         Volt::JSX.text("+1")
+#       ]),
+#       Volt::JSX.element("span", {}, [
+#         Volt::JSX.text("Count: "),
+#         Volt::JSX.text(@count.to_s)
+#       ])
+#    ])
+#   end
+
+component Counter( count : Int, on_increment : -> Void )
+
+  <div class="counter">
+    <button on:click={on_increment}>+1</button>
+    <span>Count: {count}</span>
+  </div>
+
+end
+```
