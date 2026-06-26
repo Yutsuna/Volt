@@ -12,8 +12,6 @@ module Volt::Frontend
   end
 
 
-  # Resolved type produced by the Semantic pass and attached to every AExpr.
-  # Primitives are shared singletons; `Func` carries its signature.
   class Type
     property kind   : TypeKind
     property params : Array( Type )
@@ -58,7 +56,6 @@ module Volt::Frontend
       end
     end
 
-    # Maps a written annotation (SimpleType) to a resolved primitive Type.
     def self.from_annotation( node : ATypeNode ) : Type?
       return nil unless node.is_a?( SimpleType )
       case node.name
@@ -66,7 +63,7 @@ module Volt::Frontend
       when "Float", "Float32", "Float64"   then FLOAT
       when "Bool"                          then BOOL
       when "String"                        then STR
-      when "Nil"                           then NIL
+      when "Nil", "Void"                   then NIL
       else                                      nil
       end
     end
