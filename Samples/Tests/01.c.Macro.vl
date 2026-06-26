@@ -1,0 +1,22 @@
+@[External("libc")]
+def print(val : String) -> Void
+end
+
+@[External("libc")]
+def puts(val : String) -> Void
+end
+
+
+macro log_info(expression)
+  print("[INFO] ")
+  print(__FILE__)
+  print(" (line ")
+  print(__LINE__)
+  print(") : expression is: ")
+  puts({{expression}})
+end
+
+score = 42
+log_info("foo")
+
+log_info("bar")
