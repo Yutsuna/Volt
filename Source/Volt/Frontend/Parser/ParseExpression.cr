@@ -3,7 +3,7 @@ module Volt::Frontend
 
   class Parser
 
-    private def parse_expr( min_prec : Prec = Prec::None ) : AExpr
+    def parse_expr( min_prec : Prec = Prec::None ) : AExpr
       skip_newlines if @paren_depth > 0
       left = nud( advance )
       loop do
@@ -26,9 +26,27 @@ module Volt::Frontend
     private def nud( tok : Token ) : AExpr
       case tok.kind
       when .int?
-        IntLit.new( tok.value.to_i64, tok.span )
+        val_str = tok.value
+        suffix = nil
+        if idx = val_str.index( /_[iu]/ )
+          suffix = val_str[ idx..-1 ]
+          val_str = val_str[ 0...idx ]
+        end
+        clean_str = val_str.delete( '_' )
+        node = IntLit.new( clean_str.to_i64, tok.span )
+        node.resolved_type = case suffix
+                             when "_i8"  then Type::INT8
+                             when "_i16" then Type::INT16
+                             when "_i32" then Type::INT32
+                             else             Type::INT
+                             end
+        node
       when .float?
-        FloatLit.new( tok.value.to_f64, tok.span )
+        val_str = tok.value
+        clean_str = val_str.delete( '_' )
+        node = FloatLit.new( clean_str.to_f64, tok.span )
+        node.resolved_type = Type::FLOAT
+        node
       when .string?
         StringLit.new( strip_quotes( tok ), tok.span )
       when .true?
@@ -133,6 +151,9 @@ module Volt::Frontend
         expect( TokenKind::Dot )
         parse_dot_call( left, safe: true )
       when .l_paren?
+        if left.is_a?( Ident ) && ( macro_def = @macro_table[ left.name ]? )
+          return expand_macro( macro_def, op )
+        end
         parse_call_with_open_paren( left, op )
       when .l_brace?
         blk = parse_brace_block( op )
@@ -186,6 +207,74 @@ module Volt::Frontend
       when .l_paren?, .l_bracket?, .l_brace?    then Prec::Call
       else                                        Prec::None
       end
+    end
+
+    private def collect_macro_args : Array( Array( Token ) )
+      args = [] of Array( Token )
+      current_arg = [] of Token
+      depth = 1
+
+      until at_end?
+        tok = @current
+        if tok.kind.l_paren? || tok.kind.l_bracket? || tok.kind.l_brace?
+          depth += 1
+          current_arg << advance
+        elsif tok.kind.r_paren? || tok.kind.r_bracket? || tok.kind.r_brace?
+          depth -= 1
+          if depth == 0
+            advance   # consume closing RParen
+            args << current_arg unless current_arg.empty? && args.empty?
+            break
+          else
+            current_arg << advance
+          end
+        elsif tok.kind.comma? && depth == 1
+          advance   # consume comma
+          args << current_arg
+          current_arg = [] of Token
+        else
+          current_arg << advance
+        end
+      end
+      args
+    end
+
+    private def expand_macro( macro_def : MacroDef, open_paren : Token ) : AExpr
+      args_tokens = collect_macro_args
+      param_to_arg = {} of String => Array( Token )
+      macro_def.params.each_with_index do |param_name, idx|
+        param_to_arg[ param_name ] = args_tokens[ idx ]? || [] of Token
+      end
+
+      expanded_tokens = [] of Token
+      i = 0
+      body = macro_def.body
+
+      while i < body.size
+        tok = body[ i ]
+        if tok.kind.l_double_brace? && i + 2 < body.size && body[ i + 1 ].kind.ident? && body[ i + 2 ].kind.r_double_brace?
+          param_tok = body[ i + 1 ]
+          if arg_toks = param_to_arg[ param_tok.value ]?
+            expanded_tokens.concat( arg_toks )
+          end
+          i += 3
+        else
+          if tok.kind.dunder_file?
+            expanded_tokens << Token.new( TokenKind::String, open_paren.ptr, open_paren.len, open_paren.span )
+          elsif tok.kind.dunder_line?
+            expanded_tokens << Token.new( TokenKind::Int, open_paren.ptr, open_paren.len, open_paren.span )
+          else
+            expanded_tokens << tok
+          end
+          i += 1
+        end
+      end
+
+      eof_span = open_paren.span
+      expanded_tokens << Token.new( TokenKind::Eof, open_paren.ptr, 0, eof_span )
+
+      sub_parser = Parser.new( expanded_tokens, @file, @bag )
+sub_parser.parse_expr
     end
 
   end
