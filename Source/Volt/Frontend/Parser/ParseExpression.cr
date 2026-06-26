@@ -72,7 +72,7 @@ module Volt::Frontend
       when .raise?
         RaiseExpr.new( parse_expr( Prec::Unary ), tok.span )
       else
-        error!( "unexpected token `#{tok.value}` in expression", tok.span )
+        error!( Catalog::Parse.unexpected_expr( tok ) )
       end
     end
 
@@ -124,7 +124,7 @@ module Volt::Frontend
         rhs = parse_expr( Prec::None )
         Assign.new( left, ty, rhs, left.loc )
       else
-        error!( "unexpected infix operator `#{op.value}`", op.span )
+        error!( Catalog::Parse.unexpected_infix( op ) )
       end
     end
 

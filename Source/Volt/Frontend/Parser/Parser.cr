@@ -3,17 +3,26 @@ module Volt::Frontend
 
   class Parser
 
+    private class ParseRecovery < Exception
+    end
+
+
+    getter bag : DiagnosticBag
+
     def initialize( source : String, file : String = "<unknown>" )
       @lexer       = Lexer.new( source, file )
       @file        = file
       @current     = @lexer.next_token
       @peek        = @lexer.next_token
       @paren_depth = 0
+      @bag         = DiagnosticBag.new
     end
 
 
     def parse : Program
-      parse_program
+      program = parse_program
+      raise CompilationError.new( @bag ) if @bag.errors?
+      program
     end
 
     #------------------------------------------------------------------------------------
@@ -33,7 +42,15 @@ module Volt::Frontend
     private def expect( kind : TokenKind ) : Token
       skip_newlines if @paren_depth > 0
       unless @current.kind == kind
-        error!( "expected #{kind}, got `#{@current.value}`", @current.span )
+        error!( Catalog::Parse.expected( kind, @current ) )
+      end
+      advance
+    end
+
+    private def expect_close( kind : TokenKind, opener : Span, opener_desc : String ) : Token
+      skip_newlines if @paren_depth > 0
+      unless @current.kind == kind
+        error!( Catalog::Parse.unclosed( kind, @current, opener, opener_desc ) )
       end
       advance
     end
@@ -54,8 +71,31 @@ module Volt::Frontend
       @current.kind.eof?
     end
 
-    private def error!( msg : String, span : Span ) : NoReturn
-      raise ParseError.new( msg, span )
+    private def error!( diagnostic : Diagnostic ) : NoReturn
+      @bag << diagnostic
+      raise ParseRecovery.new
+    end
+
+    private def synchronize : Nil
+      @paren_depth = 0
+      return if at_end?
+      advance
+      until at_end?
+        return if @current.kind.newline? || @current.kind.semicolon?
+        return if BODY_TERMINATORS.includes?( @current.kind )
+        return if statement_start?( @current.kind )
+        advance
+      end
+    end
+
+    private def statement_start?( kind : TokenKind ) : Bool
+      case kind
+      when .def?, .class?, .mixin?, .component?, .use?, .async?,
+           .if?, .unless?, .while?, .until?, .match?, .return?, .break?, .next?
+        true
+      else
+        false
+      end
     end
 
     #------------------------------------------------------------------------------------
@@ -68,7 +108,11 @@ module Volt::Frontend
       nodes = [] of ANode
       skip_separators
       until BODY_TERMINATORS.includes?( @current.kind )
-        nodes << parse_body_node
+        begin
+          nodes << parse_body_node
+        rescue ParseRecovery
+          synchronize
+        end
         skip_separators
       end
       nodes
@@ -84,7 +128,7 @@ module Volt::Frontend
         if @current.kind.def?
           parse_func_decl( annots, is_async: true )
         else
-          error!( "expected `def` after `async`", @current.span )
+          error!( Catalog::Parse.expected_after( "`def`", "async", @current ) )
         end
       when .class?
         parse_class_decl( annots )
