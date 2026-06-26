@@ -15,8 +15,19 @@ module Volt::VM
         when .ge_int? then b.as_i >= c.as_i
         when .lt_f64? then b.as_f < c.as_f
         when .le_f64? then b.as_f <= c.as_f
-        when .gt_f64? then b.as_f > c.as_f
+        when .gt_f64? then b.as_f >= c.as_f
         when .ge_f64? then b.as_f >= c.as_f
+        when .cmp_int? then ( b.as_i <=> c.as_i ).to_i64
+        when .eq_case?
+          if b.raw.is_a?( ::Regex ) && c.raw.is_a?( String )
+            b.as_regex.matches?( c.as_s )
+          else
+            b == c
+          end
+        when .match_str?
+          c.as_regex.matches?( b.as_s )
+        when .not_match_str?
+          !c.as_regex.matches?( b.as_s )
         else
           raise VoltRuntimeError.new( "unhandled comparison opcode #{op}" )
         end
