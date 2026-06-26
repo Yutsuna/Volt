@@ -3,7 +3,9 @@
 **Component:** `volt run` execution engine (Tier-0 VM + Tier-1 JIT)
 **Bootstrap language:** Crystal (self-hosting target later)
 **Performance goal:** within ~1.5× of PUC-Lua 5.4 on the interpreter alone; match or beat it once Tier-1 is live.
-**Status:** design — pre-implementation.
+**Status:** Phase 1 implemented — Tier-0 `case`-dispatch VM runs typed bytecode end-to-end
+(`volt run`). Frontend + Semantic/TypedAST + IR + BytecodeCompiler + Tier-0 VM are live for the
+v1 language subset; JIT and RAII are deferred (see AGENTS.md §2b for the exact state).
 
 ---
 
@@ -74,7 +76,17 @@ Volt/
 │   │
 │   ├── Frontend/                       # SHARED — not owned by this spec
 │   │   ├── Lexer/
-│   │   ├── Parser/
+│   │   ├── Parser/                  # Modular recursive-descent parser
+│   │   │   ├── Parser.cr           # Main class: state, advance/expect, parse()
+│   │   │   ├── Prec.cr             # Precedence levels (None, Assignment, Or, And, ...)
+│   │   │   ├── ParseTopLevel.cr    # Program, def/async/class/mixin/component/use
+│   │   │   ├── ParseDeclaration.cr # Parameters, type params, return types
+│   │   │   ├── ParseType.cr         # SimpleType, GenericType, FuncType, NilableType
+│   │   │   ├── ParseExpression.cr  # nud/led precedence climbing
+│   │   │   ├── ParseControlFlow.cr # if/unless/while/until/match
+│   │   │   ├── ParseBlock.cr       # Block expressions, block params
+│   │   │   ├── ParseCall.cr        # dot calls, safe calls, function calls, indexing
+│   │   │   └── ParseLiteral.cr     # Grouping, array literals
 │   │   ├── AST/
 │   │   ├── Types/                      # inference engine → resolved types
 │   │   └── Semantic/                   # checks, produces TypedAST
@@ -116,7 +128,6 @@ Volt/
 │   │
 │   └── Runtime/
 │       ├── ObjectModel/                # Class, Method, layout, vtables, ctor/dtor registry
-│       ├── Builtins/                   # Int, Float, String, Array, Proc…
 │       └── Shell/                      # System::Shell native impls (File, Directory…)
 │
 └── Spec/                               # tests, mirrored against Source/ layout
