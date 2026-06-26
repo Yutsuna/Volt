@@ -61,13 +61,7 @@ module Volt::CLI
     end
 
     private def interpret(source : String, filename : String)
-      typed = begin
-        Frontend.analyse( source, filename )
-      rescue e : Frontend::ParseError
-        fatal! "#{filename}:#{e.span.line}:#{e.span.column}: #{e.message}"
-      rescue e : Frontend::SemanticError
-        fatal! "#{filename}:#{e.span.line}:#{e.span.column}: #{e.message}"
-      end
+      typed = Frontend.analyse( source, filename )
 
       unit = Compiler::BytecodeCompiler.new( typed ).compile
       unit = Compiler::ConstFold.run( unit )
@@ -75,6 +69,9 @@ module Volt::CLI
       unit = Compiler::Peephole.run( unit )
 
       code = VM::Vm.new( unit ).run
+    rescue e : Frontend::CompilationError
+      DiagnosticRenderer.new( { filename => source } ).render( e.bag )
+      raise SystemExit.new
     end
 
   end
