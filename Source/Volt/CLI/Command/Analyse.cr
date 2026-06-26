@@ -18,20 +18,24 @@ module Volt::CLI
       parse args
       fatal! "Missing source analyzer validation inputs (-i)" unless @input
 
-      Logger.info("Starting checking parser syntax limits", "analyse")
-
-      Logger.progress("Validating lexer code maps...", "1/4")
-      sleep 0.1.seconds
-
-      Logger.progress("Processing context declarations checks...", "2/4")
-      sleep 0.15.seconds
-
-      if @unused
-        Logger.progress("Locating non-referenced variable definitions...", "3/4")
-        sleep 0.1.seconds
+      file = @input.not_nil!
+      source = begin
+        File.read(file)
+      rescue e
+        fatal! "Cannot read '#{file}': #{e.message}"
       end
 
-      Logger.progress("Static validation steps completed", "4/4", finished: true)
+      Logger.info("Running semantic analysis", "analyse")
+
+      typed = begin
+        Frontend.analyse(source, file)
+      rescue e : Frontend::CompilationError
+        DiagnosticRenderer.new( { file => source } ).render( e.bag )
+        raise SystemExit.new
+      end
+
+      fn_count = typed.functions.size
+      Logger.info("OK — #{fn_count} function(s), #{typed.top_level.size} top-level statement(s) type-checked", "analyse")
     end
 
 

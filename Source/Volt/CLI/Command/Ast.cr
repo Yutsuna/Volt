@@ -28,8 +28,9 @@ module Volt::CLI
 
       program = begin
         Frontend.parse(source, input_path)
-      rescue e : Frontend::ParseError
-        fatal! e.message || "parse error"
+      rescue e : Frontend::CompilationError
+        DiagnosticRenderer.new( { input_path => source } ).render( e.bag )
+        raise SystemExit.new
       end
 
       if target_out = @output

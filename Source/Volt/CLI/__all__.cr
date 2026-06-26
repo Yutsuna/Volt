@@ -1,4 +1,5 @@
 require "./Logger"
 require "option_parser"
+require "./Diagnostic/**"
 require "./Command/**"
 require "./CLI"

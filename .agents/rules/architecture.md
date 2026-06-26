@@ -3,7 +3,9 @@
 **Component:** `volt run` execution engine (Tier-0 VM + Tier-1 JIT)
 **Bootstrap language:** Crystal (self-hosting target later)
 **Performance goal:** within ~1.5× of PUC-Lua 5.4 on the interpreter alone; match or beat it once Tier-1 is live.
-**Status:** design — pre-implementation.
+**Status:** Phase 1 implemented — Tier-0 `case`-dispatch VM runs typed bytecode end-to-end
+(`volt run`). Frontend + Semantic/TypedAST + IR + BytecodeCompiler + Tier-0 VM are live for the
+v0.1.0 language subset; JIT and RAII are deferred (see AGENTS.md #2b for the exact state).
 
 ---
 
@@ -74,7 +76,17 @@ Volt/
 │   │
 │   ├── Frontend/                       # SHARED — not owned by this spec
 │   │   ├── Lexer/
-│   │   ├── Parser/
+│   │   ├── Parser/                  # Modular recursive-descent parser
+│   │   │   ├── Parser.cr           # Main class: state, advance/expect, parse()
+│   │   │   ├── Prec.cr             # Precedence levels (None, Assignment, Or, And, ...)
+│   │   │   ├── ParseTopLevel.cr    # Program, def/async/class/mixin/component/use
+│   │   │   ├── ParseDeclaration.cr # Parameters, type params, return types
+│   │   │   ├── ParseType.cr         # SimpleType, GenericType, FuncType, NilableType
+│   │   │   ├── ParseExpression.cr  # nud/led precedence climbing
+│   │   │   ├── ParseControlFlow.cr # if/unless/while/until/match
+│   │   │   ├── ParseBlock.cr       # Block expressions, block params
+│   │   │   ├── ParseCall.cr        # dot calls, safe calls, function calls, indexing
+│   │   │   └── ParseLiteral.cr     # Grouping, array literals
 │   │   ├── AST/
 │   │   ├── Types/                      # inference engine → resolved types
 │   │   └── Semantic/                   # checks, produces TypedAST
@@ -116,7 +128,6 @@ Volt/
 │   │
 │   └── Runtime/
 │       ├── ObjectModel/                # Class, Method, layout, vtables, ctor/dtor registry
-│       ├── Builtins/                   # Int, Float, String, Array, Proc…
 │       └── Shell/                      # System::Shell native impls (File, Directory…)
 │
 └── Spec/                               # tests, mirrored against Source/ layout
@@ -126,6 +137,41 @@ Volt/
     ├── JIT/
     └── Runtime/
 ```
+
+---
+
+## 3b. Current Implementation Status (v0.1.0)
+
+### Completed Components
+- **Source/volt.cr** — Entry point exists and dispatches to CLI
+- **CLI/** — Full command structure with Run, Ast, Analyse, Circuit, Format, Version, Help, REPL, Build
+- **Frontend/Lexer/** — Complete: Token.cr, Lexer.cr
+- **Frontend/Parser/** — Complete modular implementation as documented
+- **Frontend/AST/** — ANode, Expr, Decl, Program, TypeNode, Dump
+- **Frontend/Types/** — Type inference system
+- **Frontend/Semantic/** — Analyser, TypeChecker, Contract, Scope, SignatureTable, Diagnostic
+- **Frontend/Diagnostic/** — Full diagnostic system with Catalog, Severity, Label, Suggest, CompilationError
+- **IR/** — Complete: Opcode.cr, Instruction.cr, Chunk.cr, Value.cr, DropMap.cr
+- **Compiler/** — BytecodeCompiler.cr (complete), Unit.cr (complete), ConstFold.cr, EscapeAnalysis.cr, Peephole.cr (identity stubs)
+- **VM/** — Vm.cr (case dispatch), Frame.cr (per-frame registers)
+- **VM/Dispatch/** — Arith.cr (complete), Branch.cr, Call.cr, Cmp.cr, LoadStore.cr, Raii.cr (reserved), Native.cr
+
+### Placeholder/Stub Components
+- **Runtime/ObjectModel/** — Empty directory, reserved for future
+- **Runtime/Shell/** — Empty directory, reserved for future
+- **Runtime/Builtins/** — Empty directory, reserved for future
+- **JIT/** — Directory exists with empty stubs: TierUp.cr, Translator.cr, CodeCache.cr, Trampoline.cr, Cranelift/
+- **Compiler/lifetime_analysis.cr** — Not yet created
+- **Compiler/register_allocator.cr** — Not yet created
+- **VM/inline_cache.cr** — Not yet created
+- **VM/interner.cr** — Not yet created
+
+### Implementation Differences from Architecture
+1. **Dispatch Method:** Currently using `case` dispatch in Vm.cr (as planned in architecture #7.1 note), not yet direct-threaded
+2. **Register Allocation:** Each frame has its own register array; shared contiguous stack is deferred
+3. **Value Representation:** Currently using boxed tagged union; untagged registers + NaN-boxing is deferred
+4. **RAII:** DropMap struct exists but INIT/DROP opcodes not yet emitted by compiler
+5. **Native Calls:** CALL_NATIVE opcode implemented and working
 
 ---
 

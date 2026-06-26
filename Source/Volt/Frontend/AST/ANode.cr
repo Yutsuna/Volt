@@ -10,6 +10,7 @@ module Volt::Frontend
 
 
   abstract class AExpr < ANode
+    property resolved_type : Type? = nil
   end
 
 

@@ -1,0 +1,199 @@
+module Volt::Frontend
+
+
+  module Catalog
+
+
+    def self.token_name( kind : TokenKind ) : String
+      case kind
+      when .end?       then "`end`"
+      when .r_paren?   then "`)`"
+      when .l_paren?   then "`(`"
+      when .r_bracket? then "`]`"
+      when .l_bracket? then "`[`"
+      when .r_brace?   then "`}`"
+      when .l_brace?   then "`{`"
+      when .ident?     then "an identifier"
+      when .colon?     then "`:`"
+      when .comma?     then "`,`"
+      when .eof?       then "end of file"
+      when .newline?   then "a line break"
+      else                  "`#{kind.to_s.downcase}`"
+      end
+    end
+
+    def self.describe( tok : Token ) : String
+      tok.kind.eof? ? "end of file" : "`#{tok.value}`"
+    end
+
+
+    # ------------------------------------------------------------------ parse (P00xx)
+    module Parse
+      extend self
+
+      def expected( expected : TokenKind, got : Token ) : Diagnostic
+        Diagnostic.error( "P0001", "expected #{Catalog.token_name( expected )}, found #{Catalog.describe( got )}" )
+          .with_primary( got.span, "expected #{Catalog.token_name( expected )} here" )
+      end
+
+      def unclosed( expected : TokenKind, got : Token, opener : Span, opener_desc : String ) : Diagnostic
+        Diagnostic.error( "P0002", "expected #{Catalog.token_name( expected )} to close #{opener_desc}, found #{Catalog.describe( got )}" )
+          .with_primary( got.span, "expected #{Catalog.token_name( expected )} here" )
+          .with_secondary( opener, "#{opener_desc} opened here" )
+      end
+
+      def unexpected_expr( tok : Token ) : Diagnostic
+        Diagnostic.error( "P0003", "unexpected #{Catalog.describe( tok )} in expression" )
+          .with_primary( tok.span, "not valid here" )
+      end
+
+      def unexpected_infix( tok : Token ) : Diagnostic
+        Diagnostic.error( "P0004", "unexpected infix operator #{Catalog.describe( tok )}" )
+          .with_primary( tok.span )
+      end
+
+      def expected_after( what : String, after : String, got : Token ) : Diagnostic
+        Diagnostic.error( "P0005", "expected #{what} after `#{after}`, found #{Catalog.describe( got )}" )
+          .with_primary( got.span, "expected #{what} here" )
+      end
+    end
+
+
+    # ------------------------------------------------------------------ semantic (S00xx)
+    module Sema
+      extend self
+
+      def unsupported_top_level( what : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0001", "top-level `#{what}` is not supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def unsupported_nested( what : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0002", "nested `#{what}` is not supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def duplicate_definition( name : String, span : Span, first : Span? ) : Diagnostic
+        d = Diagnostic.error( "S0003", "duplicate definition of `#{name}`" )
+          .with_primary( span, "redefined here" )
+        d = d.with_secondary( first, "first defined here" ) if first
+        d
+      end
+
+      def param_needs_type( param : String, func : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0004", "parameter `#{param}` of `#{func}` needs a type annotation in #{VERSION}" )
+          .with_primary( span )
+          .with_help( "add an annotation, e.g. `#{param} : Int`" )
+      end
+
+      def unsupported_param_type( param : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0005", "unsupported parameter type for `#{param}` in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def unsupported_return_type( func : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0006", "unsupported return type for `#{func}` in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def undefined_variable( name : String, span : Span, suggestion : String? ) : Diagnostic
+        d = Diagnostic.error( "S0007", "undefined variable `#{name}`" )
+          .with_primary( span, "not found in this scope" )
+        d = d.with_help( "did you mean `#{suggestion}`?" ) if suggestion
+        d
+      end
+
+      def non_simple_assign( span : Span ) : Diagnostic
+        Diagnostic.error( "S0008", "only simple `name = value` assignment is supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def annotation_mismatch( name : String, declared : String, actual : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0009", "type mismatch: `#{name}` declared #{declared} but value is #{actual}" )
+          .with_primary( span )
+      end
+
+      def reassign_type( name : String, existing : String, actual : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0010", "cannot reassign `#{name}` (#{existing}) with a #{actual}" )
+          .with_primary( span )
+      end
+
+      def unsupported_annotation( span : Span ) : Diagnostic
+        Diagnostic.error( "S0011", "unsupported type annotation in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def binary_numeric( op : String, lt : String, rt : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0012", "operator `#{op}` needs matching numeric operands, got #{lt} and #{rt}" )
+          .with_primary( span )
+      end
+
+      def comparison_numeric( lt : String, rt : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0013", "comparison needs matching numeric operands, got #{lt} and #{rt}" )
+          .with_primary( span )
+      end
+
+      def incomparable( lt : String, rt : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0014", "cannot compare #{lt} with #{rt}" )
+          .with_primary( span )
+      end
+
+      def unsupported_operator( op : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0015", "operator `#{op}` is not supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def unary_numeric( ot : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0016", "unary `-` needs a numeric operand, got #{ot}" )
+          .with_primary( span )
+      end
+
+      def unsupported_unary( span : Span ) : Diagnostic
+        Diagnostic.error( "S0017", "unary operator is not supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def non_direct_call( span : Span ) : Diagnostic
+        Diagnostic.error( "S0018", "only direct function calls `name(...)` are supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def block_arg( span : Span ) : Diagnostic
+        Diagnostic.error( "S0019", "block arguments are not supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def undefined_function( name : String, span : Span, suggestion : String? ) : Diagnostic
+        d = Diagnostic.error( "S0020", "call to undefined function `#{name}`" )
+          .with_primary( span, "not found" )
+        d = d.with_help( "did you mean `#{suggestion}`?" ) if suggestion
+        d
+      end
+
+      def arity_mismatch( name : String, expected : Int32, got : Int32, span : Span ) : Diagnostic
+        Diagnostic.error( "S0021", "`#{name}` expects #{expected} argument(s), got #{got}" )
+          .with_primary( span )
+      end
+
+      def argument_type( idx : Int32, name : String, expected : String, actual : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0022", "argument #{idx} of `#{name}` expects #{expected}, got #{actual}" )
+          .with_primary( span )
+      end
+
+      def unsupported_expr( what : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0023", "`#{what}` is not supported in #{VERSION}" )
+          .with_primary( span )
+      end
+
+      def unresolved_extern( name : String, span : Span, available : Enumerable( String ) ) : Diagnostic
+        Diagnostic.error( "S0024", "extern function `#{name}` has no native implementation in the interpreter" )
+          .with_primary( span, "called here" )
+          .with_help( "the interpreter only provides: #{available.join( ", " )}" )
+      end
+    end
+
+
+  end
+
+
+end

@@ -1,7 +1,6 @@
 module Volt::Frontend
 
 
-  # Binding powers for the Pratt parser.
   enum Prec : Int32
     None       =  0
     Assignment =  1   # =  :

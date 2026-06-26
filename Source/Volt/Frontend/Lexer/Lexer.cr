@@ -1,16 +1,6 @@
 module Volt::Frontend
 
 
-  #-----------------------------------------------------------------------------------
-
-  class ParseError < Exception
-    getter span : Span
-
-    def initialize( message : ::String, @span : Span )
-      super( message )
-    end
-  end
-
   #------------------------------------------------------------------------------------
 
 
@@ -192,11 +182,12 @@ module Volt::Frontend
 
     private def make( kind : TokenKind ) : Token
       len = ( @ptr - @sptr ).to_i32
+      off = ( @sptr - @src.to_unsafe ).to_u32
       Token.new(
         kind: kind,
         ptr:  @sptr,
         len:  len,
-        span: Span.new( file: @file, line: @sln, column: @scol, length: len.to_u32 )
+        span: Span.new( file: @file, line: @sln, column: @scol, length: len.to_u32, offset: off )
       )
     end
 

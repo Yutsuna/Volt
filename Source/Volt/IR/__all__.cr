@@ -1,0 +1,5 @@
+require "./Value"
+require "./Opcode"
+require "./Instruction"
+require "./DropMap"
+require "./Chunk"

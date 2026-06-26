@@ -1,0 +1,4 @@
+@[External("libc")]
+def puts( value ) -> Void
+
+puts( "hello" )

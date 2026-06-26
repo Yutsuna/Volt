@@ -1,0 +1,5 @@
+require "./Contract"
+require "./Scope"
+require "./SignatureTable"
+require "./TypeChecker"
+require "./Analyser"
