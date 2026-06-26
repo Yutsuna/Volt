@@ -43,23 +43,39 @@ module Volt::Frontend
 
     private def infer_raw( expr : AExpr, scope : Scope ) : Type
       case expr
-      when IntLit    then Type::INT
-      when FloatLit  then Type::FLOAT
-      when StringLit then Type::STR
-      when BoolLit   then Type::BOOL
-      when NilLit    then Type::NIL
-      when Ident     then infer_ident( expr, scope )
-      when Assign    then infer_assign( expr, scope )
-      when BinaryOp  then infer_binary( expr, scope )
-      when UnaryOp   then infer_unary( expr, scope )
-      when Call      then infer_call( expr, scope )
-      when IfExpr    then infer_if( expr, scope )
-      when WhileExpr then infer_while( expr, scope )
+      when IntLit     then expr.resolved_type || Type::INT
+      when FloatLit   then expr.resolved_type || Type::FLOAT
+      when StringLit  then Type::STR
+      when BoolLit    then Type::BOOL
+      when NilLit     then Type::NIL
+      when RegexLit   then Type::REGEX
+      when Ident      then infer_ident( expr, scope )
+      when Assign     then infer_assign( expr, scope )
+      when BinaryOp   then infer_binary( expr, scope )
+      when UnaryOp    then infer_unary( expr, scope )
+      when Call       then infer_call( expr, scope )
+      when IfExpr     then infer_if( expr, scope )
+      when WhileExpr  then infer_while( expr, scope )
+      when RangeExpr
+        infer( expr.from, scope )
+        infer( expr.to, scope )
+        Type::UNKNOWN
+      when MethodCall
+        if expr.name == "includes?" && expr.receiver.is_a?( RangeExpr )
+          infer( expr.receiver, scope )
+          expr.args.each { |a| infer( a, scope ) }
+          return Type::BOOL
+        end
+        @bag << Catalog::Sema.unsupported_expr( "method call `#{expr.name}`", expr.loc )
+        Type::UNKNOWN
       when ReturnExpr
         if v = expr.value
           infer( v, scope )
         end
         Type::NIL
+      when RaiseExpr
+        infer( expr.value, scope )
+        Type::UNKNOWN
       else
         @bag << Catalog::Sema.unsupported_expr( type_name( expr ), expr.loc )
         Type::UNKNOWN
@@ -111,26 +127,47 @@ module Volt::Frontend
       unknown = lt.kind.unknown? || rt.kind.unknown?
 
       case expr.op
-      when .plus?, .minus?, .star?, .slash?, .percent?
+      when .plus?, .minus?, .star?, .slash?, .percent?,
+           .amp_plus?, .amp_minus?, .amp_star?, .amp_star_star?,
+           .slash_slash?
         return lt.numeric? ? lt : ( rt.numeric? ? rt : Type::UNKNOWN ) if unknown
         unless lt.numeric? && lt == rt
           @bag << Catalog::Sema.binary_numeric( op_text( expr.op ), lt.to_s, rt.to_s, expr.loc )
           return Type::UNKNOWN
         end
         lt
-      when .lt?, .gt?, .lt_eq?, .gt_eq?
+      when .star_star?
+        return lt.numeric? ? lt : ( rt.numeric? ? rt : Type::UNKNOWN ) if unknown
+        unless lt.numeric? && lt == rt
+          @bag << Catalog::Sema.binary_numeric( op_text( expr.op ), lt.to_s, rt.to_s, expr.loc )
+          return Type::UNKNOWN
+        end
+        lt
+      when .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?
         return Type::BOOL if unknown
         unless lt.numeric? && lt == rt
           @bag << Catalog::Sema.comparison_numeric( lt.to_s, rt.to_s, expr.loc )
         end
-        Type::BOOL
-      when .eq_eq?, .bang_eq?
+        expr.op.spaceship? ? Type::INT : Type::BOOL
+      when .eq_eq?, .bang_eq?, .eq_eq_eq?, .match_op?, .not_match_op?
         return Type::BOOL if unknown
+        if expr.op.match_op? || expr.op.not_match_op?
+          unless lt.kind.str? && rt.kind.regex?
+            @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
+          end
+          return Type::BOOL
+        end
         unless lt == rt
           @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
         end
         Type::BOOL
-      when .and?, .or?
+      when .and?, .or?, .amp?, .pipe?, .caret?, .lt_lt?, .gt_gt?
+        if expr.op.amp? || expr.op.pipe? || expr.op.caret? || expr.op.lt_lt? || expr.op.gt_gt?
+          unless lt.integer? && rt.integer?
+            @bag << Catalog::Sema.binary_numeric( op_text( expr.op ), lt.to_s, rt.to_s, expr.loc )
+          end
+          return Type::INT
+        end
         Type::BOOL
       else
         @bag << Catalog::Sema.unsupported_operator( op_text( expr.op ), expr.loc )
@@ -144,6 +181,12 @@ module Volt::Frontend
       when .minus?
         return ot if ot.kind.unknown?
         @bag << Catalog::Sema.unary_numeric( ot.to_s, expr.loc ) unless ot.numeric?
+        ot
+      when .tilde?
+        return ot if ot.kind.unknown?
+        unless ot.integer?
+          @bag << Catalog::Sema.unary_numeric( ot.to_s, expr.loc )
+        end
         ot
       when .bang?
         Type::BOOL
@@ -211,11 +254,27 @@ module Volt::Frontend
 
     private def op_text( kind : TokenKind ) : String
       case kind
-      when .plus?    then "+"
-      when .minus?   then "-"
-      when .star?    then "*"
-      when .slash?   then "/"
-      when .percent? then "%"
+      when .plus?        then "+"
+      when .minus?       then "-"
+      when .star?        then "*"
+      when .slash?       then "/"
+      when .percent?     then "%"
+      when .amp_plus?    then "&+"
+      when .amp_minus?   then "&-"
+      when .amp_star?    then "&*"
+      when .amp_star_star? then "&**"
+      when .slash_slash? then "//"
+      when .star_star?   then "**"
+      when .amp?         then "&"
+      when .pipe?        then "|"
+      when .caret?       then "^"
+      when .tilde?       then "~"
+      when .lt_lt?       then "<<"
+      when .gt_gt?       then ">>"
+      when .spaceship?   then "<=>"
+      when .eq_eq_eq?    then "==="
+      when .match_op?    then "=~"
+      when .not_match_op? then "!~"
       else                kind.to_s
       end
     end
