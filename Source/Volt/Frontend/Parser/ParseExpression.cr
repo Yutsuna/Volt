@@ -50,6 +50,19 @@ module Volt::Frontend
       when .minus?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Minus, operand, tok.span )
+      when .plus?
+        parse_expr( Prec::Unary )
+      when .tilde?
+        operand = parse_expr( Prec::Unary )
+        UnaryOp.new( TokenKind::Tilde, operand, tok.span )
+      when .dunder_file?
+        StringLit.new( @file, tok.span )
+      when .dunder_line?
+        IntLit.new( tok.span.line.to_i64, tok.span )
+      when .regex?
+        raw = tok.value
+        pattern = raw[ 1, raw.bytesize - 2 ]
+        RegexLit.new( pattern, tok.span )
       when .bang?, .not?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )
@@ -78,12 +91,32 @@ module Volt::Frontend
 
     private def led( left : AExpr, op : Token ) : AExpr
       case op.kind
-      when .plus?, .minus?, .star?, .slash?, .percent?
+      when .plus?, .minus?, .star?, .slash?, .percent?,
+           .amp_plus?, .amp_minus?, .amp_star?, .slash_slash?,
+           .amp?, .pipe?, .caret?, .lt_lt?, .gt_gt?,
+           .spaceship?, .eq_eq_eq?, .match_op?, .not_match_op?,
+           .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?
         BinaryOp.new( left, op.kind, parse_expr( led_prec( op.kind ) ), left.loc )
-      when .star_star?
+      when .star_star?, .amp_star_star?
         BinaryOp.new( left, op.kind, parse_expr( Prec.new( Prec::Power.value - 1 ) ), left.loc )
-      when .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?
-        BinaryOp.new( left, op.kind, parse_expr( led_prec( op.kind ) ), left.loc )
+      when .plus_eq?, .minus_eq?, .star_eq?, .slash_eq?, .slash_slash_eq?,
+           .percent_eq?, .pipe_eq?, .amp_eq?, .caret_eq?, .amp_plus_eq?
+        bin_op = case op.kind
+                 when .plus_eq?        then TokenKind::Plus
+                 when .minus_eq?       then TokenKind::Minus
+                 when .star_eq?        then TokenKind::Star
+                 when .slash_eq?       then TokenKind::Slash
+                 when .slash_slash_eq? then TokenKind::SlashSlash
+                 when .percent_eq?     then TokenKind::Percent
+                 when .pipe_eq?        then TokenKind::Pipe
+                 when .amp_eq?         then TokenKind::Amp
+                 when .caret_eq?       then TokenKind::Caret
+                 when .amp_plus_eq?    then TokenKind::AmpPlus
+                 else                       raise "unreachable"
+                 end
+        rhs = parse_expr( Prec.new( Prec::Assignment.value - 1 ) )
+        val = BinaryOp.new( left, bin_op, rhs, left.loc )
+        Assign.new( left, nil, val, left.loc )
       when .and?, .amp_amp?
         BinaryOp.new( left, TokenKind::And, parse_expr( Prec::And ), left.loc )
       when .or?, .pipe_pipe?
@@ -130,16 +163,25 @@ module Volt::Frontend
 
     private def led_prec( kind : TokenKind ) : Prec
       case kind
-      when .eq?, .colon?                         then Prec::Assignment
+      when .eq?, .colon?, .plus_eq?, .minus_eq?, .star_eq?, .slash_eq?, .slash_slash_eq?,
+           .percent_eq?, .pipe_eq?, .amp_eq?, .caret_eq?, .amp_plus_eq?
+        Prec::Assignment
       when .or?, .pipe_pipe?                     then Prec::Or
       when .and?, .amp_amp?                      then Prec::And
-      when .eq_eq?, .bang_eq?                    then Prec::Equality
-      when .lt?, .gt?, .lt_eq?, .gt_eq?         then Prec::Comparison
+      when .eq_eq?, .bang_eq?, .eq_eq_eq?,
+           .match_op?, .not_match_op?            then Prec::Equality
+      when .lt?, .gt?, .lt_eq?, .gt_eq?,
+           .spaceship?                           then Prec::Comparison
       when .dot_dot?, .dot_dot_dot?              then Prec::Range
       when .pipe_gt?                             then Prec::Pipe
-      when .plus?, .minus?                       then Prec::Term
-      when .star?, .slash?, .percent?            then Prec::Factor
-      when .star_star?                           then Prec::Power
+      when .pipe?, .caret?                       then Prec::BitOr
+      when .amp?                                 then Prec::BitAnd
+      when .lt_lt?, .gt_gt?                      then Prec::Shift
+      when .plus?, .minus?, .amp_plus?,
+           .amp_minus?                           then Prec::Term
+      when .star?, .slash?, .percent?,
+           .slash_slash?, .amp_star?             then Prec::Factor
+      when .star_star?, .amp_star_star?          then Prec::Power
       when .dot?, .question?                     then Prec::Call
       when .l_paren?, .l_bracket?, .l_brace?    then Prec::Call
       else                                        Prec::None
