@@ -2,7 +2,7 @@ module Volt::IR
 
 
   # Typed Tier-0 opcodes. The static type proven by the frontend tells the compiler
-  # which variant to emit, so the VM never reads a tag before acting (architecture §5).
+  # which variant to emit, so the VM never reads a tag before acting (architecture #5).
   #
   # Encoding (see Instruction): most use the A/B/C register form; LOAD_CONST and the
   # jumps use the A/Bx (16-bit operand) form.
