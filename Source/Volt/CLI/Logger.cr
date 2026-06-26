@@ -21,8 +21,17 @@ module Volt::CLI
     @@worker_fiber : Fiber? = nil
     @@last_progress : LogMessage? = nil
 
+    private def self.ensure_channel
+      if @@channel.closed?
+        @@channel = Channel( LogMessage ).new( 1000 )
+        @@done = Channel( Nil ).new
+      end
+    end
+
+
     def self.start
       return if @@worker_fiber
+      ensure_channel
       @@worker_fiber = spawn do
         loop do
           message = @@channel.receive?
@@ -89,23 +98,32 @@ module Volt::CLI
     end
 
     def self.info( text : String, step : String? = nil )
-      @@channel.send(LogMessage.new(Level::Info, step, text))
+      ensure_channel
+      @@channel.send( LogMessage.new( Level::Info, step, text ) )
     end
+
 
     def self.warn( text : String, step : String? = nil )
-      @@channel.send(LogMessage.new(Level::Warn, step, text))
+      ensure_channel
+      @@channel.send( LogMessage.new( Level::Warn, step, text ) )
     end
+
 
     def self.error( text : String, step : String? = nil )
-      @@channel.send(LogMessage.new(Level::Error, step, text))
+      ensure_channel
+      @@channel.send( LogMessage.new( Level::Error, step, text ) )
     end
+
 
     def self.debug( text : String, step : String? = nil )
-      @@channel.send(LogMessage.new(Level::Debug, step, text))
+      ensure_channel
+      @@channel.send( LogMessage.new( Level::Debug, step, text ) )
     end
 
+
     def self.progress( text : String, step : String? = nil, finished : Bool = false )
-      @@channel.send(LogMessage.new(Level::Progress, step, text, finished))
+      ensure_channel
+      @@channel.send( LogMessage.new( Level::Progress, step, text, finished ) )
     end
   end
 
