@@ -5,7 +5,7 @@
 **Performance goal:** within ~1.5× of PUC-Lua 5.4 on the interpreter alone; match or beat it once Tier-1 is live.
 **Status:** Phase 1 implemented — Tier-0 `case`-dispatch VM runs typed bytecode end-to-end
 (`volt run`). Frontend + Semantic/TypedAST + IR + BytecodeCompiler + Tier-0 VM are live for the
-v0.1.0 language subset; JIT and RAII are deferred (see AGENTS.md §2b for the exact state).
+v0.1.0 language subset; JIT and RAII are deferred (see AGENTS.md #2b for the exact state).
 
 ---
 
@@ -167,7 +167,7 @@ Volt/
 - **VM/interner.cr** — Not yet created
 
 ### Implementation Differences from Architecture
-1. **Dispatch Method:** Currently using `case` dispatch in Vm.cr (as planned in architecture §7.1 note), not yet direct-threaded
+1. **Dispatch Method:** Currently using `case` dispatch in Vm.cr (as planned in architecture #7.1 note), not yet direct-threaded
 2. **Register Allocation:** Each frame has its own register array; shared contiguous stack is deferred
 3. **Value Representation:** Currently using boxed tagged union; untagged registers + NaN-boxing is deferred
 4. **RAII:** DropMap struct exists but INIT/DROP opcodes not yet emitted by compiler

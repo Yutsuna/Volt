@@ -5,7 +5,7 @@ module Volt::VM
   end
 
 
-  # Tier-0 register virtual machine. Uses a `case` dispatch loop (architecture §7.1
+  # Tier-0 register virtual machine. Uses a `case` dispatch loop (architecture #7.1
   # implementation note: start with `case`, migrate to direct-threaded once the opcode
   # set is stable). Opcode families live in VM/Dispatch/*.
   class Vm

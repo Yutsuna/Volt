@@ -1,7 +1,7 @@
 module Volt::IR
 
 
-  # Fixed-width 32-bit packed instruction (architecture §6.1):
+  # Fixed-width 32-bit packed instruction (architecture #6.1):
   #
   #   31     24 23    16 15     8 7      0
   #  ┌─────────┬────────┬────────┬────────┐
