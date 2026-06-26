@@ -86,6 +86,12 @@ module Volt::Frontend
       if ty = scope.lookup( expr.name )
         return ty
       end
+      if sig = @sigs[ expr.name ]?
+        if sig.params.size != 0
+          @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc )
+        end
+        return sig.ret
+      end
       @bag << Catalog::Sema.undefined_variable( expr.name, expr.loc, Suggest.closest( expr.name, scope.visible_names ) )
       Type::UNKNOWN
     end
