@@ -9,7 +9,11 @@ module Volt::Frontend
       skip_separators
       until at_end?
         begin
-          nodes << parse_top_level_node
+          if @current.kind.macro?
+            parse_macro_def
+          else
+            nodes << parse_top_level_node
+          end
         rescue ParseRecovery
           synchronize
         end
@@ -146,6 +150,44 @@ module Volt::Frontend
           path_parts << expect( TokenKind::Ident ).value
         end
         UseDecl.new( path_parts.join( "::" ), loc )
+      end
+
+      private def parse_macro_def : Nil
+        advance   # consume `macro`
+        name_tok = expect( TokenKind::Ident )
+        name = name_tok.value
+
+        params = [] of String
+        if @current.kind.l_paren?
+          advance
+          @paren_depth += 1
+          skip_newlines
+          until @current.kind.r_paren? || at_end?
+            params << expect( TokenKind::Ident ).value
+            skip_newlines
+            break unless @current.kind.comma?
+            advance; skip_newlines
+          end
+          @paren_depth -= 1
+          expect( TokenKind::RParen )
+        end
+
+        body_tokens = [] of Token
+        depth = 1
+        skip_separators
+
+        until at_end?
+          tok = advance
+          if tok.kind.def? || tok.kind.class? || tok.kind.mixin? || tok.kind.component? || tok.kind.if? || tok.kind.unless? || tok.kind.while? || tok.kind.until? || tok.kind.match? || tok.kind.macro?
+            depth += 1
+          elsif tok.kind.end?
+            depth -= 1
+            break if depth == 0
+          end
+          body_tokens << tok
+        end
+
+        @macro_table[ name ] = MacroDef.new( name, params, body_tokens )
       end
 
       #------------------------------------------------------------------------------------
