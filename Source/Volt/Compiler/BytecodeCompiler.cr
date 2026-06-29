@@ -164,6 +164,8 @@ module Volt::Compiler
       when Frontend::IntLit     then const_reg( IR::Value.int( expr.value ) )
       when Frontend::FloatLit   then const_reg( IR::Value.float( expr.value ) )
       when Frontend::StringLit  then const_reg( IR::Value.str( expr.value ) )
+      when Frontend::RegexLit
+        const_reg( IR::Value.regex( ::Regex.new( expr.value ) ) )
       when Frontend::BoolLit
         r = alloc
         emit_abc( expr.value ? IR::Opcode::LOAD_TRUE : IR::Opcode::LOAD_FALSE, r, 0, 0 )
@@ -172,14 +174,23 @@ module Volt::Compiler
         r = alloc
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
         r
-      when Frontend::Ident      then @scope[ expr.name ]
+      when Frontend::Ident      then compile_ident( expr )
       when Frontend::Assign     then compile_assign( expr )
       when Frontend::BinaryOp   then compile_binary( expr )
       when Frontend::UnaryOp    then compile_unary( expr )
       when Frontend::Call       then compile_call( expr )
+      when Frontend::MethodCall
+        if expr.name == "includes?" && expr.receiver.is_a?( Frontend::RangeExpr )
+          return compile_range_includes( expr )
+        end
+        raise "internal: unlowerable method call #{expr.name}"
       when Frontend::IfExpr     then compile_if( expr )
       when Frontend::WhileExpr  then compile_while( expr )
       when Frontend::ReturnExpr then compile_return( expr )
+      when Frontend::RaiseExpr
+        val_reg = compile_expr( expr.value )
+        emit_abc( IR::Opcode::RAISE, val_reg, 0, 0 )
+        val_reg
       else
         raise "internal: unlowerable node #{expr.class.name} (should be rejected by Semantic)"
       end
@@ -204,6 +215,22 @@ module Volt::Compiler
       end
     end
 
+    private def compile_ident( expr : Frontend::Ident ) : Int32
+      if reg = @scope[ expr.name ]?
+        reg
+      elsif sig = @signatures[ expr.name ]?
+        base = alloc_block 1
+          if sig.extern
+            emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( expr.name ), 0 )
+          else
+            emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
+          end
+          base
+      else
+        raise "internal: unbound identifier #{expr.name}"
+      end
+    end
+
     private def compile_binary( expr : Frontend::BinaryOp ) : Int32
       case expr.op
       when .and? then return compile_and( expr )
@@ -215,6 +242,43 @@ module Volt::Compiler
       is_f64 = numeric_float?( expr.left )
       dest   = alloc
       emit_abc( binary_opcode( expr.op, is_f64 ), dest, lreg, rreg )
+
+      if expr.op.amp_plus? || expr.op.amp_minus? || expr.op.amp_star? || expr.op.amp_star_star?
+        if ( t = expr.resolved_type ) && t.integer? && t.int_bit_width < 64
+          emit_abx( IR::Opcode::CONV_INT, dest, t.int_bit_width )
+        end
+      end
+
+      dest
+    end
+
+    private def compile_range_includes( expr : Frontend::MethodCall ) : Int32
+      range = expr.receiver.as( Frontend::RangeExpr )
+      val   = expr.args.first
+
+      val_reg = compile_expr( val )
+
+      from_reg = compile_expr( range.from )
+      to_reg   = compile_expr( range.to )
+
+      left_res = alloc
+      is_f64   = numeric_float?( range.from )
+      op_left  = is_f64 ? IR::Opcode::GE_F64 : IR::Opcode::GE_INT
+      emit_abc( op_left, left_res, val_reg, from_reg )
+
+      right_res = alloc
+      op_right  = if range.exclusive
+                    is_f64 ? IR::Opcode::LT_F64 : IR::Opcode::LT_INT
+                  else
+                    is_f64 ? IR::Opcode::LE_F64 : IR::Opcode::LE_INT
+                  end
+      emit_abc( op_right, right_res, val_reg, to_reg )
+
+      dest = alloc
+      emit_abc( IR::Opcode::MOVE, dest, left_res, 0 )
+      skip = emit_jump_placeholder( IR::Opcode::JMP_IF_FALSE, dest )
+      emit_abc( IR::Opcode::MOVE, dest, right_res, 0 )
+      patch_jump( skip, here )
       dest
     end
 
@@ -249,6 +313,8 @@ module Volt::Compiler
       when .minus?
         op = numeric_float?( expr.operand ) ? IR::Opcode::NEG_F64 : IR::Opcode::NEG_INT
         emit_abc( op, dest, oreg, 0 )
+      when .tilde?
+        emit_abc( IR::Opcode::NOT_INT, dest, oreg, 0 )
       else # bang / not
         emit_abc( IR::Opcode::NOT, dest, oreg, 0 )
       end
@@ -331,17 +397,31 @@ module Volt::Compiler
 
     private def binary_opcode( kind : Frontend::TokenKind, f64 : Bool ) : IR::Opcode
       case kind
-      when .plus?        then f64 ? IR::Opcode::ADD_F64 : IR::Opcode::ADD_INT
-      when .minus?       then f64 ? IR::Opcode::SUB_F64 : IR::Opcode::SUB_INT
-      when .star?        then f64 ? IR::Opcode::MUL_F64 : IR::Opcode::MUL_INT
-      when .slash?       then f64 ? IR::Opcode::DIV_F64 : IR::Opcode::DIV_INT
-      when .percent?     then IR::Opcode::MOD_INT
-      when .lt?          then f64 ? IR::Opcode::LT_F64 : IR::Opcode::LT_INT
-      when .lt_eq?       then f64 ? IR::Opcode::LE_F64 : IR::Opcode::LE_INT
-      when .gt?          then f64 ? IR::Opcode::GT_F64 : IR::Opcode::GT_INT
-      when .gt_eq?       then f64 ? IR::Opcode::GE_F64 : IR::Opcode::GE_INT
-      when .eq_eq?       then IR::Opcode::EQ
-      when .bang_eq?     then IR::Opcode::NE
+      when .plus?                       then f64 ? IR::Opcode::ADD_F64 : IR::Opcode::ADD_INT
+      when .minus?                      then f64 ? IR::Opcode::SUB_F64 : IR::Opcode::SUB_INT
+      when .star?                       then f64 ? IR::Opcode::MUL_F64 : IR::Opcode::MUL_INT
+      when .slash?                      then f64 ? IR::Opcode::DIV_F64 : IR::Opcode::DIV_INT
+      when .percent?                    then IR::Opcode::MOD_INT
+      when .amp_plus?                   then f64 ? IR::Opcode::ADD_F64 : IR::Opcode::ADD_INT
+      when .amp_minus?                  then f64 ? IR::Opcode::SUB_F64 : IR::Opcode::SUB_INT
+      when .amp_star?                   then f64 ? IR::Opcode::MUL_F64 : IR::Opcode::MUL_INT
+      when .slash_slash?                then IR::Opcode::IDIV_INT
+      when .star_star?, .amp_star_star? then IR::Opcode::POW_INT
+      when .amp?                        then IR::Opcode::AND_INT
+      when .pipe?                       then IR::Opcode::OR_INT
+      when .caret?                      then IR::Opcode::XOR_INT
+      when .lt_lt?                      then IR::Opcode::SHL_INT
+      when .gt_gt?                      then IR::Opcode::SHR_INT
+      when .lt?                         then f64 ? IR::Opcode::LT_F64 : IR::Opcode::LT_INT
+      when .lt_eq?                      then f64 ? IR::Opcode::LE_F64 : IR::Opcode::LE_INT
+      when .gt?                         then f64 ? IR::Opcode::GT_F64 : IR::Opcode::GT_INT
+      when .gt_eq?                      then f64 ? IR::Opcode::GE_F64 : IR::Opcode::GE_INT
+      when .spaceship?                  then IR::Opcode::CMP_INT
+      when .eq_eq?                      then IR::Opcode::EQ
+      when .eq_eq_eq?                   then IR::Opcode::EQ_CASE
+      when .match_op?                   then IR::Opcode::MATCH_STR
+      when .not_match_op?               then IR::Opcode::NOT_MATCH_STR
+      when .bang_eq?                    then IR::Opcode::NE
       else
         raise "internal: unhandled binary opcode #{kind}"
       end

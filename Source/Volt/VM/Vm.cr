@@ -43,6 +43,15 @@ module Volt::VM
           ip = ins.bx unless frame[ ins.a ].truthy?
         when .not?
           frame[ ins.a ] = IR::Value.bool( !frame[ ins.b ].truthy? )
+        when .conv_int?
+          val = frame[ ins.a ].as_i
+          bit_width = ins.bx
+          shift = 64 - bit_width
+          extended = ( val << shift ) >> shift
+          frame[ ins.a ] = IR::Value.int( extended )
+        when .raise?
+          msg = frame[ ins.a ].to_display
+          raise VoltRuntimeError.new( msg )
         when .call?
           frame[ ins.a ] = call_chunk( @unit.chunks[ ins.b ], collect_args( frame, ins ) )
         when .call_native?
@@ -50,7 +59,8 @@ module Volt::VM
         when .ret?
           return frame[ ins.a ]
         when .eq?, .ne?, .lt_int?, .le_int?, .gt_int?, .ge_int?,
-             .lt_f64?, .le_f64?, .gt_f64?, .ge_f64?
+             .lt_f64?, .le_f64?, .gt_f64?, .ge_f64?, .cmp_int?, .eq_case?,
+             .match_str?, .not_match_str?
           frame[ ins.a ] = eval_cmp( ins.op, frame[ ins.b ], frame[ ins.c ] )
         else
           # arithmetic family (ADD/SUB/MUL/DIV/MOD/NEG, int + f64)

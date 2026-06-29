@@ -1,0 +1,41 @@
+name: Volt CI
+
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: crystallang/crystal:latest
+
+    steps:
+      - name: Checkout Volt
+        uses: actions/checkout@v4
+
+      - name: Checkout Krystal
+        uses: actions/checkout@v4
+        with:
+            repository: Yutsuna/Krystal
+            path: Krystal-Source
+
+      - name: Build Krystal
+        run: |
+          cd Krystal-Source
+          crystal run Source/Krystal.cr
+          sudo mv bin/krystal /usr/local/bin/krystal
+
+      - name: Build Volt
+        run: |
+          cd ${{ github.workspace }}
+          krystal
+
+      - name: Run Tests
+        run: |
+          cd ${{ github.workspace }}
+          krystal --spec

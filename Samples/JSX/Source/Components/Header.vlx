@@ -1,0 +1,7 @@
+component Header( title : String )
+
+  <header>
+    <h1>{title}</h1>
+  </header>
+
+end

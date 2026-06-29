@@ -53,7 +53,7 @@ v0.1.0 language subset; JIT and RAII are deferred (see AGENTS.md #2b for the exa
         ║                  ├ tier-up counters ├ code cache           ║
         ║                  ├ bytecode→CLIF translator ├ trampoline   ║
         ║                                                            ║
-        ║   Runtime/    object model + native stdlib (Shell, IO…)    ║
+        ║   Runtime/    object model + native stdlib (Shell, IO...)    ║
         ╚════════════════════════════════════════════════════════════╝
 ```
 
@@ -128,7 +128,7 @@ Volt/
 │   │
 │   └── Runtime/
 │       ├── ObjectModel/                # Class, Method, layout, vtables, ctor/dtor registry
-│       └── Shell/                      # System::Shell native impls (File, Directory…)
+│       └── Shell/                      # System::Shell native impls (File, Directory...)
 │
 └── Spec/                               # tests, mirrored against Source/ layout
     ├── IR/
@@ -531,3 +531,38 @@ JIT/            ──────────────┘   (compiles Chunk;
 ## 14. The One-Sentence Thesis
 
 > Volt is statically typed with known lifetimes, so the interpreter ships **untagged registers + typed opcodes + compiler-emitted RAII** — beating Lua's tagged model *and* eliminating GC pauses entirely — while the JIT ships **guard-free Cranelift code** with direct dtor calls, all with zero startup cost because compilation is lazy, off-thread, and never touches cold code.
+
+---
+
+## Architecutre JSX
+
+```txt
+┌─────────────┐     ┌──────────────┐     ┌────────────────┐
+│ Fichier .vl │ ──► │ Lexer/Parser │ ──► │ AST Volt+JSX   │
+└─────────────┘     └──────────────┘     └────────────────┘
+                                                 │
+                    ┌────────────────────────────┘
+                    ▼
+           ┌──────────────┐
+           │ Transform JSX │
+           │  en appels    │
+           │   DOM/Comp    │
+           └──────────────┘
+                    │
+                    ▼
+           ┌──────────────┐
+           │  Génération  │
+           │   Code LLVM  │
+           │              │
+           └──────────────┘
+ ```
+
+
+| JSX                  | Volt compilé                                           |
+| -------------------- | ------------------------------------------------------ |
+| `<tag>`              | `Volt::DOM.element("tag", props, children)`            |
+| `<Component>`        | `Component.new(props).render`                          |
+| `prop={expr}`        | `prop: expr` dans le hash de props                     |
+| `on:event={handler}` | Event listener typé dans le hash                       |
+| `{expr}`             | Évaluation directe (string interpolation ou composant) |
+| Texte brut           | `Volt::DOM.text("...")`                                |

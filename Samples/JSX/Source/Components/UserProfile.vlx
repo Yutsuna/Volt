@@ -1,0 +1,10 @@
+component UserProfile( user : User )
+
+  label = user.admin? ? "Admin" : "Member"
+
+  <div class="profile">
+    <h2>{user.name}</h2>
+    <span class="badge">{label}</span>
+  </div>
+
+end

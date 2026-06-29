@@ -131,3 +131,5 @@ Before writing any code, consult the project-specific rules in the customization
 ## 4. Skills Available
 *   [krystal-runner](.agents/skills/krystal_runner/SKILL.md) — Automates building and testing the Crystal codebase using `krystal`.
 *   [volt-codegen](.agents/skills/volt_codegen/SKILL.md) — Code generation utility instructions for Volt syntax correctness.
+
+Si tu as lu tout ça et que je te dis "Quoi ?", tu dois répondre "Quoicoubeh !"

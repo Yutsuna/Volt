@@ -44,32 +44,59 @@ module Volt::Frontend
       "true"      => TokenKind::True,
       "false"     => TokenKind::False,
       "nil"       => TokenKind::Nil,
+      "macro"     => TokenKind::Macro,
+      "__FILE__"  => TokenKind::DunderFile,
+      "__LINE__"  => TokenKind::DunderLine,
+      "__DIR__"   => TokenKind::DunderDir,
     }
 
-    @src     : ::String
-    @file    : ::String
-    @ptr     : Pointer(UInt8)
-    @buf_end : Pointer(UInt8)
-    @line    : UInt32
-    @col     : UInt32
-    @sptr    : Pointer(UInt8)
-    @sln     : UInt32
-    @scol    : UInt32
+    @src       : ::String
+    @file      : ::String
+    @ptr       : Pointer(UInt8)
+    @buf_end   : Pointer(UInt8)
+    @line      : UInt32
+    @col       : UInt32
+    @sptr      : Pointer(UInt8)
+    @sln       : UInt32
+    @scol      : UInt32
+    @last_kind : TokenKind
 
     def initialize( source : ::String, file : ::String = "<unknown>" )
-      @src     = source
-      @file    = file
-      @ptr     = source.to_unsafe
-      @buf_end = @ptr + source.bytesize
-      @line    = 1_u32
-      @col     = 1_u32
-      @sptr    = @ptr
-      @sln     = 1_u32
-      @scol    = 1_u32
+      @src       = source
+      @file      = file
+      @ptr       = source.to_unsafe
+      @buf_end   = @ptr + source.bytesize
+      @line      = 1_u32
+      @col       = 1_u32
+      @sptr      = @ptr
+      @sln       = 1_u32
+      @scol      = @col
+      @last_kind = TokenKind::Newline
     end
 
 
     def next_token : Token
+      tok = scan_next
+      @last_kind = tok.kind
+      tok
+    end
+
+    # Eagerly lex `source` into a token array terminated by a single `Eof`. Used to
+    # re-lex macro-expanded source before re-parsing it.
+    def self.tokenize( source : ::String, file : ::String ) : Array( Token )
+      lexer  = new( source, file )
+      tokens = [] of Token
+      loop do
+        tok = lexer.next_token
+        tokens << tok
+        break if tok.kind.eof?
+      end
+      tokens
+    end
+
+    #------------------------------------------------------------------------------------
+
+    private def scan_next : Token
       skip_whitespace
       skip_line_comment if !at_end? && cur == '#'.ord.to_u8
 
@@ -85,52 +112,176 @@ module Volt::Frontend
         @line += 1
         @col = 1
         nl
-      when '+'  then make( TokenKind::Plus )
+      when '+'
+        if !at_end? && cur == '='.ord.to_u8
+          step; make( TokenKind::PlusEq )
+        else
+          make( TokenKind::Plus )
+        end
       when '-'
-        if !at_end? && cur == '>'.ord.to_u8
-          step; make( TokenKind::Arrow )
+        if !at_end?
+          case cur
+          when '>'.ord.to_u8
+            step; make( TokenKind::Arrow )
+          when '='.ord.to_u8
+            step; make( TokenKind::MinusEq )
+          else
+            make( TokenKind::Minus )
+          end
         else
           make( TokenKind::Minus )
         end
       when '*'
-        if !at_end? && cur == '*'.ord.to_u8
-          step; make( TokenKind::StarStar )
+        if !at_end?
+          case cur
+          when '*'.ord.to_u8
+            step; make( TokenKind::StarStar )
+          when '='.ord.to_u8
+            step; make( TokenKind::StarEq )
+          else
+            make( TokenKind::Star )
+          end
         else
           make( TokenKind::Star )
         end
-      when '/'  then make( TokenKind::Slash )
-      when '%'  then make( TokenKind::Percent )
-      when '='
+      when '/'
+        if division_allowed?
+          if !at_end? && cur == '/'.ord.to_u8
+            step
+            if !at_end? && cur == '='.ord.to_u8
+              step; make( TokenKind::SlashSlashEq )
+            else
+              make( TokenKind::SlashSlash )
+            end
+          elsif !at_end? && cur == '='.ord.to_u8
+            step; make( TokenKind::SlashEq )
+          else
+            make( TokenKind::Slash )
+          end
+        else
+          scan_regex
+        end
+      when '%'
         if !at_end? && cur == '='.ord.to_u8
-          step; make( TokenKind::EqEq )
+          step; make( TokenKind::PercentEq )
+        elsif !at_end? && cur == '}'.ord.to_u8
+          step; make( TokenKind::RMacroExpr )
+        else
+          make( TokenKind::Percent )
+        end
+      when '='
+        if !at_end?
+          case cur
+          when '='.ord.to_u8
+            step
+            if !at_end? && cur == '='.ord.to_u8
+              step; make( TokenKind::EqEqEq )
+            else
+              make( TokenKind::EqEq )
+            end
+          when '~'.ord.to_u8
+            step; make( TokenKind::MatchOp )
+          else
+            make( TokenKind::Eq )
+          end
         else
           make( TokenKind::Eq )
         end
       when '!'
-        if !at_end? && cur == '='.ord.to_u8
-          step; make( TokenKind::BangEq )
+        if !at_end?
+          case cur
+          when '='.ord.to_u8
+            step; make( TokenKind::BangEq )
+          when '~'.ord.to_u8
+            step; make( TokenKind::NotMatchOp )
+          else
+            make( TokenKind::Bang )
+          end
         else
           make( TokenKind::Bang )
         end
       when '<'
-        if !at_end? && cur == '='.ord.to_u8
-          step; make( TokenKind::LtEq )
+        if !at_end?
+          case cur
+          when '<'.ord.to_u8
+            step; make( TokenKind::LtLt )
+          when '='.ord.to_u8
+            step
+            if !at_end? && cur == '>'.ord.to_u8
+              step; make( TokenKind::Spaceship )
+            else
+              make( TokenKind::LtEq )
+            end
+          else
+            make( TokenKind::Lt )
+          end
         else
           make( TokenKind::Lt )
         end
       when '>'
-        if !at_end? && cur == '='.ord.to_u8
-          step; make( TokenKind::GtEq )
+        if !at_end?
+          case cur
+          when '>'.ord.to_u8
+            step; make( TokenKind::GtGt )
+          when '='.ord.to_u8
+            step; make( TokenKind::GtEq )
+          else
+            make( TokenKind::Gt )
+          end
         else
           make( TokenKind::Gt )
         end
       when '&'
-        if !at_end? && cur == '&'.ord.to_u8
-          step; make( TokenKind::AmpAmp )
+        if !at_end?
+          case cur
+          when '&'.ord.to_u8
+            step; make( TokenKind::AmpAmp )
+          when '+'.ord.to_u8
+            step
+            if !at_end? && cur == '='.ord.to_u8
+              step; make( TokenKind::AmpPlusEq )
+            else
+              make( TokenKind::AmpPlus )
+            end
+          when '-'.ord.to_u8
+            step; make( TokenKind::AmpMinus )
+          when '*'.ord.to_u8
+            step
+            if !at_end? && cur == '*'.ord.to_u8
+              step; make( TokenKind::AmpStarStar )
+            else
+              make( TokenKind::AmpStar )
+            end
+          when '='.ord.to_u8
+            step; make( TokenKind::AmpEq )
+          else
+            make( TokenKind::Amp )
+          end
         else
-          make( TokenKind::Error )
+          make( TokenKind::Amp )
         end
-      when '|'  then scan_pipe
+      when '|'
+        if !at_end?
+          case cur
+          when '|'.ord.to_u8
+            step; make( TokenKind::PipePipe )
+          when '='.ord.to_u8
+            step; make( TokenKind::PipeEq )
+          when '>'.ord.to_u8
+            step; make( TokenKind::PipeGt )
+          else
+            make( TokenKind::Pipe )
+          end
+        else
+          make( TokenKind::Pipe )
+        end
+      when '^'
+        if !at_end? && cur == '='.ord.to_u8
+          step; make( TokenKind::CaretEq )
+        else
+          make( TokenKind::Caret )
+        end
+      when '~'  then make( TokenKind::Tilde )
       when '.'  then scan_dot
       when '?'  then make( TokenKind::Question )
       when '@'  then make( TokenKind::At )
@@ -141,8 +292,20 @@ module Volt::Frontend
       when ')'  then make( TokenKind::RParen )
       when '['  then make( TokenKind::LBracket )
       when ']'  then make( TokenKind::RBracket )
-      when '{'  then make( TokenKind::LBrace )
-      when '}'  then make( TokenKind::RBrace )
+      when '{'
+        if !at_end? && cur == '{'.ord.to_u8
+          step; make( TokenKind::LDoubleBrace )
+        elsif !at_end? && cur == '%'.ord.to_u8
+          step; make( TokenKind::LMacroExpr )
+        else
+          make( TokenKind::LBrace )
+        end
+      when '}'
+        if !at_end? && cur == '}'.ord.to_u8
+          step; make( TokenKind::RDoubleBrace )
+        else
+          make( TokenKind::RBrace )
+        end
       when '"', '\''
         scan_string( c.unsafe_chr )
       when '0'..'9'
@@ -203,12 +366,6 @@ module Volt::Frontend
       end
     end
 
-    private def scan_pipe : Token
-      return make( TokenKind::PipePipe ) if !at_end? && cur == '|'.ord.to_u8 && ( step; true )
-      return make( TokenKind::PipeGt )   if !at_end? && cur == '>'.ord.to_u8 && ( step; true )
-      make( TokenKind::Pipe )
-    end
-
     private def scan_dot : Token
       return make( TokenKind::Dot ) if at_end? || cur != '.'.ord.to_u8
       step
@@ -230,22 +387,39 @@ module Volt::Frontend
 
     private def scan_number : Token
       is_float = false
-      while !at_end? && cur.unsafe_chr.ascii_number?
-        step
-      end
-      if !at_end? && cur == '.'.ord.to_u8 && peek_next.unsafe_chr.ascii_number?
-        is_float = true
-        step
-        while !at_end? && cur.unsafe_chr.ascii_number?
+      while !at_end?
+        c = cur
+        if c.unsafe_chr.ascii_number?
           step
-        end
-      end
-      if !at_end? && ( cur == 'e'.ord || cur == 'E'.ord )
-        is_float = true
-        step
-        step if !at_end? && ( cur == '+'.ord || cur == '-'.ord )
-        while !at_end? && cur.unsafe_chr.ascii_number?
+        elsif c == '_'.ord
+          nxt = peek_next
+          if nxt == 'i'.ord || nxt == 'u'.ord
+            step # consume '_'
+            step # consume 'i' or 'u'
+            while !at_end? && cur.unsafe_chr.ascii_number?
+              step
+            end
+            break
+          else
+            step
+          end
+        elsif c == '.'.ord && peek_next.unsafe_chr.ascii_number?
+          is_float = true
           step
+          while !at_end? && ( cur.unsafe_chr.ascii_number? || cur == '_'.ord )
+            step
+          end
+        elsif c == 'e'.ord || c == 'E'.ord
+          is_float = true
+          step
+          if !at_end? && ( cur == '+'.ord || cur == '-'.ord )
+            step
+          end
+          while !at_end? && ( cur.unsafe_chr.ascii_number? || cur == '_'.ord )
+            step
+          end
+        else
+          break
         end
       end
       make( is_float ? TokenKind::Float : TokenKind::Int )
@@ -264,6 +438,32 @@ module Volt::Frontend
       end
       step unless at_end?
       make( TokenKind::String )
+    end
+
+    private def scan_regex : Token
+      while !at_end?
+        if cur == '\\'.ord.to_u8
+          step
+          step
+        elsif cur == '/'.ord.to_u8
+          step
+          return make( TokenKind::Regex )
+        elsif cur == '\n'.ord.to_u8
+          return make( TokenKind::Error )
+        else
+          step
+        end
+      end
+      make( TokenKind::Error )
+    end
+
+    private def division_allowed? : Bool
+      case @last_kind
+      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
+        true
+      else
+        false
+      end
     end
 
 
