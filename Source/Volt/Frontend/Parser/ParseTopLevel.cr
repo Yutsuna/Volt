@@ -6,11 +6,18 @@ module Volt::Frontend
     private def parse_program : Program
       loc   = @current.span
       nodes = [] of ANode
+      collect_nodes( nodes )
+      Program.new( nodes, @file, loc )
+    end
+
+    private def collect_nodes( nodes : Array( ANode ) ) : Nil
       skip_separators
       until at_end?
         begin
           if @current.kind.macro?
             parse_macro_def
+          elsif macro_invocation?
+            nodes.concat( expand_macro_statements )
           else
             nodes << parse_top_level_node
           end
@@ -19,7 +26,6 @@ module Volt::Frontend
         end
         skip_separators
       end
-      Program.new( nodes, @file, loc )
     end
 
     private def parse_top_level_node : ANode
@@ -90,6 +96,9 @@ module Volt::Frontend
             e.is_a?( StringLit ) ? e.value : nil
           }
           skip_separators
+          # Extern declarations have no body; an optional `end` is tolerated so both
+          # `def puts(...) -> Void` and the `def puts(...) -> Void / end` forms parse.
+          advance if @current.kind.end?
           return ExternDecl.new( lib_name, name, params, return_type || SimpleType.new( "Void", loc ), loc )
         end
 
@@ -177,8 +186,22 @@ module Volt::Frontend
         skip_separators
 
         until at_end?
+          # `{% … %}` directives are opaque to body-depth tracking: their inner keywords
+          # (`if`, `for`, `end`...) belong to the macro language, not the surrounding block,
+          # so only a bare `end` may close the macro definition.
+          if @current.kind.l_macro_expr?
+            body_tokens << advance
+            until at_end? || @current.kind.r_macro_expr?
+              body_tokens << advance
+            end
+            body_tokens << advance unless at_end?
+            next
+          end
+
           tok = advance
-          if tok.kind.def? || tok.kind.class? || tok.kind.mixin? || tok.kind.component? || tok.kind.if? || tok.kind.unless? || tok.kind.while? || tok.kind.until? || tok.kind.match? || tok.kind.macro?
+          if tok.kind.def? || tok.kind.class? || tok.kind.mixin? || tok.kind.component? ||
+             tok.kind.if? || tok.kind.unless? || tok.kind.while? || tok.kind.until? ||
+             tok.kind.for? || tok.kind.match? || tok.kind.macro?
             depth += 1
           elsif tok.kind.end?
             depth -= 1
