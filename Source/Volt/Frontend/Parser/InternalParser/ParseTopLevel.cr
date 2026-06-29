@@ -186,7 +186,7 @@ module Volt::Frontend
         skip_separators
 
         until at_end?
-          # `{% … %}` directives are opaque to body-depth tracking: their inner keywords
+          # `{% ... %}` directives are opaque to body-depth tracking: their inner keywords
           # (`if`, `for`, `end`...) belong to the macro language, not the surrounding block,
           # so only a bare `end` may close the macro definition.
           if @current.kind.l_macro_expr?

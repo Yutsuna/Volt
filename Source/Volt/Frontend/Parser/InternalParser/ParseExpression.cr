@@ -220,7 +220,7 @@ module Volt::Frontend
     end
 
     private def resolve_binary_operator( kind : TokenKind ) : TokenKind
-      case op.kind
+      case  kind
       when .plus_eq?        then TokenKind::Plus
       when .minus_eq?       then TokenKind::Minus
       when .star_eq?        then TokenKind::Star
