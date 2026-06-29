@@ -21,7 +21,7 @@ module Volt::Frontend
 
     @tokens_stream   : Array( Token )? = nil
     @token_index     : Int32 = 0
-    @macro_expander  : MacroExpander? = nil
+    @macro_expander  : MacroParser? = nil
     @macro_depth     : Int32 = 0
 
     # TODO: make this parametrable via env or cli or idk
@@ -57,8 +57,8 @@ module Volt::Frontend
 
     #------------------------------------------------------------------------------------
 
-    private def macro_expander : MacroExpander
-      @macro_expander ||= MacroExpander.new( @file )
+    private def macro_expander : MacroParser
+      @macro_expander ||= MacroParser.new( @file )
     end
 
     protected def import_macros( table : Hash( String, MacroDef ), depth : Int32 ) : Nil
