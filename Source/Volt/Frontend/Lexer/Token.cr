@@ -141,10 +141,13 @@ module Volt::Frontend
     RBrace      # }
     LDoubleBrace # {{
     RDoubleBrace # }}
+    LMacroExpr   # {%
+    RMacroExpr   # %}
 
     # pseudo-variables (handled as keywords)
     DunderFile  # __FILE__
     DunderLine  # __LINE__
+    DunderDir   # __DIR__
 
     # regex literal
     Regex
