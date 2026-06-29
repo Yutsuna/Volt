@@ -56,6 +56,11 @@ module Volt::Frontend
         Diagnostic.error( "P0005", "expected #{what} after `#{after}`, found #{Catalog.describe( got )}" )
           .with_primary( got.span, "expected #{what} here" )
       end
+
+      def macro_expansion( message : String, span : Span ) : Diagnostic
+        Diagnostic.error( "P0006", "macro expansion failed: #{message}" )
+          .with_primary( span )
+      end
     end
 
 
