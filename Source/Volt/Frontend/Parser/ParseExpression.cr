@@ -52,12 +52,7 @@ module Volt::Frontend
         end
         clean_str = val_str.delete( '_' )
         node = IntLit.new( clean_str.to_i64, tok.span )
-        node.resolved_type = case suffix
-                             when "_i8"  then Type::INT8
-                             when "_i16" then Type::INT16
-                             when "_i32" then Type::INT32
-                             else             Type::INT
-                             end
+        node.resolved_type = resolve_suffix_type( suffix )
         node
       when .float?
         val_str = tok.value
@@ -137,19 +132,7 @@ module Volt::Frontend
         BinaryOp.new( left, op.kind, parse_expr( Prec.new( Prec::Power.value - 1 ) ), left.loc )
       when .plus_eq?, .minus_eq?, .star_eq?, .slash_eq?, .slash_slash_eq?,
            .percent_eq?, .pipe_eq?, .amp_eq?, .caret_eq?, .amp_plus_eq?
-        bin_op = case op.kind
-                 when .plus_eq?        then TokenKind::Plus
-                 when .minus_eq?       then TokenKind::Minus
-                 when .star_eq?        then TokenKind::Star
-                 when .slash_eq?       then TokenKind::Slash
-                 when .slash_slash_eq? then TokenKind::SlashSlash
-                 when .percent_eq?     then TokenKind::Percent
-                 when .pipe_eq?        then TokenKind::Pipe
-                 when .amp_eq?         then TokenKind::Amp
-                 when .caret_eq?       then TokenKind::Caret
-                 when .amp_plus_eq?    then TokenKind::AmpPlus
-                 else                       raise "unreachable"
-                 end
+        bin_op = resolve_binary_operator( op.kind )
         rhs = parse_expr( Prec.new( Prec::Assignment.value - 1 ) )
         val = BinaryOp.new( left, bin_op, rhs, left.loc )
         Assign.new( left, nil, val, left.loc )
@@ -227,6 +210,31 @@ module Volt::Frontend
       end
     end
 
+    private def resolve_suffix_type( suffix : String? ) : Type
+      case suffix
+      when "_i8"  then Type::INT8
+      when "_i16" then Type::INT16
+      when "_i32" then Type::INT32
+      else             Type::INT
+      end
+    end
+
+    private def resolve_binary_operator( kind : TokenKind ) : TokenKind
+      case op.kind
+      when .plus_eq?        then TokenKind::Plus
+      when .minus_eq?       then TokenKind::Minus
+      when .star_eq?        then TokenKind::Star
+      when .slash_eq?       then TokenKind::Slash
+      when .slash_slash_eq? then TokenKind::SlashSlash
+      when .percent_eq?     then TokenKind::Percent
+      when .pipe_eq?        then TokenKind::Pipe
+      when .amp_eq?         then TokenKind::Amp
+      when .caret_eq?       then TokenKind::Caret
+      when .amp_plus_eq?    then TokenKind::AmpPlus
+      else                       raise "unreachable"
+      end
+    end
+
     private def collect_macro_args : Array( Array( Token ) )
       args = [] of Array( Token )
       current_arg = [] of Token
@@ -257,42 +265,83 @@ module Volt::Frontend
       args
     end
 
+    private def macro_invocation? : Bool
+      @current.kind.ident? && @macro_table.has_key?( @current.value )
+    end
+
+    private def expand_macro_statements : Array( ANode )
+      call_span = @current.span
+      macro_def = @macro_table[ @current.value ]
+      advance   # consume the macro name
+      args = collect_macro_call_args
+      parse_macro_expansion( macro_def, call_span, args ) do |sub|
+        sub.parse_expansion_nodes
+      end
+    end
+
+    # Expand a macro used in expression position (`x = some_macro(...)`) into a single
+    # expression, re-parsing the rendered source.
     private def expand_macro( macro_def : MacroDef, open_paren : Token ) : AExpr
-      args_tokens = collect_macro_args
-      param_to_arg = {} of String => Array( Token )
-      macro_def.params.each_with_index do |param_name, idx|
-        param_to_arg[ param_name ] = args_tokens[ idx ]? || [] of Token
+      args = collect_macro_args
+      parse_macro_expansion( macro_def, open_paren.span, args ) do |sub|
+        sub.parse_expansion_expr
+      end
+    end
+
+    private def parse_macro_expansion( macro_def : MacroDef, call_span : Span,
+                                       args : Array( Array( Token ) ), & : Parser -> T ) : T forall T
+      if @macro_depth >= MAX_MACRO_DEPTH
+        error!( Catalog::Parse.macro_expansion(
+          "maximum expansion depth (#{ MAX_MACRO_DEPTH }) exceeded — `#{ macro_def.name }` is likely recursive",
+          call_span ) )
       end
 
-      expanded_tokens = [] of Token
-      i = 0
-      body = macro_def.body
+      source = begin
+                 macro_expander.expand( macro_def, args, call_span )
+               rescue ex : MacroExpander::ExpansionError
+                 error!( Catalog::Parse.macro_expansion( ex.message || "invalid macro", ex.span ) )
+               end
+      tokens = Lexer.tokenize( source, @file )
+      sub    = Parser.new( tokens, @file, @bag )
+      sub.import_macros( @macro_table, @macro_depth + 1 )
+      yield sub
+    end
 
-      while i < body.size
-        tok = body[ i ]
-        if tok.kind.l_double_brace? && i + 2 < body.size && body[ i + 1 ].kind.ident? && body[ i + 2 ].kind.r_double_brace?
-          param_tok = body[ i + 1 ]
-          if arg_toks = param_to_arg[ param_tok.value ]?
-            expanded_tokens.concat( arg_toks )
-          end
-          i += 3
+    # Collect the argument token groups of a macro call, supporting the parenthesised
+    # `m(a, b)`, the space-separated `m a, b`, and the no-argument forms.
+    private def collect_macro_call_args : Array( Array( Token ) )
+      if @current.kind.l_paren?
+        advance   # consume `(`
+        collect_macro_args
+      elsif at_end? || @current.kind.newline? || @current.kind.semicolon? || BODY_TERMINATORS.includes?( @current.kind )
+        [] of Array( Token )
+      else
+        collect_space_macro_args
+      end
+    end
+
+    # Collect space-call arguments: comma-separated token groups until end of line,
+    # honouring bracket nesting so commas inside `(...)`/`[...]` don't split arguments.
+    private def collect_space_macro_args : Array( Array( Token ) )
+      args    = [] of Array( Token )
+      current = [] of Token
+      depth   = 0
+      until at_end? || ( depth == 0 && ( @current.kind.newline? || @current.kind.semicolon? ) )
+        kind = @current.kind
+        if kind.l_paren? || kind.l_bracket? || kind.l_brace?
+          depth += 1; current << advance
+        elsif kind.r_paren? || kind.r_bracket? || kind.r_brace?
+          depth -= 1; current << advance
+        elsif kind.comma? && depth == 0
+          advance
+          args << current
+          current = [] of Token
         else
-          if tok.kind.dunder_file?
-            expanded_tokens << Token.new( TokenKind::String, open_paren.ptr, open_paren.len, open_paren.span )
-          elsif tok.kind.dunder_line?
-            expanded_tokens << Token.new( TokenKind::Int, open_paren.ptr, open_paren.len, open_paren.span )
-          else
-            expanded_tokens << tok
-          end
-          i += 1
+          current << advance
         end
       end
-
-      eof_span = open_paren.span
-      expanded_tokens << Token.new( TokenKind::Eof, open_paren.ptr, 0, eof_span )
-
-      sub_parser = Parser.new( expanded_tokens, @file, @bag )
-sub_parser.parse_expr
+      args << current unless current.empty?
+      args
     end
 
     private def can_start_expr?( kind : TokenKind ) : Bool
