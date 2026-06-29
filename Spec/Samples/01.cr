@@ -6,11 +6,8 @@ require "../../Source/Volt/CLI/CLI"
 module Volt::Spec
 
 
-  samples_01_path = File.join(__DIR__, "../../Samples/Tests/01.*.vl")
-
-
   describe "Volt::Run: 01" do
-    Dir.glob( samples_01_path ).each do |file|
+    Dir.glob( SAMPLES_01_DIR, "vl" ).each do |file|
       filename = File.basename file
 
       it "Should run without errors: #{filename}" do
