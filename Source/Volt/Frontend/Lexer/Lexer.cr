@@ -47,6 +47,7 @@ module Volt::Frontend
       "macro"     => TokenKind::Macro,
       "__FILE__"  => TokenKind::DunderFile,
       "__LINE__"  => TokenKind::DunderLine,
+      "__DIR__"   => TokenKind::DunderDir,
     }
 
     @src       : ::String
@@ -78,6 +79,19 @@ module Volt::Frontend
       tok = scan_next
       @last_kind = tok.kind
       tok
+    end
+
+    # Eagerly lex `source` into a token array terminated by a single `Eof`. Used to
+    # re-lex macro-expanded source before re-parsing it.
+    def self.tokenize( source : ::String, file : ::String ) : Array( Token )
+      lexer  = new( source, file )
+      tokens = [] of Token
+      loop do
+        tok = lexer.next_token
+        tokens << tok
+        break if tok.kind.eof?
+      end
+      tokens
     end
 
     #------------------------------------------------------------------------------------
@@ -150,6 +164,8 @@ module Volt::Frontend
       when '%'
         if !at_end? && cur == '='.ord.to_u8
           step; make( TokenKind::PercentEq )
+        elsif !at_end? && cur == '}'.ord.to_u8
+          step; make( TokenKind::RMacroExpr )
         else
           make( TokenKind::Percent )
         end
@@ -279,6 +295,8 @@ module Volt::Frontend
       when '{'
         if !at_end? && cur == '{'.ord.to_u8
           step; make( TokenKind::LDoubleBrace )
+        elsif !at_end? && cur == '%'.ord.to_u8
+          step; make( TokenKind::LMacroExpr )
         else
           make( TokenKind::LBrace )
         end
