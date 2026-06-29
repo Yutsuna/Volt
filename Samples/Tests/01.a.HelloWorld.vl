@@ -1,0 +1,4 @@
+@[External]
+def puts( str : String ) -> Void
+
+puts "Hello, Volt!"

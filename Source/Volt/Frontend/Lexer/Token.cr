@@ -67,6 +67,7 @@ module Volt::Frontend
     Super
     Raise
     Abstract
+    Macro
 
     # arithmetic
     Plus        # +
@@ -75,6 +76,11 @@ module Volt::Frontend
     Slash       # /
     Percent     # %
     StarStar    # **
+    AmpPlus     # &+
+    AmpMinus    # &-
+    AmpStar     # &*
+    AmpStarStar # &**
+    SlashSlash  # //
 
     # equality / comparison
     EqEq        # ==
@@ -83,6 +89,10 @@ module Volt::Frontend
     Gt          # >
     LtEq        # <=
     GtEq        # >=
+    Spaceship   # <=>
+    EqEqEq      # ===
+    MatchOp     # =~
+    NotMatchOp  # !~
 
     # logical
     AmpAmp      # &&
@@ -91,6 +101,16 @@ module Volt::Frontend
 
     # assignment
     Eq          # =
+    PlusEq        # +=
+    MinusEq       # -=
+    StarEq        # *=
+    SlashEq       # /=
+    SlashSlashEq  # //=
+    PercentEq     # %=
+    PipeEq        # |=
+    AmpEq         # &=
+    CaretEq       # ^=
+    AmpPlusEq     # &+=
 
     # structural / punctuation
     PipeGt      # |>
@@ -106,6 +126,11 @@ module Volt::Frontend
     At          # @
     Question    # ?
     Hash        # #
+    Amp         # &
+    Caret       # ^
+    Tilde       # ~
+    LtLt        # <<
+    GtGt        # >>
 
     # delimiters
     LParen      # (
@@ -114,6 +139,18 @@ module Volt::Frontend
     RBracket    # ]
     LBrace      # {
     RBrace      # }
+    LDoubleBrace # {{
+    RDoubleBrace # }}
+    LMacroExpr   # {%
+    RMacroExpr   # %}
+
+    # pseudo-variables (handled as keywords)
+    DunderFile  # __FILE__
+    DunderLine  # __LINE__
+    DunderDir   # __DIR__
+
+    # regex literal
+    Regex
 
     # whitespace / meta
     Newline
