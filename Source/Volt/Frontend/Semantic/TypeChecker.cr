@@ -20,7 +20,6 @@ module Volt::Frontend
 
     #------------------------------------------------------------------------------------
 
-    # Returns the value type of the last expression, for implicit return.
     private def check_body( nodes : Array( ANode ), scope : Scope ) : Type
       last = Type::NIL
       nodes.each do |node|
@@ -222,6 +221,10 @@ module Volt::Frontend
 
     end
 
+    private def displayable?( type : Type ) : Bool
+      type.numeric? || type.kind.bool? || type.kind.str? || type.kind.nil?
+    end
+
     private def infer_call( expr : Call, scope : Scope ) : Type
       callee = expr.callee
       unless callee.is_a?( Ident )
@@ -249,9 +252,9 @@ module Volt::Frontend
         at    = infer( arg, scope )
         param = sig.params[ i ]?
         next if param.nil?
-        if !param.kind.unknown? && !at.kind.unknown? && param != at
-          @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
-        end
+        next if param.kind.unknown? || at.kind.unknown? || param == at
+        next if sig.extern && param.kind.str? && displayable?( at )
+        @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
       end
 
       sig.ret
