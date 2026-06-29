@@ -53,7 +53,7 @@ v0.1.0 language subset; JIT and RAII are deferred (see AGENTS.md #2b for the exa
         ║                  ├ tier-up counters ├ code cache           ║
         ║                  ├ bytecode→CLIF translator ├ trampoline   ║
         ║                                                            ║
-        ║   Runtime/    object model + native stdlib (Shell, IO…)    ║
+        ║   Runtime/    object model + native stdlib (Shell, IO...)    ║
         ╚════════════════════════════════════════════════════════════╝
 ```
 
@@ -128,7 +128,7 @@ Volt/
 │   │
 │   └── Runtime/
 │       ├── ObjectModel/                # Class, Method, layout, vtables, ctor/dtor registry
-│       └── Shell/                      # System::Shell native impls (File, Directory…)
+│       └── Shell/                      # System::Shell native impls (File, Directory...)
 │
 └── Spec/                               # tests, mirrored against Source/ layout
     ├── IR/
