@@ -19,8 +19,14 @@ module Volt::Frontend
 
     getter bag : DiagnosticBag
 
-    @tokens_stream : Array( Token )? = nil
-    @token_index   : Int32 = 0
+    @tokens_stream   : Array( Token )? = nil
+    @token_index     : Int32 = 0
+    @macro_expander  : MacroExpander? = nil
+    @macro_depth     : Int32 = 0
+
+    # TODO: make this parametrable via env or cli or idk
+    # this is a guard against recursive macro expansion
+    MAX_MACRO_DEPTH = 256
 
     def initialize( source : String, file : String = "<unknown>" )
       @lexer       = Lexer.new( source, file )
@@ -47,6 +53,28 @@ module Volt::Frontend
       program = parse_program
       raise CompilationError.new( @bag ) if @bag.errors?
       program
+    end
+
+    #------------------------------------------------------------------------------------
+
+    private def macro_expander : MacroExpander
+      @macro_expander ||= MacroExpander.new( @file )
+    end
+
+    protected def import_macros( table : Hash( String, MacroDef ), depth : Int32 ) : Nil
+      @macro_table = table
+      @macro_depth = depth
+    end
+
+    protected def parse_expansion_nodes : Array( ANode )
+      nodes = [] of ANode
+      collect_nodes( nodes )
+      nodes
+    end
+
+    protected def parse_expansion_expr : AExpr
+      skip_separators
+      parse_expr
     end
 
     #------------------------------------------------------------------------------------
@@ -139,7 +167,11 @@ module Volt::Frontend
       skip_separators
       until BODY_TERMINATORS.includes?( @current.kind )
         begin
-          nodes << parse_body_node
+          if macro_invocation?
+            nodes.concat( expand_macro_statements )
+          else
+            nodes << parse_body_node
+          end
         rescue ParseRecovery
           synchronize
         end
