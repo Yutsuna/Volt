@@ -1,0 +1,32 @@
+@[External("libc")]
+def puts( val : String ) -> Void
+end
+
+
+# Compile-time control flow inside macros, mirroring Crystal.
+#
+#   * `{% for x in [...] %} ... {% end %}` unrolls the body once per element.
+#   * `{% if %} / {% elsif %} / {% else %} / {% end %}` selects a branch per call.
+#   * `{{ x.upcase }}` applies a compile-time method to an interpolated value.
+
+macro emit_levels()
+  {% for level in ["low", "high"] %}
+  puts({{level.upcase}})
+  {% end %}
+end
+
+macro describe(kind)
+  {% if kind == "fruit" %}
+  puts("a fruit")
+  {% elsif kind == "veg" %}
+  puts("a vegetable")
+  {% else %}
+  puts("unknown")
+  {% end %}
+end
+
+emit_levels()
+
+describe("fruit")
+describe("veg")
+describe("mineral")

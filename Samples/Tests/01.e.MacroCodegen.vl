@@ -1,0 +1,33 @@
+@[External("libc")]
+def puts( val : String ) -> Void
+end
+
+
+# Code generation and macro composition, mirroring Crystal.
+#
+#   * `def greet_{{who.id}}` pastes the interpolation directly onto the identifier
+#     (the `.id` method strips quotes), generating one function per element.
+#   * A macro may call another macro: `header` expands `line` during its own expansion.
+
+macro define_greeters()
+  {% for who in ["world", "volt"] %}
+  def greet_{{who.id}}() -> Void
+    puts({{who}})
+  end
+  {% end %}
+end
+
+macro line(text)
+  puts({{text}})
+end
+
+macro header(title)
+  line("section")
+  line({{title}})
+end
+
+define_greeters()
+
+greet_world()
+greet_volt()
+header("done")
