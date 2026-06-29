@@ -56,7 +56,7 @@ module Volt::CLI
       rescue e
         fatal! "Cannot read '#{file}': #{e.message}"
       end
-      filename = file
+      filename = File.expand_path( file )
       interpret( source, filename )
     end
 
