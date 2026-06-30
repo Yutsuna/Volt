@@ -9,10 +9,12 @@ module Volt::VM
   # implementation note: start with `case`, migrate to direct-threaded once the opcode
   # set is stable). Opcode families live in VM/Dispatch/*.
   class Vm
+
     def initialize( @unit : Compiler::Unit )
     end
 
-    # Runs the entry chunk; returns a process exit code.
+    #--------------------------------------------------------------------------
+
     def run : Int32
       call_chunk( @unit.chunks[ @unit.main_index ], [] of IR::Value )
       0
@@ -24,7 +26,8 @@ module Volt::VM
       1
     end
 
-    # Executes a chunk with the given arguments and returns its result value.
+    #--------------------------------------------------------------------------
+
     def call_chunk( chunk : IR::Chunk, args : Array( IR::Value ) ) : IR::Value
       frame = Frame.new( chunk, args )
       code  = chunk.code
@@ -36,51 +39,67 @@ module Volt::VM
           ip += 1
 
           case ins.op
-          when .load_const?, .load_true?, .load_false?, .load_nil?, .move?
-            exec_load_store( frame, chunk, ins )
-          when .jmp?
+          in .load_const?, .load_true?, .load_false?, .load_nil?, .move?
+            exec_load_store(frame, chunk, ins)
+
+          in .jmp?
             ip = ins.bx
-          when .jmp_if_false?
-            ip = ins.bx unless frame[ ins.a ].truthy?
-          when .not?
-            frame[ ins.a ] = IR::Value.bool( !frame[ ins.b ].truthy? )
-          when .conv_int?
-            val = frame[ ins.a ].as_i
-            bit_width = ins.bx
-            shift = 64 - bit_width
-            extended = ( val << shift ) >> shift
-            frame[ ins.a ] = IR::Value.int( extended )
-          when .raise?
-            msg = frame[ ins.a ].to_display
-            raise VoltRuntimeError.new( msg )
-          when .call?
-            frame[ ins.a ] = call_chunk( @unit.chunks[ ins.b ], collect_args( frame, ins ) )
-          when .call_native?
-            frame[ ins.a ] = call_native( @unit.natives[ ins.b ], collect_args( frame, ins ) )
-          when .ret?
-            return frame[ ins.a ]
-          when .eq?, .ne?, .lt_int?, .le_int?, .gt_int?, .ge_int?,
-               .lt_f64?, .le_f64?, .gt_f64?, .ge_f64?, .cmp_int?, .eq_case?,
-               .match_str?, .not_match_str?
-            frame[ ins.a ] = eval_cmp( ins.op, frame[ ins.b ], frame[ ins.c ] )
-          when .init?, .drop?, .drop_scope?
-            exec_raii( frame, chunk, ins )
-          else
-            # arithmetic family (ADD/SUB/MUL/DIV/MOD/NEG, int + f64)
-            frame[ ins.a ] = eval_arith( ins.op, frame[ ins.b ], frame[ ins.c ] )
+
+          in .jmp_if_false?
+            ip = ins.bx unless frame[ins.a].truthy?
+
+          in .not?
+            frame[ins.a] = IR::Value.bool(!frame[ins.b].truthy?)
+
+          in .conv_int?
+            exec_conv_int(frame, ins)
+
+          in .raise?
+            raise VoltRuntimeError.new(frame[ins.a].to_display)
+
+          in .call?
+            frame[ins.a] = call_chunk(@unit.chunks[ins.b], collect_args(frame, ins))
+
+          in .call_native?
+            frame[ins.a] = call_native(@unit.natives[ins.b], collect_args(frame, ins))
+
+          in .ret?
+            return frame[ins.a]
+
+          in .eq?, .ne?, .lt_int?, .le_int?, .gt_int?, .ge_int?,
+              .lt_f64?, .le_f64?, .gt_f64?, .ge_f64?, .cmp_int?, .eq_case?,
+              .match_str?, .not_match_str?
+            frame[ins.a] = eval_cmp(ins.op, frame[ins.b], frame[ins.c])
+
+          in .init?, .drop?, .drop_scope?
+            exec_raii(frame, chunk, ins)
+
+          in .add_int?, .sub_int?, .mul_int?, .div_int?, .mod_int?, .neg_int?,
+              .add_f64?, .sub_f64?, .mul_f64?, .div_f64?, .neg_f64?,
+              .and_int?, .or_int?, .xor_int?, .shl_int?, .shr_int?, .not_int?,
+              .idiv_int?, .pow_int?
+            frame[ins.a] = eval_arith(ins.op, frame[ins.b], frame[ins.c])
           end
         end
-      rescue e : VoltRuntimeError
-        unwind_frame( frame, chunk, ip )
-        raise e
+      ensure
+        unwind_frame(frame, chunk, ip) if ip < code.size
       end
 
       IR::Value.nil_value
     end
 
+    #--------------------------------------------------------------------------
+
+    private def exec_conv_int( frame : Frame, ins : IR::Instruction )
+      val = frame[ ins.a ].as_i
+      shift = 64 - ins.bx
+      extended = ( val << shift ) >> shift
+      frame[ ins.a ] = IR::Value.int( extended )
+    end
+
     # Walks the DropMap and destroys any live RAII objects whose pc range covers
-    # the current instruction pointer. Used for deterministic cleanup on exception
-    # unwind (architecture #4.6).
+    # the current instruction pointer.
+    # architecture #4.6
     private def unwind_frame( frame : Frame, chunk : IR::Chunk, ip : Int32 )
       chunk.drop_map.entries.each do |entry|
         pc = ip.to_u32
