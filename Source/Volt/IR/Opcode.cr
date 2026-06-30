@@ -80,6 +80,11 @@ module Volt::IR
     # --- triple equal ---
     EQ_CASE       # A,B,C : reg[A] = reg[B] === reg[C]
 
+    # --- memory RAII ---
+    INIT          # A, Bx : reg[A] = allocate(Bx)
+    DROP          # A, Bx : deallocate(reg[A], Bx)
+    DROP_SCOPE    # Bx    : deallocate_scope(regs_idx: Bx)
+
     # --- raise ---
     RAISE         # A     : raise reg[A]
   end
