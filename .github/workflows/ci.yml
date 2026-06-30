@@ -32,10 +32,8 @@ jobs:
 
       - name: Build Volt
         run: |
-          cd ${{ github.workspace }}
           krystal
 
       - name: Run Tests
         run: |
-          cd ${{ github.workspace }}
           krystal --spec
