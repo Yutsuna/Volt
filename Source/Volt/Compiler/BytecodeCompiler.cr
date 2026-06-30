@@ -78,6 +78,7 @@ module Volt::Compiler
       @scope    = {} of String => Int32
       @next_reg = 0
       @max_reg  = 0
+      @scopes_resource_registers = [ [] of Tuple( Int32, Int32 ) ]
     end
 
     #------------------------------------------------------------------------------------
@@ -138,8 +139,49 @@ module Volt::Compiler
       @chunk.constants.size - 1
     end
 
+    private def add_scope_table( regs : Array( Int32 ) ) : Int32
+      @chunk.scope_tables << regs
+      @chunk.scope_tables.size - 1
+    end
+
     def emit_ret( reg : Int32 )
       emit_abc( IR::Opcode::RET, reg, 0, 0 )
+    end
+
+    #------------------------------------------------------------------------------------
+
+    def enter_scope
+      @scopes_resource_registers.push( [] of Tuple( Int32, Int32 ) )
+    end
+
+    def exit_scope
+      current_pc = here.to_u32
+      scope = @scopes_resource_registers.pop
+      regs  = scope.map { |reg, _| reg }
+
+      unless regs.empty?
+        table_idx = add_scope_table( regs )
+        emit_abx( IR::Opcode::DROP_SCOPE, 0, table_idx )
+
+        @chunk.drop_map.entries.each do |entry|
+          if entry.pc_end == UInt32::MAX && regs.includes?( entry.register.to_i32 )
+            entry.pc_end = current_pc
+          end
+        end
+      end
+    end
+
+    def track_raii_resource( reg : Int32, type_id : Int32 )
+      @scopes_resource_registers.last << { reg, type_id }
+      @chunk.drop_map.entries << IR::DropEntry.new( here.to_u32, UInt32::MAX, reg.to_u8, type_id )
+    end
+
+    private def emit_scope_cleanup
+      @scopes_resource_registers.reverse_each do |scope|
+        scope.each do |reg, type_id|
+          emit_abx( IR::Opcode::DROP, reg, type_id )
+        end
+      end
     end
 
     #------------------------------------------------------------------------------------
@@ -385,6 +427,7 @@ module Volt::Compiler
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
         r
       end
+      emit_scope_cleanup
       emit_ret( reg )
       reg
     end
