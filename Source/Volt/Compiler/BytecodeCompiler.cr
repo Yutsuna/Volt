@@ -435,7 +435,7 @@ module Volt::Compiler
     #------------------------------------------------------------------------------------
 
     private def numeric_float?( expr : Frontend::AExpr ) : Bool
-      ( t = expr.resolved_type ) ? t.kind.float? : false
+      ( t = expr.resolved_type ) ? t.float? : false
     end
 
     private def binary_opcode( kind : Frontend::TokenKind, f64 : Bool ) : IR::Opcode
