@@ -1,0 +1,39 @@
+@[External("libc")]
+def puts( str : String) -> Void
+
+
+mixin Loggable
+  def log(message : String) -> Void
+    puts("[LOG] " + message)
+  end
+end
+
+
+mixin Authenticating
+  def authenticate(user : String) -> Bool
+    log("Verifying credentials for " + user)
+    user == "admin"
+  end
+end
+
+
+class AdminConsole include Loggable include Authenticating
+  session_id : String
+
+  def initialize(session_id : String)
+    @session_id = session_id
+  end
+
+  def execute_command(user : String, cmd : String) -> Void
+    if authenticate(user)
+      log("Executing '" + cmd + "' under session " + @session_id)
+    else
+      log("DENIED access to " + user)
+    end
+  end
+end
+
+
+console = AdminConsole.new("SESS_999")
+console.execute_command("admin", "rm -rf /tmp")
+console.execute_command("guest", "ls")
