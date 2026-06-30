@@ -1,0 +1,56 @@
+@[External("libc")]
+def puts( str : String ) -> Void
+
+struct Vec3
+
+  getter x : Float32
+  getter y : Float32
+  getter z : Float32
+
+  def initialize(@x : Float32, @y : Float32, @z : Float32)
+  end
+
+  def dot(other : Vec3) -> Float32
+    @x * other.x + @y * other.y + @z * other.z
+  end
+
+  def *(scalar : Float32) -> Vec3
+    Vec3.new( @n * scalar, @y * scalar, @z * scalar )
+  end
+
+  def /(scalar : Float32) -> Vec3
+    Vec3.new( @x / scalar, @y / scalar, @z / scalar )
+  end
+
+  def +(other : Vec3) -> Vec3
+    Vec3.new( @x + other.x, @y + other.y, @z + other.z )
+  end
+
+  def -(other : Vec3) -> Vec3
+    Vec3.new( @x - other.x, @y - other.y, @z - other.z )
+  end
+
+  def ==(other : Vec3) -> Bool
+    @x == other.x && @y == other.y && @z == other.z
+  end
+
+end
+
+def cross( a : Vec3, b : Vec3 ) -> Vec3
+  Vec3.new(
+    a.y * b.z - a.z * b.y,
+    a.z * b.x - a.x * b.z,
+    a.x * b.y - a.y * b.x
+  )
+end
+
+v = Vec3.new( 1.0, 2.0, 3.0 )
+w = Vec3.new( 4.0, 5.0, 6.0 )
+dot_product = v.dot w
+cross_product = cross( v, w )
+
+if dot_product == 32.0 && cross_product == Vec3.new(-3.0, 6.0, -3.0)
+  puts("PASS")
+else
+  puts("FAIL")
+end
