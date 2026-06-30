@@ -28,7 +28,7 @@ jobs:
         run: |
           cd Krystal-Source
           crystal run Source/Krystal.cr
-          sudo mv bin/krystal /usr/local/bin/krystal
+          mv bin/krystal /usr/local/bin/krystal
 
       - name: Build Volt
         run: |
