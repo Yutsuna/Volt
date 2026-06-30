@@ -1,0 +1,28 @@
+@[External("libc")]
+def puts( str : String ) -> Void
+
+struct Point
+  x : Int64
+  y : Int64
+end
+
+struct Rectangle
+  origin : Point
+  width : Int64
+  height : Int64
+end
+
+def move_rectangle( rect : Rectangle, dx : Int64, dy : Int64 ) -> Rectangle
+  new_origin = Point.new( rect.origin.x + dx, rect.origin.y + dy )
+  return Rectangle.new( new_origin, rect.width, rect.height )
+end
+
+p1 = Point.new(10, 20)
+rect = Rectangle.new(p1, 100, 50)
+moved = move_rect(rect, 5, -5)
+
+if rect.origin.x == 10 and moved.origin.x == 15 and moved.origin.y == 15
+  puts ("PASS")
+else
+  puts ("FAIL")
+end

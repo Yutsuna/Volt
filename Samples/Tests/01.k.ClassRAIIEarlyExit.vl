@@ -1,0 +1,52 @@
+@[External("libc")]
+def puts(str : String) -> Void
+
+
+class LockResource
+  label : String
+
+  def initialize(label : String)
+    @label = label
+    puts("LOCK acquired: " + @label)
+  end
+
+  def finalize
+    puts("LOCK released: " + @label)
+  end
+end
+
+def process_transaction(status : Int64) -> Int64
+  res_main = LockResource.new("MainTx")
+
+  if status == 500
+    res_err = LockResource.new("ErrorLog")
+    return -1
+  end
+
+  puts("Tx normal execution")
+  0
+end
+
+
+class BadResource
+  child : LockResource
+
+  def initialize(crash : Bool)
+    @child = LockResource.new("NestedLock")
+    if crash
+      puts("Simulating crash inside constructor...")
+      raise "ConstructorFailureException"
+    end
+  end
+
+  def finalize
+    puts("USER FINALIZE BadResource")
+  end
+end
+
+
+puts("Early Return")
+process_transaction(500)
+
+puts("Construction Crash")
+bad_alloc = BadResource.new(true)
