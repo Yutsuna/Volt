@@ -38,18 +38,17 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `ParseBlock.cr` : Block expressions and block parameters
     *   `ParseCall.cr` : Function/method calls (dot calls, safe calls, indexing)
     *   `ParseLiteral.cr` : Literals (grouping, arrays)
-*   **Frontend/Types + Frontend/Semantic** : type inference + checks producing the
-    TypedProgram contract (`Frontend.analyse`). Every `AExpr` carries a `resolved_type`.
+*   **Frontend/Types + Frontend/Semantic** : type inference, checks, and layout/type collection (via `TypeCollector.cr`) producing the TypedProgram contract (`Frontend.analyse`). Every `AExpr` carries a `resolved_type`.
 *   **IR/** : Complete implementation:
-    *   `Opcode.cr` : Typed opcode enum (ADD_INT, ADD_F64, LOAD_CONST, CALL, RET, etc.)
+    *   `Opcode.cr` : Typed opcode enum (ADD_INT, ADD_F64, LOAD_CONST, CALL, RET, INIT_OBJ, LOAD_FIELD, STORE_FIELD, CALL_METHOD, COPY_BLOCK, etc.)
     *   `Instruction.cr` : 32-bit packed instruction with ABC and ABx forms
     *   `Chunk.cr` : Compiled function unit with code, constants, drop_map
     *   `Value.cr` : Boxed tagged union for runtime values (Int64, Float64, Bool, String, Nil)
     *   `DropMap.cr` : Placeholder for RAII unwind information
 *   **Compiler/** : Complete bytecode compiler:
-    *   `BytecodeCompiler.cr` : Main compiler (TypedAST → Unit of chunks)
-    *   `Unit.cr` : Compilation unit containing chunks, main index, natives table
-    *   `FnEmitter` : Function-level bytecode emitter with register allocation
+    *   `BytecodeCompiler.cr` : Main compiler (TypedAST → Unit of chunks), compiles classes, methods, and `__drop_fields`
+    *   `Unit.cr` : Compilation unit containing chunks, main index, natives table, registered classes
+    *   `FnEmitter` : Function-level bytecode emitter with register allocation (supports ivar stores, block copying)
     *   `ConstFold.cr` : Constant folding pass (identity placeholder)
     *   `EscapeAnalysis.cr` : Escape analysis pass (identity placeholder)
     *   `Peephole.cr` : Peephole optimization pass (identity placeholder)
@@ -62,16 +61,17 @@ The end-to-end execution path is live: **`volt run` interprets a program**
         *   `Call.cr` : Function call helpers (argument collection)
         *   `Cmp.cr` : Comparison operators (LT, LE, GT, GE, EQ, NE)
         *   `LoadStore.cr` : LOAD_CONST, MOVE, and literal loading
-        *   `Raii.cr` : RAII opcodes (INIT, DROP, DROP_SCOPE) : reserved for future
+        *   `Memory.cr` : LOAD_FIELD, STORE_FIELD, struct allocations, and block copies
+        *   `Raii.cr` : RAII opcodes (INIT_OBJ, DROP, DROP_SCOPE) and recursive deep field drop (`__drop_fields`)
         *   `Native.cr` : Native call support
 *   **Runtime/** : Partial implementation:
     *   `Runtime/Builtins/` : Built-in functions (stubs)
-    *   `Runtime/ObjectModel/` : Empty, reserved for class/method system
+    *   `Runtime/ObjectModel/` : `RClass.cr` representing classes and `TypeRegistry.cr` registering types
     *   `Runtime/Shell/` : Empty, reserved for System::Shell API
 *   **CLI** : Working commands:
     *   `run` : Interpret Volt programs (end-to-end)
     *   `ast` : Dump AST for source files
-    *   `analyse` : Semantic analysis pass
+    *   `check` : Semantic analysis pass
     *   `circuit`, `format`, `version`, `help`, `repl`, `build` : CLI structure in place
 
 **Language subset (v0.1.0):**
@@ -82,12 +82,15 @@ The end-to-end execution path is live: **`volt run` interprets a program**
 - Logical: `and`, `or`, `not`
 - Unary: `-` (negation), `!` (not)
 - Control flow: `if`/`elsif`/`else`, `while`, `until`
-- Functions: top-level `def` with parameters, `return`
-- Direct calls (resolved at compile time)
+- Functions/Methods: top-level `def` and class methods with parameters, `return`
+- Direct calls & Dynamic method dispatch via VTable (`CALL_METHOD`)
+- Classes (instantiation via `INIT_OBJ`, ivar access via `LOAD_FIELD`/`STORE_FIELD`, explicit/implicit constructor `initialize` and destructor `finalize`, automatic recursive destructor `__drop_fields`)
+- Structs (stack-allocation via `NEW_STRUCT`, copy-by-value via `COPY_BLOCK`)
+- Strings: Interpolation (`TO_STRING`) and concatenation (`CONCAT_STR`)
 - Native calls via `@[External]` annotation
 
 ### Partially Implemented / Placeholders
-*   **RAII Memory Management** : Architecture defined, DropMap struct exists, but INIT/DROP opcodes not yet emitted by compiler
+*   **RAII Memory Management** : Architecture defined, DropMap struct exists, compiler emits INIT_OBJ and calls `finalize` / `__drop_fields` on DROP, but full static lifetime analysis for custom local variables is deferred
 *   **Compiler Optimizations** : ConstFold, EscapeAnalysis, Peephole passes are identity stubs
 *   **Direct-Threaded Dispatch** : Currently using `case` dispatch in Vm.cr, migration planned
 *   **Inline Caches** : Architecture defined but not implemented
@@ -100,7 +103,7 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `CodeCache.cr` : JIT-compiled function cache
     *   `Trampoline.cr` : VM↔native calling convention bridge
     *   `Cranelift/` : FFI bindings to libcranelift
-*   **Object Model** : Classes, mixins, components, generics
+*   **Object Model** : Mixins, components, generics (Classes and Structs Phase 1 compilation/execution are implemented)
 *   **Advanced Types** : Generic types, union types, Any type
 *   **Async/Await** : Fiber-based concurrency
 *   **Pattern Matching** : `match`/`when` expressions
