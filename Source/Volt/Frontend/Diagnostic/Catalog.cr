@@ -200,6 +200,57 @@ module Volt::Frontend
           .with_primary( span, "called here" )
           .with_help( "the interpreter only provides: #{available.join( ", " )}" )
       end
+
+      def unknown_field_or_method( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0025", "`#{owner}` has no field or method named `#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_instance_var( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0026", "`#{owner}` has no instance variable `@#{name}`" )
+          .with_primary( span )
+      end
+
+      def ivar_outside_method( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0027", "`@#{name}` used outside of an instance method" )
+          .with_primary( span )
+      end
+
+      def self_outside_method( span : Span ) : Diagnostic
+        Diagnostic.error( "S0028", "`self` used outside of an instance method" )
+          .with_primary( span )
+      end
+
+      def unknown_superclass( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0029", "`#{owner}` inherits from undefined class `#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_mixin( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0030", "`#{owner}` includes undefined mixin `#{name}`" )
+          .with_primary( span )
+      end
+
+      def include_module_forbidden( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0031", "module `#{name}` cannot be `include`d : modules are static namespaces, not mixins" )
+          .with_primary( span )
+          .with_help( "use `mixin` instead of `module` if `#{name}` is meant to be mixed into instances" )
+      end
+
+      def circular_type( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0032", "circular definition involving `#{name}` (inheritance or struct composition)" )
+          .with_primary( span )
+      end
+
+      def abstract_instantiation( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0033", "cannot instantiate abstract class `#{name}`" )
+          .with_primary( span )
+      end
+
+      def missing_abstract_impl( owner : String, method : String, from : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0034", "`#{owner}` does not implement abstract method `#{method}` from `#{from}`" )
+          .with_primary( span )
+      end
     end
 
 
