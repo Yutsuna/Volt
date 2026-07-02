@@ -1,5 +1,5 @@
 @[External("libc")]
-def puts( str : String ) -> Void
+def puts( str : String ) -> Int32
 
 struct Point
   x : Int64

@@ -3,7 +3,7 @@ def print(val : String) -> Void
 end
 
 @[External("libc")]
-def puts(val : String) -> Void
+def puts( str : String ) -> Int32
 end
 
 

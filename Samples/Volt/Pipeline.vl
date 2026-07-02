@@ -1,5 +1,5 @@
 @[External( "libc" )]
-def puts( str : String ) -> Void
+def puts( str : String ) -> Int32
 
 def capitalize_all( words : Array[String] ) -> Array[String]
   words.map { |word| word.capitalize }
