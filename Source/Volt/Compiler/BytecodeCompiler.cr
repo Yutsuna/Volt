@@ -22,7 +22,7 @@ module Volt::Compiler
 
       method_jobs = collect_method_jobs
       next_idx    = @typed.functions.size
-      method_jobs.each do |mangled, _owner, _decl|
+      method_jobs.each do |mangled, _owner, _decl, _sig|
         @func_index[ mangled ] = next_idx
         next_idx += 1
       end
@@ -36,7 +36,7 @@ module Volt::Compiler
       end
 
       chunks = @typed.functions.map { |fn| compile_function( fn ) }
-      chunks.concat( method_jobs.map { |mangled, owner, decl| compile_method( mangled, owner, decl ) } )
+      chunks.concat( method_jobs.map { |mangled, owner, decl, sig| compile_method( mangled, owner, decl, sig ) } )
       chunks.concat( drop_fields_types.map { |info| compile_drop_fields( info ) } )
       chunks << compile_main
 
@@ -45,29 +45,36 @@ module Volt::Compiler
 
     #------------------------------------------------------------------------------------
 
-    private def collect_method_jobs : Array( { String, Frontend::TypeInfo, Frontend::FuncDecl } )
-      jobs = [] of { String, Frontend::TypeInfo, Frontend::FuncDecl }
+    # A struct has no subclassing/mixins, so every method lowers straight to
+    # a direct call (Phase 3) — every method is compiled eagerly.
+    #
+    # A class's own methods compile the same way (needed as vtable slot
+    # targets), but a *mixin*'s methods are compiled once per *including*
+    # class rather than once under the mixin's own name : a mixin body
+    # references the includer's instance state (`@price` in `Taxable`, owned
+    # by whichever concrete product includes it), and that state's field
+    # offsets only make sense once resolved against a real layout — the
+    # mixin itself has none. So each including class gets its own compiled
+    # copy, mangled under its own name, exactly as if the method had been
+    # written directly on that class (a class's own method of the same name
+    # still wins and suppresses the adopted copy).
+    private def collect_method_jobs : Array( { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig } )
+      jobs = [] of { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig }
       @typed.types.each_value do |info|
-        if info.kind.struct?
-          # A struct has no subclassing/mixins, so every method lowers
-          # straight to a direct call (Phase 3) — no vtable dependency, so
-          # every method (not just initialize) is safe to compile eagerly.
-          info.methods_ast.each_value do |decl|
-            next if decl.is_abstract
-            jobs << { "#{info.name}##{decl.name}", info, decl }
-          end
-        elsif info.kind.class?
-          # Class method dispatch (vtables, mixin ITables, implicit-self
-          # calls) is Phase 4 : compiling other method bodies eagerly here
-          # would surface their unlowered call sites as a crash instead of
-          # the clean "Phase 4" boundary error raised at the actual call
-          # site. `initialize`/`finalize` are exempt — RAII (Phase 2) needs
-          # them regardless of Phase 4.
-          if init = info.methods_ast[ "initialize" ]?
-            jobs << { "#{info.name}#initialize", info, init }
-          end
-          if fin = info.methods_ast[ "finalize" ]?
-            jobs << { "#{info.name}#finalize", info, fin }
+        next unless info.kind.struct? || info.kind.class?
+
+        info.methods_ast.each do |mname, decl|
+          next if decl.is_abstract
+          jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
+        end
+
+        next unless info.kind.class?
+        info.mixins.each do |mixin_name|
+          mixin_info = @typed.types[ mixin_name ]?
+          next unless mixin_info
+          mixin_info.methods_ast.each do |mname, mdecl|
+            next if info.methods_ast.has_key?( mname )
+            jobs << { "#{info.name}##{mname}", info, mdecl, mixin_info.methods[ mname ] }
           end
         end
       end
@@ -80,8 +87,29 @@ module Volt::Compiler
         slots        = info.reg_layout.try( &.total_size ) || 0
         finalize_idx = @func_index[ "#{name}#finalize" ]? || -1
         drop_idx     = @func_index[ "#{name}#__drop_fields" ]? || -1
-        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx )
+        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, build_vtable( info ) )
       end
+    end
+
+    # Resolves each vtable slot to the chunk that actually implements it for
+    # `info` : its own (or adopted-mixin) copy first, else the nearest
+    # ancestor's — the fallback a subclass that neither overrides nor
+    # re-includes the mixin relies on to still dispatch correctly.
+    private def build_vtable( info : Frontend::TypeInfo ) : Array( Int32 )
+      table = Array( Int32 ).new( info.vtable_size, -1 )
+      info.vtable_layout.each do |method_name, idx|
+        cur = info
+        loop do
+          if chunk_idx = @func_index[ "#{cur.name}##{method_name}" ]?
+            table[ idx ] = chunk_idx
+            break
+          end
+          sup = cur.superclass.try { |s| @typed.types[ s ]? }
+          break unless sup
+          cur = sup
+        end
+      end
+      table
     end
 
     # Reconstructs the `NominalType` view of a `TypeInfo` : `TypedProgram`
@@ -110,8 +138,7 @@ module Volt::Compiler
     # parameters. Style-1 ivar params (`def initialize( @x : T )`) have no
     # corresponding statement in the AST body : the implicit store is emitted
     # here, before the user-written body runs.
-    private def compile_method( mangled : String, owner : Frontend::TypeInfo, decl : Frontend::FuncDecl ) : IR::Chunk
-      sig     = owner.methods[ decl.name ]
+    private def compile_method( mangled : String, owner : Frontend::TypeInfo, decl : Frontend::FuncDecl, sig : Frontend::FuncSig ) : IR::Chunk
       emitter = FunctionEmiter.new( mangled, decl.params.size + 1, @func_index, @typed.signatures, @natives, @typed.types, owner )
       emitter.bind_param( "self", nominal_for( owner ) )
       decl.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }

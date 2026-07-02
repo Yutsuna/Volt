@@ -312,6 +312,15 @@ module Volt::Compiler
       owner    = @self_owner.not_nil!
       self_reg = @scope[ "self" ]
       slot     = field_slot_index( owner.name, expr.name )
+      # A mixin body type-checks once with `self` bound to the mixin itself
+      # (no fields), so `@price` resolves to `UNKNOWN` there and that gets
+      # cached on the shared AST node. Once adopted per-includer (see
+      # `BytecodeCompiler#collect_method_jobs`), `owner` here is the real
+      # including class, so refresh the node's type from its actual field —
+      # `compile_binary`'s float/int opcode choice reads this right after.
+      if field = find_field( owner.name, expr.name )
+        expr.resolved_type = field.type
+      end
       if owner.kind.struct?
         self_reg + slot
       else
@@ -329,12 +338,16 @@ module Volt::Compiler
       recv_reg = compile_expr( expr.receiver )
 
       unless find_field( recv_ty.name, expr.name )
-        # A struct has no polymorphism (no subclassing, no mixins), so a
-        # bare zero-arg method call (`v.magnitude`, reclassified from field
-        # access by the parser/Semantic) resolves to a plain direct call —
-        # no vtable needed, unlike the still-deferred class case below.
-        if recv_ty.kind.struct? && @types[ recv_ty.name ]?.try( &.methods[ expr.name ]? )
-          return compile_struct_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+        # A bare zero-arg method call (`book.description`, reclassified from
+        # field access by the parser/Semantic) : a struct resolves straight
+        # to a direct call (no polymorphism possible) ; a class goes through
+        # the vtable, same as the parenthesised case in `compile_method_call`.
+        if find_method( recv_ty.name, expr.name )
+          if recv_ty.kind.struct?
+            return compile_struct_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+          else
+            return compile_virtual_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+          end
         end
         raise "internal: zero-arg method calls are not yet lowered (Phase 4) : #{recv_ty.name}##{expr.name}"
       end
@@ -369,14 +382,19 @@ module Volt::Compiler
 
       # Structs have no subclassing/mixins to dispatch through — a method
       # call on a struct value always resolves to exactly one chunk, so it
-      # compiles straight to a direct `CALL` (unlike the class case below,
-      # which needs the vtable machinery of Phase 4).
+      # compiles straight to a direct `CALL`. A class receiver goes through
+      # the vtable instead (`compile_virtual_call`), since the receiver's
+      # runtime type may be a subclass of its static type.
       recv_ty = expr.receiver.resolved_type
-      if recv_ty.is_a?( Frontend::NominalType ) && recv_ty.kind.struct?
+      if recv_ty.is_a?( Frontend::NominalType ) && ( recv_ty.kind.struct? || recv_ty.kind.object? )
         self_reg  = compile_expr( expr.receiver )
         arg_regs  = expr.args.map { |a| compile_expr( a ) }
         arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
-        return compile_struct_call( recv_ty, expr.name, self_reg, arg_regs, arg_types )
+        if recv_ty.kind.struct?
+          return compile_struct_call( recv_ty, expr.name, self_reg, arg_regs, arg_types )
+        else
+          return compile_virtual_call( recv_ty, expr.name, self_reg, arg_regs, arg_types )
+        end
       end
 
       raise "internal: instance method dispatch is not yet lowered (Phase 4) : ##{expr.name}"
@@ -407,6 +425,66 @@ module Volt::Compiler
         offset += n
       end
       emit_abc( IR::Opcode::CALL, base, idx, total )
+      base
+    end
+
+    # Walks own methods, then the superclass chain, then mixins — the same
+    # resolution order `Semantic::TypeChecker#find_method` uses — to find the
+    # signature backing a virtual or self-dispatched call.
+    private def find_method( type_name : String, name : String ) : Frontend::FuncSig?
+      info = @types[ type_name ]?
+      return nil unless info
+      if sig = info.methods[ name ]?
+        return sig
+      end
+      if sup = info.superclass
+        if sig = find_method( sup, name )
+          return sig
+        end
+      end
+      info.mixins.each do |m|
+        if sig = find_method( m, name )
+          return sig
+        end
+      end
+      nil
+    end
+
+    private def nominal_of( info : Frontend::TypeInfo ) : Frontend::NominalType
+      kind = info.kind.struct? ? Frontend::TypeKind::Struct : Frontend::TypeKind::Object
+      Frontend::NominalType.new( info.name, kind, info.type_id, info.layout, info.reg_layout )
+    end
+
+    # True virtual dispatch (architecture #7.3) : `method_name`'s slot index
+    # is resolved once, statically, from the receiver's *static* type
+    # (`vtable_layout` is copy-forwarded down the whole hierarchy, so every
+    # class that can reach this method agrees on its slot number) — but
+    # which chunk that slot holds is only known at runtime, from the
+    # receiver's *actual* class (`CALL_METHOD`'s VM handler). The receiver
+    # is always exactly 1 slot (a class reference never flattens, unlike a
+    # struct value), placed first in the arg window like every other call.
+    private def compile_virtual_call( recv_ty : Frontend::NominalType, method_name : String,
+                                       self_reg : Int32, arg_regs : Array( Int32 ),
+                                       arg_types : Array( Frontend::Type ) ) : Int32
+      vtidx = @types[ recv_ty.name ]?.try( &.vtable_layout[ method_name ]? )
+      raise "internal: unknown virtual method #{recv_ty.name}##{method_name}" if vtidx.nil?
+
+      msig = find_method( recv_ty.name, method_name )
+      raise "internal: unresolved method signature #{recv_ty.name}##{method_name}" if msig.nil?
+
+      arg_slots = arg_types.map { |t| slot_count( t ) }
+      total     = 1 + arg_slots.sum
+      ret_slots = slot_count( msig.ret )
+
+      base = alloc_block( Math.max( 1 + total, ret_slots ) )
+      place_value( base + 1, self_reg, 1 )
+      offset = 2
+      arg_regs.each_with_index do |ar, i|
+        n = arg_slots[ i ]
+        place_value( base + offset, ar, n )
+        offset += n
+      end
+      emit_abc( IR::Opcode::CALL_METHOD, base, vtidx, total )
       base
     end
 
@@ -464,8 +542,9 @@ module Volt::Compiler
       obj = alloc
       emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
 
-      if init = info.initializer
-        mangled = "#{info.name}#initialize"
+      if provider = find_initializer_owner( info )
+        init    = provider.initializer.not_nil!
+        mangled = "#{provider.name}#initialize"
         idx     = @func_index[ mangled ]
         arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total   = 1 + arg_slot_counts.sum
@@ -485,6 +564,18 @@ module Volt::Compiler
       end
 
       obj
+    end
+
+    # A class with no `initialize` of its own inherits its nearest
+    # ancestor's — that ancestor's own `#initialize` chunk is what actually
+    # exists (`collect_method_jobs` only compiles a type's *own* methods),
+    # and it's safe to run against `obj` regardless of `obj`'s real subtype
+    # since inherited fields share the same slot offsets (layout prefix
+    # sharing, architecture #1.A.3).
+    private def find_initializer_owner( info : Frontend::TypeInfo ) : Frontend::TypeInfo?
+      return info if info.initializer
+      sup = info.superclass.try { |s| @types[ s ]? }
+      sup.try { |s| find_initializer_owner( s ) }
     end
 
     private def place_value( dest : Int32, src : Int32, n : Int32 ) : Nil
@@ -614,6 +705,25 @@ module Volt::Compiler
 
     private def compile_call( expr : Frontend::Call ) : Int32
       name = expr.callee.as( Frontend::Ident ).name
+
+      # Unqualified call inside a method body : an own/inherited/mixin
+      # method on `self` takes priority over a free function of the same
+      # name (mirrors `Semantic::TypeChecker#infer_call`). Routed through
+      # the same dispatch each receiver kind otherwise uses externally —
+      # virtual for a class (so an inherited method calling another
+      # overridable method still late-binds to the actual subclass), direct
+      # for a struct.
+      if ( owner = @self_owner ) && !@scope.has_key?( name ) && find_method( owner.name, name )
+        self_reg  = @scope[ "self" ]
+        arg_regs  = expr.args.map { |a| compile_expr( a ) }
+        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        if owner.kind.struct?
+          return compile_struct_call( nominal_of( owner ), name, self_reg, arg_regs, arg_types )
+        else
+          return compile_virtual_call( nominal_of( owner ), name, self_reg, arg_regs, arg_types )
+        end
+      end
+
       sig  = @signatures[ name ]
 
       arg_regs   = expr.args.map { |a| compile_expr( a ) }
