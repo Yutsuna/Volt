@@ -73,6 +73,9 @@ module Volt::Frontend
       if integer? && other.integer?
         return true
       end
+      if float? && other.float?
+        return true
+      end
       return false unless kind == other.kind
       return true unless kind.func?
       return false unless ( r = ret ) && ( o = other.ret ) && r == o
@@ -101,7 +104,11 @@ module Volt::Frontend
       end
     end
 
-    def self.from_annotation( node : ATypeNode ) : Type?
+    # Resolve a parsed type annotation to a `Type`. `nominals`, when given, is
+    # consulted for any name that isn't a built-in primitive : this is how
+    # `class`/`struct` names (`Point`, `Device`, ...) resolve to their
+    # `NominalType` once the semantic type-collection pass (Phase B) has run.
+    def self.from_annotation( node : ATypeNode, nominals : Hash( String, NominalType )? = nil ) : Type?
       return nil unless node.is_a?( SimpleType )
       case node.name
       when "Int8"                          then INT8
@@ -115,7 +122,7 @@ module Volt::Frontend
       when "String"                        then STR
       when "Nil", "Void"                   then NIL
       when "Regex"                         then REGEX
-      else                                      nil
+      else                                      nominals.try( &.[]?( node.name ) )
       end
     end
   end

@@ -38,10 +38,15 @@ module Volt::Frontend
     property name        : String
     property type_id     : Int32
     property layout      : TypeLayout?
+    property reg_layout  : TypeLayout?
     property superclass  : String?
     property mixins      : Array( String )
     property is_abstract : Bool
     property methods     : Hash( String, FuncSig )
+    # The compiler needs the AST body behind each signature to lower it :
+    # `TypedProgram#methods` is a flat, owner-less list, so this is the only
+    # place that keeps method name -> declaration paired with its owner.
+    property methods_ast : Hash( String, FuncDecl )
     # The user `initialize` / `finalize` signatures, when declared. Named
     # `initializer` / `finalizer` to avoid clashing with Crystal's own
     # `initialize` / `finalize` methods.
@@ -52,6 +57,7 @@ module Volt::Frontend
                     @layout = nil, @superclass = nil,
                     @mixins = [] of String, @is_abstract = false,
                     @methods = {} of String => FuncSig,
+                    @methods_ast = {} of String => FuncDecl,
                     @initializer = nil, @finalizer = nil )
     end
   end

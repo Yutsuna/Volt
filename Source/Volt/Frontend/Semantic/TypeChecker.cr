@@ -2,7 +2,10 @@ module Volt::Frontend
 
 
   class TypeChecker
-    def initialize( @sigs : SignatureTable, @bag : DiagnosticBag )
+    def initialize( @sigs : SignatureTable, @bag : DiagnosticBag,
+                    @types : Hash( String, TypeInfo ) = {} of String => TypeInfo,
+                    @nominals : Hash( String, NominalType ) = {} of String => NominalType )
+      @self_type = nil.as( TypeInfo? )
     end
 
     def check_function( fn : FuncDecl, sig : FuncSig ) : Nil
@@ -16,6 +19,25 @@ module Volt::Frontend
 
     def check_top_level( nodes : Array( ANode ) ) : Nil
       check_body( nodes, Scope.new )
+    end
+
+    # Checks one method body with `self` bound to `owner` : instance-var and
+    # implicit-self-call resolution both key off `@self_type`. `abstract def`
+    # has no body to check.
+    def check_method( fn : FuncDecl, sig : FuncSig, owner : String ) : Nil
+      return if fn.is_abstract
+      info = @types[ owner ]?
+      return unless info
+
+      scope = Scope.new
+      fn.params.each_with_index do |p, i|
+        scope.define( p.name, sig.params[ i ]? || Type::UNKNOWN )
+      end
+
+      previous  = @self_type
+      @self_type = info
+      check_body( fn.body, scope )
+      @self_type = previous
     end
 
     #------------------------------------------------------------------------------------
@@ -48,7 +70,10 @@ module Volt::Frontend
       when BoolLit    then Type::BOOL
       when NilLit     then Type::NIL
       when RegexLit   then Type::REGEX
-      when Ident      then infer_ident( expr, scope )
+      when Ident        then infer_ident( expr, scope )
+      when InstanceVar  then infer_instance_var( expr, scope )
+      when MemberAccess then infer_member_access( expr, scope )
+      when SelfExpr     then infer_self( expr, scope )
       when Assign     then infer_assign( expr, scope )
       when BinaryOp   then infer_binary( expr, scope )
       when UnaryOp    then infer_unary( expr, scope )
@@ -59,14 +84,7 @@ module Volt::Frontend
         infer( expr.from, scope )
         infer( expr.to, scope )
         Type::UNKNOWN
-      when MethodCall
-        if expr.name == "includes?" && expr.receiver.is_a?( RangeExpr )
-          infer( expr.receiver, scope )
-          expr.args.each { |a| infer( a, scope ) }
-          return Type::BOOL
-        end
-        @bag << Catalog::Sema.unsupported_expr( "method call `#{expr.name}`", expr.loc )
-        Type::UNKNOWN
+      when MethodCall then infer_method_call( expr, scope )
       when ReturnExpr
         if v = expr.value
           infer( v, scope )
@@ -96,34 +114,259 @@ module Volt::Frontend
     end
 
     private def infer_assign( expr : Assign, scope : Scope ) : Type
-      target = expr.target
-      unless target.is_a?( Ident )
+      case target = expr.target
+      when Ident        then infer_assign_ident( expr, target, scope )
+      when InstanceVar  then infer_assign_ivar( expr, target, scope )
+      when MemberAccess then infer_assign_member( expr, target, scope )
+      else
         @bag << Catalog::Sema.non_simple_assign( expr.loc )
         infer( expr.value, scope )
-        return Type::UNKNOWN
+        Type::UNKNOWN
       end
+    end
 
+    private def infer_assign_ident( expr : Assign, target : Ident, scope : Scope ) : Type
       name      = target.name
       value_ty  = infer( expr.value, scope )
+      static_ty = value_ty
 
       if ann = expr.type_ann
-        declared = Type.from_annotation( ann )
+        declared = Type.from_annotation( ann, @nominals )
         if declared.nil?
           @bag << Catalog::Sema.unsupported_annotation( ann.loc )
-        elsif !declared.kind.unknown? && !value_ty.kind.unknown? && declared != value_ty
+        elsif !type_compatible?( declared, value_ty )
           @bag << Catalog::Sema.annotation_mismatch( name, declared.to_s, value_ty.to_s, expr.loc )
+        else
+          # The variable's static type is the (possibly wider) annotation :
+          # `usb : Device = UsbDrive.new(...)` reads back as `Device`.
+          static_ty = declared
         end
       end
 
       if existing = scope.lookup( name )
-        if !existing.kind.unknown? && !value_ty.kind.unknown? && existing != value_ty
+        unless type_compatible?( existing, value_ty )
           @bag << Catalog::Sema.reassign_type( name, existing.to_s, value_ty.to_s, expr.loc )
         end
       end
 
-      scope.define( name, value_ty )
-      target.resolved_type = value_ty
-      value_ty
+      scope.define( name, static_ty )
+      target.resolved_type = static_ty
+      static_ty
+    end
+
+    private def infer_assign_ivar( expr : Assign, target : InstanceVar, scope : Scope ) : Type
+      value_ty = infer( expr.value, scope )
+      owner    = @self_type
+      if owner.nil?
+        @bag << Catalog::Sema.ivar_outside_method( target.name, expr.loc )
+        return Type::UNKNOWN
+      end
+
+      field = owner.layout.try( &.field?( target.name ) )
+      if field.nil?
+        @bag << Catalog::Sema.unknown_instance_var( owner.name, target.name, expr.loc )
+        return Type::UNKNOWN
+      end
+
+      unless type_compatible?( field.type, value_ty )
+        @bag << Catalog::Sema.annotation_mismatch( "@#{target.name}", field.type.to_s, value_ty.to_s, expr.loc )
+      end
+      target.resolved_type = field.type
+      field.type
+    end
+
+    private def infer_assign_member( expr : Assign, target : MemberAccess, scope : Scope ) : Type
+      recv_ty  = infer( target.receiver, scope )
+      value_ty = infer( expr.value, scope )
+      return Type::UNKNOWN unless recv_ty.is_a?( NominalType )
+
+      field = find_field( recv_ty.name, target.name )
+      if field.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, target.name, expr.loc )
+        return Type::UNKNOWN
+      end
+
+      unless type_compatible?( field.type, value_ty )
+        @bag << Catalog::Sema.annotation_mismatch( target.name, field.type.to_s, value_ty.to_s, expr.loc )
+      end
+      field.type
+    end
+
+    private def infer_instance_var( expr : InstanceVar, scope : Scope ) : Type
+      owner = @self_type
+      if owner.nil?
+        @bag << Catalog::Sema.ivar_outside_method( expr.name, expr.loc )
+        return Type::UNKNOWN
+      end
+
+      if field = owner.layout.try( &.field?( expr.name ) )
+        return field.type
+      end
+
+      # Mixin bodies reference the includer's instance state, which isn't
+      # known until a concrete class mixes them in : accept leniently rather
+      # than force every mixin to redeclare the fields it expects.
+      return Type::UNKNOWN if owner.kind.mixin?
+
+      @bag << Catalog::Sema.unknown_instance_var( owner.name, expr.name, expr.loc )
+      Type::UNKNOWN
+    end
+
+    private def infer_self( expr : SelfExpr, scope : Scope ) : Type
+      if owner = @self_type
+        @nominals[ owner.name ]? || Type::UNKNOWN
+      else
+        @bag << Catalog::Sema.self_outside_method( expr.loc )
+        Type::UNKNOWN
+      end
+    end
+
+    private def infer_member_access( expr : MemberAccess, scope : Scope ) : Type
+      recv_ty = infer( expr.receiver, scope )
+      return Type::UNKNOWN if recv_ty.kind.unknown?
+
+      # `obj.field` without parens/block is how the parser spells both a field
+      # read *and* a zero-arg method call without parens (`book.description`);
+      # `.to_s` is the one builtin every value supports ahead of a fuller
+      # builtin method table.
+      unless recv_ty.is_a?( NominalType )
+        return Type::STR if expr.name == "to_s"
+        @bag << Catalog::Sema.unsupported_expr( "member access `.#{expr.name}` on non-object type `#{recv_ty}`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      if field = find_field( recv_ty.name, expr.name )
+        return field.type
+      end
+
+      if sig = find_method( recv_ty.name, expr.name )
+        @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+        return sig.ret
+      end
+
+      return Type::STR if expr.name == "to_s"
+
+      @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, expr.name, expr.loc )
+      Type::UNKNOWN
+    end
+
+    private def infer_method_call( expr : MethodCall, scope : Scope ) : Type
+      if expr.name == "includes?" && expr.receiver.is_a?( RangeExpr )
+        infer( expr.receiver, scope )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::BOOL
+      end
+
+      # `Type.new( args )` : the receiver names a declared class/struct rather
+      # than a value in scope.
+      if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) && ( info = @types[ recv.name ]? )
+        recv.resolved_type = @nominals[ recv.name ]?
+        if expr.name == "new"
+          return infer_constructor_call( info, expr, scope )
+        end
+        @bag << Catalog::Sema.unknown_field_or_method( recv.name, expr.name, expr.loc )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+
+      recv_ty = infer( expr.receiver, scope )
+      return Type::UNKNOWN if recv_ty.kind.unknown?
+
+      # Minimal builtin: `.to_s` is usable on any value (the samples rely on
+      # it for string-concatenation logging) ahead of a fuller builtin table.
+      if expr.name == "to_s" && expr.args.empty?
+        return Type::STR
+      end
+
+      unless recv_ty.is_a?( NominalType )
+        @bag << Catalog::Sema.unsupported_expr( "method call `.#{expr.name}` on non-object type `#{recv_ty}`", expr.loc )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+
+      sig = find_method( recv_ty.name, expr.name )
+      if sig.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, expr.name, expr.loc )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+
+      check_call_args( expr.name, sig.params, expr.args, expr.loc, scope )
+      sig.ret
+    end
+
+    private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope ) : Type
+      @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
+
+      if init = info.initializer
+        check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
+      elsif layout = info.layout
+        check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope )
+      else
+        expr.args.each { |a| infer( a, scope ) }
+      end
+
+      @nominals[ info.name ]? || Type::UNKNOWN
+    end
+
+    private def check_call_args( name : String, params : Array( Type ), args : Array( AExpr ), loc : Span, scope : Scope ) : Nil
+      unless params.size == args.size
+        @bag << Catalog::Sema.arity_mismatch( name, params.size, args.size, loc )
+      end
+      args.each_with_index do |arg, i|
+        at    = infer( arg, scope )
+        param = params[ i ]?
+        next if param.nil?
+        next if type_compatible?( param, at )
+        @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
+      end
+    end
+
+    # Walks the superclass chain, then mixins, looking for a method named
+    # `name` declared on `type_name`. Inherited fields already live in the
+    # subclass's own packed layout (prefix-shared), so field lookup doesn't
+    # need this walk : only methods do.
+    private def find_method( type_name : String, name : String ) : FuncSig?
+      info = @types[ type_name ]?
+      return nil unless info
+      if sig = info.methods[ name ]?
+        return sig
+      end
+      if sup = info.superclass
+        if sig = find_method( sup, name )
+          return sig
+        end
+      end
+      info.mixins.each do |m|
+        if sig = find_method( m, name )
+          return sig
+        end
+      end
+      nil
+    end
+
+    private def find_field( type_name : String, name : String ) : FieldSlot?
+      @types[ type_name ]?.try( &.layout ).try( &.field?( name ) )
+    end
+
+    private def operator_method( lt : Type, op_name : String ) : FuncSig?
+      return nil unless lt.is_a?( NominalType )
+      find_method( lt.name, op_name )
+    end
+
+    # `declared` accepts `actual` if they're equal, or `actual` is a subclass
+    # of `declared` : walks the superclass chain (`Device` accepts `UsbDrive`).
+    private def type_compatible?( declared : Type, actual : Type ) : Bool
+      return true if declared.kind.unknown? || actual.kind.unknown?
+      return true if declared == actual
+      if declared.is_a?( NominalType ) && actual.is_a?( NominalType )
+        cur = actual.name
+        while cur
+          return true if cur == declared.name
+          cur = @types[ cur ]?.try( &.superclass )
+        end
+      end
+      false
     end
 
     private def infer_binary( expr : BinaryOp, scope : Scope ) : Type
@@ -136,6 +379,13 @@ module Volt::Frontend
       when .plus?, .minus?, .star?, .slash?, .percent?,
            .amp_plus?, .amp_minus?, .amp_star?, .amp_star_star?,
            .slash_slash?
+        return Type::STR if expr.op.plus? && lt.kind.str? && rt.kind.str?
+        if ( m = operator_method( lt, op_text( expr.op ) ) )
+          unless m.params.size == 1 && ( m.params[ 0 ].kind.unknown? || rt.kind.unknown? || m.params[ 0 ] == rt )
+            @bag << Catalog::Sema.argument_type( 1, "#{lt}##{op_text( expr.op )}", m.params[ 0 ]?.try( &.to_s ) || "?", rt.to_s, expr.loc )
+          end
+          return m.ret
+        end
         return lt.numeric? ? lt : ( rt.numeric? ? rt : Type::UNKNOWN ) if unknown
         unless lt.numeric? && lt == rt
           @bag << Catalog::Sema.binary_numeric( op_text( expr.op ), lt.to_s, rt.to_s, expr.loc )
@@ -159,6 +409,9 @@ module Volt::Frontend
         expr.op.spaceship? ? Type::INT : Type::BOOL
 
       when .eq_eq?, .bang_eq?, .eq_eq_eq?, .match_op?, .not_match_op?
+        if ( expr.op.eq_eq? || expr.op.bang_eq? ) && lt.is_a?( NominalType ) && operator_method( lt, "==" )
+          return Type::BOOL
+        end
         return Type::BOOL if unknown
         if expr.op.match_op? || expr.op.not_match_op?
           unless lt.kind.str? && rt.kind.regex?
@@ -221,10 +474,6 @@ module Volt::Frontend
 
     end
 
-    private def displayable?( type : Type ) : Bool
-      type.numeric? || type.kind.bool? || type.kind.str? || type.kind.nil?
-    end
-
     private def infer_call( expr : Call, scope : Scope ) : Type
       callee = expr.callee
       unless callee.is_a?( Ident )
@@ -237,6 +486,22 @@ module Volt::Frontend
       end
 
       name = callee.name
+
+      # Unqualified call inside a method body first resolves against `self`'s
+      # own methods (including inherited/mixed-in ones) before free functions.
+      if ( owner = @self_type ) && !scope.local?( name )
+        if m = find_method( owner.name, name )
+          check_call_args( name, m.params, expr.args, expr.loc, scope )
+          return m.ret
+        elsif owner.kind.mixin?
+          # A mixin method calling another mixin's method by name : the
+          # concrete resolution depends on whichever class ends up including
+          # both, which isn't known here. Accept it leniently (duck-typed).
+          expr.args.each { |a| infer( a, scope ) }
+          return Type::UNKNOWN
+        end
+      end
+
       sig  = @sigs[ name ]?
       if sig.nil?
         @bag << Catalog::Sema.undefined_function( name, expr.loc, Suggest.closest( name, @sigs.names ) )
@@ -252,8 +517,7 @@ module Volt::Frontend
         at    = infer( arg, scope )
         param = sig.params[ i ]?
         next if param.nil?
-        next if param.kind.unknown? || at.kind.unknown? || param == at
-        next if sig.extern && param.kind.str? && displayable?( at )
+        next if type_compatible?( param, at )
         @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
       end
 

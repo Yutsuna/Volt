@@ -1,0 +1,327 @@
+module Volt::Frontend
+
+
+  # Phase B collection pass: declares every nominal type (`class`/`struct`/
+  # `mixin`/`module`) up front so forward references resolve, then resolves
+  # each one : fields, superclass, mixins, methods : in dependency order.
+  #
+  # Field-type resolution recurses through `resolve` (cycle-checked via
+  # `@resolving`) because a struct embedded by value needs its own layout
+  # packed before it can size the field that holds it. Method parameter/return
+  # types do *not* recurse : a method may reference its own enclosing type
+  # (`def dot(other : Vec3)` inside `Vec3`) without that being a real cycle,
+  # since methods don't participate in sizing. By the time `collect` returns
+  # every declared type has been resolved at least once, so those references
+  # end up correctly populated regardless of visitation order (nominals are
+  # shared, mutable instances).
+  class TypeCollector
+    getter types         : Hash( String, TypeInfo )
+    getter nominals      : Hash( String, NominalType )
+    getter methods       : Array( FuncDecl )
+    getter method_entries : Array( { FuncDecl, String, FuncSig } )
+
+    def initialize( @bag : DiagnosticBag )
+      @decls     = {} of String => ANode
+      @types     = {} of String => TypeInfo
+      @nominals  = {} of String => NominalType
+      @methods   = [] of FuncDecl
+      @method_entries = [] of { FuncDecl, String, FuncSig }
+      @resolving = Set( String ).new
+      @resolved  = Set( String ).new
+    end
+
+    def collect( nodes : Array( ANode ) ) : Nil
+      nodes.each { |node| declare( node ) }
+      @decls.each_key { |name| resolve( name ) }
+    end
+
+    # -----------------------------------------------------------------------------------
+
+    private def declare( node : ANode ) : Nil
+      name =
+        case node
+        when ClassDecl  then node.name
+        when StructDecl then node.name
+        when MixinDecl  then node.name
+        when ModuleDecl then node.name
+        else                 return
+        end
+
+      if @decls.has_key?( name )
+        @bag << Catalog::Sema.duplicate_definition( name, node.loc, @decls[ name ].loc )
+        return
+      end
+
+      kind =
+        case node
+        when ClassDecl  then NominalKind::Class
+        when StructDecl then NominalKind::Struct
+        when MixinDecl  then NominalKind::Mixin
+        else                 NominalKind::Module
+        end
+
+      nominal_kind = kind.struct? ? TypeKind::Struct : TypeKind::Object
+      type_id      = @decls.size
+
+      @decls[ name ]    = node
+      @nominals[ name ] = NominalType.new( name, nominal_kind, type_id )
+      @types[ name ]    = TypeInfo.new( kind, name, type_id )
+    end
+
+    private def resolve( name : String ) : TypeInfo?
+      return @types[ name ]? if @resolved.includes?( name )
+      node = @decls[ name ]?
+      return nil unless node
+
+      if @resolving.includes?( name )
+        @bag << Catalog::Sema.circular_type( name, node.loc )
+        @resolved << name
+        return @types[ name ]?
+      end
+
+      @resolving << name
+      info = @types[ name ]
+
+      case node
+      when ClassDecl  then resolve_class( node, info )
+      when StructDecl then resolve_struct( node, info )
+      when MixinDecl  then resolve_mixin( node, info )
+      when ModuleDecl then resolve_module( node, info )
+      end
+
+      @resolving.delete( name )
+      @resolved << name
+      info
+    end
+
+    private def resolve_class( node : ClassDecl, info : TypeInfo ) : Nil
+      info.is_abstract = node.is_abstract
+
+      base_layout = nil
+      if sup = node.superclass
+        sup_decl = @decls[ sup ]?
+        if sup_decl.is_a?( ClassDecl )
+          sup_info   = resolve( sup )
+          info.superclass = sup
+          base_layout = sup_info.try( &.layout )
+        else
+          @bag << Catalog::Sema.unknown_superclass( info.name, sup, node.loc )
+        end
+      end
+
+      info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
+
+      base_reg_layout = node.superclass.try { |s| @nominals[ s ]?.try( &.reg_layout ) }
+      fields          = collect_fields( node.body, base_layout )
+      byte_layout     = TypeLayout.pack( fields, base_layout )
+      set_layout( info, byte_layout, build_reg_layout( byte_layout, base_reg_layout ) )
+
+      collect_methods( node.body, info )
+      check_abstract_completeness( info, node.loc )
+    end
+
+    private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil
+      fields      = collect_fields( node.body, nil )
+      byte_layout = TypeLayout.pack( fields )
+      set_layout( info, byte_layout, build_reg_layout( byte_layout, nil ) )
+      collect_methods( node.body, info )
+    end
+
+    private def resolve_mixin( node : MixinDecl, info : TypeInfo ) : Nil
+      collect_methods( node.body, info )
+    end
+
+    private def resolve_module( node : ModuleDecl, info : TypeInfo ) : Nil
+      collect_methods( node.body, info )
+    end
+
+    private def set_layout( info : TypeInfo, layout : TypeLayout, reg_layout : TypeLayout ) : Nil
+      info.layout     = layout
+      info.reg_layout = reg_layout
+      nom             = @nominals[ info.name ]
+      nom.layout      = layout
+      nom.reg_layout  = reg_layout
+    end
+
+    # Derives the Tier-0 register-slot layout from the already-packed byte
+    # layout: every field becomes 1 slot, except a nested struct field which
+    # flattens in as N slots (N = that struct's own slot count) : no
+    # alignment/padding at this granularity (every slot is a uniform `Value`
+    # cell). Reuses the same `TypeLayout.pack` used for byte packing, just fed
+    # slot-sized inputs, so inheritance-prefix sharing falls out for free.
+    private def build_reg_layout( byte_layout : TypeLayout, base_reg_layout : TypeLayout? ) : TypeLayout
+      base_count = base_reg_layout.try( &.fields.size ) || 0
+      own_fields = byte_layout.fields[ base_count.. ]
+      reg_slots  = own_fields.map do |f|
+        slot_size =
+          if ( t = f.type ).is_a?( NominalType ) && t.kind.struct? && ( rl = t.reg_layout )
+            rl.total_size
+          else
+            1
+          end
+        TypeLayout.slot( f.name, f.type, size: slot_size, align: 1, is_ref: f.is_ref )
+      end
+      TypeLayout.pack( reg_slots, base_reg_layout )
+    end
+
+    private def resolve_mixins( owner : String, names : Array( String ), loc : Span ) : Array( String )
+      names.compact_map do |m|
+        case @decls[ m ]?
+        when MixinDecl
+          m
+        when ModuleDecl
+          @bag << Catalog::Sema.include_module_forbidden( m, loc )
+          nil
+        when Nil
+          @bag << Catalog::Sema.unknown_mixin( owner, m, loc )
+          nil
+        else
+          @bag << Catalog::Sema.unknown_mixin( owner, m, loc )
+          nil
+        end
+      end
+    end
+
+    # -----------------------------------------------------------------------------------
+
+    private def collect_fields( body : Array( ANode ), base_layout : TypeLayout? ) : Array( FieldSlot )
+      slots = [] of FieldSlot
+      seen  = Set( String ).new
+      base_layout.try { |bl| bl.fields.each { |f| seen << f.name } }
+
+      body.each do |node|
+        next unless node.is_a?( FieldDecl )
+        if seen.includes?( node.name )
+          @bag << Catalog::Sema.duplicate_definition( node.name, node.loc, nil )
+          next
+        end
+        slots << TypeLayout.slot( node.name, resolve_field_type( node.type_ann ) )
+        seen << node.name
+      end
+
+      # Style-1 constructor shorthand (`def initialize( @x : T )`) implicitly
+      # declares any field not already covered by an explicit `FieldDecl` or
+      # inherited from the superclass.
+      init = body.find { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.as?( FuncDecl )
+      init.try do |fn|
+        fn.params.each do |p|
+          next unless p.is_ivar
+          next if seen.includes?( p.name )
+          ty =
+            if ann = p.type_ann
+              resolve_field_type( ann )
+            else
+              @bag << Catalog::Sema.param_needs_type( p.name, "initialize", p.loc )
+              Type::UNKNOWN
+            end
+          slots << TypeLayout.slot( p.name, ty )
+          seen << p.name
+        end
+      end
+
+      slots
+    end
+
+    # Field types affect layout sizing, so a locally-declared type referenced
+    # here must be fully resolved first (recursive, cycle-checked).
+    private def resolve_field_type( ann : ATypeNode ) : Type
+      if ann.is_a?( SimpleType ) && @decls.has_key?( ann.name )
+        resolve( ann.name )
+      end
+      Type.from_annotation( ann, @nominals ) || begin
+        @bag << Catalog::Sema.unsupported_annotation( ann.loc )
+        Type::UNKNOWN
+      end
+    end
+
+    # Method signatures never need to force-resolve a type : every declared
+    # type gets resolved by the end of `collect` regardless, and forcing here
+    # would misfire the cycle guard on ordinary self-referencing signatures.
+    private def resolve_method_type( ann : ATypeNode ) : Type
+      Type.from_annotation( ann, @nominals ) || begin
+        @bag << Catalog::Sema.unsupported_annotation( ann.loc )
+        Type::UNKNOWN
+      end
+    end
+
+    private def collect_methods( body : Array( ANode ), info : TypeInfo ) : Nil
+      body.each do |node|
+        next unless node.is_a?( FuncDecl )
+        sig = build_method_sig( node, info )
+        info.methods[ node.name ]     = sig
+        info.methods_ast[ node.name ] = node
+        case node.name
+        when "initialize" then info.initializer = sig
+        when "finalize"   then info.finalizer   = sig
+        end
+        @methods << node
+        @method_entries << { node, info.name, sig }
+      end
+    end
+
+    private def build_method_sig( decl : FuncDecl, info : TypeInfo ) : FuncSig
+      params = decl.params.map do |p|
+        if p.is_ivar
+          if field = info.layout.try( &.field?( p.name ) )
+            field.type
+          else
+            @bag << Catalog::Sema.unknown_instance_var( info.name, p.name, p.loc )
+            Type::UNKNOWN
+          end
+        elsif ann = p.type_ann
+          resolve_method_type( ann )
+        else
+          @bag << Catalog::Sema.param_needs_type( p.name, decl.name, p.loc )
+          Type::UNKNOWN
+        end
+      end
+
+      ret =
+        if rt = decl.return_type
+          resolve_method_type( rt )
+        elsif decl.name == "initialize" || decl.name == "finalize"
+          Type::NIL
+        else
+          Type::UNKNOWN
+        end
+
+      FuncSig.new( decl.name, params, ret, decl_span: decl.loc, owner: info.name, is_static: info.kind.module? )
+    end
+
+    # A concrete class must provide a non-abstract override for every abstract
+    # method declared anywhere in its superclass chain.
+    private def check_abstract_completeness( info : TypeInfo, loc : Span ) : Nil
+      return if info.is_abstract
+
+      chain = [] of TypeInfo
+      cur   = info.superclass
+      while cur
+        parent = @types[ cur ]?
+        break unless parent
+        chain << parent
+        cur = parent.superclass
+      end
+
+      chain.each do |ancestor|
+        ancestor_decl = @decls[ ancestor.name ]?
+        next unless ancestor_decl.is_a?( ClassDecl )
+        ancestor_decl.body.each do |node|
+          next unless node.is_a?( FuncDecl ) && node.is_abstract
+          implemented = provides_concrete?( info, node.name ) ||
+                        chain.any? { |a| a.name != ancestor.name && provides_concrete?( a, node.name ) }
+          unless implemented
+            @bag << Catalog::Sema.missing_abstract_impl( info.name, node.name, ancestor.name, loc )
+          end
+        end
+      end
+    end
+
+    private def provides_concrete?( info : TypeInfo, method : String ) : Bool
+      decl = @decls[ info.name ]?
+      return false unless decl.is_a?( ClassDecl )
+      decl.body.any? { |n| n.is_a?( FuncDecl ) && n.name == method && !n.is_abstract }
+    end
+  end
+
+
+end
