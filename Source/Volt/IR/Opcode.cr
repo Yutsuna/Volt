@@ -49,9 +49,14 @@ module Volt::IR
     JMP_IF_FALSE  # A, Bx  : if !truthy?(reg[A]) then ip = Bx
 
     # --- calls -------------------------------------------------------
-    CALL          # A,B,C  : reg[A] = chunks[B]( reg[A+1 .. A+C] )
+    # `C` on CALL/CALL_NATIVE and `Bx` on RET are *slot* counts, not logical
+    # argument/return-value counts : a struct-typed argument or return value
+    # flattens into N contiguous slots (architecture #1.B), so a multi-slot
+    # struct is marshaled as a positional run of registers, same as N scalar
+    # arguments would be.
+    CALL          # A,B,C  : reg[A .. A+?] = chunks[B]( reg[A+1 .. A+C] )
     CALL_NATIVE   # A,B,C  : reg[A] = native[B]( reg[A+1 .. A+C] )
-    RET           # A      : return reg[A]
+    RET           # A, Bx  : return reg[A .. A+Bx-1]   (Bx = slot count, default 1)
 
     # --- bitwise ---
     AND_INT       # A,B,C : reg[A] = reg[B] & reg[C]
@@ -87,6 +92,35 @@ module Volt::IR
 
     # --- raise ---
     RAISE         # A     : raise reg[A]
+
+    # --- object model (Phase 1/2: classes/structs) ---
+    #
+    # Fields are addressed by *register slot*, not byte offset: every class
+    # instance carries a heap `fields : Array(Value)` and every struct value
+    # lives directly in a contiguous run of Frame registers (architecture #1.B
+    # : no allocation, no packing/alignment at this tier). A field's slot
+    # index comes from `TypeInfo#reg_layout` (Phase B), where a primitive or
+    # class-reference field is exactly one slot and a nested struct field
+    # flattens in as N slots (N = that struct's own slot count). Because both
+    # representations are just "a Value per slot", one opcode pair covers
+    # both: local struct field reads/writes compile straight to `MOVE`
+    # against `base + slot`, while `LOAD_FIELD`/`STORE_FIELD` cover class
+    # instances (and struct sub-fields once boxed into a class's own array).
+    INIT_OBJ      # A, Bx : reg[A] = alloc_object(type_id: Bx) : fields zero/nil-init, vtable wired
+    LOAD_FIELD    # A,B,C : reg[A] = obj(reg[B]).fields[C]
+    STORE_FIELD   # A,B,C : obj(reg[A]).fields[B] = reg[C]
+
+    # --- object dispatch ---
+    CALL_METHOD   # A,B,C : reg[A] = vtable_call(receiver: reg[B], vtidx: C, args: window)
+    CALL_MIXIN    # A,Bx  : reg[A] = itable_call(chunk.call_sites[Bx], args: window)
+
+    # --- struct value semantics ---
+    COPY_BLOCK    # A,B,C : reg[A .. A+C-1] = reg[B .. B+C-1]   (register-range copy, C = slot count)
+    NEW_STRUCT    # A,Bx  : reg[A .. A+Bx-1] = nil   (reserve/zero a Bx-slot struct block)
+
+    # --- minimal string builtins ---
+    TO_STRING     # A,B   : reg[A] = reg[B].to_display   (Int/Float/Bool/... -> String)
+    CONCAT_STR    # A,B,C : reg[A] = reg[B] + reg[C]      (String concatenation)
   end
 
 

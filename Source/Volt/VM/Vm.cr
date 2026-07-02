@@ -15,6 +15,7 @@ module Volt::VM
   class Vm
 
     def initialize( @unit : Compiler::Unit, @stdout : IO = STDOUT, @stderr : IO = STDERR )
+      @registry = Runtime::ObjectModel::TypeRegistry.new( @unit.classes )
     end
 
     #--------------------------------------------------------------------------
@@ -32,7 +33,7 @@ module Volt::VM
 
     #--------------------------------------------------------------------------
 
-    def call_chunk( chunk : IR::Chunk, args : Array( IR::Value ) ) : IR::Value
+    def call_chunk( chunk : IR::Chunk, args : Array( IR::Value ) ) : Array( IR::Value )
       frame = Frame.new( chunk, args )
       code  = chunk.code
       ip    = 0
@@ -62,13 +63,15 @@ module Volt::VM
             raise VoltRuntimeError.new(frame[ins.a].to_display)
 
           in .call?
-            frame[ins.a] = call_chunk(@unit.chunks[ins.b], collect_args(frame, ins))
+            results = call_chunk(@unit.chunks[ins.b], collect_args(frame, ins))
+            results.each_with_index { |v, i| frame[ins.a + i] = v }
 
           in .call_native?
             frame[ins.a] = call_native(@unit.natives[ins.b], collect_args(frame, ins))
 
           in .ret?
-            return frame[ins.a]
+            slots = ins.bx > 0 ? ins.bx : 1
+            return Array( IR::Value ).new( slots ) { |i| frame[ins.a + i] }
 
           in .eq?, .ne?, .lt_int?, .le_int?, .gt_int?, .ge_int?,
               .lt_f64?, .le_f64?, .gt_f64?, .ge_f64?, .cmp_int?, .eq_case?,
@@ -83,13 +86,26 @@ module Volt::VM
               .and_int?, .or_int?, .xor_int?, .shl_int?, .shr_int?, .not_int?,
               .idiv_int?, .pow_int?
             frame[ins.a] = eval_arith(ins.op, frame[ins.b], frame[ins.c])
+
+          in .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
+            exec_object( frame, chunk, ins )
+
+          in .call_method?, .call_mixin?
+            # Dynamic dispatch (vtables/itables) is Phase 4 : not emitted yet.
+            raise VoltRuntimeError.new( "opcode #{ins.op} is not yet implemented" )
+
+          in .to_string?
+            frame[ins.a] = IR::Value.str(frame[ins.b].to_display)
+
+          in .concat_str?
+            frame[ins.a] = IR::Value.str(frame[ins.b].as_s + frame[ins.c].as_s)
           end
         end
       ensure
         unwind_frame(frame, chunk, ip) if ip < code.size
       end
 
-      IR::Value.nil_value
+      [ IR::Value.nil_value ]
     end
 
     #--------------------------------------------------------------------------

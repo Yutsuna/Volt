@@ -1,14 +1,30 @@
 module Volt::IR
 
 
-  # Base heap-allocated object for RAII management (architecture #4). Will be replaced
-  # by the full object model (Runtime/ObjectModel/) once classes land.
+  # Base heap-allocated object for RAII management (architecture #4).
+  #
+  # `fields` holds one `Value` slot per register-slot in the owning type's
+  # `TypeInfo#reg_layout` : a primitive or class-reference field is one slot,
+  # a nested struct field flattens in as N slots. This mirrors how a *local*
+  # struct value lives directly in a contiguous run of Frame registers: both
+  # are just "N tagged Value slots", one heap-resident and one frame-resident
+  # (architecture #1.B : no byte-level packing at this interpreter tier).
+  #
+  # `class_ref` points at the owning type's runtime metadata
+  # (`Runtime::ObjectModel::RClass` : vtable, itables, finalize/drop-fields
+  # pointers). It's kept as an opaque `Void*` here rather than typed as
+  # `RClass` directly: IR has no dependencies (architecture #10 build order),
+  # so the object-model layer casts it back once allocation is wired.
   class HeapObject
-    getter type_id : Int32
+    getter type_id    : Int32
     getter? destroyed : Bool
+    property fields    : Array( Value )
+    property class_ref : Pointer( Void )
 
-    def initialize( @type_id : Int32 )
+    def initialize( @type_id : Int32, slot_count : Int32 = 0 )
       @destroyed = false
+      @fields    = Array( Value ).new( slot_count ) { Value.nil_value }
+      @class_ref = Pointer( Void ).null
     end
 
     def destroy
@@ -19,7 +35,7 @@ module Volt::IR
 
   # A runtime value for the Tier-0 VM.
   # v0.1.0 uses a simple boxed tagged union. The architecture calls for untagged
-  # registers + NaN-boxing once the contract is stable — that is a later optimization
+  # registers + NaN-boxing once the contract is stable : that is a later optimization
   # and must keep this public API (the `as_*` accessors + constructors) intact.
   struct Value
     alias Raw = Int64 | Float64 | Bool | String | ::Regex | Nil | HeapObject
