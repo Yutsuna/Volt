@@ -61,6 +61,11 @@ module Volt::Frontend
         Diagnostic.error( "P0006", "macro expansion failed: #{message}" )
           .with_primary( span )
       end
+
+      def unexpected_in_type_body( tok : Token ) : Diagnostic
+        Diagnostic.error( "P0007", "unexpected #{Catalog.describe( tok )} in type body" )
+          .with_primary( tok.span, "only fields, methods, and nested types are allowed here" )
+      end
     end
 
 
