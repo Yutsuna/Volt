@@ -12,13 +12,18 @@ module Volt::Frontend
         @paren_depth += 1
         args = parse_arg_list( TokenKind::RParen )
         @paren_depth -= 1
-      else
-        args = [] of AExpr
+        blk = if @current.kind.l_brace?
+          parse_brace_block
+        end
+        return MethodCall.new( receiver, name, args, blk, safe, receiver.loc )
       end
-      blk = if @current.kind.l_brace?
-        parse_brace_block
+      if @current.kind.l_brace?
+        blk = parse_brace_block
+        return MethodCall.new( receiver, name, [] of AExpr, blk, safe, receiver.loc )
       end
-      MethodCall.new( receiver, name, args, blk, safe, receiver.loc )
+      # No parens, no block: a bare member access. The semantic pass reclassifies
+      # it as a zero-arg method call when `name` resolves to a method.
+      MemberAccess.new( receiver, name, safe, receiver.loc )
     end
 
     private def parse_call_with_open_paren( callee : AExpr, open_paren : Token ) : Call
