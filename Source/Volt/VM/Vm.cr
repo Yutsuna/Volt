@@ -1,3 +1,7 @@
+require "./Frame"
+require "./Dispatch/__all__"
+
+
 module Volt::VM
 
 
@@ -10,7 +14,7 @@ module Volt::VM
   # set is stable). Opcode families live in VM/Dispatch/*.
   class Vm
 
-    def initialize( @unit : Compiler::Unit )
+    def initialize( @unit : Compiler::Unit, @stdout : IO = STDOUT, @stderr : IO = STDERR )
     end
 
     #--------------------------------------------------------------------------
@@ -19,10 +23,10 @@ module Volt::VM
       call_chunk( @unit.chunks[ @unit.main_index ], [] of IR::Value )
       0
     rescue e : VoltRuntimeError
-      STDERR.puts( "runtime error: #{e.message || "unknown"}" )
+      @stderr.puts( "runtime error: #{e.message || "unknown"}" )
       1
     rescue e : DivisionByZeroError
-      STDERR.puts( "runtime error: division by zero" )
+      @stderr.puts( "runtime error: division by zero" )
       1
     end
 
