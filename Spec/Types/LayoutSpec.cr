@@ -10,7 +10,7 @@ module Volt::Spec
   end
 
 
-  describe "Volt::Frontend::Type — width & alignment" do
+  describe "Volt::Frontend::Type : width & alignment" do
 
     it "reports natural byte sizes for primitives" do
       Volt::Frontend::Type::INT8.byte_size.should eq( 1 )
@@ -47,7 +47,7 @@ module Volt::Spec
   end
 
 
-  describe "Volt::Frontend::TypeLayout — C-ABI packing" do
+  describe "Volt::Frontend::TypeLayout : C-ABI packing" do
 
     it "packs scalars with natural alignment and tail padding" do
       layout = Volt::Frontend::TypeLayout.pack( [
