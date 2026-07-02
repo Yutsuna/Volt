@@ -81,7 +81,7 @@ module Volt::Frontend
   end
 
 
-  # struct Name \n body \n end — value type: fields + methods, no inheritance
+  # struct Name \n body \n end : value type: fields + methods, no inheritance
   class StructDecl < ADecl
     property name        : String
     property body        : Array( ANode )
@@ -94,7 +94,7 @@ module Volt::Frontend
   end
 
 
-  # module Name \n body \n end — static namespace: no instances, no dispatch
+  # module Name \n body \n end : static namespace: no instances, no dispatch
   class ModuleDecl < ADecl
     property name : String
     property body : Array( ANode )
