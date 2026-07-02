@@ -5,28 +5,109 @@ module Volt::CLI
 
 
   class REPLCommand < ACommand
-    register "repl", "Read-Eval-Print-Loop"
+    register "repl", "Interactive Read-Eval-Print-Loop"
 
-    property input : String?
+    @session : REPL::REPLSession
+    @buffer : Array(String)
 
-    def execute(args : Array(String))
-      parse args
-      Logger.info("Volt Developer Interactive Loop", "repl")
-      if init_path = @input
-        Logger.info("Evaluating preloaded module: #{init_path}", "repl")
-      end
-      Logger.info("Type 'exit' or use Ctrl+D to terminate.", "repl")
+    HISTORY_FILE = ".volt_history"
+
+    def initialize
+      super
+      @session = REPL::REPLSession.new
+      @buffer = [] of String
     end
 
-    private def parse( args : Array(String) )
-      parser = OptionParser.parse(args) do |p|
-        p.banner = "Usage: volt repl [options] [preloaded_file]"
-        p.on("-i INPUT", "--input INPUT", "File source input to execute at init") { |v| @input = v }
-        p.on("-h", "--help", "Show help") { puts p; next }
-        p.invalid_option { |flag| fatal! "Invalid option: #{flag}\n#{p}" }
+    def execute(args : Array(String))
+      prologue
+
+      loop do
+        prompt = @buffer.empty? ? "volt> ".colorize(:cyan) : "volt* ".colorize(:dark_gray)
+        print prompt
+        STDOUT.flush
+
+        line = STDIN.gets
+
+        if line.nil?
+          puts
+          break
+        end
+
+        trimmed = line.strip
+
+        if trimmed == "exit" && @buffer.empty?
+          break
+        elsif trimmed == "clear" && @buffer.empty?
+          @session.clear
+          @buffer.clear
+          Logger.info( "Session history and compiled definitions cleared", "repl" )
+          Fiber.yield
+          next
+        end
+
+        if trimmed.empty? && !@buffer.empty?
+          Logger.warn( "Multiline block discarded", "repl" )
+          Fiber.yield
+          @buffer.clear
+          next
+        end
+
+        next if trimmed.empty?
+
+        @buffer << line
+        current_input = @buffer.join "\n"
+
+        next if REPL::REPLLineGuard.incomplete? current_input
+
+        result = @session.evaluate( current_input, STDOUT, STDERR )
+
+        if result.ok?
+          val = result.value
+          unless val.nil? || val.is_nil?
+            raw_display = val.to_display
+            puts "=> #{REPL::REPLSyntaxHighlighter.highlight(raw_display)}"
+          end
+
+          write_history current_input if result.definition_saved?
+        else
+          if diags = result.diagnostics
+            DiagnosticRenderer.new( { "<repl>" => current_input } ).render diags
+          end
+        end
+
+        @buffer.clear
       end
 
-      @input = args.first? if @input.nil?
+      epilogue
+    end
+
+    #------------------------------------------------------------------------------------
+
+    private def prologue : Nil
+      Logger.info( "Volt Interactive Loop", "repl" )
+      Logger.info( "Commands: exit (to quit), clear (to clear history)", "repl" )
+      load_history @session
+      Fiber.yield
+    end
+
+    private def epilogue : Nil
+      Logger.info( "Interactive session closed", "repl" )
+      Fiber.yield
+    end
+
+    private def load_history(session : REPL::REPLSession) : Nil
+      return unless File.exists? HISTORY_FILE
+      File.each_line( HISTORY_FILE ) { |line| session.history << line unless line.blank? }
+    rescue ex
+      Logger.warn( "Failed to load history file: #{ex.message}", "repl" )
+      Fiber.yield
+    end
+
+    private def write_history(source : String) : Nil
+      File.open( HISTORY_FILE, "a" ) { |stream| stream.puts source }
+    rescue ex
+      Logger.warn("Failed to append to history file: #{ex.message}", "repl")
+      Fiber.yield
     end
 
   end
