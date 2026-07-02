@@ -111,8 +111,19 @@ module Volt::IR
     STORE_FIELD   # A,B,C : obj(reg[A]).fields[B] = reg[C]
 
     # --- object dispatch ---
-    CALL_METHOD   # A,B,C : reg[A] = vtable_call(receiver: reg[B], vtidx: C, args: window)
-    CALL_MIXIN    # A,Bx  : reg[A] = itable_call(chunk.call_sites[Bx], args: window)
+    # Same calling convention as `CALL`/`CALL_NATIVE` (A is both the return
+    # landing slot and `window_start - 1` ; `collect_args` reads C slots from
+    # `A+1..`) plus one extra piece : B is the vtable slot index, resolved
+    # statically from the receiver's *static* type (`TypeInfo#vtable_layout`)
+    # at compile time. The receiver itself travels as the first (always
+    # 1-slot, since class refs never flatten) argument at `A+1` — the VM
+    # reads `frame[A+1].as_object.type_id`, looks that up in the class
+    # registry, and dispatches through *that* class's own `vtable[B]` :
+    # the slot index is shared across the whole hierarchy (architecture
+    # #7.3), so a `Device`-typed call site correctly lands on `UsbDrive`'s
+    # override at runtime.
+    CALL_METHOD   # A,B,C : reg[A] = vtable_call(vtidx: B, args: reg[A+1 .. A+C])
+    CALL_MIXIN    # A,Bx  : reg[A] = itable_call(chunk.call_sites[Bx], args: window)  -- reserved, unused
 
     # --- struct value semantics ---
     COPY_BLOCK    # A,B,C : reg[A .. A+C-1] = reg[B .. B+C-1]   (register-range copy, C = slot count)
