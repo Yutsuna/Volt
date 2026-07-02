@@ -17,7 +17,7 @@ module Volt::Spec
       unit = Volt::Compiler::Unit.new( [ chunk ], 0 )
       vm   = Volt::VM::Vm.new( unit )
 
-      result = vm.call_chunk( chunk, [] of Volt::IR::Value )
+      result = vm.call_chunk( chunk, [] of Volt::IR::Value ).first
       result.as_object.type_id.should eq( 42 )
       result.as_object.destroyed?.should be_false
     end
@@ -34,7 +34,7 @@ module Volt::Spec
       unit = Volt::Compiler::Unit.new( [ chunk ], 0 )
       vm   = Volt::VM::Vm.new( unit )
 
-      result = vm.call_chunk( chunk, [] of Volt::IR::Value )
+      result = vm.call_chunk( chunk, [] of Volt::IR::Value ).first
       result.is_nil?.should be_true
     end
 
@@ -54,7 +54,7 @@ module Volt::Spec
       unit = Volt::Compiler::Unit.new( [ chunk ], 0 )
       vm   = Volt::VM::Vm.new( unit )
 
-      result = vm.call_chunk( chunk, [] of Volt::IR::Value )
+      result = vm.call_chunk( chunk, [] of Volt::IR::Value ).first
       result.is_nil?.should be_true
     end
 
