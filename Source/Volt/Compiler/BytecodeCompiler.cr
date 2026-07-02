@@ -48,12 +48,27 @@ module Volt::Compiler
     private def collect_method_jobs : Array( { String, Frontend::TypeInfo, Frontend::FuncDecl } )
       jobs = [] of { String, Frontend::TypeInfo, Frontend::FuncDecl }
       @typed.types.each_value do |info|
-        next unless info.kind.class? || info.kind.struct?
-        if init = info.methods_ast[ "initialize" ]?
-          jobs << { "#{info.name}#initialize", info, init }
-        end
-        if fin = info.methods_ast[ "finalize" ]?
-          jobs << { "#{info.name}#finalize", info, fin }
+        if info.kind.struct?
+          # A struct has no subclassing/mixins, so every method lowers
+          # straight to a direct call (Phase 3) — no vtable dependency, so
+          # every method (not just initialize) is safe to compile eagerly.
+          info.methods_ast.each_value do |decl|
+            next if decl.is_abstract
+            jobs << { "#{info.name}##{decl.name}", info, decl }
+          end
+        elsif info.kind.class?
+          # Class method dispatch (vtables, mixin ITables, implicit-self
+          # calls) is Phase 4 : compiling other method bodies eagerly here
+          # would surface their unlowered call sites as a crash instead of
+          # the clean "Phase 4" boundary error raised at the actual call
+          # site. `initialize`/`finalize` are exempt — RAII (Phase 2) needs
+          # them regardless of Phase 4.
+          if init = info.methods_ast[ "initialize" ]?
+            jobs << { "#{info.name}#initialize", info, init }
+          end
+          if fin = info.methods_ast[ "finalize" ]?
+            jobs << { "#{info.name}#finalize", info, fin }
+          end
         end
       end
       jobs
@@ -105,7 +120,15 @@ module Volt::Compiler
       emitter.enter_scope
       result = emitter.compile_body( decl.body )
       emitter.exit_scope
-      emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
+
+      # A struct has no heap indirection: `initialize` runs in its own callee
+      # frame, so the only way the constructed value reaches the call site is
+      # by returning `self` itself through `RET` (see `compile_struct_new`).
+      if owner.kind.struct? && decl.name == "initialize"
+        emitter.emit_ret( emitter.self_register, emitter.slot_count( nominal_for( owner ) ) )
+      else
+        emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
+      end
       emitter.finish
     end
 
