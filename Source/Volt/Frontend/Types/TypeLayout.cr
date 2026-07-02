@@ -45,7 +45,7 @@ module Volt::Frontend
 
     # Pack `slots` (offsets ignored on input) into a contiguous C-ABI layout.
     #
-    # When `base` is given, the new layout *inherits* its fields verbatim — the
+    # When `base` is given, the new layout *inherits* its fields verbatim : the
     # shared prefix guarantees a derived instance reads inherited fields at the
     # exact same offsets as the base, which is what virtual dispatch relies on.
     def self.pack( slots : Array( FieldSlot ), base : TypeLayout? = nil ) : TypeLayout
