@@ -62,7 +62,7 @@ module Volt::Frontend
 
     # Body of a `class` / `struct` / `mixin` / `module` declaration.
     # Unlike `parse_body`, only declarations are allowed: fields (with optional
-    # `getter`/`setter` accessors), methods, and nested types — not statements.
+    # `getter`/`setter` accessors), methods, and nested types : not statements.
     private def parse_type_body : Array( ANode )
       nodes = [] of ANode
       skip_separators

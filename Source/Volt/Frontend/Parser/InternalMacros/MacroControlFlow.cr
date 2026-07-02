@@ -41,7 +41,7 @@ module Volt::Frontend
 
       branches = collect_branches( body, head_close + 1, to )
 
-      # Take the first satisfied branch — standard if/elsif/else semantics. Reaching a
+      # Take the first satisfied branch : standard if/elsif/else semantics. Reaching a
       # later branch already implies every earlier one was false, so the check is local.
       branches.each do |branch|
         taken = case branch.kind
