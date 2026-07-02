@@ -31,6 +31,12 @@ module Volt::Compiler
       base
     end
 
+    # The register `self` is bound to — used by `BytecodeCompiler` to return
+    # `self` directly from a struct's `initialize` (see `compile_struct_new`).
+    def self_register : Int32
+      @scope[ "self" ]
+    end
+
     # Number of contiguous register slots `type` occupies (architecture #1.B):
     # 1 for any scalar or class reference, N for a struct value (N = that
     # struct's own slot count, flattening nested structs in turn).
@@ -323,6 +329,13 @@ module Volt::Compiler
       recv_reg = compile_expr( expr.receiver )
 
       unless find_field( recv_ty.name, expr.name )
+        # A struct has no polymorphism (no subclassing, no mixins), so a
+        # bare zero-arg method call (`v.magnitude`, reclassified from field
+        # access by the parser/Semantic) resolves to a plain direct call —
+        # no vtable needed, unlike the still-deferred class case below.
+        if recv_ty.kind.struct? && @types[ recv_ty.name ]?.try( &.methods[ expr.name ]? )
+          return compile_struct_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+        end
         raise "internal: zero-arg method calls are not yet lowered (Phase 4) : #{recv_ty.name}##{expr.name}"
       end
 
@@ -354,7 +367,47 @@ module Volt::Compiler
         return compile_constructor_call( info, expr.args )
       end
 
+      # Structs have no subclassing/mixins to dispatch through — a method
+      # call on a struct value always resolves to exactly one chunk, so it
+      # compiles straight to a direct `CALL` (unlike the class case below,
+      # which needs the vtable machinery of Phase 4).
+      recv_ty = expr.receiver.resolved_type
+      if recv_ty.is_a?( Frontend::NominalType ) && recv_ty.kind.struct?
+        self_reg  = compile_expr( expr.receiver )
+        arg_regs  = expr.args.map { |a| compile_expr( a ) }
+        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        return compile_struct_call( recv_ty, expr.name, self_reg, arg_regs, arg_types )
+      end
+
       raise "internal: instance method dispatch is not yet lowered (Phase 4) : ##{expr.name}"
+    end
+
+    # Direct (non-virtual) call to `recv_ty#method_name` — the only dispatch
+    # a struct value needs. `self` is placed by value (N slots, a real copy)
+    # ahead of the declared arguments, matching the `base`-is-both-return-
+    # and-arg-window convention used everywhere else (`compile_call`,
+    # `compile_class_new`, `compile_struct_new`).
+    private def compile_struct_call( recv_ty : Frontend::NominalType, method_name : String,
+                                      self_reg : Int32, arg_regs : Array( Int32 ),
+                                      arg_types : Array( Frontend::Type ) ) : Int32
+      mangled    = "#{recv_ty.name}##{method_name}"
+      idx        = @func_index[ mangled ]
+      msig       = @types[ recv_ty.name ].methods[ method_name ]
+      self_slots = slot_count( recv_ty )
+      arg_slots  = arg_types.map { |t| slot_count( t ) }
+      total      = self_slots + arg_slots.sum
+      ret_slots  = slot_count( msig.ret )
+
+      base = alloc_block( Math.max( 1 + total, ret_slots ) )
+      place_value( base + 1, self_reg, self_slots )
+      offset = 1 + self_slots
+      arg_regs.each_with_index do |ar, i|
+        n = arg_slots[ i ]
+        place_value( base + offset, ar, n )
+        offset += n
+      end
+      emit_abc( IR::Opcode::CALL, base, idx, total )
+      base
     end
 
     #------------------------------------------------------------------------------------
@@ -365,9 +418,32 @@ module Volt::Compiler
       info.kind.struct? ? compile_struct_new( info, args ) : compile_class_new( info, args )
     end
 
+    # A struct has no heap indirection (architecture #1.B) : its value *is*
+    # the register range. So an explicit `initialize` can't mutate a
+    # pre-existing `self` the way a class constructor does — it runs in its
+    # own callee frame and must hand the finished value back through `RET`.
+    # `compile_method` special-cases a struct's `initialize` to return `self`
+    # (all of its slots) instead of the body's own result; the call site here
+    # just has to land that N-slot return exactly where the constructed value
+    # should live — the same `base`-is-both-return-and-arg-window convention
+    # `compile_class_new`/`compile_call` already use.
     private def compile_struct_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
-      if info.initializer
-        raise "internal: struct constructors with an explicit `initialize` are not yet lowered (Phase 3)"
+      if init = info.initializer
+        mangled  = "#{info.name}#initialize"
+        idx      = @func_index[ mangled ]
+        self_slots = info.reg_layout.try( &.total_size ) || 1
+        arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
+        total    = self_slots + arg_slot_counts.sum
+        base     = alloc_block( 1 + total )
+        offset   = 1 + self_slots
+        args.each_with_index do |a, i|
+          ar = compile_expr( a )
+          n  = arg_slot_counts[ i ]
+          place_value( base + offset, ar, n )
+          offset += n
+        end
+        emit_abc( IR::Opcode::CALL, base, idx, total )
+        return base
       end
 
       layout = info.reg_layout.not_nil!
@@ -440,6 +516,18 @@ module Volt::Compiler
         dest = alloc
         emit_abc( IR::Opcode::CONCAT_STR, dest, lreg, rreg )
         return dest
+      end
+
+      if ( lt = expr.left.resolved_type ).is_a?( Frontend::NominalType ) && lt.kind.struct? &&
+         ( op_name = operator_method_name( expr.op ) ) && @types[ lt.name ]?.try( &.methods[ op_name ]? )
+        rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
+        result = compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] )
+        if expr.op.bang_eq?
+          neg = alloc
+          emit_abc( IR::Opcode::NOT, neg, result, 0 )
+          return neg
+        end
+        return result
       end
 
       is_f64 = numeric_float?( expr.left )
@@ -606,6 +694,20 @@ module Volt::Compiler
 
     private def numeric_float?( expr : Frontend::AExpr ) : Bool
       ( t = expr.resolved_type ) ? t.float? : false
+    end
+
+    # Mirrors `TypeChecker#operator_method`'s candidate op set : the only
+    # operators eligible for a struct/class operator-overload method lookup.
+    private def operator_method_name( op : Frontend::TokenKind ) : String?
+      case op
+      when .plus?             then "+"
+      when .minus?            then "-"
+      when .star?             then "*"
+      when .slash?            then "/"
+      when .percent?          then "%"
+      when .eq_eq?, .bang_eq? then "=="
+      else                         nil
+      end
     end
 
     private def binary_opcode( kind : Frontend::TokenKind, f64 : Bool ) : IR::Opcode
