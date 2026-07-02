@@ -148,7 +148,8 @@ module Volt::Frontend
 
     private def statement_start?( kind : TokenKind ) : Bool
       case kind
-      when .def?, .class?, .mixin?, .component?, .use?, .async?,
+      when .def?, .class?, .struct?, .mixin?, .module?, .abstract?,
+           .component?, .use?, .async?,
            .if?, .unless?, .while?, .until?, .match?, .return?, .break?, .next?
         true
       else
@@ -194,8 +195,14 @@ module Volt::Frontend
         end
       when .class?
         parse_class_decl( annots )
+      when .abstract?
+        parse_abstract_class_decl( annots )
+      when .struct?
+        parse_struct_decl( annots )
       when .mixin?
         parse_mixin_decl
+      when .module?
+        parse_module_decl
       else
         parse_expr_node
       end
