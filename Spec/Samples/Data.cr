@@ -20,8 +20,9 @@ module Volt::Spec
       "01.f.StructNoMethods.vl" => {exit_code: 0,  stderr: "", stdout: "PASS\n"},
       "01.g.StructWithMethods.vl" => {exit_code: 0,  stderr: "", stdout: "PASS\n"},
       "01.h.ClassRaii.vl" => {exit_code: 0,  stderr: "", stdout: "ENTERING SCOPE\nCONNECTED DB 101\nINIT SESSION_MANAGER\nLEAVING SCOPE\nFINALIZE SESSION_MANAGER\nDISCONNECTED DB 101\nTEST COMPLETE\n"},
-      "01.i.ClassInheritance.vl" => {exit_code: 0,  stderr: "", stdout: "PASS\n"},
+      "01.i.ClassInheritance.vl" => {exit_code: 0,  stderr: "", stdout: "WRITE TO USB [FlashDrive] (16384MB): kernel_backup.bin\nPRINT TO NETWORK [OfficeJet]: report.pdf\n"},
       "01.j.ClassMixin.vl" => {exit_code: 0,  stderr: "", stdout: "[LOG] Verifying credentials for admin\n[LOG] Executing 'rm -rf /tmp' under session SESS_999\n[LOG] Verifying credentials for guest\n[LOG] DENIED access to guest\n"},
+      "01.l.ClassMixinAbstract.vl" => {exit_code: 0,  stderr: "", stdout: "Book: 'Design Patterns' by Gang of Four\nElectronic: VoltBook Pro (24 months warranty)\nBook Tax: 11.0\nLaptop Tax: 299.998\n"},
     }
 
     def initialize( file_path : String )
