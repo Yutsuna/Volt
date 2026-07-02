@@ -90,8 +90,27 @@ module Volt::VM
           in .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
             exec_object( frame, chunk, ins )
 
-          in .call_method?, .call_mixin?
-            # Dynamic dispatch (vtables/itables) is Phase 4 : not emitted yet.
+          in .call_method?
+            # Same arg window as `.call?` (`collect_args` reads C slots from
+            # A+1..) : the receiver travels as that first, always-1-slot,
+            # argument. B is the vtable slot index, resolved statically at
+            # compile time from the receiver's *static* type — dispatch
+            # reads the *actual* object's own class's vtable at that same
+            # slot, which is what makes it virtual (architecture #7.3).
+            obj    = frame[ins.a + 1].as_object
+            rclass = @registry[obj.type_id]?
+            raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" ) unless rclass
+            chunk_idx = rclass.vtable[ins.b]?
+            if chunk_idx.nil? || chunk_idx < 0
+              raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
+            end
+            results = call_chunk(@unit.chunks[chunk_idx], collect_args(frame, ins))
+            results.each_with_index { |v, i| frame[ins.a + i] = v }
+
+          in .call_mixin?
+            # ITable dispatch — reserved, unused (mixin methods are compiled
+            # once per including class and dispatched through the same
+            # vtable as any other instance method, see `BytecodeCompiler`).
             raise VoltRuntimeError.new( "opcode #{ins.op} is not yet implemented" )
 
           in .to_string?
