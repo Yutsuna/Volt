@@ -52,13 +52,21 @@ module Volt::Frontend
     # `initialize` / `finalize` methods.
     property initializer : FuncSig?
     property finalizer   : FuncSig?
+    # Static dispatch table for a class : method name -> slot index. Built by
+    # `TypeCollector#build_vtable` by copying the superclass's layout verbatim
+    # (an override reuses its inherited index) and appending each mixin's and
+    # each own new method name. A struct/mixin/module never populates this —
+    # only classes have real polymorphism (architecture #7.3).
+    property vtable_layout : Hash( String, Int32 )
+    property vtable_size   : Int32
 
     def initialize( @kind, @name, @type_id,
                     @layout = nil, @superclass = nil,
                     @mixins = [] of String, @is_abstract = false,
                     @methods = {} of String => FuncSig,
                     @methods_ast = {} of String => FuncDecl,
-                    @initializer = nil, @finalizer = nil )
+                    @initializer = nil, @finalizer = nil,
+                    @vtable_layout = {} of String => Int32, @vtable_size = 0 )
     end
   end
 
