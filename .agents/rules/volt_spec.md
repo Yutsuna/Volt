@@ -184,7 +184,7 @@ end
 ### FFI — External bindings
 ```volt
 @[External("libc")]
-def puts(str : String) -> Void
+def puts( str : String ) -> Int32
 
 @[External]
 def strlen(s : String) -> Int
