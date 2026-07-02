@@ -300,7 +300,7 @@ module Volt::Frontend
                                        args : Array( Array( Token ) ), & : Parser -> T ) : T forall T
       if @macro_depth >= MAX_MACRO_DEPTH
         error!( Catalog::Parse.macro_expansion(
-          "maximum expansion depth (#{ MAX_MACRO_DEPTH }) exceeded — `#{ macro_def.name }` is likely recursive",
+          "maximum expansion depth (#{ MAX_MACRO_DEPTH }) exceeded : `#{ macro_def.name }` is likely recursive",
           call_span ) )
       end
 
