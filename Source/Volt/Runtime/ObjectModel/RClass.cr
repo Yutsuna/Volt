@@ -12,9 +12,15 @@ module Volt::Runtime::ObjectModel
     property slot_count        : Int32
     property finalize_index    : Int32
     property drop_fields_index : Int32
+    # Chunk index per vtable slot (architecture #7.3) — a `CALL_METHOD`'s `B`
+    # operand indexes straight into this array. `-1` for a slot with no
+    # implementation reachable on this class (should not occur for a
+    # concrete, non-abstract class : `Semantic` rejects incomplete ones).
+    property vtable : Array( Int32 )
 
     def initialize( @type_id : Int32, @name : String, @slot_count : Int32,
-                    @finalize_index : Int32 = -1, @drop_fields_index : Int32 = -1 )
+                    @finalize_index : Int32 = -1, @drop_fields_index : Int32 = -1,
+                    @vtable = [] of Int32 )
     end
   end
 
