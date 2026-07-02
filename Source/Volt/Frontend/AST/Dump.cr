@@ -132,7 +132,8 @@ module Volt::Frontend
 
   class Param
     def dump(io : IO, prefix : String) : Nil
-      io << ASTDump.nd("Param") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
+      shown = @is_ivar ? "@#{@name}" : @name
+      io << ASTDump.nd("Param") << " " << ASTDump.val("'#{shown}'") << ASTDump.loc(@loc) << "\n"
       has_def = !@default.nil?
       if ta = @type_ann
         last = !has_def
@@ -152,7 +153,10 @@ module Volt::Frontend
 
   class FieldDecl
     def dump(io : IO, prefix : String) : Nil
-      io << ASTDump.nd("FieldDecl") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
+      acc = ""
+      acc += " #{ASTDump.key("getter")}" if @is_getter
+      acc += " #{ASTDump.key("setter")}" if @is_setter
+      io << ASTDump.nd("FieldDecl") << " " << ASTDump.val("'#{@name}'") << acc << ASTDump.loc(@loc) << "\n"
       has_val = !@value.nil?
       io << prefix << (has_val ? ASTDump::BRANCH : ASTDump::CORNER) << ASTDump.lbl("type") << "\n"
       sub_t = prefix + (has_val ? ASTDump::VERT : ASTDump::SPACE)
@@ -170,8 +174,9 @@ module Volt::Frontend
   class FuncDecl
     def dump(io : IO, prefix : String) : Nil
       async_s = @is_async ? " #{ASTDump.key("async")}" : ""
+      abst_s  = @is_abstract ? " #{ASTDump.key("abstract")}" : ""
       tp_s    = @type_params.empty? ? "" : ASTDump.key("[#{@type_params.join(", ")}]")
-      io << ASTDump.nd("FuncDecl") << async_s << " " << ASTDump.val("'#{@name}'") << tp_s << ASTDump.loc(@loc) << "\n"
+      io << ASTDump.nd("FuncDecl") << abst_s << async_s << " " << ASTDump.val("'#{@name}'") << tp_s << ASTDump.loc(@loc) << "\n"
 
       has_ann  = !@annotations.empty?
       has_par  = !@params.empty?
@@ -210,9 +215,11 @@ module Volt::Frontend
 
   class ClassDecl
     def dump(io : IO, prefix : String) : Nil
-      tp_s  = @type_params.empty? ? "" : ASTDump.key( "[#{@type_params.join(", ")}]" )
-      mix_s = @mixins.empty? ? "" : " " + ASTDump.key( "include" ) + " " + ASTDump.val( @mixins.join( ", " ) )
-      io << ASTDump.nd( "ClassDecl" ) << " " << ASTDump.val( "'#{@name}'" ) << tp_s << mix_s << ASTDump.loc( @loc ) << "\n"
+      abst_s  = @is_abstract ? " #{ASTDump.key( "abstract" )}" : ""
+      tp_s    = @type_params.empty? ? "" : ASTDump.key( "[#{@type_params.join(", ")}]" )
+      super_s = @superclass ? " " + ASTDump.key( "<" ) + " " + ASTDump.val( @superclass.to_s ) : ""
+      mix_s   = @mixins.empty? ? "" : " " + ASTDump.key( "include" ) + " " + ASTDump.val( @mixins.join( ", " ) )
+      io << ASTDump.nd( "ClassDecl" ) << abst_s << " " << ASTDump.val( "'#{@name}'" ) << tp_s << super_s << mix_s << ASTDump.loc( @loc ) << "\n"
 
       has_ann  = !@annotations.empty?
       has_body = !@body.empty?
@@ -234,6 +241,34 @@ module Volt::Frontend
   class MixinDecl
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("MixinDecl") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
+      section(io, "body", @body, prefix, true) unless @body.empty?
+    end
+  end
+
+  class StructDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("StructDecl") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
+
+      has_ann  = !@annotations.empty?
+      has_body = !@body.empty?
+
+      if has_ann
+        io << prefix << arm(!has_body) << ASTDump.lbl("annotations") << "\n"
+        sub = cpfx(prefix, !has_body)
+        @annotations.each_with_index do |a, i|
+          al = i == @annotations.size - 1
+          io << sub << (al ? ASTDump::CORNER : ASTDump::BRANCH)
+          a.dump(io, sub + (al ? ASTDump::SPACE : ASTDump::VERT))
+        end
+      end
+
+      section(io, "body", @body, prefix, true) if has_body
+    end
+  end
+
+  class ModuleDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("ModuleDecl") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
       section(io, "body", @body, prefix, true) unless @body.empty?
     end
   end
@@ -341,6 +376,20 @@ module Volt::Frontend
   class SelfExpr
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("SelfExpr") << ASTDump.loc(@loc) << "\n"
+    end
+  end
+
+  class InstanceVar
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("InstanceVar") << " " << ASTDump.val("'@#{@name}'") << ASTDump.loc(@loc) << "\n"
+    end
+  end
+
+  class MemberAccess
+    def dump(io : IO, prefix : String) : Nil
+      safe_s = @safe ? " #{ASTDump.key("safe")}" : ""
+      io << ASTDump.nd("MemberAccess") << safe_s << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
+      field(io, "receiver", @receiver, prefix, true)
     end
   end
 
