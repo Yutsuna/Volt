@@ -12,23 +12,28 @@ module Volt::Frontend
   end
 
 
-  # A single function / method parameter
+  # A single function / method parameter.
+  # `is_ivar` marks the constructor shorthand `def initialize( @x : T )`.
   class Param
     property name     : String
     property type_ann : ATypeNode?
     property default  : AExpr?
     property loc      : Span
+    property is_ivar  : Bool
 
-    def initialize( @name : String, @type_ann : ATypeNode?, @default : AExpr?, @loc : Span )
+    def initialize( @name : String, @type_ann : ATypeNode?, @default : AExpr?, @loc : Span, @is_ivar : Bool = false )
     end
   end
 
 
-  # Field inside a class body:  name : Type  |  name : Type = default
+  # Field inside a type body:  name : Type  |  name : Type = default
+  # `getter name : Type` / `setter name : Type` set the accessor flags.
   class FieldDecl < ADecl
-    property name     : String
-    property type_ann : ATypeNode
-    property value    : AExpr?
+    property name      : String
+    property type_ann  : ATypeNode
+    property value     : AExpr?
+    property is_getter : Bool = false
+    property is_setter : Bool = false
 
     def initialize( @name : String, @type_ann : ATypeNode, @value : AExpr?, loc : Span )
       super( loc )
@@ -37,6 +42,7 @@ module Volt::Frontend
 
 
   # def name[T]( params ) -> ReturnType \n body \n end
+  # `abstract def` produces a body-less FuncDecl with `is_abstract` set.
   class FuncDecl < ADecl
     property name        : String
     property type_params : Array( String )
@@ -45,6 +51,7 @@ module Volt::Frontend
     property body        : Array( ANode )
     property annotations : Array( Annotation )
     property is_async    : Bool
+    property is_abstract : Bool = false
 
     def initialize( @name : String, @type_params : Array( String ),
                     @params : Array( Param ), @return_type : ATypeNode?,
@@ -55,17 +62,44 @@ module Volt::Frontend
   end
 
 
-  # class Name[T] include Mixin \n body \n end
+  # [abstract] class Name[T] < Superclass include Mixin \n body \n end
   class ClassDecl < ADecl
     property name        : String
     property type_params : Array( String )
+    property superclass  : String?
     property mixins      : Array( String )
     property body        : Array( ANode )
     property annotations : Array( Annotation )
+    property is_abstract : Bool
 
     def initialize( @name : String, @type_params : Array( String ),
-                    @mixins : Array( String ), @body : Array( ANode ),
+                    @superclass : String?, @mixins : Array( String ),
+                    @body : Array( ANode ), @annotations : Array( Annotation ),
+                    @is_abstract : Bool, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # struct Name \n body \n end — value type: fields + methods, no inheritance
+  class StructDecl < ADecl
+    property name        : String
+    property body        : Array( ANode )
+    property annotations : Array( Annotation )
+
+    def initialize( @name : String, @body : Array( ANode ),
                     @annotations : Array( Annotation ), loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # module Name \n body \n end — static namespace: no instances, no dispatch
+  class ModuleDecl < ADecl
+    property name : String
+    property body : Array( ANode )
+
+    def initialize( @name : String, @body : Array( ANode ), loc : Span )
       super( loc )
     end
   end
