@@ -10,6 +10,7 @@ module Volt::Frontend
       "def"       => TokenKind::Def,
       "end"       => TokenKind::End,
       "class"     => TokenKind::Class,
+      "struct"    => TokenKind::Struct,
       "mixin"     => TokenKind::Mixin,
       "component" => TokenKind::Component,
       "include"   => TokenKind::Include,
@@ -460,6 +461,8 @@ module Volt::Frontend
     private def division_allowed? : Bool
       case @last_kind
       when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
+        true
+      when .def?   # `def /` declares the division operator, never a regex
         true
       else
         false

@@ -36,6 +36,7 @@ module Volt::Frontend
     Def
     End
     Class
+    Struct
     Mixin
     Component
     Include
