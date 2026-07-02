@@ -98,6 +98,7 @@ module Volt::Frontend
       info.is_abstract = node.is_abstract
 
       base_layout = nil
+      sup_info    = nil
       if sup = node.superclass
         sup_decl = @decls[ sup ]?
         if sup_decl.is_a?( ClassDecl )
@@ -109,7 +110,13 @@ module Volt::Frontend
         end
       end
 
-      info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
+      mixin_names = resolve_mixins( info.name, node.mixins, node.loc )
+      info.mixins = mixin_names
+      # Force-resolve every mixin now (unlike the superclass, this can't
+      # cycle back into a layout computation) so its `methods_ast` is
+      # populated in time for `build_vtable` below, regardless of whether
+      # this class or the mixin happens to come first in declaration order.
+      mixin_infos = mixin_names.compact_map { |m| resolve( m ) }
 
       base_reg_layout = node.superclass.try { |s| @nominals[ s ]?.try( &.reg_layout ) }
       fields          = collect_fields( node.body, base_layout )
@@ -117,7 +124,37 @@ module Volt::Frontend
       set_layout( info, byte_layout, build_reg_layout( byte_layout, base_reg_layout ) )
 
       collect_methods( node.body, info )
+      build_vtable( info, sup_info, mixin_infos )
       check_abstract_completeness( info, node.loc )
+    end
+
+    # Assigns each dispatchable method name a stable slot index : starts from
+    # the superclass's own table verbatim (an override reuses its inherited
+    # index — this is what lets a `Device`-typed call site read the right
+    # slot on a `UsbDrive` instance), then appends each mixin's new names in
+    # inclusion order, then any further name the class declares itself.
+    # `initialize`/`finalize` never dispatch virtually, so they're excluded.
+    private def build_vtable( info : TypeInfo, base : TypeInfo?, mixins : Array( TypeInfo ) ) : Nil
+      layout   = base.try( &.vtable_layout.dup ) || {} of String => Int32
+      next_idx = base.try( &.vtable_size ) || 0
+
+      mixins.each do |m|
+        m.methods_ast.each_key do |name|
+          next if layout.has_key?( name )
+          layout[ name ] = next_idx
+          next_idx += 1
+        end
+      end
+
+      info.methods_ast.each_key do |name|
+        next if name == "initialize" || name == "finalize"
+        next if layout.has_key?( name )
+        layout[ name ] = next_idx
+        next_idx += 1
+      end
+
+      info.vtable_layout = layout
+      info.vtable_size   = next_idx
     end
 
     private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil

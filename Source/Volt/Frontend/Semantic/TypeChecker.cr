@@ -298,7 +298,7 @@ module Volt::Frontend
     private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope ) : Type
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
-      if init = info.initializer
+      if init = find_initializer( info.name )
         check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
       elsif layout = info.layout
         check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope )
@@ -343,6 +343,16 @@ module Volt::Frontend
         end
       end
       nil
+    end
+
+    # A class with no `initialize` of its own inherits its nearest ancestor's
+    # (`NetworkPrinter < Device` : `NetworkPrinter.new("OfficeJet")` must
+    # type-check against `Device#initialize`'s params, not fall through to
+    # the struct-style "one arg per field" default).
+    private def find_initializer( type_name : String ) : FuncSig?
+      info = @types[ type_name ]?
+      return nil unless info
+      info.initializer || info.superclass.try { |s| find_initializer( s ) }
     end
 
     private def find_field( type_name : String, name : String ) : FieldSlot?
