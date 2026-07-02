@@ -1,0 +1,27 @@
+@[External("libc")]
+def puts( str : String ) -> Void
+
+def is_prime( n : Int64 ) -> Bool
+  return false if n < 2
+
+  i = 2
+  while i * i <= n
+    return false if n % i == 0
+    i += 1
+  end
+  true
+end
+
+def count_primes( limit : Int64 ) -> Int64
+  count = 0
+  i = 2
+  while i <= limit
+      count += 1 if is_prime i
+      i += 1
+  end
+  count
+end
+
+limit = 100_000
+count = count_primes limit
+puts "Number of primes up to #{limit}: #{count}"
