@@ -5,7 +5,7 @@
 **Performance goal:** within ~1.5× of PUC-Lua 5.4 on the interpreter alone; match or beat it once Tier-1 is live.
 **Status:** Phase 1 implemented : Tier-0 `case`-dispatch VM runs typed bytecode end-to-end
 (`volt run`). Frontend + Semantic/TypedAST + IR + BytecodeCompiler + Tier-0 VM are live for the
-v0.1.0 language subset; JIT and RAII are deferred (see AGENTS.md #2b for the exact state).
+v0.1.0 language subset (including class/method/struct compilation and basic RAII field drops); JIT is deferred (see AGENTS.md #2b for the exact state).
 
 ---
 
@@ -144,20 +144,20 @@ Volt/
 
 ### Completed Components
 - **Source/volt.cr** : Entry point exists and dispatches to CLI
-- **CLI/** : Full command structure with Run, Ast, Analyse, Circuit, Format, Version, Help, REPL, Build
+- **CLI/** : Full command structure with Run, Ast, Check, Circuit, Format, Version, Help, REPL, Build
 - **Frontend/Lexer/** : Complete: Token.cr, Lexer.cr
 - **Frontend/Parser/** : Complete modular implementation as documented
 - **Frontend/AST/** : ANode, Expr, Decl, Program, TypeNode, Dump
 - **Frontend/Types/** : Type inference system
-- **Frontend/Semantic/** : Analyser, TypeChecker, Contract, Scope, SignatureTable, Diagnostic
+- **Frontend/Semantic/** : Analyser, TypeCollector (collects classes/structs/methods), TypeChecker, Contract, Scope, SignatureTable, Diagnostic
 - **Frontend/Diagnostic/** : Full diagnostic system with Catalog, Severity, Label, Suggest, CompilationError
-- **IR/** : Complete: Opcode.cr, Instruction.cr, Chunk.cr, Value.cr, DropMap.cr
-- **Compiler/** : BytecodeCompiler.cr (complete), Unit.cr (complete), ConstFold.cr, EscapeAnalysis.cr, Peephole.cr (identity stubs)
+- **IR/** : Complete: Opcode.cr (with INIT_OBJ, LOAD_FIELD, STORE_FIELD, CALL_METHOD, COPY_BLOCK, etc.), Instruction.cr, Chunk.cr, Value.cr, DropMap.cr
+- **Compiler/** : BytecodeCompiler.cr (compiles functions, classes, methods, and auto-generated recursive field drops), FunctionEmiter.cr (complete for Phase 1/2 class/struct/method compilation), Unit.cr (complete), ConstFold.cr, EscapeAnalysis.cr, Peephole.cr (identity stubs)
 - **VM/** : Vm.cr (case dispatch), Frame.cr (per-frame registers)
-- **VM/Dispatch/** : Arith.cr (complete), Branch.cr, Call.cr, Cmp.cr, LoadStore.cr, Raii.cr (reserved), Native.cr
+- **VM/Dispatch/** : Arith.cr (complete), Branch.cr, Call.cr, Cmp.cr, LoadStore.cr, Memory.cr (field/struct load/store/copy), Raii.cr (INIT_OBJ, recursive field drops on DROP), Native.cr
+- **Runtime/ObjectModel/** : `RClass.cr` representing class layouts, `TypeRegistry.cr` registering types and layouts
 
 ### Placeholder/Stub Components
-- **Runtime/ObjectModel/** : Empty directory, reserved for future
 - **Runtime/Shell/** : Empty directory, reserved for future
 - **Runtime/Builtins/** : Empty directory, reserved for future
 - **JIT/** : Directory exists with empty stubs: TierUp.cr, Translator.cr, CodeCache.cr, Trampoline.cr, Cranelift/
