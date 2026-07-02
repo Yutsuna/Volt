@@ -6,9 +6,11 @@ module Volt::Compiler
     property chunks     : Array( IR::Chunk )
     property main_index : Int32
     property natives    : Array( NativeFunc )
+    property classes    : Array( Runtime::ObjectModel::RClass )
 
     def initialize( @chunks : Array( IR::Chunk ), @main_index : Int32,
-                    @natives : Array( NativeFunc ) = [] of NativeFunc )
+                    @natives : Array( NativeFunc ) = [] of NativeFunc,
+                    @classes : Array( Runtime::ObjectModel::RClass ) = [] of Runtime::ObjectModel::RClass )
     end
 
     def disassemble( io : IO ) : Nil

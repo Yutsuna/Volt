@@ -35,7 +35,7 @@ module Volt::CLI
       end
 
       fn_count = typed.functions.size
-      Logger.info("OK — #{fn_count} function(s), #{typed.top_level.size} top-level statement(s) type-checked", "analyse")
+      Logger.info("OK : #{fn_count} function(s), #{typed.top_level.size} top-level statement(s) type-checked", "analyse")
     end
 
 

@@ -14,15 +14,15 @@ module Volt::REPL
       begin
         typed = analyse!( full_program_source )
         unit = compile!( typed )
-        value = execute!( unit, stdout, stderr )
+        values = execute!( unit, stdout, stderr )
         saved = declaration?( input )
 
         @history << input if saved
 
-        REPLEvaluationResult.new(value, nil, saved)
+        REPLEvaluationResult.new( values.first?, nil, saved )
 
       rescue ex : Frontend::CompilationError
-        REPLEvaluationResult.new(nil, ex.bag, false)
+        REPLEvaluationResult.new( nil, ex.bag, false )
       end
     end
 
@@ -52,7 +52,7 @@ module Volt::REPL
       unit
     end
 
-    private def execute!( unit : Compiler::Unit, stdout : IO, stderr : IO ) : IR::Value
+    private def execute!( unit : Compiler::Unit, stdout : IO, stderr : IO ) : Array(IR::Value)
       vm = VM::Vm.new( unit, stdout, stderr )
       main_chunk = unit.chunks[ unit.main_index ]
       vm.call_chunk( main_chunk, [] of IR::Value )

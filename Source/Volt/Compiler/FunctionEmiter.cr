@@ -11,7 +11,11 @@ module Volt::Compiler
     def initialize( name : String, arity : Int32,
                     @func_index : Hash( String, Int32 ),
                     @signatures : Hash( String, Frontend::FuncSig ),
-                    @natives : NativeTable )
+                    @natives : NativeTable,
+                    @types : Hash( String, Frontend::TypeInfo ) = {} of String => Frontend::TypeInfo,
+                    # `self`'s owning type when compiling a method chunk, or nil for a free
+                    # function : drives InstanceVar / implicit-self lowering.
+                    @self_owner : Frontend::TypeInfo? = nil )
       @chunk    = IR::Chunk.new( name, arity )
       @scope    = {} of String => Int32
       @next_reg = 0
@@ -21,8 +25,21 @@ module Volt::Compiler
 
     #------------------------------------------------------------------------------------
 
-    def bind_param( name : String )
-      @scope[ name ] = alloc
+    def bind_param( name : String, type : Frontend::Type ) : Int32
+      base = alloc_block( slot_count( type ) )
+      @scope[ name ] = base
+      base
+    end
+
+    # Number of contiguous register slots `type` occupies (architecture #1.B):
+    # 1 for any scalar or class reference, N for a struct value (N = that
+    # struct's own slot count, flattening nested structs in turn).
+    def slot_count( type : Frontend::Type ) : Int32
+      if type.is_a?( Frontend::NominalType ) && type.kind.struct?
+        type.reg_layout.try( &.total_size ) || 1
+      else
+        1
+      end
     end
 
     def finish : IR::Chunk
@@ -32,8 +49,8 @@ module Volt::Compiler
 
     #------------------------------------------------------------------------------------
 
-    def emit_ret( reg : Int32 )
-      emit_abc( IR::Opcode::RET, reg, 0, 0 )
+    def emit_ret( reg : Int32, slots : Int32 = 1 )
+      emit_abx( IR::Opcode::RET, reg, slots )
     end
 
     def enter_scope
@@ -60,6 +77,38 @@ module Volt::Compiler
     def track_raii_resource( reg : Int32, type_id : Int32 )
       @scopes_resource_registers.last << { reg, type_id }
       @chunk.drop_map.entries << IR::DropEntry.new( here.to_u32, UInt32::MAX, reg.to_u8, type_id )
+    end
+
+    # Style-1 constructor shorthand (`def initialize( @x : T )`) has no
+    # corresponding `@x = x` statement in the body : the field store is
+    # implicit, so the compiler emits it directly from the already-bound
+    # parameter register.
+    def store_ivar_param( owner : Frontend::TypeInfo, name : String ) : Nil
+      param_reg = @scope[ name ]
+      self_reg  = @scope[ "self" ]
+      slot      = field_slot_index( owner.name, name )
+      n         = find_field( owner.name, name ).try { |f| slot_count( f.type ) } || 1
+      if owner.kind.struct?
+        place_value( self_reg + slot, param_reg, n )
+      else
+        n.times { |i| emit_abc( IR::Opcode::STORE_FIELD, self_reg, slot + i, param_reg + i ) }
+      end
+    end
+
+    # `__drop_fields` codegen: DROP one reference field off `self`.
+    def emit_drop_field( owner : Frontend::TypeInfo, field : Frontend::FieldSlot ) : Nil
+      self_reg = @scope[ "self" ]
+      slot     = field_slot_index( owner.name, field.name )
+      tmp      = alloc
+      emit_abc( IR::Opcode::LOAD_FIELD, tmp, self_reg, slot )
+      type_id  = field.type.as?( Frontend::NominalType ).try( &.type_id ) || -1
+      emit_abx( IR::Opcode::DROP, tmp, type_id )
+    end
+
+    def emit_ret_nil : Nil
+      r = alloc
+      emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
+      emit_ret( r, 1 )
     end
 
 
@@ -92,16 +141,15 @@ module Volt::Compiler
         r = alloc
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
         r
-      when Frontend::Ident      then compile_ident( expr )
-      when Frontend::Assign     then compile_assign( expr )
-      when Frontend::BinaryOp   then compile_binary( expr )
-      when Frontend::UnaryOp    then compile_unary( expr )
-      when Frontend::Call       then compile_call( expr )
-      when Frontend::MethodCall
-        if expr.name == "includes?" && expr.receiver.is_a?( Frontend::RangeExpr )
-          return compile_range_includes( expr )
-        end
-        raise "internal: unlowerable method call #{expr.name}"
+      when Frontend::Ident        then compile_ident( expr )
+      when Frontend::InstanceVar  then compile_instance_var( expr )
+      when Frontend::MemberAccess then compile_member_access( expr )
+      when Frontend::SelfExpr     then @scope[ "self" ]
+      when Frontend::Assign       then compile_assign( expr )
+      when Frontend::BinaryOp     then compile_binary( expr )
+      when Frontend::UnaryOp      then compile_unary( expr )
+      when Frontend::Call         then compile_call( expr )
+      when Frontend::MethodCall   then compile_method_call( expr )
       when Frontend::IfExpr     then compile_if( expr )
       when Frontend::WhileExpr  then compile_while( expr )
       when Frontend::ReturnExpr then compile_return( expr )
@@ -179,31 +227,204 @@ module Volt::Compiler
     end
 
     private def compile_assign( expr : Frontend::Assign ) : Int32
-      name      = expr.target.as( Frontend::Ident ).name
+      case target = expr.target
+      when Frontend::Ident        then compile_assign_ident( expr, target )
+      when Frontend::InstanceVar  then compile_assign_ivar( expr, target )
+      when Frontend::MemberAccess then compile_assign_member( expr, target )
+      else
+        raise "internal: unlowerable assignment target #{expr.target.class}"
+      end
+    end
+
+    private def compile_assign_ident( expr : Frontend::Assign, target : Frontend::Ident ) : Int32
+      name      = target.name
       value_reg = compile_expr( expr.value )
       if home = @scope[ name ]?
-        emit_abc( IR::Opcode::MOVE, home, value_reg, 0 )
+        place_value( home, value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
         home
       else
         @scope[ name ] = value_reg
+        if ( t = expr.value.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
+          track_raii_resource( value_reg, t.type_id )
+        end
         value_reg
       end
+    end
+
+    # `@x = value` : only meaningful inside an instance method (`@self_owner`
+    # set). A struct `self` is a register range: the field *is* a register,
+    # so writing it is a plain move/copy, no opcode. A class `self` is a heap
+    # reference: `STORE_FIELD` per slot (a multi-slot struct field flattens
+    # into N consecutive slots in the object's `fields` array).
+    private def compile_assign_ivar( expr : Frontend::Assign, target : Frontend::InstanceVar ) : Int32
+      owner     = @self_owner.not_nil!
+      self_reg  = @scope[ "self" ]
+      slot      = field_slot_index( owner.name, target.name )
+      value_reg = compile_expr( expr.value )
+      n         = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+
+      if owner.kind.struct?
+        place_value( self_reg + slot, value_reg, n )
+        self_reg + slot
+      else
+        n.times { |i| emit_abc( IR::Opcode::STORE_FIELD, self_reg, slot + i, value_reg + i ) }
+        value_reg
+      end
+    end
+
+    # `obj.field = value` : Phase 2 only supports this on class receivers
+    # (`obj` a heap reference); assigning through a struct-valued receiver
+    # expression isn't addressable the same way and isn't exercised yet.
+    private def compile_assign_member( expr : Frontend::Assign, target : Frontend::MemberAccess ) : Int32
+      recv_ty = target.receiver.resolved_type
+      raise "internal: member assignment on non-object receiver" unless recv_ty.is_a?( Frontend::NominalType )
+      recv_reg  = compile_expr( target.receiver )
+      slot      = field_slot_index( recv_ty.name, target.name )
+      value_reg = compile_expr( expr.value )
+      n         = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+      n.times { |i| emit_abc( IR::Opcode::STORE_FIELD, recv_reg, slot + i, value_reg + i ) }
+      value_reg
     end
 
     private def compile_ident( expr : Frontend::Ident ) : Int32
       if reg = @scope[ expr.name ]?
         reg
       elsif sig = @signatures[ expr.name ]?
-        base = alloc_block 1
-          if sig.extern
-            emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, expr.name ), 0 )
-          else
-            emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
-          end
-          base
+        base = alloc_block( Math.max( 1, slot_count( sig.ret ) ) )
+        if sig.extern
+          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, expr.name ), 0 )
+        else
+          emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
+        end
+        base
       else
         raise "internal: unbound identifier #{expr.name}"
       end
+    end
+
+    private def compile_instance_var( expr : Frontend::InstanceVar ) : Int32
+      owner    = @self_owner.not_nil!
+      self_reg = @scope[ "self" ]
+      slot     = field_slot_index( owner.name, expr.name )
+      if owner.kind.struct?
+        self_reg + slot
+      else
+        dest = alloc
+        emit_abc( IR::Opcode::LOAD_FIELD, dest, self_reg, slot )
+        dest
+      end
+    end
+
+    private def compile_member_access( expr : Frontend::MemberAccess ) : Int32
+      return compile_to_s( expr.receiver ) if expr.name == "to_s"
+
+      recv_ty = expr.receiver.resolved_type
+      raise "internal: member access on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
+      recv_reg = compile_expr( expr.receiver )
+
+      unless find_field( recv_ty.name, expr.name )
+        raise "internal: zero-arg method calls are not yet lowered (Phase 4) : #{recv_ty.name}##{expr.name}"
+      end
+
+      slot = field_slot_index( recv_ty.name, expr.name )
+      if recv_ty.kind.struct?
+        recv_reg + slot
+      else
+        dest = alloc
+        emit_abc( IR::Opcode::LOAD_FIELD, dest, recv_reg, slot )
+        dest
+      end
+    end
+
+    private def compile_to_s( receiver : Frontend::AExpr ) : Int32
+      r    = compile_expr( receiver )
+      dest = alloc
+      emit_abc( IR::Opcode::TO_STRING, dest, r, 0 )
+      dest
+    end
+
+    private def compile_method_call( expr : Frontend::MethodCall ) : Int32
+      if expr.name == "includes?" && expr.receiver.is_a?( Frontend::RangeExpr )
+        return compile_range_includes( expr )
+      end
+      return compile_to_s( expr.receiver ) if expr.name == "to_s"
+
+      if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
+         ( info = @types[ recv.name ]? ) && expr.name == "new"
+        return compile_constructor_call( info, expr.args )
+      end
+
+      raise "internal: instance method dispatch is not yet lowered (Phase 4) : ##{expr.name}"
+    end
+
+    #------------------------------------------------------------------------------------
+    # Object construction (Phase 2 : no vtables yet, see architecture #1.B for
+    # why structs need no allocation at all).
+
+    private def compile_constructor_call( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
+      info.kind.struct? ? compile_struct_new( info, args ) : compile_class_new( info, args )
+    end
+
+    private def compile_struct_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
+      if info.initializer
+        raise "internal: struct constructors with an explicit `initialize` are not yet lowered (Phase 3)"
+      end
+
+      layout = info.reg_layout.not_nil!
+      base   = alloc_block( layout.total_size )
+      emit_abx( IR::Opcode::NEW_STRUCT, base, layout.total_size )
+
+      offset = 0
+      layout.fields.each_with_index do |f, i|
+        arg_reg = compile_expr( args[ i ] )
+        n       = slot_count( f.type )
+        place_value( base + offset, arg_reg, n )
+        offset += n
+      end
+      base
+    end
+
+    private def compile_class_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
+      obj = alloc
+      emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
+
+      if init = info.initializer
+        mangled = "#{info.name}#initialize"
+        idx     = @func_index[ mangled ]
+        arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
+        total   = 1 + arg_slot_counts.sum
+        # `window` (== A) is the CALL's return-value landing spot : args
+        # (self first, then declared params) start at `window + 1`, same
+        # convention as a free-function call (see `compile_call`).
+        window  = alloc_block( 1 + total )
+        place_value( window + 1, obj, 1 )
+        offset = 2
+        args.each_with_index do |a, i|
+          ar = compile_expr( a )
+          n  = arg_slot_counts[ i ]
+          place_value( window + offset, ar, n )
+          offset += n
+        end
+        emit_abc( IR::Opcode::CALL, window, idx, total )
+      end
+
+      obj
+    end
+
+    private def place_value( dest : Int32, src : Int32, n : Int32 ) : Nil
+      if n <= 1
+        emit_abc( IR::Opcode::MOVE, dest, src, 0 )
+      else
+        emit_abc( IR::Opcode::COPY_BLOCK, dest, src, n )
+      end
+    end
+
+    private def find_field( type_name : String, name : String ) : Frontend::FieldSlot?
+      @types[ type_name ]?.try( &.layout ).try( &.field?( name ) )
+    end
+
+    private def field_slot_index( type_name : String, name : String ) : Int32
+      @types[ type_name ]?.try( &.reg_layout ).try( &.field?( name ) ).try( &.offset ) || 0
     end
 
     private def compile_binary( expr : Frontend::BinaryOp ) : Int32
@@ -212,8 +433,15 @@ module Volt::Compiler
       when .or?  then return compile_or( expr )
       end
 
-      lreg   = compile_expr( expr.left )
-      rreg   = compile_expr( expr.right )
+      lreg = compile_expr( expr.left )
+      rreg = compile_expr( expr.right )
+
+      if expr.op.plus? && expr.left.resolved_type.try( &.kind.str? ) && expr.right.resolved_type.try( &.kind.str? )
+        dest = alloc
+        emit_abc( IR::Opcode::CONCAT_STR, dest, lreg, rreg )
+        return dest
+      end
+
       is_f64 = numeric_float?( expr.left )
       dest   = alloc
       emit_abc( binary_opcode( expr.op, is_f64 ), dest, lreg, rreg )
@@ -297,17 +525,26 @@ module Volt::Compiler
     end
 
     private def compile_call( expr : Frontend::Call ) : Int32
-      name     = expr.callee.as( Frontend::Ident ).name
-      sig      = @signatures[ name ]
-      arg_regs = expr.args.map { |a| compile_expr( a ) }
-      argc     = arg_regs.size
-      base     = alloc_block( argc + 1 )
-      arg_regs.each_with_index { |ar, i| emit_abc( IR::Opcode::MOVE, base + 1 + i, ar, 0 ) }
+      name = expr.callee.as( Frontend::Ident ).name
+      sig  = @signatures[ name ]
+
+      arg_regs   = expr.args.map { |a| compile_expr( a ) }
+      arg_slots  = expr.args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
+      total_args = arg_slots.sum
+      ret_slots  = slot_count( sig.ret )
+
+      base = alloc_block( Math.max( 1 + total_args, ret_slots ) )
+      offset = 1
+      arg_regs.each_with_index do |ar, i|
+        n = arg_slots[ i ]
+        place_value( base + offset, ar, n )
+        offset += n
+      end
 
       if sig.extern
-        emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, name ), argc )
+        emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, name ), total_args )
       else
-        emit_abc( IR::Opcode::CALL, base, @func_index[ name ], argc )
+        emit_abc( IR::Opcode::CALL, base, @func_index[ name ], total_args )
       end
 
       base
@@ -355,15 +592,15 @@ module Volt::Compiler
     end
 
     private def compile_return( expr : Frontend::ReturnExpr ) : Int32
-      reg = if v = expr.value
-        compile_expr( v )
+      reg, slots = if v = expr.value
+        { compile_expr( v ), slot_count( v.resolved_type || Frontend::Type::UNKNOWN ) }
       else
         r = alloc
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
-        r
+        { r, 1 }
       end
       emit_scope_cleanup
-      emit_ret( reg )
+      emit_ret( reg, slots )
       reg
     end
 
