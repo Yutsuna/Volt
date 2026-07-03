@@ -33,6 +33,21 @@ module Volt::Spec
       r2.value.not_nil!.as_i.should eq( 99 )
     end
 
+    it "Function redefinition: a later evaluate can redefine a function and calls use the new body" do
+      session = REPL::REPLSession.new
+      session.evaluate( "def redef_fn -> Int64; 1; end" ).ok?.should be_true
+      session.evaluate( "redef_fn()" ).value.not_nil!.as_i.should eq( 1 )
+
+      session.evaluate( "def redef_fn -> Int64; 100; end" ).ok?.should be_true
+      session.evaluate( "redef_fn()" ).value.not_nil!.as_i.should eq( 100 )
+    end
+
+    it "Duplicate definition within a single input still errors" do
+      session = REPL::REPLSession.new
+      res = session.evaluate( "def dup_fn -> Int64; 1; end\ndef dup_fn -> Int64; 2; end" )
+      res.ok?.should be_false
+    end
+
     it "Persistent variables: evaluate(\"x = 42\") and then calling evaluate(\"x + 1\") returns 43" do
       session = REPL::REPLSession.new
       r1 = session.evaluate( "x = 42" )
