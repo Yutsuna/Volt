@@ -39,6 +39,7 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `ParseCall.cr` : Function/method calls (dot calls, safe calls, indexing)
     *   `ParseLiteral.cr` : Literals (grouping, arrays)
 *   **Frontend/Types + Frontend/Semantic** : type inference, checks, and layout/type collection (via `TypeCollector.cr`) producing the TypedProgram contract (`Frontend.analyse`). Every `AExpr` carries a `resolved_type`.
+*   **Frontend/Semantic** : Incremental analysis support for REPL via `IncrementalAnalyser.cr` with `IncrementalTypeChecker` - enables lazy evaluation of top-level definitions by reusing state between compilations
 *   **IR/** : Complete implementation:
     *   `Opcode.cr` : Typed opcode enum (ADD_INT, ADD_F64, LOAD_CONST, CALL, RET, INIT_OBJ, LOAD_FIELD, STORE_FIELD, CALL_METHOD, COPY_BLOCK, etc.)
     *   `Instruction.cr` : 32-bit packed instruction with ABC and ABx forms
@@ -52,8 +53,9 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `ConstFold.cr` : Constant folding pass (identity placeholder)
     *   `EscapeAnalysis.cr` : Escape analysis pass (identity placeholder)
     *   `Peephole.cr` : Peephole optimization pass (identity placeholder)
+*   **Compiler/REPL** : Delta compilation support via `REPLDeltaCompiler.cr` - compiles only new/changed definitions, maintaining global/function indices across incremental compilations
 *   **VM/** : Tier-0 register VM with `case` dispatch (will migrate to direct-threaded):
-    *   `Vm.cr` : Main VM loop with case-based opcode dispatch
+    *   `Vm.cr` : Main VM loop with case-based opcode dispatch, extended with `extend` and `call_chunk_at` methods for REPL execution
     *   `Frame.cr` : Call frame with register window (per-frame registers currently)
     *   `VM/Dispatch/` : Opcode family handlers:
         *   `Arith.cr` : Integer and float arithmetic (ADD, SUB, MUL, DIV, MOD, NEG)
@@ -73,10 +75,16 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `parse` : Dump AST for source files
     *   `check` : Semantic analysis pass
     *   `circuit`, `format`, `version`, `help`, `repl`, `build` : CLI structure in place
+*   **REPL** : Interactive Read-Eval-Print-Loop with lazy evaluation:
+    *   `REPLSession.cr` : Main session manager with incremental state
+    *   `REPLDeltaCompiler.cr` : Delta compiler for incremental compilation
+    *   `IncrementalState.cr` : Persistent state tracking types, signatures, globals, and indices
+    *   `IncrementalAnalyser.cr` : Incremental semantic analysis preserving state between inputs
+    *   Supports `:load` (load file), `:reload` (lazy reload of all loaded files), `:clear` (reset session), `:exit` commands
 
 **Language subset (v0.1.0):**
 - Primitives: `Int64`, `Float64`, `Bool`, `String`, `Nil`
-- Variables: local (inferred + annotated types)
+- Variables: local (inferred + annotated types) + top-level global variables with lazy evaluation
 - Arithmetic: `+`, `-`, `*`, `/`, `%` (int and float variants)
 - Comparison: `<`, `<=`, `>`, `>=`, `==`, `!=`
 - Logical: `and`, `or`, `not`
@@ -88,6 +96,7 @@ The end-to-end execution path is live: **`volt run` interprets a program**
 - Structs (stack-allocation via `NEW_STRUCT`, copy-by-value via `COPY_BLOCK`)
 - Strings: Interpolation (`TO_STRING`) and concatenation (`CONCAT_STR`)
 - Native calls via `@[External]` annotation
+- REPL: Incremental compilation with lazy evaluation of top-level definitions
 
 ### Partially Implemented / Placeholders
 *   **RAII Memory Management** : Architecture defined, DropMap struct exists, compiler emits INIT_OBJ and calls `finalize` / `__drop_fields` on DROP, but full static lifetime analysis for custom local variables is deferred
@@ -123,6 +132,8 @@ The end-to-end execution path is live: **`volt run` interprets a program**
 - Each frame currently has its own register array (will migrate to shared contiguous stack)
 - Native calls are supported via `CALL_NATIVE` opcode and native table
 - The `Value` type is a boxed tagged union (will migrate to untagged registers + NaN-boxing)
+- REPL uses incremental analysis: `IncrementalAnalyser` reuses type/symbol state across compilations, `REPLDeltaCompiler` compiles only new definitions with maintained indices
+- Lazy evaluation of top-level definitions: global variables and function definitions are compiled and initialized on-demand in REPL mode
 
 ---
 
