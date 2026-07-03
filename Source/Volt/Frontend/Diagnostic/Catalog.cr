@@ -251,6 +251,92 @@ module Volt::Frontend
         Diagnostic.error( "S0034", "`#{owner}` does not implement abstract method `#{method}` from `#{from}`" )
           .with_primary( span )
       end
+
+      def private_method_call( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0035", "`#{owner}` has no accessible method named `#{name}`" )
+          .with_primary( span, "private method called here" )
+      end
+
+      def private_field_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0036", "`#{owner}` has no accessible field named `#{name}`" )
+          .with_primary( span )
+      end
+
+      def private_instance_var_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0037", "`#{owner}` has no accessible instance variable `@#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_type( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0038", "unknown type `#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_type_param( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0039", "unknown type parameter `#{name}`" )
+          .with_primary( span )
+      end
+
+      def protected_method_call( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0040", "`#{owner}` has no accessible method named `#{name}`" )
+          .with_primary( span, "protected method called here" )
+      end
+
+      def protected_field_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0041", "`#{owner}` has no accessible field named `#{name}`" )
+          .with_primary( span )
+      end
+
+      def protected_instance_var_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0042", "`#{owner}` has no accessible instance variable `@#{name}`" )
+          .with_primary( span )
+      end
+
+      def module_instantiation( name : String, span  : Span ) : Diagnostic
+        Diagnostic.error( "S0043", "cannot instantiate module `#{name}` : modules are static namespaces" )
+          .with_primary( span, "modules do not have instances" )
+      end
+
+      def mixin_instantiation( name : String, span  : Span ) : Diagnostic
+        Diagnostic.error( "S0044", "cannot instantiate mixin `#{name}` : mixins are not classes" )
+          .with_primary( span, "mixins do not have instances" )
+      end
+
+      def invalid_namespace_operator( module_name : String, member : String, span : Span ) : Diagnostic
+        Diagnostic.error("S0045", "cannot access nested type `#{member}` from module `#{module_name}` using `.`")
+          .with_primary( span )
+          .with_help("use the namespace resolution operator `::`, e.g. `#{module_name}::#{member}`")
+      end
+
+      def struct_inheritance(name : String, span : Span) : Diagnostic
+        Diagnostic.error("S0046", "struct `#{name}` cannot inherit from another type")
+          .with_primary(span, "structs do not support inheritance in #{VERSION}")
+      end
+
+      def subclassing_struct(child : String, parent : String, span : Span) : Diagnostic
+        Diagnostic.error("S0047", "class `#{child}` cannot inherit from struct `#{parent}`")
+          .with_primary(span)
+      end
+
+      def finalize_has_arguments(span : Span) : Diagnostic
+        Diagnostic.error("S0048", "destructor `finalize` cannot accept parameters")
+          .with_primary(span, "must be defined as `def finalize -> Void` ou `def finalize`")
+      end
+
+      def finalize_returns_value(actual_type : String, span : Span) : Diagnostic
+        Diagnostic.error("S0049", "destructor `finalize` cannot return a value, got #{actual_type}")
+          .with_primary(span, "destructors must return Void")
+      end
+
+      def initialize_return_type(actual_type : String, span : Span) : Diagnostic
+        Diagnostic.error("S0050", "constructor `initialize` must return an instance of the class, got #{actual_type}")
+          .with_primary(span, "constructors must return an instance of the class")
+      end
+
+      def non_interpolable_type( actual_type : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0051", "cannot interpolate value of type #{actual_type} into a string" )
+          .with_primary( span, "only String, Char, and numeric types can be interpolated" )
+      end
     end
 
 
