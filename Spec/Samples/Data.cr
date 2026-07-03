@@ -40,6 +40,12 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "01.m.RpgPolymorphism.vl" => {exit_code: 0, stderr: "", stdout: "Paladin Arthas HP: 120/120\nAction: Holy Shield active (Shield: 25)\nRanger Sylvanas HP: 90/90\nAction: Double Shot! (Arrows remaining: 1)\nRanger Sylvanas HP: 90/90\nAction: Double Shot! (Arrows remaining: 0)\nRanger Sylvanas HP: 90/90\nAction: Out of arrows!\nPaladin Arthas HP: 150/150\nAction: Holy Shield active (Shield: 35)\nRanger Sylvanas HP: 110/110\nAction: Out of arrows!\n"},
       #------------------------------------------------------------------------------------
+      "01.n.SmartCityOOP.vl" => {exit_code: 0, stderr: "", stdout: "System 'Sensor-Alpha' initializing hardware components...\nSystem 'Panel-Solaris' initializing hardware components...\n[IoT-Log] Connecting to City_Grid_5G...\n[IoT-Log] Connecting to City_Grid_5G...\n--- Testing Device ---\nDiagnostic : WaterSensor check: Flow rate is stable at 12.4 L/s.\nEnergy Impact : 0.05 W\n--- Testing Device ---\nDiagnostic : SolarPanel check: Grid synchronization optimal. Location:\n [48.8566, 2.3522]Energy Impact : -348.5 W\nSensor status: ONLINE\nPanel status: ONLINE\n"},
+      #------------------------------------------------------------------------------------
+      "01.o.ModuleDatabase.vl" => {exit_code: 0, stderr: "", stdout: "Connecting to database 'VoltDB'...\nConnection established. Current: 1\nAttempt 1: true\nConnection established. Current: 2\nAttempt 2: true\nActive connections : 2\n"},
+      #------------------------------------------------------------------------------------
+      "01.p.ModuleMaths.vl" => {exit_code: 0, stderr: "", stdout: "PASS\n"},
+      #------------------------------------------------------------------------------------
     }
 
     def initialize( file_path : String )

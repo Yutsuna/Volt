@@ -5,13 +5,10 @@ require "../../Source/Volt/CLI/CLI"
 
 module Volt::Spec
 
-  SKIP_PATTERN = /01\.k/
 
   describe "Volt::Run: 01" do
     Dir.glob( SAMPLES_01_DIR, "vl" ).each do |file|
       filename = File.basename file
-
-      next if filename =~ SKIP_PATTERN
 
       it "Should run without errors: #{filename}" do
         volt     = Volt::Spec::RunVolt.run file

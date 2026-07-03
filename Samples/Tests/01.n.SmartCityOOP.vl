@@ -1,0 +1,108 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+module SmartCity
+
+  struct GeoCoordinate
+    lat : Float64
+    lng : Float64
+
+    def to_s -> String
+      "[#{@lat}, #{@lng}]"
+    end
+  end
+
+  mixin InternetOfThings
+    def connect_to_network( network_name : String ) -> Void
+      log_internal("Connecting to #{network_name}...")
+      @is_connected = true
+    end
+
+    def status -> String
+      if @is_connected
+        "ONLINE"
+      else
+        "OFFLINE"
+      end
+    end
+
+    private def log_internal( message : String ) -> Void
+      puts("[IoT-Log] #{message}")
+    end
+  end
+
+  abstract class SmartDevice
+    name         : String
+    is_connected : Bool
+
+    def initialize( @name : String )
+      @is_connected = false
+    end
+
+    protected def boot_sequence -> Void
+      puts("System '#{@name}' initializing hardware components...")
+    end
+
+    abstract def perform_diagnostic -> String
+    abstract def consume_energy -> Float64
+  end
+
+  class WaterSensor < SmartDevice
+    include InternetOfThings
+
+    flow_rate : Float64
+
+    def initialize( @name : String, @flow_rate : Float64 )
+      @is_connected = false
+      boot_sequence
+    end
+
+    def perform_diagnostic -> String
+      "WaterSensor check: Flow rate is stable at #{@flow_rate} L/s."
+    end
+
+    def consume_energy -> Float64
+      0.05
+    end
+  end
+
+  class SolarPanel < SmartDevice
+    include InternetOfThings
+
+    position    : GeoCoordinate
+    power_yield : Float64
+
+    def initialize( @name : String, @power_yield : Float64, @lat : Float64, @lng : Float64 )
+      @is_connected = false
+      @position = GeoCoordinate.new( @lat, @lng )
+      boot_sequence
+    end
+
+    def perform_diagnostic -> String
+      "SolarPanel check: Grid synchronization optimal. Location: #{@position.to_s}"
+    end
+
+    def consume_energy -> Float64
+      -@power_yield + 1.5
+    end
+  end
+
+end
+
+def run_network_test( device : SmartCity::SmartDevice ) -> Void
+  puts("--- Testing Device ---")
+  puts("Diagnostic : #{device.perform_diagnostic}")
+  puts("Energy Impact : #{device.consume_energy} W")
+end
+
+sensor : SmartCity::SmartDevice = SmartCity::WaterSensor.new("Sensor-Alpha", 12.4)
+panel  : SmartCity::SmartDevice = SmartCity::SolarPanel.new("Panel-Solaris", 350.0, 48.8566, 2.3522)
+
+sensor.connect_to_network("City_Grid_5G")
+panel.connect_to_network("City_Grid_5G")
+
+run_network_test sensor
+run_network_test panel
+
+puts("Sensor status: #{sensor.status}")
+puts("Panel status: #{panel.status}")
