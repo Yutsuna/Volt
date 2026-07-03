@@ -13,9 +13,10 @@ module Volt::Frontend
     # receiver (module functions), as opposed to instance methods.
     property owner     : String?
     property is_static : Bool
+    property visibility : Visibility
 
     def initialize( @name, @params, @ret, @extern = false, @lib = nil, @decl_span = nil,
-                    @owner = nil, @is_static = false )
+                    @owner = nil, @is_static = false, @visibility = Visibility::Public )
     end
   end
 
@@ -59,6 +60,10 @@ module Volt::Frontend
     # only classes have real polymorphism (architecture #7.3).
     property vtable_layout : Hash( String, Int32 )
     property vtable_size   : Int32
+    # `@@name` module/class variables : name -> type. Backed by process-global
+    # storage (a module has no instances); the compiler assigns each a global
+    # slot. Declaration order is preserved for deterministic slot/init emission.
+    property class_vars : Hash( String, Type )
 
     def initialize( @kind, @name, @type_id,
                     @layout = nil, @superclass = nil,
@@ -66,7 +71,8 @@ module Volt::Frontend
                     @methods = {} of String => FuncSig,
                     @methods_ast = {} of String => FuncDecl,
                     @initializer = nil, @finalizer = nil,
-                    @vtable_layout = {} of String => Int32, @vtable_size = 0 )
+                    @vtable_layout = {} of String => Int32, @vtable_size = 0,
+                    @class_vars = {} of String => Type )
     end
   end
 
