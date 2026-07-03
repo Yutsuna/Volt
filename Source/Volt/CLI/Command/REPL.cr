@@ -1,6 +1,5 @@
 require "./ACommand"
 
-
 module Volt::CLI
 
 
@@ -9,6 +8,7 @@ module Volt::CLI
     register "repl", "Interactive Read-Eval-Print-Loop"
     @session : REPL::REPLSession = REPL::REPLSession.new
     @buffer : Array(String) = [] of String
+    @cli_history : Array(String) = [] of String # <-- Historique interactif clavier isolé
 
     @no_history : Bool = false
     @input : String? = nil
@@ -117,7 +117,7 @@ module Volt::CLI
 
     private def read_next_line : String?
       prompt = get_prompt
-      STDIN.tty? ? read_line_interactive( prompt, @session.history ) : STDIN.gets
+      STDIN.tty? ? read_line_interactive( prompt, @cli_history ) : STDIN.gets
     end
 
     private def evaluate( current_input : String ) : Nil
@@ -125,7 +125,10 @@ module Volt::CLI
 
       if result.ok?
         display_result result.value
-        write_history( current_input ) if result.definition_saved? && !@no_history
+        if result.definition_saved?
+          write_history( current_input ) unless @no_history
+          @cli_history << current_input
+        end
       else
         render_diagnostics( current_input, result.diagnostics )
       end
@@ -210,6 +213,7 @@ module Volt::CLI
     private def clear : Symbol
       @session.clear
       @buffer.clear
+      @cli_history.clear
       print "\e[H\e[2J\e[3J"
       Logger.info( "Session history and compiled definitions cleared", "repl" )
       Fiber.yield
@@ -236,9 +240,15 @@ module Volt::CLI
       Logger.info( "Interactive session closed", "repl" )
       Fiber.yield
     end
+
     private def load_history( session : REPL::REPLSession ) : Nil
       return unless File.exists? HISTORY_FILE
-      File.each_line( HISTORY_FILE ) { |line| session.history << line unless line.blank? }
+      File.each_line( HISTORY_FILE ) do |line|
+        unless line.blank?
+          session.history << line
+          @cli_history << line
+        end
+      end
     rescue ex
       Logger.warn( "Failed to load history file: #{ex.message}", "repl" )
       Fiber.yield
