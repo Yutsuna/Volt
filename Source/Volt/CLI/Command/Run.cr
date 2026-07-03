@@ -30,7 +30,7 @@ module Volt::CLI
         p.banner = "Usage: volt run [options] [input_file] [-- ...]"
         p.on("-i INPUT", "--input INPUT", "File input source program") { |v| @input = v }
         p.on("-s", "--stdin", "Read input from stdin") { @from_stdin = true }
-        p.on("-h", "--help", "Show help") { puts p; next }
+        p.on("-h", "--help", "Show help") { puts p; raise RequestExit.new }
         p.invalid_option { |flag| fatal! "Invalid option: #{flag}\n#{p}" }
       end
 
