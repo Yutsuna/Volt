@@ -9,6 +9,13 @@ module Volt::Frontend
       loc  = @current.span
       name = expect( TokenKind::Ident ).value
 
+      # Namespace-qualified type name: `SmartCity::SmartDevice` resolves to a
+      # single `SimpleType` whose name is the fully-qualified `"A::B"` string.
+      while @current.kind.colon_colon?
+        advance
+        name = "#{name}::#{expect( TokenKind::Ident ).value}"
+      end
+
       ty : ATypeNode = if @current.kind.l_bracket?
         advance
         @paren_depth += 1
