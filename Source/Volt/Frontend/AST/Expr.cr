@@ -79,6 +79,16 @@ module Volt::Frontend
   end
 
 
+  # @@name module/class-variable reference (process-global storage)
+  class ClassVar < AExpr
+    property name : String
+
+    def initialize( @name : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
   # receiver.name field read without arguments; the semantic pass reclassifies
   # it as a zero-arg method call when `name` resolves to a method
   class MemberAccess < AExpr
