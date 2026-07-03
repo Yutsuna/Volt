@@ -1,4 +1,4 @@
-# Volt — Language Design Assistant
+# Volt : Language Design Assistant
 
 ## Context
 
@@ -19,12 +19,12 @@ To compile, run, or test the project, you **must** use `krystal` instead of `cry
 - See all options: `krystal --help`
 
 **CLI Commands (after building):**
-- `./bin/Volt run <file.volt>` — Interpret a Volt program
-- `./bin/Volt ast <file.volt>` — Dump abstract syntax tree
-- `./bin/Volt analyse <file.volt>` — Run semantic analysis
-- `./bin/Volt repl` — Start interactive REPL
-- `./bin/Volt version` — Show version
-- `./bin/Volt help` — Show all commands
+- `./bin/Volt run <file.volt>` : Interpret a Volt program
+- `./bin/Volt parse <file.volt>` : Dump abstract syntax tree
+- `./bin/Volt check <file.volt>` : Run semantic analysis
+- `./bin/Volt repl` : Start interactive REPL
+- `./bin/Volt version` : Show version
+- `./bin/Volt help` : Show all commands
 
 ---
 
@@ -34,22 +34,22 @@ To compile, run, or test the project, you **must** use `krystal` instead of `cry
 Volt is a high-level, fully object-oriented language with the following properties:
 
 - **Scripted by default**, with optional native compilation (via LLVM) and WASM target
-- **Syntax inspired by Ruby and Crystal** — expressive, readable, English-like
-- **Gradually typed** — type inference by default, explicit annotations optional
-- **Frontend-capable** — JSX-like syntax for UI components, targets Web via WASM
-- **Shell-first stdlib** — a fully typed OOP API for filesystem and process manipulation
+- **Syntax inspired by Ruby and Crystal** : expressive, readable, English-like
+- **Gradually typed** : type inference by default, explicit annotations optional
+- **Frontend-capable** : JSX-like syntax for UI components, targets Web via WASM
+- **Shell-first stdlib** : a fully typed OOP API for filesystem and process manipulation
 
 ---
 
 ## Core syntax rules
 
-### Variables — no keyword required
+### Variables : no keyword required
 ```volt
 message = "Hello World"   # inferred String
 age : Int = 28            # explicit type annotation
 ```
 
-### Functions — `def`, return type with `->`
+### Functions : `def`, return type with `->`
 ```volt
 def add(a : Int, b : Int) -> Int
   a + b
@@ -60,14 +60,14 @@ def greet(name : String) -> Void
 end
 ```
 
-### Blocks, lambdas, and chaining — Ruby/Crystal style
+### Blocks, lambdas, and chaining : Ruby/Crystal style
 ```volt
 numbers.map { |it| it * 2 }.select { |it| it > 5 }.to_s
 
 double = { |x| x * 2 }
 ```
 
-### Boolean operators — aliased, English-first
+### Boolean operators : aliased, English-first
 | Symbol | Alias |
 |--------|-------|
 | `&&`   | `and` |
@@ -181,10 +181,10 @@ async def fetch_user(id : Int) -> User
 end
 ```
 
-### FFI — External bindings
+### FFI : External bindings
 ```volt
 @[External("libc")]
-def puts(str : String) -> Void
+def puts( str : String ) -> Int32
 
 @[External]
 def strlen(s : String) -> Int
@@ -217,10 +217,10 @@ volt circuit                  # auto-resolve modules and sync with Project.vl
 
 ### Fully Working
 All syntax examples in the following sections are implemented and tested:
-- Variables — no keyword required
-- Functions — `def`, return type with `->`
-- Blocks, lambdas, and chaining — Ruby/Crystal style
-- Boolean operators — aliased, English-first
+- Variables : no keyword required
+- Functions : `def`, return type with `->`
+- Blocks, lambdas, and chaining : Ruby/Crystal style
+- Boolean operators : aliased, English-first
 - Arithmetic operators: `+`, `-`, `*`, `/`, `%`
 - Comparison operators: `<`, `<=`, `>`, `>=`, `==`, `!=`
 - Unary operators: `-`, `!`
@@ -230,19 +230,20 @@ All syntax examples in the following sections are implemented and tested:
 - Native calls via `@[External]`
 
 ### Partially Working
-- Control flow: `until` — implemented but less tested
-- Logical operators: `and`, `or`, `not` — working but `not` uses `!` internally
+- Control flow: `until` : implemented but less tested
+- Logical operators: `and`, `or`, `not` : working but `not` uses `!` internally
+- Classes and Structs : Phase 1/2 compilation and VM execution support (member fields/ivars, stack allocations for structs, dynamic method dispatch via VTable, initialization via `initialize` and RAII-based recursive field drops via `__drop_fields` / `finalize`) are implemented.
 
 ### Not Yet Implemented
-- Classes, mixins, generics
+- Mixins, components, generics
 - Pattern matching (`match`/`when`)
 - Async / await
-- FFI — External bindings (only basic `@[External]` works)
+- FFI : External bindings (only basic `@[External]` works)
 - Compile-time annotations (`@[Inline]`, `@[Export]`)
 - Pipe operator (`|>`)
-- Frontend — UI components
+- Frontend : UI components
 - Project Configuration (`Project.vl`) & `volt circuit`
-- Shell OOP API — `System/Shell`
+- Shell OOP API : `System/Shell`
 
 The `Project.vl` is a compilable Volt file acting as the project manifest, defining architecture, modules, and external dependencies.
 
@@ -268,7 +269,7 @@ The `volt circuit` command automates project maintenance and module mapping:
 
 ---
 
-## Frontend — UI components
+## Frontend : UI components
 
 Components are declared with `component`, not `class` or `def`, so the compiler can treat them distinctly from pure functions.
 
@@ -302,7 +303,7 @@ end
 
 ---
 
-## Shell OOP API — `System::Shell`
+## Shell OOP API : `System::Shell`
 
 The shell stdlib exposes filesystem, process, and IO as fully typed, chainable objects.
 
@@ -332,7 +333,7 @@ out = Shell.pipe(
 ```
 
 **Design goals vs PowerShell:**
-- Return types are guaranteed at compile time — no implicit string coercion
+- Return types are guaranteed at compile time : no implicit string coercion
 - Every object in the pipeline is strongly typed and IDE-completable
 - Chainable API reduces token count for AI-driven code traversal
 
@@ -343,12 +344,12 @@ out = Shell.pipe(
 When proposing new syntax or APIs, always:
 
 1. Prefer English readability over symbol density
-2. Use `def` for all functions — never `fn`, `func`, or `function`
+2. Use `def` for all functions : never `fn`, `func`, or `function`
 3. Use `->` for return types, `:` for parameter types
-4. Use `end` to close all blocks — never `}`  except inline lambdas `{ |x| ... }`
+4. Use `end` to close all blocks : never `}`  except inline lambdas `{ |x| ... }`
 5. Prefer method chaining over nested calls
 6. Keep annotations in `@[AnnotationName]` form
-7. No `let`, `var`, or `val` — plain assignment always
+7. No `let`, `var`, or `val` : plain assignment always
 8. `and`, `or`, `not` preferred over `&&`, `||`, `!` in prose code
 
 ---

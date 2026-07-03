@@ -49,9 +49,14 @@ module Volt::IR
     JMP_IF_FALSE  # A, Bx  : if !truthy?(reg[A]) then ip = Bx
 
     # --- calls -------------------------------------------------------
-    CALL          # A,B,C  : reg[A] = chunks[B]( reg[A+1 .. A+C] )
+    # `C` on CALL/CALL_NATIVE and `Bx` on RET are *slot* counts, not logical
+    # argument/return-value counts : a struct-typed argument or return value
+    # flattens into N contiguous slots (architecture #1.B), so a multi-slot
+    # struct is marshaled as a positional run of registers, same as N scalar
+    # arguments would be.
+    CALL          # A,B,C  : reg[A .. A+?] = chunks[B]( reg[A+1 .. A+C] )
     CALL_NATIVE   # A,B,C  : reg[A] = native[B]( reg[A+1 .. A+C] )
-    RET           # A      : return reg[A]
+    RET           # A, Bx  : return reg[A .. A+Bx-1]   (Bx = slot count, default 1)
 
     # --- bitwise ---
     AND_INT       # A,B,C : reg[A] = reg[B] & reg[C]
@@ -87,6 +92,52 @@ module Volt::IR
 
     # --- raise ---
     RAISE         # A     : raise reg[A]
+
+    # --- object model (Phase 1/2: classes/structs) ---
+    #
+    # Fields are addressed by *register slot*, not byte offset: every class
+    # instance carries a heap `fields : Array(Value)` and every struct value
+    # lives directly in a contiguous run of Frame registers (architecture #1.B
+    # : no allocation, no packing/alignment at this tier). A field's slot
+    # index comes from `TypeInfo#reg_layout` (Phase B), where a primitive or
+    # class-reference field is exactly one slot and a nested struct field
+    # flattens in as N slots (N = that struct's own slot count). Because both
+    # representations are just "a Value per slot", one opcode pair covers
+    # both: local struct field reads/writes compile straight to `MOVE`
+    # against `base + slot`, while `LOAD_FIELD`/`STORE_FIELD` cover class
+    # instances (and struct sub-fields once boxed into a class's own array).
+    INIT_OBJ      # A, Bx : reg[A] = alloc_object(type_id: Bx) : fields zero/nil-init, vtable wired
+    LOAD_FIELD    # A,B,C : reg[A] = obj(reg[B]).fields[C]
+    STORE_FIELD   # A,B,C : obj(reg[A]).fields[B] = reg[C]
+
+    # --- object dispatch ---
+    # Same calling convention as `CALL`/`CALL_NATIVE` (A is both the return
+    # landing slot and `window_start - 1` ; `collect_args` reads C slots from
+    # `A+1..`) plus one extra piece : B is the vtable slot index, resolved
+    # statically from the receiver's *static* type (`TypeInfo#vtable_layout`)
+    # at compile time. The receiver itself travels as the first (always
+    # 1-slot, since class refs never flatten) argument at `A+1` — the VM
+    # reads `frame[A+1].as_object.type_id`, looks that up in the class
+    # registry, and dispatches through *that* class's own `vtable[B]` :
+    # the slot index is shared across the whole hierarchy (architecture
+    # #7.3), so a `Device`-typed call site correctly lands on `UsbDrive`'s
+    # override at runtime.
+    CALL_METHOD   # A,B,C : reg[A] = vtable_call(vtidx: B, args: reg[A+1 .. A+C])
+    CALL_MIXIN    # A,Bx  : reg[A] = itable_call(chunk.call_sites[Bx], args: window)  -- reserved, unused
+
+    # --- struct value semantics ---
+    COPY_BLOCK    # A,B,C : reg[A .. A+C-1] = reg[B .. B+C-1]   (register-range copy, C = slot count)
+    NEW_STRUCT    # A,Bx  : reg[A .. A+Bx-1] = nil   (reserve/zero a Bx-slot struct block)
+
+    # --- module class-variables (@@name) ---
+    # Process-global storage : a module has no instances, so its `@@vars` live
+    # in one flat VM-wide array indexed by a compile-assigned slot (`Bx`).
+    LOAD_GLOBAL   # A,Bx  : reg[A]      = globals[Bx]
+    STORE_GLOBAL  # A,Bx  : globals[Bx] = reg[A]
+
+    # --- minimal string builtins ---
+    TO_STRING     # A,B   : reg[A] = reg[B].to_display   (Int/Float/Bool/... -> String)
+    CONCAT_STR    # A,B,C : reg[A] = reg[B] + reg[C]      (String concatenation)
   end
 
 

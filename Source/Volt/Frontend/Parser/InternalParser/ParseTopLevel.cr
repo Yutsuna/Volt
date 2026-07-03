@@ -44,8 +44,14 @@ module Volt::Frontend
         end
       when .class?
         parse_class_decl( annots )
+      when .abstract?
+        parse_abstract_class_decl( annots )
+      when .struct?
+        parse_struct_decl( annots )
       when .mixin?
         parse_mixin_decl
+      when .module?
+        parse_module_decl
       when .component?
         parse_component_decl( annots, is_async: false )
       when .use?
@@ -59,7 +65,9 @@ module Volt::Frontend
 
       private def collect_annotations : Array( Annotation )
         annots = [] of Annotation
-        while @current.kind.at?
+        # `@` only opens an annotation when followed by `[`
+        # bare `@x` is an instance-variable expression, left for the expression parser.
+        while @current.kind.at? && @peek.kind.l_bracket?
           loc = @current.span
           advance   # consume @
           expect( TokenKind::LBracket )
@@ -82,10 +90,22 @@ module Volt::Frontend
       #------------------------------------------------------------------------------------
 
 
-      private def parse_func_decl( annots : Array( Annotation ), is_async : Bool ) : ADecl
+      private def parse_func_decl( annots : Array( Annotation ), is_async : Bool,
+                                   is_abstract : Bool = false,
+                                   visibility : Visibility = Visibility::Public ) : ADecl
         loc = @current.span
         advance   # consume `def`
-        name = expect( TokenKind::Ident ).value
+
+        # `def self.name` : a static / module method. The `self.` receiver marks
+        # the method as callable on the type itself rather than on an instance.
+        is_static = false
+        if @current.kind.self_? && @peek.kind.dot?
+          advance   # self
+          advance   # .
+          is_static = true
+        end
+
+        name = parse_def_name
 
         type_params = parse_type_params_if_present
         params      = parse_param_list
@@ -102,30 +122,79 @@ module Volt::Frontend
           return ExternDecl.new( lib_name, name, params, return_type || SimpleType.new( "Void", loc ), loc )
         end
 
+        if is_abstract
+          decl = FuncDecl.new( name, type_params, params, return_type, [] of ANode, annots, is_async, loc )
+          decl.is_abstract = true
+          decl.is_static   = is_static
+          decl.visibility  = visibility
+          return decl
+        end
+
         skip_separators
         body = parse_body
         expect_close( TokenKind::End, loc, "`def`" )
 
-        FuncDecl.new( name, type_params, params, return_type, body, annots, is_async, loc )
+        decl = FuncDecl.new( name, type_params, params, return_type, body, annots, is_async, loc )
+        decl.is_static  = is_static
+        decl.visibility = visibility
+        decl
       end
 
-      private def parse_class_decl( annots : Array( Annotation ) ) : ClassDecl
+      # A method name is an identifier or an overloadable operator (`def *`, `def ==`, ...).
+      private def parse_def_name : String
+        case @current.kind
+        when .ident?
+          advance.value
+        when .plus?, .minus?, .star?, .slash?, .percent?, .star_star?,
+             .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?
+          advance.value
+        else
+          error!( Catalog::Parse.expected( TokenKind::Ident, @current ) )
+        end
+      end
+
+      private def parse_class_decl( annots : Array( Annotation ), is_abstract : Bool = false ) : ClassDecl
         loc = @current.span
         advance   # consume `class`
         name        = expect( TokenKind::Ident ).value
         type_params = parse_type_params_if_present
-        mixins      = [] of String
 
+        superclass = if @current.kind.lt?
+          advance
+          expect( TokenKind::Ident ).value
+        end
+
+        mixins = [] of String
         while @current.kind.include?
           advance
           mixins << expect( TokenKind::Ident ).value
         end
 
         skip_separators
-        body = parse_body
+        body = parse_type_body
         expect_close( TokenKind::End, loc, "`class`" )
 
-        ClassDecl.new( name, type_params, mixins, body, annots, loc )
+        mixins.concat( body.select( IncludeDecl ).map( &.name ) )
+
+        ClassDecl.new( name, type_params, superclass, mixins, body, annots, is_abstract, loc )
+      end
+
+      private def parse_abstract_class_decl( annots : Array( Annotation ) ) : ClassDecl
+        advance   # consume `abstract`
+        unless @current.kind.class?
+          error!( Catalog::Parse.expected_after( "`class`", "abstract", @current ) )
+        end
+        parse_class_decl( annots, is_abstract: true )
+      end
+
+      private def parse_struct_decl( annots : Array( Annotation ) ) : StructDecl
+        loc = @current.span
+        advance   # consume `struct`
+        name = expect( TokenKind::Ident ).value
+        skip_separators
+        body = parse_type_body
+        expect_close( TokenKind::End, loc, "`struct`" )
+        StructDecl.new( name, body, annots, loc )
       end
 
       private def parse_mixin_decl : MixinDecl
@@ -133,9 +202,19 @@ module Volt::Frontend
         advance   # consume `mixin`
         name = expect( TokenKind::Ident ).value
         skip_separators
-        body = parse_body
+        body = parse_type_body
         expect_close( TokenKind::End, loc, "`mixin`" )
         MixinDecl.new( name, body, loc )
+      end
+
+      private def parse_module_decl : ModuleDecl
+        loc = @current.span
+        advance   # consume `module`
+        name = expect( TokenKind::Ident ).value
+        skip_separators
+        body = parse_type_body
+        expect_close( TokenKind::End, loc, "`module`" )
+        ModuleDecl.new( name, body, loc )
       end
 
       private def parse_component_decl( annots : Array( Annotation ), is_async : Bool ) : ComponentDecl
@@ -199,7 +278,8 @@ module Volt::Frontend
           end
 
           tok = advance
-          if tok.kind.def? || tok.kind.class? || tok.kind.mixin? || tok.kind.component? ||
+          if tok.kind.def? || tok.kind.class? || tok.kind.struct? || tok.kind.module? ||
+             tok.kind.mixin? || tok.kind.component? ||
              tok.kind.if? || tok.kind.unless? || tok.kind.while? || tok.kind.until? ||
              tok.kind.for? || tok.kind.match? || tok.kind.macro?
             depth += 1

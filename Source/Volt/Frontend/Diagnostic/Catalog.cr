@@ -61,6 +61,11 @@ module Volt::Frontend
         Diagnostic.error( "P0006", "macro expansion failed: #{message}" )
           .with_primary( span )
       end
+
+      def unexpected_in_type_body( tok : Token ) : Diagnostic
+        Diagnostic.error( "P0007", "unexpected #{Catalog.describe( tok )} in type body" )
+          .with_primary( tok.span, "only fields, methods, and nested types are allowed here" )
+      end
     end
 
 
@@ -194,6 +199,143 @@ module Volt::Frontend
         Diagnostic.error( "S0024", "extern function `#{name}` has no native implementation in the interpreter" )
           .with_primary( span, "called here" )
           .with_help( "the interpreter only provides: #{available.join( ", " )}" )
+      end
+
+      def unknown_field_or_method( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0025", "`#{owner}` has no field or method named `#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_instance_var( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0026", "`#{owner}` has no instance variable `@#{name}`" )
+          .with_primary( span )
+      end
+
+      def ivar_outside_method( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0027", "`@#{name}` used outside of an instance method" )
+          .with_primary( span )
+      end
+
+      def self_outside_method( span : Span ) : Diagnostic
+        Diagnostic.error( "S0028", "`self` used outside of an instance method" )
+          .with_primary( span )
+      end
+
+      def unknown_superclass( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0029", "`#{owner}` inherits from undefined class `#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_mixin( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0030", "`#{owner}` includes undefined mixin `#{name}`" )
+          .with_primary( span )
+      end
+
+      def include_module_forbidden( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0031", "module `#{name}` cannot be `include`d : modules are static namespaces, not mixins" )
+          .with_primary( span )
+          .with_help( "use `mixin` instead of `module` if `#{name}` is meant to be mixed into instances" )
+      end
+
+      def circular_type( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0032", "circular definition involving `#{name}` (inheritance or struct composition)" )
+          .with_primary( span )
+      end
+
+      def abstract_instantiation( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0033", "cannot instantiate abstract class `#{name}`" )
+          .with_primary( span )
+      end
+
+      def missing_abstract_impl( owner : String, method : String, from : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0034", "`#{owner}` does not implement abstract method `#{method}` from `#{from}`" )
+          .with_primary( span )
+      end
+
+      def private_method_call( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0035", "`#{owner}` has no accessible method named `#{name}`" )
+          .with_primary( span, "private method called here" )
+      end
+
+      def private_field_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0036", "`#{owner}` has no accessible field named `#{name}`" )
+          .with_primary( span )
+      end
+
+      def private_instance_var_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0037", "`#{owner}` has no accessible instance variable `@#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_type( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0038", "unknown type `#{name}`" )
+          .with_primary( span )
+      end
+
+      def unknown_type_param( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0039", "unknown type parameter `#{name}`" )
+          .with_primary( span )
+      end
+
+      def protected_method_call( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0040", "`#{owner}` has no accessible method named `#{name}`" )
+          .with_primary( span, "protected method called here" )
+      end
+
+      def protected_field_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0041", "`#{owner}` has no accessible field named `#{name}`" )
+          .with_primary( span )
+      end
+
+      def protected_instance_var_access( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0042", "`#{owner}` has no accessible instance variable `@#{name}`" )
+          .with_primary( span )
+      end
+
+      def module_instantiation( name : String, span  : Span ) : Diagnostic
+        Diagnostic.error( "S0043", "cannot instantiate module `#{name}` : modules are static namespaces" )
+          .with_primary( span, "modules do not have instances" )
+      end
+
+      def mixin_instantiation( name : String, span  : Span ) : Diagnostic
+        Diagnostic.error( "S0044", "cannot instantiate mixin `#{name}` : mixins are not classes" )
+          .with_primary( span, "mixins do not have instances" )
+      end
+
+      def invalid_namespace_operator( module_name : String, member : String, span : Span ) : Diagnostic
+        Diagnostic.error("S0045", "cannot access nested type `#{member}` from module `#{module_name}` using `.`")
+          .with_primary( span )
+          .with_help("use the namespace resolution operator `::`, e.g. `#{module_name}::#{member}`")
+      end
+
+      def struct_inheritance(name : String, span : Span) : Diagnostic
+        Diagnostic.error("S0046", "struct `#{name}` cannot inherit from another type")
+          .with_primary(span, "structs do not support inheritance in #{VERSION}")
+      end
+
+      def subclassing_struct(child : String, parent : String, span : Span) : Diagnostic
+        Diagnostic.error("S0047", "class `#{child}` cannot inherit from struct `#{parent}`")
+          .with_primary(span)
+      end
+
+      def finalize_has_arguments(span : Span) : Diagnostic
+        Diagnostic.error("S0048", "destructor `finalize` cannot accept parameters")
+          .with_primary(span, "must be defined as `def finalize -> Void` ou `def finalize`")
+      end
+
+      def finalize_returns_value(actual_type : String, span : Span) : Diagnostic
+        Diagnostic.error("S0049", "destructor `finalize` cannot return a value, got #{actual_type}")
+          .with_primary(span, "destructors must return Void")
+      end
+
+      def initialize_return_type(actual_type : String, span : Span) : Diagnostic
+        Diagnostic.error("S0050", "constructor `initialize` must return an instance of the class, got #{actual_type}")
+          .with_primary(span, "constructors must return an instance of the class")
+      end
+
+      def non_interpolable_type( actual_type : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0051", "cannot interpolate value of type #{actual_type} into a string" )
+          .with_primary( span, "only String, Char, and numeric types can be interpolated" )
       end
     end
 

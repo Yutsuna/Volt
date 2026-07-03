@@ -1,5 +1,5 @@
 @[External("libc")]
-def puts( str : String ) -> Void
+def puts( str : String ) -> Int32
 
 struct Vec3
 
@@ -15,7 +15,7 @@ struct Vec3
   end
 
   def *(scalar : Float32) -> Vec3
-    Vec3.new( @n * scalar, @y * scalar, @z * scalar )
+    Vec3.new( @x * scalar, @y * scalar, @z * scalar )
   end
 
   def /(scalar : Float32) -> Vec3

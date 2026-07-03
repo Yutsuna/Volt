@@ -74,6 +74,6 @@ end
 ### External Function
 ```volt
 @[External("libc")]
-def puts(str : String) -> Void
+def puts( str : String ) -> Int32
 end
 ```

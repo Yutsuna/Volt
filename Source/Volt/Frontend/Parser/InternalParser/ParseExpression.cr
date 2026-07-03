@@ -15,19 +15,24 @@ module Volt::Frontend
           advance
         end
 
-        if min_prec < Prec::Call && ( left.is_a?( Ident ) || left.is_a?( MethodCall ) ) && can_start_expr?( @current.kind )
+        if min_prec < Prec::Call && ( left.is_a?( Ident ) || left.is_a?( MethodCall ) || left.is_a?( MemberAccess ) ) && can_start_expr?( @current.kind )
           if led_prec( @current.kind ) == Prec::None
             args = parse_space_call_args
             blk = if @current.kind.l_brace?
               parse_brace_block
             end
 
-            left = if left.is_a?( Ident )
+            left = case left
+            when Ident
               Call.new( left, args, blk, left.loc )
-            else # MethodCall
+            when MemberAccess   # `v.dot w`: the space args prove it is a call
+              MethodCall.new( left.receiver, left.name, args, blk, left.safe, left.loc )
+            when MethodCall
               left.args.concat( args )
               left.block = blk if blk
               left
+            else
+              left   # unreachable: guarded by the is_a? checks above
             end
             next
           end
@@ -61,7 +66,7 @@ module Volt::Frontend
         node.resolved_type = Type::FLOAT
         node
       when .string?
-        StringLit.new( strip_quotes( tok ), tok.span )
+        parse_string_literal( tok )
       when .true?
         BoolLit.new( true, tok.span )
       when .false?
@@ -72,6 +77,11 @@ module Volt::Frontend
         Ident.new( tok.value, tok.span )
       when .self_?
         SelfExpr.new( tok.span )
+      when .at?
+        name_tok = expect( TokenKind::Ident )
+        InstanceVar.new( name_tok.value, tok.span )
+      when .class_var?
+        ClassVar.new( tok.value.lchop( "@@" ), tok.span )
       when .l_paren?
         parse_grouping
       when .l_bracket?
@@ -94,8 +104,14 @@ module Volt::Frontend
         raw = tok.value
         pattern = raw[ 1, raw.bytesize - 2 ]
         RegexLit.new( pattern, tok.span )
-      when .bang?, .not?
+      when .bang?
         operand = parse_expr( Prec::Unary )
+        UnaryOp.new( TokenKind::Bang, operand, tok.span )
+      when .not?
+        # The English `not` keyword binds loosely (Ruby-style) : looser than
+        # comparison/equality but tighter than `and`/`or`, so `not a == b`
+        # reads as `not (a == b)`. The `!` symbol keeps tight unary precedence.
+        operand = parse_expr( Prec::And )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )
       when .if?
         parse_if_expr( tok )
@@ -148,6 +164,8 @@ module Volt::Frontend
         PipeExpr.new( left, parse_expr( Prec::Pipe ), left.loc )
       when .dot?
         parse_dot_call( left, safe: false )
+      when .colon_colon?
+        parse_namespace_path( left )
       when .question?
         expect( TokenKind::Dot )
         parse_dot_call( left, safe: true )
@@ -204,7 +222,7 @@ module Volt::Frontend
       when .star?, .slash?, .percent?,
            .slash_slash?, .amp_star?             then Prec::Factor
       when .star_star?, .amp_star_star?          then Prec::Power
-      when .dot?, .question?                     then Prec::Call
+      when .dot?, .question?, .colon_colon?      then Prec::Call
       when .l_paren?, .l_bracket?, .l_brace?    then Prec::Call
       else                                        Prec::None
       end
@@ -292,7 +310,7 @@ module Volt::Frontend
                                        args : Array( Array( Token ) ), & : Parser -> T ) : T forall T
       if @macro_depth >= MAX_MACRO_DEPTH
         error!( Catalog::Parse.macro_expansion(
-          "maximum expansion depth (#{ MAX_MACRO_DEPTH }) exceeded — `#{ macro_def.name }` is likely recursive",
+          "maximum expansion depth (#{ MAX_MACRO_DEPTH }) exceeded : `#{ macro_def.name }` is likely recursive",
           call_span ) )
       end
 
@@ -346,7 +364,7 @@ module Volt::Frontend
 
     private def can_start_expr?( kind : TokenKind ) : Bool
       case kind
-      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?,
+      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?, .at?,
             .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?,
             .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
             .if?, .unless?, .match?, .while?, .until?, .await?,

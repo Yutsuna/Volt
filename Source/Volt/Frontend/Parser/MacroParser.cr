@@ -10,7 +10,7 @@ module Volt::Frontend
   #   * `{% if cond %} … {% elsif %} … {% else %} … {% end %}` conditionals.
   #   * `{% for x in [a, b, …] %} … {% end %}` loops (unrolled at expansion time).
   #   * The `__FILE__`, `__LINE__` and `__DIR__` pseudo-variables, which resolve to
-  #     the *call site* — exactly like Crystal.
+  #     the *call site* : exactly like Crystal.
   class MacroParser
 
     class ExpansionError < Exception

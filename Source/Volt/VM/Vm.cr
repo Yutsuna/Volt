@@ -1,3 +1,7 @@
+require "./Frame"
+require "./Dispatch/__all__"
+
+
 module Volt::VM
 
 
@@ -10,7 +14,11 @@ module Volt::VM
   # set is stable). Opcode families live in VM/Dispatch/*.
   class Vm
 
-    def initialize( @unit : Compiler::Unit )
+    def initialize( @unit : Compiler::Unit, @stdout : IO = STDOUT, @stderr : IO = STDERR )
+      @registry = Runtime::ObjectModel::TypeRegistry.new( @unit.classes )
+      # Process-global storage for module `@@vars` (`main` writes their
+      # declared defaults before any other code runs).
+      @globals  = Array( IR::Value ).new( @unit.num_globals ) { IR::Value.nil_value }
     end
 
     #--------------------------------------------------------------------------
@@ -19,16 +27,16 @@ module Volt::VM
       call_chunk( @unit.chunks[ @unit.main_index ], [] of IR::Value )
       0
     rescue e : VoltRuntimeError
-      STDERR.puts( "runtime error: #{e.message || "unknown"}" )
+      @stderr.puts( "runtime error: #{e.message || "unknown"}" )
       1
     rescue e : DivisionByZeroError
-      STDERR.puts( "runtime error: division by zero" )
+      @stderr.puts( "runtime error: division by zero" )
       1
     end
 
     #--------------------------------------------------------------------------
 
-    def call_chunk( chunk : IR::Chunk, args : Array( IR::Value ) ) : IR::Value
+    def call_chunk( chunk : IR::Chunk, args : Array( IR::Value ) ) : Array( IR::Value )
       frame = Frame.new( chunk, args )
       code  = chunk.code
       ip    = 0
@@ -58,13 +66,15 @@ module Volt::VM
             raise VoltRuntimeError.new(frame[ins.a].to_display)
 
           in .call?
-            frame[ins.a] = call_chunk(@unit.chunks[ins.b], collect_args(frame, ins))
+            results = call_chunk(@unit.chunks[ins.b], collect_args(frame, ins))
+            results.each_with_index { |v, i| frame[ins.a + i] = v }
 
           in .call_native?
             frame[ins.a] = call_native(@unit.natives[ins.b], collect_args(frame, ins))
 
           in .ret?
-            return frame[ins.a]
+            slots = ins.bx > 0 ? ins.bx : 1
+            return Array( IR::Value ).new( slots ) { |i| frame[ins.a + i] }
 
           in .eq?, .ne?, .lt_int?, .le_int?, .gt_int?, .ge_int?,
               .lt_f64?, .le_f64?, .gt_f64?, .ge_f64?, .cmp_int?, .eq_case?,
@@ -79,13 +89,51 @@ module Volt::VM
               .and_int?, .or_int?, .xor_int?, .shl_int?, .shr_int?, .not_int?,
               .idiv_int?, .pow_int?
             frame[ins.a] = eval_arith(ins.op, frame[ins.b], frame[ins.c])
+
+          in .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
+            exec_object( frame, chunk, ins )
+
+          in .call_method?
+            # Same arg window as `.call?` (`collect_args` reads C slots from
+            # A+1..) : the receiver travels as that first, always-1-slot,
+            # argument. B is the vtable slot index, resolved statically at
+            # compile time from the receiver's *static* type — dispatch
+            # reads the *actual* object's own class's vtable at that same
+            # slot, which is what makes it virtual (architecture #7.3).
+            obj    = frame[ins.a + 1].as_object
+            rclass = @registry[obj.type_id]?
+            raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" ) unless rclass
+            chunk_idx = rclass.vtable[ins.b]?
+            if chunk_idx.nil? || chunk_idx < 0
+              raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
+            end
+            results = call_chunk(@unit.chunks[chunk_idx], collect_args(frame, ins))
+            results.each_with_index { |v, i| frame[ins.a + i] = v }
+
+          in .call_mixin?
+            # ITable dispatch — reserved, unused (mixin methods are compiled
+            # once per including class and dispatched through the same
+            # vtable as any other instance method, see `BytecodeCompiler`).
+            raise VoltRuntimeError.new( "opcode #{ins.op} is not yet implemented" )
+
+          in .load_global?
+            frame[ins.a] = @globals[ins.bx]
+
+          in .store_global?
+            @globals[ins.bx] = frame[ins.a]
+
+          in .to_string?
+            frame[ins.a] = IR::Value.str(frame[ins.b].to_display)
+
+          in .concat_str?
+            frame[ins.a] = IR::Value.str(frame[ins.b].as_s + frame[ins.c].as_s)
           end
         end
       ensure
         unwind_frame(frame, chunk, ip) if ip < code.size
       end
 
-      IR::Value.nil_value
+      [ IR::Value.nil_value ]
     end
 
     #--------------------------------------------------------------------------

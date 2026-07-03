@@ -5,6 +5,18 @@ module Volt::Frontend
 
     #------------------------------------------------------------------------------------
 
+    # `A::B` (and chained `A::B::C`) folds, at parse time, into a single
+    # qualified identifier `"A::B"` — the name under which a module's nested
+    # types are registered. `::` is namespace resolution only; a following `.`
+    # (e.g. `SmartCity::WaterSensor.new`) is an ordinary call on that name.
+    private def parse_namespace_path( left : AExpr ) : AExpr
+      unless left.is_a?( Ident )
+        error!( Catalog::Parse.expected( TokenKind::Ident, @current ) )
+      end
+      member = expect( TokenKind::Ident )
+      Ident.new( "#{left.name}::#{member.value}", left.loc )
+    end
+
     private def parse_dot_call( receiver : AExpr, safe : Bool ) : AExpr
       name = expect( TokenKind::Ident ).value
       if @current.kind.l_paren?
@@ -12,13 +24,18 @@ module Volt::Frontend
         @paren_depth += 1
         args = parse_arg_list( TokenKind::RParen )
         @paren_depth -= 1
-      else
-        args = [] of AExpr
+        blk = if @current.kind.l_brace?
+          parse_brace_block
+        end
+        return MethodCall.new( receiver, name, args, blk, safe, receiver.loc )
       end
-      blk = if @current.kind.l_brace?
-        parse_brace_block
+      if @current.kind.l_brace?
+        blk = parse_brace_block
+        return MethodCall.new( receiver, name, [] of AExpr, blk, safe, receiver.loc )
       end
-      MethodCall.new( receiver, name, args, blk, safe, receiver.loc )
+      # No parens, no block: a bare member access. The semantic pass reclassifies
+      # it as a zero-arg method call when `name` resolves to a method.
+      MemberAccess.new( receiver, name, safe, receiver.loc )
     end
 
     private def parse_call_with_open_paren( callee : AExpr, open_paren : Token ) : Call

@@ -56,7 +56,7 @@ module Volt::Frontend
     # gree_{{name.id}} -> greet_world
     #
     # Emit one source unit, inserting a single space only when the original source had
-    # whitespace before it. Adjacent tokens (no gap) are pasted — this is what makes
+    # whitespace before it. Adjacent tokens (no gap) are pasted : this is what makes
     # `greet_{{name.id}}` render as `greet_world`.
     private def emit_unit( io : String::Builder, text : String, start_off : UInt32, end_off : UInt32 ) : Nil
       if ( c = @cursor ) && start_off > c

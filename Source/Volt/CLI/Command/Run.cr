@@ -68,7 +68,7 @@ module Volt::CLI
       unit = Compiler::EscapeAnalysis.run( unit )
       unit = Compiler::Peephole.run( unit )
 
-      code = VM::Vm.new( unit ).run
+      code = VM::Vm.new( unit, STDOUT, STDERR ).run
     rescue e : Frontend::CompilationError
       DiagnosticRenderer.new( { filename => source } ).render( e.bag )
       raise SystemExit.new

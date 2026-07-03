@@ -17,8 +17,7 @@ module Volt::Frontend
 
     @params : Array( ATypeNode )
 
-    def initialize( @name : String, params : Array( ATypeNode ), loc : Span )
-      @params = params
+    def initialize( @name : String, @params : Array( ATypeNode ), loc : Span )
       super( loc )
     end
   end
@@ -31,8 +30,7 @@ module Volt::Frontend
 
     @params : Array( ATypeNode )
 
-    def initialize( params : Array( ATypeNode ), @return_type : ATypeNode, loc : Span )
-      @params = params
+    def initialize( @params : Array( ATypeNode ), @return_type : ATypeNode, loc : Span )
       super( loc )
     end
   end
