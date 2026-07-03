@@ -11,13 +11,17 @@ module Volt::Compiler
     #------------------------------------------------------------------------------------
 
     def initialize( @typed : Frontend::TypedProgram )
-      @func_index = {} of String => Int32
-      @natives    = NativeTable.new
+      @func_index   = {} of String => Int32
+      @natives      = NativeTable.new
+      @global_index = {} of String => Int32
+      # (global slot, default-value expr, owning module) in declaration order.
+      @global_inits = [] of { Int32, Frontend::AExpr?, String }
     end
 
     #------------------------------------------------------------------------------------
 
     def compile : Unit
+      collect_globals
       @typed.functions.each_with_index { |fn, i| @func_index[ fn.name ] = i }
 
       method_jobs = collect_method_jobs
@@ -40,7 +44,26 @@ module Volt::Compiler
       chunks.concat( drop_fields_types.map { |info| compile_drop_fields( info ) } )
       chunks << compile_main
 
-      Unit.new( chunks, chunks.size - 1, @natives.natives, build_classes )
+      Unit.new( chunks, chunks.size - 1, @natives.natives, build_classes, @global_index.size )
+    end
+
+    # Assigns each module `@@var` a process-global slot and records its default
+    # initializer (emitted at the top of `main`), walking nested modules too.
+    private def collect_globals : Nil
+      @typed.program.nodes.each { |node| collect_module_globals( node ) if node.is_a?( Frontend::ModuleDecl ) }
+    end
+
+    private def collect_module_globals( mod : Frontend::ModuleDecl ) : Nil
+      mod.body.each do |node|
+        case node
+        when Frontend::ClassVarDecl
+          slot = @global_index.size
+          @global_index[ "#{mod.name}::#{node.name}" ] = slot
+          @global_inits << { slot, node.value, mod.name }
+        when Frontend::ModuleDecl
+          collect_module_globals( node )
+        end
+      end
     end
 
     #------------------------------------------------------------------------------------
@@ -61,6 +84,16 @@ module Volt::Compiler
     private def collect_method_jobs : Array( { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig } )
       jobs = [] of { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig }
       @typed.types.each_value do |info|
+        # A module's methods are static (no `self`) but still compile to
+        # ordinary chunks, keyed `Module#method`, called directly.
+        if info.kind.module?
+          info.methods_ast.each do |mname, decl|
+            next if decl.is_abstract
+            jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
+          end
+          next
+        end
+
         next unless info.kind.struct? || info.kind.class?
 
         info.methods_ast.each do |mname, decl|
@@ -124,7 +157,7 @@ module Volt::Compiler
 
     private def compile_function( fn : Frontend::FuncDecl ) : IR::Chunk
       sig     = @typed.signatures[ fn.name ]
-      emitter = FunctionEmiter.new( fn.name, fn.params.size, @func_index, @typed.signatures, @natives, @typed.types )
+      emitter = FunctionEmiter.new( fn.name, fn.params.size, @func_index, @typed.signatures, @natives, @typed.types, nil, @global_index )
       fn.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }
       emitter.enter_scope
       result = emitter.compile_body( fn.body )
@@ -139,8 +172,12 @@ module Volt::Compiler
     # corresponding statement in the AST body : the implicit store is emitted
     # here, before the user-written body runs.
     private def compile_method( mangled : String, owner : Frontend::TypeInfo, decl : Frontend::FuncDecl, sig : Frontend::FuncSig ) : IR::Chunk
-      emitter = FunctionEmiter.new( mangled, decl.params.size + 1, @func_index, @typed.signatures, @natives, @typed.types, owner )
-      emitter.bind_param( "self", nominal_for( owner ) )
+      # A module method is static : it takes no `self`, so its params (if any)
+      # occupy the first registers, exactly like a free function.
+      is_static = owner.kind.module?
+      arity     = decl.params.size + ( is_static ? 0 : 1 )
+      emitter   = FunctionEmiter.new( mangled, arity, @func_index, @typed.signatures, @natives, @typed.types, owner, @global_index )
+      emitter.bind_param( "self", nominal_for( owner ) ) unless is_static
       decl.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }
       decl.params.each { |p| emitter.store_ivar_param( owner, p.name ) if p.is_ivar }
 
@@ -163,7 +200,7 @@ module Volt::Compiler
     # teardown recurses into fields it owns (architecture #4.2/§3.A).
     private def compile_drop_fields( info : Frontend::TypeInfo ) : IR::Chunk
       mangled = "#{info.name}#__drop_fields"
-      emitter = FunctionEmiter.new( mangled, 1, @func_index, @typed.signatures, @natives, @typed.types, info )
+      emitter = FunctionEmiter.new( mangled, 1, @func_index, @typed.signatures, @natives, @typed.types, info, @global_index )
       emitter.bind_param( "self", nominal_for( info ) )
       info.layout.not_nil!.fields.select { |f| droppable?( f ) }.each { |f| emitter.emit_drop_field( info, f ) }
       emitter.emit_ret_nil
@@ -179,8 +216,15 @@ module Volt::Compiler
     end
 
     private def compile_main : IR::Chunk
-      emitter = FunctionEmiter.new( "main", 0, @func_index, @typed.signatures, @natives, @typed.types )
+      emitter = FunctionEmiter.new( "main", 0, @func_index, @typed.signatures, @natives, @typed.types, nil, @global_index )
       emitter.enter_scope
+      # Initialize module `@@vars` to their declared defaults before any
+      # top-level statement (or module method) can observe them.
+      @global_inits.each do |slot, default, _owner|
+        next unless default
+        vreg = emitter.compile_expr( default )
+        emitter.emit_global_init( slot, vreg )
+      end
       result = emitter.compile_body( @typed.top_level )
       emitter.exit_scope
       emitter.emit_ret( result )

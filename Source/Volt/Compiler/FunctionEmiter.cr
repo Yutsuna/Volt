@@ -15,7 +15,9 @@ module Volt::Compiler
                     @types : Hash( String, Frontend::TypeInfo ) = {} of String => Frontend::TypeInfo,
                     # `self`'s owning type when compiling a method chunk, or nil for a free
                     # function : drives InstanceVar / implicit-self lowering.
-                    @self_owner : Frontend::TypeInfo? = nil )
+                    @self_owner : Frontend::TypeInfo? = nil,
+                    # `@@var` -> global slot, shared across the whole unit.
+                    @global_index : Hash( String, Int32 ) = {} of String => Int32 )
       @chunk    = IR::Chunk.new( name, arity )
       @scope    = {} of String => Int32
       @next_reg = 0
@@ -149,6 +151,7 @@ module Volt::Compiler
         r
       when Frontend::Ident        then compile_ident( expr )
       when Frontend::InstanceVar  then compile_instance_var( expr )
+      when Frontend::ClassVar     then compile_class_var( expr )
       when Frontend::MemberAccess then compile_member_access( expr )
       when Frontend::SelfExpr     then @scope[ "self" ]
       when Frontend::Assign       then compile_assign( expr )
@@ -236,10 +239,29 @@ module Volt::Compiler
       case target = expr.target
       when Frontend::Ident        then compile_assign_ident( expr, target )
       when Frontend::InstanceVar  then compile_assign_ivar( expr, target )
+      when Frontend::ClassVar     then compile_assign_class_var( expr, target )
       when Frontend::MemberAccess then compile_assign_member( expr, target )
       else
         raise "internal: unlowerable assignment target #{expr.target.class}"
       end
+    end
+
+    # `@@name` lives in a process-global slot (modules have no instances).
+    private def compile_class_var( expr : Frontend::ClassVar ) : Int32
+      dest = alloc
+      emit_abx( IR::Opcode::LOAD_GLOBAL, dest, global_slot( expr.name ) )
+      dest
+    end
+
+    private def compile_assign_class_var( expr : Frontend::Assign, target : Frontend::ClassVar ) : Int32
+      value_reg = compile_expr( expr.value )
+      emit_abx( IR::Opcode::STORE_GLOBAL, value_reg, global_slot( target.name ) )
+      value_reg
+    end
+
+    private def global_slot( name : String ) : Int32
+      owner = @self_owner.not_nil!
+      @global_index[ "#{owner.name}::#{name}" ]
     end
 
     private def compile_assign_ident( expr : Frontend::Assign, target : Frontend::Ident ) : Int32
@@ -266,8 +288,9 @@ module Volt::Compiler
       owner     = @self_owner.not_nil!
       self_reg  = @scope[ "self" ]
       slot      = field_slot_index( owner.name, target.name )
+      field     = find_field( owner.name, target.name )
       value_reg = compile_expr( expr.value )
-      n         = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+      n         = slot_count( field.try( &.type ) || target.resolved_type || Frontend::Type::UNKNOWN )
 
       if owner.kind.struct?
         place_value( self_reg + slot, value_reg, n )
@@ -294,18 +317,31 @@ module Volt::Compiler
 
     private def compile_ident( expr : Frontend::Ident ) : Int32
       if reg = @scope[ expr.name ]?
-        reg
-      elsif sig = @signatures[ expr.name ]?
+        return reg
+      end
+
+      # Parenthesis-less zero-arg call on `self` (mirrors `compile_call`'s
+      # self-dispatch and `TypeChecker#infer_ident`) : `boot_sequence`.
+      if ( owner = @self_owner ) && !@scope.has_key?( expr.name ) && find_method( owner.name, expr.name )
+        self_reg = @scope[ "self" ]
+        if owner.kind.struct?
+          return compile_struct_call( nominal_of( owner ), expr.name, self_reg, [] of Int32, [] of Frontend::Type )
+        else
+          return compile_virtual_call( nominal_of( owner ), expr.name, self_reg, [] of Int32, [] of Frontend::Type )
+        end
+      end
+
+      if sig = @signatures[ expr.name ]?
         base = alloc_block( Math.max( 1, slot_count( sig.ret ) ) )
         if sig.extern
           emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, expr.name ), 0 )
         else
           emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
         end
-        base
-      else
-        raise "internal: unbound identifier #{expr.name}"
+        return base
       end
+
+      raise "internal: unbound identifier #{expr.name}"
     end
 
     private def compile_instance_var( expr : Frontend::InstanceVar ) : Int32
@@ -318,20 +354,31 @@ module Volt::Compiler
       # `BytecodeCompiler#collect_method_jobs`), `owner` here is the real
       # including class, so refresh the node's type from its actual field —
       # `compile_binary`'s float/int opcode choice reads this right after.
-      if field = find_field( owner.name, expr.name )
-        expr.resolved_type = field.type
-      end
+      field = find_field( owner.name, expr.name )
+      expr.resolved_type = field.type if field
       if owner.kind.struct?
         self_reg + slot
       else
-        dest = alloc
-        emit_abc( IR::Opcode::LOAD_FIELD, dest, self_reg, slot )
-        dest
+        load_field_block( self_reg, slot, slot_count( field.try( &.type ) || Frontend::Type::UNKNOWN ) )
       end
+    end
+
+    # Reads `n` consecutive slots of a heap object's field region (`n > 1` for
+    # a nested struct-valued field) into a fresh contiguous register block.
+    private def load_field_block( obj_reg : Int32, slot : Int32, n : Int32 ) : Int32
+      dest = alloc_block( n )
+      n.times { |i| emit_abc( IR::Opcode::LOAD_FIELD, dest + i, obj_reg, slot + i ) }
+      dest
     end
 
     private def compile_member_access( expr : Frontend::MemberAccess ) : Int32
       return compile_to_s( expr.receiver ) if expr.name == "to_s"
+
+      # `Module.static_member` spelled without parens (`DatabaseConfig.connect`).
+      if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
+         ( info = @types[ recv.name ]? ) && info.kind.module?
+        return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
+      end
 
       recv_ty = expr.receiver.resolved_type
       raise "internal: member access on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
@@ -352,17 +399,29 @@ module Volt::Compiler
         raise "internal: zero-arg method calls are not yet lowered (Phase 4) : #{recv_ty.name}##{expr.name}"
       end
 
-      slot = field_slot_index( recv_ty.name, expr.name )
+      slot  = field_slot_index( recv_ty.name, expr.name )
+      field = find_field( recv_ty.name, expr.name )
       if recv_ty.kind.struct?
         recv_reg + slot
       else
-        dest = alloc
-        emit_abc( IR::Opcode::LOAD_FIELD, dest, recv_reg, slot )
-        dest
+        load_field_block( recv_reg, slot, slot_count( field.try( &.type ) || Frontend::Type::UNKNOWN ) )
       end
     end
 
     private def compile_to_s( receiver : Frontend::AExpr ) : Int32
+      # A user type that defines its own `to_s` wins over the builtin
+      # stringification : `@position.to_s` must run `GeoCoordinate#to_s`, not
+      # print `<object:..>`. Structs resolve directly, classes go virtual.
+      recv_ty = receiver.resolved_type
+      if recv_ty.is_a?( Frontend::NominalType ) && find_method( recv_ty.name, "to_s" )
+        r = compile_expr( receiver )
+        if recv_ty.kind.struct?
+          return compile_struct_call( recv_ty, "to_s", r, [] of Int32, [] of Frontend::Type )
+        else
+          return compile_virtual_call( recv_ty, "to_s", r, [] of Int32, [] of Frontend::Type )
+        end
+      end
+
       r    = compile_expr( receiver )
       dest = alloc
       emit_abc( IR::Opcode::TO_STRING, dest, r, 0 )
@@ -376,8 +435,15 @@ module Volt::Compiler
       return compile_to_s( expr.receiver ) if expr.name == "to_s"
 
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
-         ( info = @types[ recv.name ]? ) && expr.name == "new"
-        return compile_constructor_call( info, expr.args )
+         ( info = @types[ recv.name ]? )
+        if expr.name == "new"
+          return compile_constructor_call( info, expr.args )
+        end
+        if info.kind.module?
+          arg_regs  = expr.args.map { |a| compile_expr( a ) }
+          arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+          return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+        end
       end
 
       # Structs have no subclassing/mixins to dispatch through — a method
@@ -426,6 +492,36 @@ module Volt::Compiler
       end
       emit_abc( IR::Opcode::CALL, base, idx, total )
       base
+    end
+
+    # `Module.method( args )` and unqualified module-internal calls. A module is
+    # a compile-time namespace with no instances, so this lowers to a direct
+    # `CALL` of the `Module#method` chunk with no `self` — arguments start at
+    # `base + 1`, exactly like a free-function call.
+    private def compile_static_call( owner_name : String, method_name : String,
+                                     arg_regs : Array( Int32 ), arg_types : Array( Frontend::Type ) ) : Int32
+      mangled   = "#{owner_name}##{method_name}"
+      idx       = @func_index[ mangled ]
+      msig      = @types[ owner_name ].methods[ method_name ]
+      arg_slots = arg_types.map { |t| slot_count( t ) }
+      total     = arg_slots.sum
+      ret_slots = slot_count( msig.ret )
+
+      base   = alloc_block( Math.max( 1 + total, ret_slots ) )
+      offset = 1
+      arg_regs.each_with_index do |ar, i|
+        n = arg_slots[ i ]
+        place_value( base + offset, ar, n )
+        offset += n
+      end
+      emit_abc( IR::Opcode::CALL, base, idx, total )
+      base
+    end
+
+    # Emits the up-front store of a module `@@var`'s default value into its
+    # global slot (called from `BytecodeCompiler#compile_main`).
+    def emit_global_init( slot : Int32, value_reg : Int32 ) : Nil
+      emit_abx( IR::Opcode::STORE_GLOBAL, value_reg, slot )
     end
 
     # Walks own methods, then the superclass chain, then mixins — the same
@@ -714,9 +810,12 @@ module Volt::Compiler
       # overridable method still late-binds to the actual subclass), direct
       # for a struct.
       if ( owner = @self_owner ) && !@scope.has_key?( name ) && find_method( owner.name, name )
-        self_reg  = @scope[ "self" ]
         arg_regs  = expr.args.map { |a| compile_expr( a ) }
         arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        if owner.kind.module?
+          return compile_static_call( owner.name, name, arg_regs, arg_types )
+        end
+        self_reg = @scope[ "self" ]
         if owner.kind.struct?
           return compile_struct_call( nominal_of( owner ), name, self_reg, arg_regs, arg_types )
         else
