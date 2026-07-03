@@ -177,12 +177,37 @@ module Volt::Frontend
     end
   end
 
+  class ClassVarDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("ClassVarDecl") << " " << ASTDump.val("'@@#{@name}'") << ASTDump.loc(@loc) << "\n"
+      has_val = !@value.nil?
+      io << prefix << (has_val ? ASTDump::BRANCH : ASTDump::CORNER) << ASTDump.lbl("type") << "\n"
+      sub_t = prefix + (has_val ? ASTDump::VERT : ASTDump::SPACE)
+      io << sub_t << ASTDump::CORNER
+      @type_ann.dump(io, sub_t + ASTDump::SPACE)
+      if v = @value
+        io << prefix << ASTDump::CORNER << ASTDump.lbl("value") << "\n"
+        sub = prefix + ASTDump::SPACE
+        io << sub << ASTDump::CORNER
+        v.dump(io, sub + ASTDump::SPACE)
+      end
+    end
+  end
+
+  class ExtendSelfDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("ExtendSelfDecl") << ASTDump.loc(@loc) << "\n"
+    end
+  end
+
   class FuncDecl
     def dump(io : IO, prefix : String) : Nil
       async_s = @is_async ? " #{ASTDump.key("async")}" : ""
       abst_s  = @is_abstract ? " #{ASTDump.key("abstract")}" : ""
+      stat_s  = @is_static ? " #{ASTDump.key("static")}" : ""
+      vis_s   = @visibility.public? ? "" : " #{ASTDump.key(@visibility.to_s.downcase)}"
       tp_s    = @type_params.empty? ? "" : ASTDump.key("[#{@type_params.join(", ")}]")
-      io << ASTDump.nd("FuncDecl") << abst_s << async_s << " " << ASTDump.val("'#{@name}'") << tp_s << ASTDump.loc(@loc) << "\n"
+      io << ASTDump.nd("FuncDecl") << abst_s << stat_s << vis_s << async_s << " " << ASTDump.val("'#{@name}'") << tp_s << ASTDump.loc(@loc) << "\n"
 
       has_ann  = !@annotations.empty?
       has_par  = !@params.empty?
@@ -388,6 +413,12 @@ module Volt::Frontend
   class InstanceVar
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("InstanceVar") << " " << ASTDump.val("'@#{@name}'") << ASTDump.loc(@loc) << "\n"
+    end
+  end
+
+  class ClassVar
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("ClassVar") << " " << ASTDump.val("'@@#{@name}'") << ASTDump.loc(@loc) << "\n"
     end
   end
 
