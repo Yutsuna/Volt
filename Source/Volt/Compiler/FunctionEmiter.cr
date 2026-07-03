@@ -374,9 +374,19 @@ module Volt::Compiler
     private def compile_member_access( expr : Frontend::MemberAccess ) : Int32
       return compile_to_s( expr.receiver ) if expr.name == "to_s"
 
-      # `Module.static_member` spelled without parens (`DatabaseConfig.connect`).
+      # `Book.new` and `GeoCoordinate.new` : a parenthesis-less constructor call on a nominal type
+      if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
+         ( info = @types[ recv.name ]? )
+        recv.resolved_type = nominal_of( info )
+        if expr.name == "new"
+          return compile_constructor_call( info, [] of Frontend::AExpr )
+        end
+      end
+
+      # `Module.method` : a parenthesis-less zero-arg call on a module type
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
          ( info = @types[ recv.name ]? ) && info.kind.module?
+        recv.resolved_type = nominal_of( info )
         return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
       end
 
