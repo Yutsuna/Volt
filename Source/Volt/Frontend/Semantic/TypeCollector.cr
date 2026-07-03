@@ -37,7 +37,14 @@ module Volt::Frontend
 
     # -----------------------------------------------------------------------------------
 
-    private def declare( node : ANode ) : Nil
+    # `prefix` is the enclosing module's fully-qualified name, threaded through
+    # so a type declared inside `module SmartCity` is registered under *both*
+    # its bare canonical name (`WaterSensor`, used for unqualified references
+    # inside the module and for method mangling) and a qualified alias
+    # (`SmartCity::WaterSensor`, used at call sites outside the module). Both
+    # keys point at the same `TypeInfo`/`NominalType` instance — an MVP flatten
+    # that assumes no bare-name collisions across modules.
+    private def declare( node : ANode, prefix : String? = nil ) : Nil
       name =
         case node
         when ClassDecl  then node.name
@@ -63,9 +70,25 @@ module Volt::Frontend
       nominal_kind = kind.struct? ? TypeKind::Struct : TypeKind::Object
       type_id      = @decls.size
 
+      nom  = NominalType.new( name, nominal_kind, type_id )
+      info = TypeInfo.new( kind, name, type_id )
+
       @decls[ name ]    = node
-      @nominals[ name ] = NominalType.new( name, nominal_kind, type_id )
-      @types[ name ]    = TypeInfo.new( kind, name, type_id )
+      @nominals[ name ] = nom
+      @types[ name ]    = info
+
+      if prefix
+        qualified = "#{prefix}::#{name}"
+        @nominals[ qualified ] = nom
+        @types[ qualified ]    = info
+      end
+
+      # A module is a namespace: flatten its nested type declarations into the
+      # same (aliased) collection so they resolve as first-class types.
+      if node.is_a?( ModuleDecl )
+        child_prefix = prefix ? "#{prefix}::#{name}" : name
+        node.body.each { |child| declare( child, child_prefix ) }
+      end
     end
 
     private def resolve( name : String ) : TypeInfo?
@@ -169,7 +192,20 @@ module Volt::Frontend
     end
 
     private def resolve_module( node : ModuleDecl, info : TypeInfo ) : Nil
+      collect_class_vars( node.body, info )
       collect_methods( node.body, info )
+    end
+
+    # `@@name : Type [= default]` declarations become module-global variables.
+    private def collect_class_vars( body : Array( ANode ), info : TypeInfo ) : Nil
+      body.each do |node|
+        next unless node.is_a?( ClassVarDecl )
+        if info.class_vars.has_key?( node.name )
+          @bag << Catalog::Sema.duplicate_definition( "@@#{node.name}", node.loc, nil )
+          next
+        end
+        info.class_vars[ node.name ] = resolve_method_type( node.type_ann )
+      end
     end
 
     private def set_layout( info : TypeInfo, layout : TypeLayout, reg_layout : TypeLayout ) : Nil
@@ -322,7 +358,8 @@ module Volt::Frontend
           Type::UNKNOWN
         end
 
-      FuncSig.new( decl.name, params, ret, decl_span: decl.loc, owner: info.name, is_static: info.kind.module? )
+      FuncSig.new( decl.name, params, ret, decl_span: decl.loc, owner: info.name,
+                   is_static: info.kind.module? || decl.is_static, visibility: decl.visibility )
     end
 
     # A concrete class must provide a non-abstract override for every abstract
