@@ -14,8 +14,6 @@ module Volt::CLI
     @no_history : Bool = false
     @input : String? = nil
 
-    HISTORY_FILE = ".volt_history"
-
     include REPL::REPLBuiltins
     include REPL::REPLHistory
 
@@ -26,9 +24,7 @@ module Volt::CLI
       prologue
 
       file_path = args.first? || @input
-      if file_path
-        load_file file_path
-      end
+      dispatch_builtin( ":load", file_path ) if file_path
 
       while session_should_continue?
       end
@@ -51,30 +47,34 @@ module Volt::CLI
 
     #------------------------------------------------------------------------------------
 
-    private def load_file( path : String ) : Nil
-      unless File.exists? path
-        Logger.warn( "File not found: #{path}" )
+    private def evaluate_file( path : String ) : Nil
+      Logger.progress( "Loading #{path}...", finished: true )
+      Fiber.yield
+
+      if !File.exists?( path )
+        Logger.error( "File not found: #{path}" )
         Fiber.yield
         return
       end
 
-      Logger.progress( "Loading #{path}...", finished: true )
-      Fiber.yield
+      if @loaded_files.includes? path
+        Logger.warn( "File already loaded: #{path}" )
+        Logger.info( "Use :reload to reload the file." )
+        Fiber.yield
+        return
+      end
 
       begin
         source = File.read path
         result = @session.load_source( source, path, STDOUT, STDERR )
-        STDOUT.flush
-        STDERR.flush
 
         if result.ok?
           @loaded_files << path unless @loaded_files.includes? path
           Logger.info( "Loaded.", "repl" )
+          Fiber.yield
         else
           render_diagnostics( source, result.diagnostics, path )
         end
-        STDOUT.flush
-        STDERR.flush
       rescue ex
         Logger.error( "Failed to evaluate file: #{ex.message}\n#{ex.backtrace.join("\n")}" )
         Fiber.yield
@@ -93,12 +93,10 @@ module Volt::CLI
       trimmed = line.strip
 
       if trimmed.starts_with?(':')
+        write_history( line )
         parts = trimmed.split(' ', limit: 2)
-        # 1. On retire le préfixe ':' du nom de la commande pour correspondre aux clés BUILTINS
         cmd_name = parts[0][1..-1]
         arg = parts.size > 1 ? parts[1].strip : nil
-
-        # 2. On retourne immédiatement le résultat pour éviter d'évaluer la commande comme du code
         return dispatch_builtin( cmd_name, arg )
       end
 
@@ -132,13 +130,7 @@ module Volt::CLI
 
     private def evaluate( current_input : String ) : Nil
       result = @session.evaluate( current_input, STDOUT, STDERR )
-      STDOUT.flush
-      STDERR.flush
-
-      unless @no_history
-        write_history( current_input )
-        @cli_history << current_input
-      end
+      write_history( current_input )
 
       if result.ok?
         display_result result.value
@@ -146,9 +138,6 @@ module Volt::CLI
         render_diagnostics( current_input, result.diagnostics )
       end
 
-      # On force l'écriture finale avant de repasser la main à la boucle de saisie
-      STDOUT.flush
-      STDERR.flush
     end
 
     private def display_result( val : IR::Value? ) : Nil
@@ -223,7 +212,7 @@ module Volt::CLI
     private def prologue : Nil
       Logger.info( "Volt REPL v#{Volt::VERSION}" )
       __builtin_help nil
-      load_history @session unless @no_history
+      load_history
     end
 
     private def epilogue : Nil
@@ -231,20 +220,6 @@ module Volt::CLI
       Fiber.yield
     end
 
-    private def load_history( session : REPL::REPLSession ) : Nil
-      return unless File.exists? HISTORY_FILE
-      File.each_line( HISTORY_FILE ) { |line| @cli_history << line unless line.blank? }
-    rescue ex
-      Logger.warn( "Failed to load history file: #{ex.message}" )
-      Fiber.yield
-    end
-
-    private def write_history( source : String ) : Nil
-      File.open( HISTORY_FILE, "a" ) { |stream| stream.puts source }
-    rescue ex
-      Logger.warn( "Failed to append to history file: #{ex.message}" )
-      Fiber.yield
-    end
 
   end
 
