@@ -66,7 +66,7 @@ module Volt::Frontend
         node.resolved_type = Type::FLOAT
         node
       when .string?
-        StringLit.new( strip_quotes( tok ), tok.span )
+        parse_string_literal( tok )
       when .true?
         BoolLit.new( true, tok.span )
       when .false?
@@ -80,6 +80,8 @@ module Volt::Frontend
       when .at?
         name_tok = expect( TokenKind::Ident )
         InstanceVar.new( name_tok.value, tok.span )
+      when .class_var?
+        ClassVar.new( tok.value.lchop( "@@" ), tok.span )
       when .l_paren?
         parse_grouping
       when .l_bracket?
@@ -102,8 +104,14 @@ module Volt::Frontend
         raw = tok.value
         pattern = raw[ 1, raw.bytesize - 2 ]
         RegexLit.new( pattern, tok.span )
-      when .bang?, .not?
+      when .bang?
         operand = parse_expr( Prec::Unary )
+        UnaryOp.new( TokenKind::Bang, operand, tok.span )
+      when .not?
+        # The English `not` keyword binds loosely (Ruby-style) : looser than
+        # comparison/equality but tighter than `and`/`or`, so `not a == b`
+        # reads as `not (a == b)`. The `!` symbol keeps tight unary precedence.
+        operand = parse_expr( Prec::And )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )
       when .if?
         parse_if_expr( tok )
@@ -156,6 +164,8 @@ module Volt::Frontend
         PipeExpr.new( left, parse_expr( Prec::Pipe ), left.loc )
       when .dot?
         parse_dot_call( left, safe: false )
+      when .colon_colon?
+        parse_namespace_path( left )
       when .question?
         expect( TokenKind::Dot )
         parse_dot_call( left, safe: true )
@@ -212,7 +222,7 @@ module Volt::Frontend
       when .star?, .slash?, .percent?,
            .slash_slash?, .amp_star?             then Prec::Factor
       when .star_star?, .amp_star_star?          then Prec::Power
-      when .dot?, .question?                     then Prec::Call
+      when .dot?, .question?, .colon_colon?      then Prec::Call
       when .l_paren?, .l_bracket?, .l_brace?    then Prec::Call
       else                                        Prec::None
       end
