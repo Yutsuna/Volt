@@ -72,6 +72,7 @@ module Volt::Frontend
       when RegexLit   then Type::REGEX
       when Ident        then infer_ident( expr, scope )
       when InstanceVar  then infer_instance_var( expr, scope )
+      when ClassVar     then infer_class_var( expr, scope )
       when MemberAccess then infer_member_access( expr, scope )
       when SelfExpr     then infer_self( expr, scope )
       when Assign     then infer_assign( expr, scope )
@@ -103,6 +104,12 @@ module Volt::Frontend
       if ty = scope.lookup( expr.name )
         return ty
       end
+      # A bare identifier inside a method may be a parenthesis-less zero-arg
+      # call on `self` (`boot_sequence`), including inherited/mixed-in methods.
+      if ( owner = @self_type ) && !scope.local?( expr.name ) && ( m = find_method( owner.name, expr.name ) )
+        @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
+        return m.ret
+      end
       if sig = @sigs[ expr.name ]?
         if sig.params.size != 0
           @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc )
@@ -117,12 +124,46 @@ module Volt::Frontend
       case target = expr.target
       when Ident        then infer_assign_ident( expr, target, scope )
       when InstanceVar  then infer_assign_ivar( expr, target, scope )
+      when ClassVar     then infer_assign_class_var( expr, target, scope )
       when MemberAccess then infer_assign_member( expr, target, scope )
       else
         @bag << Catalog::Sema.non_simple_assign( expr.loc )
         infer( expr.value, scope )
         Type::UNKNOWN
       end
+    end
+
+    # `@@name` read : resolves against the enclosing type's class variables.
+    private def infer_class_var( expr : ClassVar, scope : Scope ) : Type
+      owner = @self_type
+      if owner.nil?
+        @bag << Catalog::Sema.ivar_outside_method( expr.name, expr.loc )
+        return Type::UNKNOWN
+      end
+      if ty = owner.class_vars[ expr.name ]?
+        return ty
+      end
+      @bag << Catalog::Sema.unknown_instance_var( owner.name, expr.name, expr.loc )
+      Type::UNKNOWN
+    end
+
+    private def infer_assign_class_var( expr : Assign, target : ClassVar, scope : Scope ) : Type
+      value_ty = infer( expr.value, scope )
+      owner    = @self_type
+      if owner.nil?
+        @bag << Catalog::Sema.ivar_outside_method( target.name, expr.loc )
+        return Type::UNKNOWN
+      end
+      field_ty = owner.class_vars[ target.name ]?
+      if field_ty.nil?
+        @bag << Catalog::Sema.unknown_instance_var( owner.name, target.name, expr.loc )
+        return Type::UNKNOWN
+      end
+      unless type_compatible?( field_ty, value_ty )
+        @bag << Catalog::Sema.annotation_mismatch( "@@#{target.name}", field_ty.to_s, value_ty.to_s, expr.loc )
+      end
+      target.resolved_type = field_ty
+      field_ty
     end
 
     private def infer_assign_ident( expr : Assign, target : Ident, scope : Scope ) : Type
@@ -226,6 +267,13 @@ module Volt::Frontend
     end
 
     private def infer_member_access( expr : MemberAccess, scope : Scope ) : Type
+      # `Module.static_member` spelled without parens (`DatabaseConfig.connect`).
+      if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) &&
+         ( info = @types[ recv.name ]? ) && info.kind.module?
+        recv.resolved_type = @nominals[ recv.name ]?
+        return infer_static_member( info, expr.name, [] of AExpr, expr.loc, scope )
+      end
+
       recv_ty = infer( expr.receiver, scope )
       return Type::UNKNOWN if recv_ty.kind.unknown?
 
@@ -245,6 +293,7 @@ module Volt::Frontend
 
       if sig = find_method( recv_ty.name, expr.name )
         @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+        check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
         return sig.ret
       end
 
@@ -267,6 +316,9 @@ module Volt::Frontend
         recv.resolved_type = @nominals[ recv.name ]?
         if expr.name == "new"
           return infer_constructor_call( info, expr, scope )
+        end
+        if info.kind.module?
+          return infer_static_member( info, expr.name, expr.args, expr.loc, scope )
         end
         @bag << Catalog::Sema.unknown_field_or_method( recv.name, expr.name, expr.loc )
         expr.args.each { |a| infer( a, scope ) }
@@ -295,8 +347,52 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
+      check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
       check_call_args( expr.name, sig.params, expr.args, expr.loc, scope )
       sig.ret
+    end
+
+    # `Module.method( args )` : a module is a static namespace, so every one of
+    # its methods is callable on the module itself (there are no instances). A
+    # `private` static method is reachable only from within the same module.
+    private def infer_static_member( info : TypeInfo, name : String, args : Array( AExpr ), loc : Span, scope : Scope ) : Type
+      sig = info.methods[ name ]?
+      if sig.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( info.name, name, loc )
+        args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+      if sig.visibility.private? && @self_type.try( &.name ) != info.name
+        @bag << Catalog::Sema.private_method_call( info.name, name, loc )
+      end
+      check_call_args( "#{info.name}.#{name}", sig.params, args, loc, scope )
+      sig.ret
+    end
+
+    # Access control for a method reached through an *explicit* receiver
+    # (`obj.m` / `self.m`). Unqualified self-dispatch (`m`) never lands here and
+    # is always permitted. `protected` = same class or a subclass (C++ family);
+    # `private` = the receiving instance itself (`self`) only.
+    private def check_visibility( sig : FuncSig, receiver : AExpr, recv_type : String, loc : Span ) : Nil
+      return if sig.visibility.public?
+      owner = sig.owner || recv_type
+      if sig.visibility.private?
+        unless receiver.is_a?( SelfExpr ) && @self_type.try( &.name ) == owner
+          @bag << Catalog::Sema.private_method_call( recv_type, sig.name, loc )
+        end
+      else
+        @bag << Catalog::Sema.protected_method_call( recv_type, sig.name, loc ) unless within_family?( owner )
+      end
+    end
+
+    # True when the current `self` type is `owner` or one of its subclasses.
+    private def within_family?( owner : String ) : Bool
+      name = @self_type.try( &.name )
+      while name
+        return true if name == owner
+        name = @types[ name ]?.try( &.superclass )
+      end
+      false
     end
 
     private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope ) : Type
