@@ -91,9 +91,20 @@ module Volt::Frontend
 
 
       private def parse_func_decl( annots : Array( Annotation ), is_async : Bool,
-                                   is_abstract : Bool = false ) : ADecl
+                                   is_abstract : Bool = false,
+                                   visibility : Visibility = Visibility::Public ) : ADecl
         loc = @current.span
         advance   # consume `def`
+
+        # `def self.name` : a static / module method. The `self.` receiver marks
+        # the method as callable on the type itself rather than on an instance.
+        is_static = false
+        if @current.kind.self_? && @peek.kind.dot?
+          advance   # self
+          advance   # .
+          is_static = true
+        end
+
         name = parse_def_name
 
         type_params = parse_type_params_if_present
@@ -114,6 +125,8 @@ module Volt::Frontend
         if is_abstract
           decl = FuncDecl.new( name, type_params, params, return_type, [] of ANode, annots, is_async, loc )
           decl.is_abstract = true
+          decl.is_static   = is_static
+          decl.visibility  = visibility
           return decl
         end
 
@@ -121,7 +134,10 @@ module Volt::Frontend
         body = parse_body
         expect_close( TokenKind::End, loc, "`def`" )
 
-        FuncDecl.new( name, type_params, params, return_type, body, annots, is_async, loc )
+        decl = FuncDecl.new( name, type_params, params, return_type, body, annots, is_async, loc )
+        decl.is_static  = is_static
+        decl.visibility = visibility
+        decl
       end
 
       # A method name is an identifier or an overloadable operator (`def *`, `def ==`, ...).
