@@ -4,6 +4,7 @@
 /.shards/
 *.dwarf
 .*/
+!.zed/
 !.github/
 !.agents/
 .crystal_build_cache.json
