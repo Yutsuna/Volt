@@ -2,7 +2,6 @@ require "./ACommand"
 
 module Volt::CLI
 
-
   class REPLCommand < ACommand
 
     register "repl", "Interactive Read-Eval-Print-Loop"
@@ -17,14 +16,8 @@ module Volt::CLI
 
     HISTORY_FILE = ".volt_history"
 
-    BUILTINS_COMMANDS_DISPATCH = {
-      ":exit"   => {action: ->(cmd : REPLCommand, arg : String?) { false }, description: "Exit the REPL"},
-      ":quit"   => {action: ->(cmd : REPLCommand, arg : String?) { false }, description: "Exit the REPL"},
-      ":clear"  => {action: ->(cmd : REPLCommand, arg : String?) { cmd.clear; true }, description: "Clear the session history and compiled definitions"},
-      ":help"   => {action: ->(cmd : REPLCommand, arg : String?) { cmd.help; true }, description: "Display available commands"},
-      ":load"   => {action: ->(cmd : REPLCommand, arg : String?) { cmd.load_file_from_repl(arg); true }, description: "Load definitions and run top-level from a file: :load <file>"},
-      ":reload" => {action: ->(cmd : REPLCommand, arg : String?) { cmd.reload_files; true }, description: "Reload all currently loaded files lazily"},
-    } of String => NamedTuple(action: (REPLCommand, String?) -> Bool, description: String)
+    include REPL::REPLBuiltins
+    include REPL::REPLHistory
 
     #------------------------------------------------------------------------------------
 
@@ -70,11 +63,18 @@ module Volt::CLI
 
       begin
         source = File.read path
-        @session.load_source( source, path, STDOUT, STDERR )
+        result = @session.load_source( source, path, STDOUT, STDERR )
+        STDOUT.flush
+        STDERR.flush
 
-        @loaded_files << path unless @loaded_files.includes? path
-
-        Logger.info( "Loaded.", "repl" )
+        if result.ok?
+          @loaded_files << path unless @loaded_files.includes? path
+          Logger.info( "Loaded.", "repl" )
+        else
+          render_diagnostics( source, result.diagnostics, path )
+        end
+        STDOUT.flush
+        STDERR.flush
       rescue ex
         Logger.error( "Failed to evaluate file: #{ex.message}\n#{ex.backtrace.join("\n")}" )
         Fiber.yield
@@ -94,15 +94,12 @@ module Volt::CLI
 
       if trimmed.starts_with?(':')
         parts = trimmed.split(' ', limit: 2)
-        cmd_name = parts[0]
+        # 1. On retire le préfixe ':' du nom de la commande pour correspondre aux clés BUILTINS
+        cmd_name = parts[0][1..-1]
         arg = parts.size > 1 ? parts[1].strip : nil
 
-        if cmd_info = BUILTINS_COMMANDS_DISPATCH[cmd_name]?
-          return cmd_info[:action].call(self, arg)
-        else
-          Logger.warn("Unknown command: #{cmd_name}. Type :help to list available commands.", "repl")
-          return true
-        end
+        # 2. On retourne immédiatement le résultat pour éviter d'évaluer la commande comme du code
+        return dispatch_builtin( cmd_name, arg )
       end
 
       if trimmed.empty?
@@ -135,6 +132,8 @@ module Volt::CLI
 
     private def evaluate( current_input : String ) : Nil
       result = @session.evaluate( current_input, STDOUT, STDERR )
+      STDOUT.flush
+      STDERR.flush
 
       unless @no_history
         write_history( current_input )
@@ -146,6 +145,10 @@ module Volt::CLI
       else
         render_diagnostics( current_input, result.diagnostics )
       end
+
+      # On force l'écriture finale avant de repasser la main à la boucle de saisie
+      STDOUT.flush
+      STDERR.flush
     end
 
     private def display_result( val : IR::Value? ) : Nil
@@ -217,57 +220,9 @@ module Volt::CLI
 
     #------------------------------------------------------------------------------------
 
-    def load_file_from_repl( arg : String? ) : Nil
-      if arg.nil? || arg.empty?
-        Logger.warn( "Usage: :load <file_path>", "repl" )
-        return
-      end
-
-      load_file( arg )
-    end
-
-    def reload_files : Nil
-      if @loaded_files.empty?
-        Logger.info( "No files loaded to reload.", "repl" )
-        return
-      end
-
-      Logger.info( "Reloading #{@loaded_files.size} file(s) lazily...", "repl" )
-
-      @session.clear
-      @buffer.clear
-
-      @loaded_files.each do |path|
-        load_file( path )
-      end
-
-      Logger.info( "Reload complete.", "repl" )
-    end
-
-    def clear : Symbol
-      @session.clear
-      @buffer.clear
-      @cli_history.clear
-      @loaded_files.clear
-      print "\e[H\e[2J\e[3J"
-      Logger.info( "Session history and compiled definitions cleared" )
-      Fiber.yield
-      :next
-    end
-
-    def help : Symbol
-      Logger.info( "Available commands:" )
-      BUILTINS_COMMANDS_DISPATCH.each { |cmd, data| Logger.info( "  #{cmd.ljust(8)} - #{data[:description]}" ) }
-      Fiber.yield
-      :next
-    end
-
-    #------------------------------------------------------------------------------------
-
     private def prologue : Nil
       Logger.info( "Volt REPL v#{Volt::VERSION}" )
-      Logger.info( "Commands: :exit (to quit), :clear (to clear history), :help (for info)" )
-      Fiber.yield
+      __builtin_help nil
       load_history @session unless @no_history
     end
 
