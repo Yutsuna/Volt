@@ -8,7 +8,7 @@ module DatabaseConfig
   @@connection_count : Int32 = 0
   @@max_connections  : Int32 = 5
 
-  def self.conntect : Bool
+  def self.connect -> Bool
     if @@connection_count < @@max_connections
       @@connection_count += 1
       log_action( "Connection established: Current #{@@connection_count}" )
@@ -19,11 +19,11 @@ module DatabaseConfig
     end
   end
 
-  def self.active_connections : Int32
+  def self.active_connections -> Int32
     @@connection_count
   end
 
-  private def self.log_action( action : String ) : Nil
+  private def self.log_action( action : String ) -> Void
     puts "[DN-INTERNAL] #{action}"
   end
 
