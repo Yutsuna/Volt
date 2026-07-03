@@ -158,6 +158,8 @@ module Volt::Frontend
         body = parse_type_body
         expect_close( TokenKind::End, loc, "`class`" )
 
+        mixins.concat( body.select( IncludeDecl ).map( &.name ) )
+
         ClassDecl.new( name, type_params, superclass, mixins, body, annots, is_abstract, loc )
       end
 

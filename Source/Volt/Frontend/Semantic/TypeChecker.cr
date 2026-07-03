@@ -164,6 +164,10 @@ module Volt::Frontend
 
       field = owner.layout.try( &.field?( target.name ) )
       if field.nil?
+        # Mixin bodies reference the includer's instance state (see
+        # infer_instance_var below) : accept leniently on the write path too.
+        return Type::UNKNOWN if owner.kind.mixin?
+
         @bag << Catalog::Sema.unknown_instance_var( owner.name, target.name, expr.loc )
         return Type::UNKNOWN
       end

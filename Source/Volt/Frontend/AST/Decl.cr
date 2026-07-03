@@ -62,6 +62,16 @@ module Volt::Frontend
   end
 
 
+  # include Mixin  (body-level form, inside a `class` body)
+  class IncludeDecl < ADecl
+    property name : String
+
+    def initialize( @name : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
   # [abstract] class Name[T] < Superclass include Mixin \n body \n end
   class ClassDecl < ADecl
     property name        : String

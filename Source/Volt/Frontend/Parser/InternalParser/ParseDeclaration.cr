@@ -106,11 +106,21 @@ module Volt::Frontend
         parse_mixin_decl
       when .module?
         parse_module_decl
+      when .include?
+        parse_include_decl
       when .ident?
         parse_field_decl
       else
         error!( Catalog::Parse.unexpected_in_type_body( @current ) )
       end
+    end
+
+    # Body-level `include Mixin` — mirrors the header-level `class Name include Mixin` form.
+    private def parse_include_decl : IncludeDecl
+      loc = @current.span
+      advance   # consume `include`
+      name = expect( TokenKind::Ident ).value
+      IncludeDecl.new( name, loc )
     end
 
     # name : Type [= default]  |  getter name : Type  |  setter name : Type

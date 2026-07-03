@@ -171,6 +171,12 @@ module Volt::Frontend
     end
   end
 
+  class IncludeDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("IncludeDecl") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
+    end
+  end
+
   class FuncDecl
     def dump(io : IO, prefix : String) : Nil
       async_s = @is_async ? " #{ASTDump.key("async")}" : ""
