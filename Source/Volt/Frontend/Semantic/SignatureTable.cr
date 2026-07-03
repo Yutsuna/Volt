@@ -8,6 +8,12 @@ module Volt::Frontend
       @table = {} of String => FuncSig
     end
 
+    def self.new_with_existing( bag : DiagnosticBag, existing : Hash( String, FuncSig ) ) : SignatureTable
+      st = new( bag )
+      st.table.merge!( existing )
+      st
+    end
+
     def []?( name : String ) : FuncSig?
       @table[ name ]?
     end
