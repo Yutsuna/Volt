@@ -19,6 +19,8 @@ module Volt::Frontend
     getter nominals      : Hash( String, NominalType )
     getter methods       : Array( FuncDecl )
     getter method_entries : Array( { FuncDecl, String, FuncSig } )
+    getter decls         : Hash( String, ANode )
+    getter resolved      : Set( String )
 
     def initialize( @bag : DiagnosticBag )
       @decls     = {} of String => ANode
