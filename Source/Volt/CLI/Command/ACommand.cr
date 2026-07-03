@@ -6,6 +6,11 @@ module Volt::CLI
     end
   end
 
+  class RequestExit < Exception
+    def initialize
+    end
+  end
+
 
   abstract class ACommand
     @@registry = {} of String => ACommand.class

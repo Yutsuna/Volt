@@ -10,6 +10,9 @@ module Volt::CLI
     @session : REPL::REPLSession = REPL::REPLSession.new
     @buffer : Array(String) = [] of String
 
+    @no_history : Bool = false
+    @input : String? = nil
+
     HISTORY_FILE = ".volt_history"
     BUILTINS_COMMANDS_DISPATCH = {
       "exit"  => {symbol: :break, description: "Exit the REPL"},
@@ -19,63 +22,126 @@ module Volt::CLI
 
     #------------------------------------------------------------------------------------
 
-    def execute(args : Array(String))
+    def execute( args : Array(String) )
+      parse args
       prologue
 
-      loop do
-        prompt = @buffer.empty? ? "volt> ".colorize(:cyan) : "volt* ".colorize(:dark_gray)
-        line = STDIN.tty? ? read_line_interactive( prompt.to_s, @session.history ) : STDIN.gets
+      if file_path = @input
+        preload file_path
+      end
 
-        if line.nil?
-          puts
-          break
-        end
-
-        trimmed = line.strip
-
-        case dispatch_command( trimmed )
-        when :break
-          break
-        when :next
-          next
-        end
-
-        if trimmed.empty? && !@buffer.empty?
-          Logger.warn( "Multiline block discarded", "repl" )
-          Fiber.yield
-          @buffer.clear
-          next
-        end
-
-        next if trimmed.empty?
-
-        @buffer << line
-        current_input = @buffer.join "\n"
-
-        next if REPL::REPLLineGuard.incomplete? current_input
-
-        result = @session.evaluate( current_input, STDOUT, STDERR )
-
-        if result.ok?
-          val = result.value
-          unless val.nil? || val.is_nil?
-            raw_display = val.to_display
-            puts "=> #{REPL::REPLSyntaxHighlighter.highlight(raw_display)}"
-          end
-
-          write_history current_input if result.definition_saved?
-        else
-          if diags = result.diagnostics
-            DiagnosticRenderer.new( { "<repl>" => current_input } ).render diags
-          end
-        end
-
-        @buffer.clear
+      while process_session_step
       end
 
       epilogue
     end
 
+    #------------------------------------------------------------------------------------
+
+    private def parse( args : Array(String) ) : Nil
+      OptionParser.parse( args ) do |p|
+        p.banner = "Usage: volt repl [options] [file]"
+        p.on( "-i INPUT", "--input INPUT", "Pre-load a file into the REPL session" ) { |v| @input = v }
+        p.on( "-n", "--no-history", "Disable history saving" ) { @no_history = true }
+        p.on( "-h", "--help", "Show help" ) { puts p; raise RequestExit.new }
+        p.invalid_option { |flag| fatal! "Invalid option: #{flag}\n#{p}" }
+      end
+      @input = args.first? if @input.nil?
+    end
+
+    #------------------------------------------------------------------------------------
+
+    private def preload( file_path : String ) : Nil
+      unless File.exists? file_path
+        Logger.warn( "File not found: #{file_path}", "repl" )
+        return
+      end
+
+      Logger.info( "Loading #{file_path}...", "repl" )
+
+      begin
+        content = File.read file_path
+        result = @session.evaluate( content, STDOUT, STDERR )
+
+        if result.ok?
+          display_result result.value
+        else
+          render_diagnostics( content, result.diagnostics, file_path )
+        end
+      rescue ex
+        Logger.warn(" Failed to load and evaluate file: #{ex.message}", "repl" )
+      end
+      Fiber.yield
+    end
+
+    #------------------------------------------------------------------------------------
+
+    private def process_session_step : Bool
+      line = read_next_line
+      if line.nil?
+        puts
+        return false
+      end
+
+      trimmed = line.strip
+
+      case dispatch_command trimmed
+      when :break
+        return false
+      when :next
+        return true
+      end
+
+      if trimmed.empty?
+        if !@buffer.empty?
+          Logger.warn( "Multiline block discarded", "repl" )
+          Fiber.yield
+          @buffer.clear
+        end
+        return true
+      end
+
+      @buffer << line
+      current_input = @buffer.join( "\n" )
+
+      return true if REPL::REPLLineGuard.incomplete?( current_input )
+
+      evaluate( current_input )
+      @buffer.clear
+      true
+    end
+
+    private def get_prompt : String
+      @buffer.empty? ? "volt> ".colorize( :cyan ).to_s : "volt* ".colorize( :dark_gray ).to_s
+    end
+
+    private def read_next_line : String?
+      prompt = get_prompt
+      STDIN.tty? ? read_line_interactive( prompt, @session.history ) : STDIN.gets
+    end
+
+    private def evaluate( current_input : String ) : Nil
+      result = @session.evaluate( current_input, STDOUT, STDERR )
+
+      if result.ok?
+        display_result result.value
+        write_history( current_input ) if result.definition_saved? && !@no_history
+      else
+        render_diagnostics( current_input, result.diagnostics )
+      end
+    end
+
+    private def display_result( val : IR::Value? ) : Nil
+      return if val.nil? || val.is_nil?
+      raw_display = val.to_display
+      puts "=> #{REPL::REPLSyntaxHighlighter.highlight(raw_display)}"
+    end
+
+    private def render_diagnostics( source : String, diags : Frontend::DiagnosticBag?, file_label : String = "<repl>" ) : Nil
+      if diags
+        DiagnosticRenderer.new( { file_label => source } ).render( diags )
+      end
+    end
 
     #------------------------------------------------------------------------------------
 
@@ -162,7 +228,7 @@ module Volt::CLI
     private def prologue : Nil
       Logger.info( "Volt Interactive Loop", "repl" )
       Logger.info( "Commands: exit (to quit), clear (to clear history)", "repl" )
-      load_history @session
+      load_history @session unless @no_history
       Fiber.yield
     end
 
@@ -170,8 +236,7 @@ module Volt::CLI
       Logger.info( "Interactive session closed", "repl" )
       Fiber.yield
     end
-
-    private def load_history(session : REPL::REPLSession) : Nil
+    private def load_history( session : REPL::REPLSession ) : Nil
       return unless File.exists? HISTORY_FILE
       File.each_line( HISTORY_FILE ) { |line| session.history << line unless line.blank? }
     rescue ex
@@ -179,14 +244,13 @@ module Volt::CLI
       Fiber.yield
     end
 
-    private def write_history(source : String) : Nil
+    private def write_history( source : String ) : Nil
       File.open( HISTORY_FILE, "a" ) { |stream| stream.puts source }
     rescue ex
-      Logger.warn("Failed to append to history file: #{ex.message}", "repl")
+      Logger.warn( "Failed to append to history file: #{ex.message}", "repl" )
       Fiber.yield
     end
 
   end
-
 
 end
