@@ -5,7 +5,7 @@ require "../../Source/Volt/CLI/CLI"
 
 module Volt::Spec
 
-  SKIP_PATTERN = /01\.[i-l]/
+  SKIP_PATTERN = /01\.k/
 
   describe "Volt::Run: 01" do
     Dir.glob( SAMPLES_01_DIR, "vl" ).each do |file|
