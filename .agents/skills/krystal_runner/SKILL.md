@@ -16,7 +16,7 @@ Use this skill when you need to verify, build, or test the interpreter and VM fi
 ## CLI Commands (via ./bin/Volt)
 Once built, you can also test Volt programs directly using the CLI:
 *   **Run Volt Program:** `./bin/Volt run <file.volt>` : Interpret a Volt source file
-*   **Dump AST:** `./bin/Volt ast <file.volt>` : Show abstract syntax tree
+*   **Dump AST:** `./bin/Volt parse <file.volt>` : Show abstract syntax tree
 *   **Semantic Analysis:** `./bin/Volt check <file.volt>` : Run semantic analysis only
 *   **REPL:** `./bin/Volt repl` : Start interactive Volt REPL
 *   **Version:** `./bin/Volt version` : Show Volt version

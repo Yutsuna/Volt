@@ -20,7 +20,7 @@ To compile, run, or test the project, you **must** use `krystal` instead of `cry
 
 **CLI Commands (after building):**
 - `./bin/Volt run <file.volt>` : Interpret a Volt program
-- `./bin/Volt ast <file.volt>` : Dump abstract syntax tree
+- `./bin/Volt parse <file.volt>` : Dump abstract syntax tree
 - `./bin/Volt check <file.volt>` : Run semantic analysis
 - `./bin/Volt repl` : Start interactive REPL
 - `./bin/Volt version` : Show version
