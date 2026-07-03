@@ -6,6 +6,21 @@ module Volt::Frontend
 
     def initialize( @bag : DiagnosticBag )
       @table = {} of String => FuncSig
+      # Names carried over from a previous REPL turn. A redefinition of one of
+      # these is allowed (it shadows the old signature); a redefinition of a
+      # name introduced in the *current* input is still a duplicate error.
+      @redefinable = Set( String ).new
+    end
+
+    def self.new_with_existing( bag : DiagnosticBag, existing : Hash( String, FuncSig ) ) : SignatureTable
+      st = new( bag )
+      st.table.merge!( existing )
+      existing.each_key { |name| st.mark_redefinable( name ) }
+      st
+    end
+
+    def mark_redefinable( name : String ) : Nil
+      @redefinable << name
     end
 
     def []?( name : String ) : FuncSig?
@@ -55,6 +70,11 @@ module Volt::Frontend
 
     private def duplicate?( name : String, span : Span ) : Bool
       if existing = @table[ name ]?
+        # A name inherited from a prior REPL turn may be redefined once; after
+        # that the fresh definition owns the slot and further collisions error.
+        if @redefinable.delete( name )
+          return false
+        end
         @bag << Catalog::Sema.duplicate_definition( name, span, existing.decl_span )
         return true
       end

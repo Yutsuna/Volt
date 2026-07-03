@@ -23,6 +23,29 @@ module Volt::VM
 
     #--------------------------------------------------------------------------
 
+    def extend( unit : Compiler::Unit ) : Nil
+      @unit.chunks.concat( unit.chunks )
+      @unit.classes.concat( unit.classes )
+      unit.classes.each { |c| @registry.register( c ) }
+
+      if unit.natives.size > @unit.natives.size
+        new_natives = unit.natives[ @unit.natives.size .. -1 ]
+        @unit.natives.concat( new_natives )
+      end
+
+      @unit.num_globals = unit.num_globals
+      if @unit.num_globals > @globals.size
+        additional = @unit.num_globals - @globals.size
+        @globals.concat( Array( IR::Value ).new( additional, IR::Value.nil_value ) )
+      end
+    end
+
+    def call_chunk_at( index : Int32, args : Array( IR::Value ) = [] of IR::Value ) : Array( IR::Value )
+      call_chunk( @unit.chunks[ index ], args )
+    end
+
+    #--------------------------------------------------------------------------
+
     def run : Int32
       call_chunk( @unit.chunks[ @unit.main_index ], [] of IR::Value )
       0

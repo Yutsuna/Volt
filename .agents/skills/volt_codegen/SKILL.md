@@ -25,13 +25,15 @@ Activate this skill when generating samples of Volt language code or checking co
 ## Currently Supported Features (v0.1.0)
 When generating code for the current interpreter, limit to:
 *   Primitive types: `Int64`, `Float64`, `Bool`, `String`, `Nil`
-*   Variables: `name = value` or `name : Type = value`
+*   Variables: `name = value` or `name : Type = value` (including top-level globals with lazy evaluation in REPL)
 *   Functions: `def name(param : Type) -> ReturnType ... end`
 *   Control flow: `if`/`elsif`/`else`, `while`, `until`, `return`
 *   Arithmetic: `+`, `-`, `*`, `/`, `%`
 *   Comparison: `<`, `<=`, `>`, `>=`, `==`, `!=`
 *   Logical: `and`, `or`, `not`
 *   Native calls: `@[External("lib")] def func(...) -> Type ... end`
+
+**Note:** Top-level definitions (functions, global variables) are evaluated lazily in REPL mode, allowing incremental code entry and execution.
 
 ## RAII Considerations
 *   Objects will have deterministic lifetimes based on scope
