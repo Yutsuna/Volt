@@ -32,6 +32,8 @@ module SmartCity
   end
 
   abstract class SmartDevice
+    include InternetOfThings
+
     name         : String
     is_connected : Bool
 
@@ -48,8 +50,6 @@ module SmartCity
   end
 
   class WaterSensor < SmartDevice
-    include InternetOfThings
-
     flow_rate : Float64
 
     def initialize( @name : String, @flow_rate : Float64 )
@@ -67,8 +67,6 @@ module SmartCity
   end
 
   class SolarPanel < SmartDevice
-    include InternetOfThings
-
     position    : GeoCoordinate
     power_yield : Float64
 
