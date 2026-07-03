@@ -81,6 +81,8 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `IncrementalState.cr` : Persistent state tracking types, signatures, globals, and indices
     *   `IncrementalAnalyser.cr` : Incremental semantic analysis preserving state between inputs
     *   Supports `:load` (load file), `:reload` (lazy reload of all loaded files), `:clear` (reset session), `:exit` commands
+    *   **Function redefinition**: a `def` may be redefined across turns; later calls dispatch to the new chunk (the old one is orphaned). Duplicate defs *within a single input/file* still raise `S0003`. Redefinition is tracked in `SignatureTable` via a `@redefinable` set seeded by `new_with_existing`.
+    *   **Type redefinition is intentionally rejected** (`S0003`): a class/struct/mixin/module cannot be redefined in a session, because live instances already reference the old vtable/layout — allowing it would be a use-after-free hazard.
 
 **Language subset (v0.1.0):**
 - Primitives: `Int64`, `Float64`, `Bool`, `String`, `Nil`
