@@ -27,8 +27,9 @@ module Volt::CLI
       parse args
       prologue
 
-      if file_path = @input
-        preload file_path
+      file_path = args.first? || @input
+      if file_path
+        load_file file_path
       end
 
       while process_session_step
@@ -52,27 +53,27 @@ module Volt::CLI
 
     #------------------------------------------------------------------------------------
 
-    private def preload( file_path : String ) : Nil
-      unless File.exists? file_path
-        Logger.warn( "File not found: #{file_path}" )
+    private def load_file( path : String ) : Nil
+      unless File.exists? path
+        Logger.warn( "File not found: #{path}" )
         Fiber.yield
         return
       end
 
-      Logger.progress( "Preloading #{file_path}...", finished: true )
+      Logger.progress( "Preloading #{path}...", finished: true )
       Fiber.yield
 
       begin
-        content = File.read file_path
-        result = @session.evaluate( content, STDOUT, STDERR )
+        source = File.read path
+        result = @session.load_source( source, path, STDOUT, STDERR )
 
         if result.ok?
           display_result result.value
         else
-          render_diagnostics( content, result.diagnostics, file_path )
+          render_diagnostics( source, result.diagnostics, path )
         end
       rescue ex
-        Logger.error( "Failed to evaluate file: #{ex.message}" )
+        Logger.error( "Failed to evaluate file: #{ex.message}\n#{ex.backtrace.join("\n")}" )
         Fiber.yield
       end
     end
@@ -91,6 +92,10 @@ module Volt::CLI
       case dispatch_command trimmed
       when :break
         return false
+      when :clear
+        return clear == :next
+      when :help
+        return help == :next
       when :next
         return true
       end
@@ -226,7 +231,7 @@ module Volt::CLI
 
     private def help : Symbol
       Logger.info( "Available commands:" )
-      BUILTINS_COMMANDS_DISPATCH.each { |cmd, data| Logger.info( "  #{cmd} - #{data.description}" ) }
+      BUILTINS_COMMANDS_DISPATCH.each { |cmd, data| Logger.info( "  #{cmd} - #{data[:description]}" ) }
       Fiber.yield
       :next
     end
