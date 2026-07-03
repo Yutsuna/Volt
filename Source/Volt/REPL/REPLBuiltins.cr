@@ -66,18 +66,18 @@ module Volt::REPL
         Fiber.yield
         true
       else
-        load_file( arg )
+        evaluate_file( arg )
         true
       end
     end
 
     builtin reload, "Reload all currently loaded files lazily" do |arg|
       if @loaded_files.empty?
-        CLI::Logger.info( "No files loaded in the current session.", "repl" )
+        CLI::Logger.error( "No files loaded in the current session.", "repl" )
         Fiber.yield
       else
         @loaded_files.dup.each do |path|
-          load_file( path )
+          evaluate_file( path )
         end
       end
       true
