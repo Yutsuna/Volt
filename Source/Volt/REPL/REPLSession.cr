@@ -22,6 +22,15 @@ module Volt::REPL
         REPLEvaluationResult.new( values.first?, nil, saved )
 
       rescue ex : Frontend::CompilationError
+        history_lines = @history.empty? ? 0 : @history.join( "\n" ).count( '\n' ) + 1
+
+        if history_lines > 0
+          ex.bag.diagnostics.each do |diag|
+            log_repl_diagnostics( diag, history_lines )
+          end
+        end
+        # -----------------------------------------------
+
         REPLEvaluationResult.new( nil, ex.bag, false )
       end
     end
@@ -59,6 +68,18 @@ module Volt::REPL
     end
 
     #------------------------------------------------------------------------------------
+
+    private def log_repl_diagnostics( diag : Frontend::Diagnostic, history_lines : Int ) : Nil
+      diag.labels.map! do |label|
+        if label.span.file == "<repl>" && label.span.line > history_lines
+          new_span = label.span
+          new_span.line -= history_lines
+          Frontend::Label.new( new_span, label.message, label.primary )
+        else
+          label
+        end
+      end
+    end
 
   end
 
