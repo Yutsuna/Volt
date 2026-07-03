@@ -1,0 +1,35 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+
+module DatabaseConfig
+
+
+  @@connection_count : Int32 = 0
+  @@max_connections  : Int32 = 5
+
+  def self.conntect : Bool
+    if @@connection_count < @@max_connections
+      @@connection_count += 1
+      log_action( "Connection established: Current #{@@connection_count}" )
+      true
+    else
+      log_action( "Connection rejected. Max limit reached!" )
+      false
+    end
+  end
+
+  def self.active_connections : Int32
+    @@connection_count
+  end
+
+  private def self.log_action( action : String ) : Nil
+    puts "[DN-INTERNAL] #{action}"
+  end
+
+
+end
+
+puts "Attempt 1: #{DatabaseConfig.connect}"
+puts "Attempt 2: #{DatabaseConfig.connect}"
+puts "Active connections: #{DatabaseConfig.active_connections}"
