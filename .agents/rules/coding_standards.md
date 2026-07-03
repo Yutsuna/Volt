@@ -65,6 +65,7 @@
 When writing Volt code for the current interpreter, use only:
 - Primitive types: Int64, Float64, Bool, String, Nil
 - Variable declaration with or without type annotation
+- Top-level global variables with lazy evaluation (in REPL mode)
 - Function definitions with typed parameters and return types
 - Arithmetic: +, -, *, /, %
 - Comparison: <, <=, >, >=, ==, !=
@@ -72,5 +73,10 @@ When writing Volt code for the current interpreter, use only:
 - Control flow: if/elsif/else, while, until
 - Return statements
 - Native function calls via @[External] annotation
+
+**REPL Features:**
+- Incremental compilation: definitions are compiled and available across REPL inputs
+- Lazy evaluation: top-level definitions are evaluated on-demand
+- REPL commands: `:load <file>`, `:reload`, `:clear`, `:exit`, `:help`
 
 Avoid using features not in this list as they are not yet implemented.

@@ -72,6 +72,7 @@ Volt/
 │   │
 │   ├── CLI/
 │   │   ├── run.cr                      # `volt run`  → interpreter engine
+│   │   ├── repl.cr                     # `volt repl` → REPL command handler
 │   │   └── build.cr                    # `volt build`→ LLVM backend (separate)
 │   │
 │   ├── Frontend/                       # SHARED : not owned by this spec
@@ -104,7 +105,9 @@ Volt/
 │   │   ├── escape_analysis.cr          # mark stack-allocatable allocations
 │   │   ├── lifetime_analysis.cr        # compute object lifetimes → emit DROP opcodes
 │   │   ├── register_allocator.cr       # linear-scan allocation
-│   │   └── peephole.cr                 # superinstruction fusion
+│   │   ├── peephole.cr                 # superinstruction fusion
+│   │   └── REPL/                       # REPL-specific compilation
+│   │       └── REPLDeltaCompiler.cr    # delta compilation for incremental REPL
 │   │
 │   ├── VM/                             # ── TIER 0 ──
 │   │   ├── vm.cr                       # direct-threaded dispatch core
@@ -129,13 +132,19 @@ Volt/
 │   └── Runtime/
 │       ├── ObjectModel/                # Class, Method, layout, vtables, ctor/dtor registry
 │       └── Shell/                      # System::Shell native impls (File, Directory...)
+│   └── REPL/                           # ── REPL Support ──
+│       ├── IncrementalState.cr         # persistent state for REPL sessions
+│       ├── REPLSession.cr              # main REPL session manager
+│       ├── REPLDeltaCompiler.cr        # delta compiler for incremental compilation
+│       └── REPLLineGuard.cr            # multi-line input completion detection
 │
 └── Spec/                               # tests, mirrored against Source/ layout
     ├── IR/
     ├── Compiler/
     ├── VM/
     ├── JIT/
-    └── Runtime/
+    ├── Runtime/
+    └── REPL/
 ```
 
 ---
@@ -149,13 +158,19 @@ Volt/
 - **Frontend/Parser/** : Complete modular implementation as documented
 - **Frontend/AST/** : ANode, Expr, Decl, Program, TypeNode, Dump
 - **Frontend/Types/** : Type inference system
-- **Frontend/Semantic/** : Analyser, TypeCollector (collects classes/structs/methods), TypeChecker, Contract, Scope, SignatureTable, Diagnostic
+- **Frontend/Semantic/** : Analyser, TypeCollector (collects classes/structs/methods), TypeChecker, Contract, Scope, SignatureTable, Diagnostic, **IncrementalAnalyser.cr** (incremental analysis for REPL with state reuse), **IncrementalTypeChecker.cr** (type checking with REPL scope)
 - **Frontend/Diagnostic/** : Full diagnostic system with Catalog, Severity, Label, Suggest, CompilationError
 - **IR/** : Complete: Opcode.cr (with INIT_OBJ, LOAD_FIELD, STORE_FIELD, CALL_METHOD, COPY_BLOCK, etc.), Instruction.cr, Chunk.cr, Value.cr, DropMap.cr
 - **Compiler/** : BytecodeCompiler.cr (compiles functions, classes, methods, and auto-generated recursive field drops), FunctionEmiter.cr (complete for Phase 1/2 class/struct/method compilation), Unit.cr (complete), ConstFold.cr, EscapeAnalysis.cr, Peephole.cr (identity stubs)
-- **VM/** : Vm.cr (case dispatch), Frame.cr (per-frame registers)
+- **Compiler/REPL/** : **REPLDeltaCompiler.cr** (delta compilation for incremental REPL), maintains function/global indices across compilations
+- **VM/** : Vm.cr (case dispatch), Frame.cr (per-frame registers), extended with `extend` and `call_chunk_at` methods for REPL execution
 - **VM/Dispatch/** : Arith.cr (complete), Branch.cr, Call.cr, Cmp.cr, LoadStore.cr, Memory.cr (field/struct load/store/copy), Raii.cr (INIT_OBJ, recursive field drops on DROP), Native.cr
 - **Runtime/ObjectModel/** : `RClass.cr` representing class layouts, `TypeRegistry.cr` registering types and layouts
+- **REPL/** : Complete incremental REPL implementation:
+  - **IncrementalState.cr** : Persistent state tracking types, signatures, globals, function/globals indices
+  - **REPLSession.cr** : Main REPL session manager with source evaluation and result handling
+  - **REPLDeltaCompiler.cr** : Delta compiler for incremental compilation
+  - **REPLLineGuard.cr** : Guards for incomplete multi-line input detection
 
 ### Placeholder/Stub Components
 - **Runtime/Shell/** : Empty directory, reserved for future
