@@ -265,7 +265,17 @@ module Volt::Compiler
     end
 
     private def compile_assign_ident( expr : Frontend::Assign, target : Frontend::Ident ) : Int32
-      name      = target.name
+      name = target.name
+      if @chunk.name == "main" && !@scope.has_key?( name ) && @global_index.has_key?( name )
+        value_reg = compile_expr( expr.value )
+        n = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+        base_slot = @global_index[ name ]
+        n.times do |i|
+          emit_abx( IR::Opcode::STORE_GLOBAL, value_reg + i, base_slot + i )
+        end
+        return value_reg
+      end
+
       value_reg = compile_expr( expr.value )
       if home = @scope[ name ]?
         place_value( home, value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
@@ -318,6 +328,16 @@ module Volt::Compiler
     private def compile_ident( expr : Frontend::Ident ) : Int32
       if reg = @scope[ expr.name ]?
         return reg
+      end
+
+      if @global_index.has_key?( expr.name )
+        n = slot_count( expr.resolved_type || Frontend::Type::UNKNOWN )
+        dest = alloc_block( n )
+        base_slot = @global_index[ expr.name ]
+        n.times do |i|
+          emit_abx( IR::Opcode::LOAD_GLOBAL, dest + i, base_slot + i )
+        end
+        return dest
       end
 
       # Parenthesis-less zero-arg call on `self` (mirrors `compile_call`'s
