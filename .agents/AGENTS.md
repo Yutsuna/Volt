@@ -26,7 +26,7 @@ The end-to-end execution path is live: **`volt run` interprets a program**
 (source → lexer → parser → AST → Semantic/TypedAST → bytecode → Tier-0 VM → exit code).
 
 ### Implemented & Working
-*   **Frontend** : Lexer (`Lexer.cr`), Parser (`Parser.cr` and specialized parse files), AST (`ANode`, `Expr`, `Decl`). `volt ast` dumps the tree.
+*   **Frontend** : Lexer (`Lexer.cr`), Parser (`Parser.cr` and specialized parse files), AST (`ANode`, `Expr`, `Decl`). `volt parse` dumps the tree.
 *   **Frontend/Parser** : Modular recursive-descent parser with precedence climbing. Split across specialized files:
     *   `Parser.cr` : Main class, state management, entry point (`parse`)
     *   `Prec.cr` : Operator precedence levels enum
@@ -70,7 +70,7 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `Runtime/Shell/` : Empty, reserved for System::Shell API
 *   **CLI** : Working commands:
     *   `run` : Interpret Volt programs (end-to-end)
-    *   `ast` : Dump AST for source files
+    *   `parse` : Dump AST for source files
     *   `check` : Semantic analysis pass
     *   `circuit`, `format`, `version`, `help`, `repl`, `build` : CLI structure in place
 
