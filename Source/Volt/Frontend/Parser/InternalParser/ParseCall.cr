@@ -5,6 +5,18 @@ module Volt::Frontend
 
     #------------------------------------------------------------------------------------
 
+    # `A::B` (and chained `A::B::C`) folds, at parse time, into a single
+    # qualified identifier `"A::B"` — the name under which a module's nested
+    # types are registered. `::` is namespace resolution only; a following `.`
+    # (e.g. `SmartCity::WaterSensor.new`) is an ordinary call on that name.
+    private def parse_namespace_path( left : AExpr ) : AExpr
+      unless left.is_a?( Ident )
+        error!( Catalog::Parse.expected( TokenKind::Ident, @current ) )
+      end
+      member = expect( TokenKind::Ident )
+      Ident.new( "#{left.name}::#{member.value}", left.loc )
+    end
+
     private def parse_dot_call( receiver : AExpr, safe : Bool ) : AExpr
       name = expect( TokenKind::Ident ).value
       if @current.kind.l_paren?
