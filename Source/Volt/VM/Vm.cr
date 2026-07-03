@@ -16,6 +16,9 @@ module Volt::VM
 
     def initialize( @unit : Compiler::Unit, @stdout : IO = STDOUT, @stderr : IO = STDERR )
       @registry = Runtime::ObjectModel::TypeRegistry.new( @unit.classes )
+      # Process-global storage for module `@@vars` (`main` writes their
+      # declared defaults before any other code runs).
+      @globals  = Array( IR::Value ).new( @unit.num_globals ) { IR::Value.nil_value }
     end
 
     #--------------------------------------------------------------------------
@@ -112,6 +115,12 @@ module Volt::VM
             # once per including class and dispatched through the same
             # vtable as any other instance method, see `BytecodeCompiler`).
             raise VoltRuntimeError.new( "opcode #{ins.op} is not yet implemented" )
+
+          in .load_global?
+            frame[ins.a] = @globals[ins.bx]
+
+          in .store_global?
+            @globals[ins.bx] = frame[ins.a]
 
           in .to_string?
             frame[ins.a] = IR::Value.str(frame[ins.b].to_display)
