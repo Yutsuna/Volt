@@ -8,19 +8,19 @@ description: Runs compile, execution, and test commands for the Volt Crystal-bas
 Use this skill when you need to verify, build, or test the interpreter and VM files using the custom `krystal` compiler.
 
 ## Core Commands
-*   **Run Specs (Tests):** `krystal -s` — Runs all Crystal specs in the Spec/ directory
-*   **Compile and Execute:** `krystal -x` — Compiles and runs the main Volt entry point
-*   **Build Release Version:** `krystal -r` — Builds optimized release binary
-*   **Print Compiler Options:** `krystal --help` — Shows all available options
+*   **Run Specs (Tests):** `krystal -s` : Runs all Crystal specs in the Spec/ directory
+*   **Compile and Execute:** `krystal -x` : Compiles and runs the main Volt entry point
+*   **Build Release Version:** `krystal -r` : Builds optimized release binary
+*   **Print Compiler Options:** `krystal --help` : Shows all available options
 
 ## CLI Commands (via ./bin/Volt)
 Once built, you can also test Volt programs directly using the CLI:
-*   **Run Volt Program:** `./bin/Volt run <file.volt>` — Interpret a Volt source file
-*   **Dump AST:** `./bin/Volt ast <file.volt>` — Show abstract syntax tree
-*   **Semantic Analysis:** `./bin/Volt analyse <file.volt>` — Run semantic analysis only
-*   **REPL:** `./bin/Volt repl` — Start interactive Volt REPL
-*   **Version:** `./bin/Volt version` — Show Volt version
-*   **Help:** `./bin/Volt help` — Show all CLI commands
+*   **Run Volt Program:** `./bin/Volt run <file.volt>` : Interpret a Volt source file
+*   **Dump AST:** `./bin/Volt parse <file.volt>` : Show abstract syntax tree
+*   **Semantic Analysis:** `./bin/Volt check <file.volt>` : Run semantic analysis only
+*   **REPL:** `./bin/Volt repl` : Start interactive Volt REPL
+*   **Version:** `./bin/Volt version` : Show Volt version
+*   **Help:** `./bin/Volt help` : Show all CLI commands
 
 ## Execution Guidelines
 1. Always verify modifications to the parser, IR, compiler, or VM by running `krystal -s`.

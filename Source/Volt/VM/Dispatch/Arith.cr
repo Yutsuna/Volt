@@ -1,7 +1,7 @@
 module Volt::VM
 
 
-  # Arithmetic opcode handlers (typed: no tag checks — architecture #5.1).
+  # Arithmetic opcode handlers (typed: no tag checks : architecture #5.1).
   class Vm
     def eval_arith( op : IR::Opcode, b : IR::Value, c : IR::Value ) : IR::Value
       case op

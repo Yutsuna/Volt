@@ -69,6 +69,39 @@ module Volt::Frontend
   end
 
 
+  # @name instance-variable reference (valid only inside instance methods)
+  class InstanceVar < AExpr
+    property name : String
+
+    def initialize( @name : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # @@name module/class-variable reference (process-global storage)
+  class ClassVar < AExpr
+    property name : String
+
+    def initialize( @name : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # receiver.name field read without arguments; the semantic pass reclassifies
+  # it as a zero-arg method call when `name` resolves to a method
+  class MemberAccess < AExpr
+    property receiver : AExpr
+    property name     : String
+    property safe     : Bool           # true for ?.  navigation
+
+    def initialize( @receiver : AExpr, @name : String, @safe : Bool, loc : Span )
+      super( loc )
+    end
+  end
+
+
   class BinaryOp < AExpr
     property left  : AExpr
     property op    : TokenKind
@@ -102,7 +135,7 @@ module Volt::Frontend
   end
 
 
-  # forward declaration — BlockExpr is referenced by Call / MethodCall
+  # forward declaration BlockExpr is referenced by Call / MethodCall
   class BlockExpr < AExpr
     property params : Array( String )
     property body   : Array( ANode )

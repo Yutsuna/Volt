@@ -16,12 +16,12 @@ module Volt::Frontend
       @table.keys
     end
 
-    def collect( decl : FuncDecl ) : Nil
+    def collect( decl : FuncDecl, nominals : Hash( String, NominalType )? = nil ) : Nil
       return if duplicate?( decl.name, decl.loc )
 
       params = decl.params.map do |p|
         if ann = p.type_ann
-          resolve_param( p.name, ann )
+          resolve_param( p.name, ann, nominals )
         else
           @bag << Catalog::Sema.param_needs_type( p.name, decl.name, p.loc )
           Type::UNKNOWN
@@ -30,7 +30,7 @@ module Volt::Frontend
 
       ret = Type::UNKNOWN
       if rt = decl.return_type
-        ret = resolve_return( decl.name, rt )
+        ret = resolve_return( decl.name, rt, nominals )
       end
 
       @table[ decl.name ] = FuncSig.new( decl.name, params, ret, decl_span: decl.loc )
@@ -61,8 +61,8 @@ module Volt::Frontend
       false
     end
 
-    private def resolve_param( name : String, ann : ATypeNode ) : Type
-      ty = Type.from_annotation( ann )
+    private def resolve_param( name : String, ann : ATypeNode, nominals : Hash( String, NominalType )? = nil ) : Type
+      ty = Type.from_annotation( ann, nominals )
       if ty.nil?
         @bag << Catalog::Sema.unsupported_param_type( name, ann.loc )
         return Type::UNKNOWN
@@ -70,8 +70,8 @@ module Volt::Frontend
       ty
     end
 
-    private def resolve_return( func : String, ann : ATypeNode ) : Type
-      ty = Type.from_annotation( ann )
+    private def resolve_return( func : String, ann : ATypeNode, nominals : Hash( String, NominalType )? = nil ) : Type
+      ty = Type.from_annotation( ann, nominals )
       if ty.nil?
         @bag << Catalog::Sema.unsupported_return_type( func, ann.loc )
         return Type::UNKNOWN

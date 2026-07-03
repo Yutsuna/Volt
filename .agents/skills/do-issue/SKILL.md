@@ -6,19 +6,19 @@ description: >
   et corriger jusqu'à la perfection. Utilise ce skill dès qu'on mentionne un ticket à implémenter, ou qu'on dit "fais cette issue".
 ---
 
-# Implémentation d'issue — Qualité irréprochable
+# Implémentation d'issue : Qualité irréprochable
 
 ## Ta mission
 
 Implémente cette issue : $ARGUMENTS
 
-Tu en es **personnellement responsable**. Si quelque chose ne fonctionne pas, si une faille de sécurité existe, si un edge case n'est pas géré, si le code n'est pas maintenable — c'est **ta faute**. Tu dois produire un code d'une qualité, d'une sécurité et d'une efficacité dignes des plus grands développeurs. Pas "acceptable". Pas "correct". **Irréprochable.**
+Tu en es **personnellement responsable**. Si quelque chose ne fonctionne pas, si une faille de sécurité existe, si un edge case n'est pas géré, si le code n'est pas maintenable : c'est **ta faute**. Tu dois produire un code d'une qualité, d'une sécurité et d'une efficacité dignes des plus grands développeurs. Pas "acceptable". Pas "correct". **Irréprochable.**
 
-Tu vas lancer des agents spécialisés pour tout vérifier. Ces agents ne sont pas là pour valider — ils sont là pour **trouver des problèmes**. Leur job c'est de casser ton code, de trouver la moindre faille, le moindre oubli. Et toi, tu corriges tout ce qu'ils trouvent. Sans exception.
+Tu vas lancer des agents spécialisés pour tout vérifier. Ces agents ne sont pas là pour valider : ils sont là pour **trouver des problèmes**. Leur job c'est de casser ton code, de trouver la moindre faille, le moindre oubli. Et toi, tu corriges tout ce qu'ils trouvent. Sans exception.
 
 ---
 
-## Phase 1 — Analyse approfondie
+## Phase 1 : Analyse approfondie
 
 Avant d'écrire une seule ligne de code :
 
@@ -30,34 +30,34 @@ Avant d'écrire une seule ligne de code :
 
 ---
 
-## Phase 2 — Implémentation
+## Phase 2 : Implémentation
 
 Tu es un développeur senior tech lead.
 
 Exigences **non négociables** :
 
-### Sécurité — tolérance zéro
+### Sécurité : tolérance zéro
 
 - Valide et sanitize TOUTES les entrées utilisateur, sans exception
 - Aucune injection possible (SQL, NoSQL, XSS, CSRF, command injection, path traversal)
-- Aucun secret, token, clé API, mot de passe en dur dans le code — jamais
+- Aucun secret, token, clé API, mot de passe en dur dans le code : jamais
 - Utilise les abstractions sécurisées du projet (ORM, prepared statements, CSRF tokens)
 - Applique le principe du moindre privilège partout
 - Vérifie les autorisations à chaque opération sensible
 - Protège contre les attaques de timing et les race conditions
 
-### Qualité de code — niveau senior tech lead
+### Qualité de code : niveau senior tech lead
 
 - Fonctions courtes, à responsabilité unique, nommées de façon explicite
-- Pas de code dupliqué — factorise impitoyablement
+- Pas de code dupliqué : factorise impitoyablement
 - Pas de code mort, pas de commentaires obsolètes, pas de TODO laissés en plan
 - Gestion d'erreurs exhaustive : chaque appel qui peut échouer DOIT être géré
 - Types stricts si le langage le permet (TypeScript strict, Python type hints, etc.)
-- Respect absolu des conventions du codebase — tu dois être indistinguable d'un dev de l'équipe
+- Respect absolu des conventions du codebase : tu dois être indistinguable d'un dev de l'équipe
 - Principes SOLID appliqués, pas juste récités
 - Noms de variables et fonctions qui rendent le code auto-documenté
 
-### Robustesse — aucun cas oublié
+### Robustesse : aucun cas oublié
 
 - Gère les valeurs null, undefined, vides, malformées
 - Gère les timeouts, les connexions perdues, les réponses inattendues
@@ -66,7 +66,7 @@ Exigences **non négociables** :
 - Ne laisse JAMAIS un état incohérent en base de données ou en mémoire
 - Utilise des transactions si plusieurs opérations doivent être atomiques
 
-### Tests — couverture implacable
+### Tests : couverture implacable
 
 - Tests unitaires pour chaque fonction publique
 - Happy path ET tous les edge cases identifiés
@@ -76,12 +76,12 @@ Exigences **non négociables** :
 - Vérifie que les tests existants ne sont PAS cassés par tes changements
 - Les tests doivent être lisibles et servir de documentation
 
-### Performance — pas de gaspillage
+### Performance : pas de gaspillage
 
 - Pas de requêtes N+1 à la base de données
 - Pas de boucles imbriquées sur de grands datasets quand un algorithme O(n) existe
 - Pas de chargement en mémoire de données qu'on pourrait streamer ou paginer
-- Pas d'appels réseau dans des boucles — batch quand c'est possible
+- Pas d'appels réseau dans des boucles : batch quand c'est possible
 - Lazy loading quand c'est pertinent
 
 ### Documentation
@@ -91,13 +91,13 @@ Exigences **non négociables** :
 
 ---
 
-## Phase 3 — Agents reviewers intransigeants
+## Phase 3 : Agents reviewers intransigeants
 
-Ces agents ne sont PAS là pour approuver. Ils sont là pour **trouver tout ce qui ne va pas**. Chaque agent doit activement essayer de casser le code, trouver des failles, identifier des oublis. Si un agent ne trouve rien, c'est suspect — il doit creuser plus.
+Ces agents ne sont PAS là pour approuver. Ils sont là pour **trouver tout ce qui ne va pas**. Chaque agent doit activement essayer de casser le code, trouver des failles, identifier des oublis. Si un agent ne trouve rien, c'est suspect : il doit creuser plus.
 
 Lance **4 sous-agents en parallèle**, chacun spécialisé :
 
-### Agent Sécurité — Son but : trouver une faille
+### Agent Sécurité : Son but : trouver une faille
 
 - Audite chaque point d'entrée utilisateur (formulaires, APIs, paramètres URL, headers)
 - Vérifie que CHAQUE requête BDD utilise des prepared statements ou l'ORM
@@ -109,7 +109,7 @@ Lance **4 sous-agents en parallèle**, chacun spécialisé :
 - Vérifie que les dépendances ajoutées n'ont pas de CVE connues
 - **Verdict** : ✅ PASS ou ❌ FAIL avec liste détaillée de chaque problème
 
-### Agent Qualité de code — Son but : trouver du code qui n'est pas digne d'un senior
+### Agent Qualité de code : Son but : trouver du code qui n'est pas digne d'un senior
 
 - Vérifie que chaque fonction fait une seule chose et la fait bien
 - Cherche du code dupliqué (même 3 lignes répétées, c'est trop)
@@ -119,10 +119,10 @@ Lance **4 sous-agents en parallèle**, chacun spécialisé :
 - Vérifie que les erreurs sont gérées proprement, pas avalées silencieusement
 - Vérifie l'absence de console.log/print de debug oubliés
 - Vérifie que les imports sont utilisés et bien ordonnés
-- Vérifie la complexité cyclomatique — trop de if imbriqués = refactor
+- Vérifie la complexité cyclomatique : trop de if imbriqués = refactor
 - **Verdict** : ✅ PASS ou ❌ FAIL avec liste détaillée
 
-### Agent Tests — Son but : prouver que la couverture est insuffisante
+### Agent Tests : Son but : prouver que la couverture est insuffisante
 
 - Vérifie que chaque branche logique (if/else/switch) a un test
 - Vérifie que les cas d'erreur sont testés (pas juste le happy path)
@@ -133,7 +133,7 @@ Lance **4 sous-agents en parallèle**, chacun spécialisé :
 - Vérifie l'absence de tests flaky (dépendants de l'ordre, du timing, de l'état global)
 - **Verdict** : ✅ PASS ou ❌ FAIL avec couverture détaillée
 
-### Agent Architecture — Son but : vérifier que le code s'intègre parfaitement
+### Agent Architecture : Son but : vérifier que le code s'intègre parfaitement
 
 - Vérifie que l'implémentation respecte l'architecture existante du projet
 - Vérifie qu'aucun couplage excessif n'est introduit
@@ -146,17 +146,17 @@ Lance **4 sous-agents en parallèle**, chacun spécialisé :
 
 ---
 
-## Phase 4 — Boucle de correction
+## Phase 4 : Boucle de correction
 
 Tu ne t'arrêtes pas tant que TOUT n'est pas vert :
 
-1. Corrige **TOUT** ce que les agents trouvent — aucune exception, aucun "c'est mineur"
+1. Corrige **TOUT** ce que les agents trouvent : aucune exception, aucun "c'est mineur"
 2. Relance les 4 agents sur le code corrigé
-3. Si un agent trouve encore quelque chose, corrige et relance — **boucle infinie jusqu'à 4x ✅ PASS**
-4. Exécute le linter du projet — **zéro warning**
-5. Exécute le formatter — le code doit être parfaitement formaté
-6. Lance la suite de tests **complète** du projet — **100% pass**
-7. Vérifie que le build compile — **zéro erreur, zéro warning**
+3. Si un agent trouve encore quelque chose, corrige et relance : **boucle infinie jusqu'à 4x ✅ PASS**
+4. Exécute le linter du projet : **zéro warning**
+5. Exécute le formatter : le code doit être parfaitement formaté
+6. Lance la suite de tests **complète** du projet : **100% pass**
+7. Vérifie que le build compile : **zéro erreur, zéro warning**
 
 **Tu ne livres que quand les 4 agents donnent PASS et que tout est vert.** Pas de compromis.
 

@@ -1,5 +1,5 @@
 @[External("libc")]
-def puts( str : String ) -> Void
+def puts( str : String ) -> Int32
 
 struct Point
   x : Int64
@@ -19,7 +19,7 @@ end
 
 p1 = Point.new(10, 20)
 rect = Rectangle.new(p1, 100, 50)
-moved = move_rect(rect, 5, -5)
+moved = move_rectangle(rect, 5, -5)
 
 if rect.origin.x == 10 and moved.origin.x == 15 and moved.origin.y == 15
   puts ("PASS")
