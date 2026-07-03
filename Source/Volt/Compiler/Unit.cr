@@ -7,10 +7,14 @@ module Volt::Compiler
     property main_index : Int32
     property natives    : Array( NativeFunc )
     property classes    : Array( Runtime::ObjectModel::RClass )
+    # Number of process-global slots (`@@` module variables). The VM allocates
+    # one flat `Value` array of this size; `main` initializes them up front.
+    property num_globals : Int32
 
     def initialize( @chunks : Array( IR::Chunk ), @main_index : Int32,
                     @natives : Array( NativeFunc ) = [] of NativeFunc,
-                    @classes : Array( Runtime::ObjectModel::RClass ) = [] of Runtime::ObjectModel::RClass )
+                    @classes : Array( Runtime::ObjectModel::RClass ) = [] of Runtime::ObjectModel::RClass,
+                    @num_globals : Int32 = 0 )
     end
 
     def disassemble( io : IO ) : Nil
