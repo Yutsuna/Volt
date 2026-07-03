@@ -129,6 +129,12 @@ module Volt::IR
     COPY_BLOCK    # A,B,C : reg[A .. A+C-1] = reg[B .. B+C-1]   (register-range copy, C = slot count)
     NEW_STRUCT    # A,Bx  : reg[A .. A+Bx-1] = nil   (reserve/zero a Bx-slot struct block)
 
+    # --- module class-variables (@@name) ---
+    # Process-global storage : a module has no instances, so its `@@vars` live
+    # in one flat VM-wide array indexed by a compile-assigned slot (`Bx`).
+    LOAD_GLOBAL   # A,Bx  : reg[A]      = globals[Bx]
+    STORE_GLOBAL  # A,Bx  : globals[Bx] = reg[A]
+
     # --- minimal string builtins ---
     TO_STRING     # A,B   : reg[A] = reg[B].to_display   (Int/Float/Bool/... -> String)
     CONCAT_STR    # A,B,C : reg[A] = reg[B] + reg[C]      (String concatenation)
