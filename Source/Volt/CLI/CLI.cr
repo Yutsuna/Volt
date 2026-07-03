@@ -28,6 +28,9 @@ module Volt::CLI
     rescue ex : SystemExit
       EXIT_ERROR
 
+    rescue ex : RequestExit
+      EXIT_SUCCESS
+
     rescue ex : Exception
       Logger.error(ex.message || "An unexpected error occurred")
       Logger.error(ex.backtrace.join("\n")) if ex.backtrace

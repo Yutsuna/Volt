@@ -267,7 +267,17 @@ module Volt::Frontend
     end
 
     private def infer_member_access( expr : MemberAccess, scope : Scope ) : Type
-      # `Module.static_member` spelled without parens (`DatabaseConfig.connect`).
+
+      # `Type.new` : the receiver names a declared class/struct rather than a value in
+      if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) && ( info = @types[ recv.name ]? )
+        recv.resolved_type = @nominals[ recv.name ]?
+        if expr.name == "new"
+          dummy_call = MethodCall.new( expr.receiver, expr.name, [] of AExpr, nil, expr.safe, expr.loc )
+          return infer_constructor_call( info, dummy_call, scope )
+        end
+      end
+
+      # `Module.method` : the receiver names a declared module rather than a value in
       if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) &&
          ( info = @types[ recv.name ]? ) && info.kind.module?
         recv.resolved_type = @nominals[ recv.name ]?
