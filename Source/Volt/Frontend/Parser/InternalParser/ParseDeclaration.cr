@@ -80,6 +80,8 @@ module Volt::Frontend
     private def parse_type_body_node : ANode
       annots = collect_annotations
       case @current.kind
+      when .private?, .protected?, .public?
+        parse_visibility_member( annots )
       when .def?
         parse_func_decl( annots, is_async: false )
       when .async?
@@ -108,11 +110,64 @@ module Volt::Frontend
         parse_module_decl
       when .include?
         parse_include_decl
+      when .extend?
+        parse_extend_self
+      when .class_var?
+        parse_class_var_decl
       when .ident?
         parse_field_decl
       else
         error!( Catalog::Parse.unexpected_in_type_body( @current ) )
       end
+    end
+
+    # `private` / `protected` / `public` prefix on a method definition. The
+    # modifier applies to the `def` (or `async def` / `abstract def`) that
+    # follows; anything else after it is an error.
+    private def parse_visibility_member( annots : Array( Annotation ) ) : ANode
+      vis = case advance.kind
+            when .private?   then Visibility::Private
+            when .protected? then Visibility::Protected
+            else                  Visibility::Public
+            end
+      case @current.kind
+      when .def?
+        parse_func_decl( annots, is_async: false, visibility: vis )
+      when .async?
+        advance
+        unless @current.kind.def?
+          error!( Catalog::Parse.expected_after( "`def`", "async", @current ) )
+        end
+        parse_func_decl( annots, is_async: true, visibility: vis )
+      when .abstract?
+        advance
+        unless @current.kind.def?
+          error!( Catalog::Parse.expected_after( "`def`", "abstract", @current ) )
+        end
+        parse_func_decl( annots, is_async: false, is_abstract: true, visibility: vis )
+      else
+        error!( Catalog::Parse.expected_after( "`def`", "visibility modifier", @current ) )
+      end
+    end
+
+    # `extend self` inside a module body.
+    private def parse_extend_self : ExtendSelfDecl
+      loc = @current.span
+      advance   # consume `extend`
+      expect( TokenKind::Self_ )
+      ExtendSelfDecl.new( loc )
+    end
+
+    # `@@name : Type [= default]` module/class variable declaration.
+    private def parse_class_var_decl : ClassVarDecl
+      loc  = @current.span
+      name = advance.value.lchop( "@@" )
+      expect( TokenKind::Colon )
+      type_ann = parse_type
+      value = if @current.kind.eq?
+        advance; parse_expr
+      end
+      ClassVarDecl.new( name, type_ann, value, loc )
     end
 
     # Body-level `include Mixin` — mirrors the header-level `class Name include Mixin` form.
