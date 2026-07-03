@@ -24,7 +24,7 @@ module Volt::CLI
       prologue
 
       file_path = args.first? || @input
-      dispatch_builtin( ":load", file_path ) if file_path
+      dispatch_builtin( "load", file_path ) if file_path
 
       while session_should_continue?
       end
