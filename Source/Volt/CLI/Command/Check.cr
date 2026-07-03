@@ -14,6 +14,8 @@ module Volt::CLI
     property metrics : Bool = false
     property unused : Bool = false
 
+    #------------------------------------------------------------------------------------
+
     def execute( args : Array(String) )
       parse args
       fatal! "Missing source analyzer validation inputs (-i)" unless @input
@@ -38,6 +40,7 @@ module Volt::CLI
       Logger.info( "OK : #{fn_count} function(s), #{typed.top_level.size} top-level statement(s) type-checked", "check" )
     end
 
+    #------------------------------------------------------------------------------------
 
     private def parse( args : Array(String))
       parser = OptionParser.parse( args ) do |p|

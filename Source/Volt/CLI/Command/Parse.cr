@@ -2,8 +2,10 @@ require "./ACommand"
 
 
 module Volt::CLI
-  class AstCommand < ACommand
-    register "ast", "Generate & display the abstract syntax tree"
+
+
+  class ParseCommand < ACommand
+    register "parse", "Generate & display the abstract syntax tree"
 
     property input : String?
     property output : String?
@@ -11,6 +13,8 @@ module Volt::CLI
     property simplify : Bool = false
     property no_color : Bool = false
     property no_location : Bool = false
+
+    #------------------------------------------------------------------------------------
 
     def execute(args : Array(String))
       parse args
@@ -40,10 +44,11 @@ module Volt::CLI
       end
     end
 
+    #------------------------------------------------------------------------------------
 
     private def parse( args : Array(String) )
       parser = OptionParser.parse(args) do |p|
-        p.banner = "Usage: volt ast [options] [input_file]"
+        p.banner = "Usage: volt parse [options] [input_file]"
         p.on("-i INPUT", "--input INPUT", "Source input module path") { |v| @input = v }
         p.on("-o OUTPUT", "--output OUTPUT", "Output target path structure") { |v| @output = v }
         p.on("--format FORMAT", "Serialization formats (json|dot|text)") { |v| @format = v }
