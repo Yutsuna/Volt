@@ -41,8 +41,19 @@ module Volt::Frontend
   end
 
 
+  # Method / member access control (default `Public`).
+  # `Protected` = callable from the same class and its subclasses (C++ sense);
+  # `Private` = callable only on the instance itself.
+  enum Visibility
+    Public
+    Protected
+    Private
+  end
+
+
   # def name[T]( params ) -> ReturnType \n body \n end
   # `abstract def` produces a body-less FuncDecl with `is_abstract` set.
+  # `def self.name` (a static / module method) sets `is_static`.
   class FuncDecl < ADecl
     property name        : String
     property type_params : Array( String )
@@ -52,11 +63,35 @@ module Volt::Frontend
     property annotations : Array( Annotation )
     property is_async    : Bool
     property is_abstract : Bool = false
+    property is_static   : Bool = false
+    property visibility  : Visibility = Visibility::Public
 
     def initialize( @name : String, @type_params : Array( String ),
                     @params : Array( Param ), @return_type : ATypeNode?,
                     @body : Array( ANode ), @annotations : Array( Annotation ),
                     @is_async : Bool, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # `@@name : Type [= default]` — a module/class variable declaration inside a
+  # type body. Backed by process-global storage (modules have no instances).
+  class ClassVarDecl < ADecl
+    property name     : String
+    property type_ann : ATypeNode
+    property value    : AExpr?
+
+    def initialize( @name : String, @type_ann : ATypeNode, @value : AExpr?, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # `extend self` inside a module body — makes the module's instance-style
+  # methods callable as static members on the module itself.
+  class ExtendSelfDecl < ADecl
+    def initialize( loc : Span )
       super( loc )
     end
   end
