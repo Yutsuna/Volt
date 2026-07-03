@@ -42,6 +42,10 @@ module Volt::Frontend
       "super"     => TokenKind::Super,
       "raise"     => TokenKind::Raise,
       "abstract"  => TokenKind::Abstract,
+      "private"   => TokenKind::Private,
+      "protected" => TokenKind::Protected,
+      "public"    => TokenKind::Public,
+      "extend"    => TokenKind::Extend,
       "true"      => TokenKind::True,
       "false"     => TokenKind::False,
       "nil"       => TokenKind::Nil,
@@ -285,8 +289,20 @@ module Volt::Frontend
       when '~'  then make( TokenKind::Tilde )
       when '.'  then scan_dot
       when '?'  then make( TokenKind::Question )
-      when '@'  then make( TokenKind::At )
-      when ':'  then make( TokenKind::Colon )
+      when '@'
+        if !at_end? && cur == '@'.ord.to_u8
+          step
+          scan_ident_chars
+          make( TokenKind::ClassVar )
+        else
+          make( TokenKind::At )
+        end
+      when ':'
+        if !at_end? && cur == ':'.ord.to_u8
+          step; make( TokenKind::ColonColon )
+        else
+          make( TokenKind::Colon )
+        end
       when ','  then make( TokenKind::Comma )
       when ';'  then make( TokenKind::Semicolon )
       when '('  then make( TokenKind::LParen )
@@ -375,15 +391,21 @@ module Volt::Frontend
     end
 
     private def scan_ident_or_keyword : Token
+      scan_ident_chars
+      len  = ( @ptr - @sptr ).to_i32
+      text = ::String.new( @sptr, len )
+      kind = KEYWORDS[ text ]? || TokenKind::Ident
+      make( kind )
+    end
+
+    # Advances `@ptr` over a run of identifier characters (no token produced).
+    # Shared by the plain identifier scanner and the `@@class_var` scanner.
+    private def scan_ident_chars : Nil
       while !at_end?
         c = cur.unsafe_chr
         break unless c.alphanumeric? || cur == '_'.ord || cur == '?'.ord || cur == '!'.ord
         step
       end
-      len  = ( @ptr - @sptr ).to_i32
-      text = ::String.new( @sptr, len )
-      kind = KEYWORDS[ text ]? || TokenKind::Ident
-      make( kind )
     end
 
     private def scan_number : Token

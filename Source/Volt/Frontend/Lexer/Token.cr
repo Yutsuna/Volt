@@ -69,6 +69,10 @@ module Volt::Frontend
     Raise
     Abstract
     Macro
+    Private
+    Protected
+    Public
+    Extend
 
     # arithmetic
     Plus        # +
@@ -122,9 +126,11 @@ module Volt::Frontend
     Arrow       # ->
     SafeNav     # ?.
     Colon       # :
+    ColonColon  # ::
     Comma       # ,
     Semicolon   # ;
     At          # @
+    ClassVar    # @@name  (module/class variable; value holds the bare name)
     Question    # ?
     Hash        # #
     Amp         # &
