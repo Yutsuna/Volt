@@ -3,6 +3,7 @@ module Volt::Frontend
 
   class Scope
     getter parent : Scope?
+    getter vars : Hash(String, Type)
 
     def initialize( @parent : Scope? = nil )
       @vars = {} of String => Type
