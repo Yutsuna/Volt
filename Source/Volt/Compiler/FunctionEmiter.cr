@@ -750,29 +750,34 @@ module Volt::Compiler
 
     private def compile_if( expr : Frontend::IfExpr ) : Int32
       end_jumps = [] of Int32
+      n         = slot_count( expr.resolved_type || Frontend::Type::UNKNOWN )
+      dest      = alloc_block( n )
 
       creg    = compile_expr( expr.cond )
       to_next = emit_jump_placeholder( IR::Opcode::JMP_IF_FALSE, creg )
-      compile_body( expr.then_b )
+      then_reg = compile_body( expr.then_b )
+      place_value( dest, then_reg, n )
       end_jumps << emit_jump_placeholder( IR::Opcode::JMP, 0 )
       patch_jump( to_next, here )
 
       expr.elsifs.each do |cond, body|
         creg    = compile_expr( cond )
         to_next = emit_jump_placeholder( IR::Opcode::JMP_IF_FALSE, creg )
-        compile_body( body )
+        body_reg = compile_body( body )
+        place_value( dest, body_reg, n )
         end_jumps << emit_jump_placeholder( IR::Opcode::JMP, 0 )
         patch_jump( to_next, here )
       end
 
       if eb = expr.else_b
-        compile_body( eb )
+        else_reg = compile_body( eb )
+        place_value( dest, else_reg, n )
+      else
+        emit_abc( IR::Opcode::LOAD_NIL, dest, 0, 0 )
       end
 
       end_jumps.each { |j| patch_jump( j, here ) }
 
-      dest = alloc
-      emit_abc( IR::Opcode::LOAD_NIL, dest, 0, 0 )
       dest
     end
 
