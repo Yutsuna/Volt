@@ -298,9 +298,17 @@ module Volt::Frontend
     end
 
     # Field types affect layout sizing, so a locally-declared type referenced
-    # here must be fully resolved first (recursive, cycle-checked).
+    # here must be fully resolved first (recursive, cycle-checked) — but *only*
+    # a `struct` field, which embeds its target by value and so needs that
+    # target's layout packed before it can be sized. A `class`-typed field
+    # holds a reference (always pointer-sized, independent of the target's
+    # layout), so forcing its resolution here would misfire the cycle guard on
+    # legitimately self-referential data structures (linked lists, trees). Such
+    # a class field is left for the outer `collect` loop to resolve; deferring
+    # it is safe because `Type.from_annotation` only needs the `NominalType`
+    # instance (created eagerly in `declare`), not its layout.
     private def resolve_field_type( ann : ATypeNode ) : Type
-      if ann.is_a?( SimpleType ) && @decls.has_key?( ann.name )
+      if ann.is_a?( SimpleType ) && @decls[ ann.name ]?.is_a?( StructDecl )
         resolve( ann.name )
       end
       Type.from_annotation( ann, @nominals ) || begin

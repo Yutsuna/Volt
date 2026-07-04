@@ -42,6 +42,13 @@ module Volt::Frontend
       kind.object? || kind.struct?
     end
 
+    # `kind == TypeKind::Nil` spelled as a method. Never write `kind.nil?` for
+    # this test : that resolves to `Object#nil?` (always false), not the enum
+    # predicate — the classic dead-branch trap on enums with a `Nil` member.
+    def nil_type? : Bool
+      kind == TypeKind::Nil
+    end
+
     def reference? : Bool
       kind.object? || kind.str? || kind.regex? || kind.func?
     end
@@ -95,7 +102,9 @@ module Volt::Frontend
       when .bool?    then io << "Bool"
       when .str?     then io << "String"
       when .regex?   then io << "Regex"
-      when .nil?     then io << "Nil"
+      # Enum constant, not `.nil?` — that predicate resolves to `Object#nil?`
+      # (always false), which made this arm dead and `Nil` print as nothing.
+      when TypeKind::Nil then io << "Nil"
       when .object?  then io << "Object"
       when .struct?  then io << "Struct"
       when .unknown? then io << "?"
@@ -109,6 +118,18 @@ module Volt::Frontend
     # `class`/`struct` names (`Point`, `Device`, ...) resolve to their
     # `NominalType` once the semantic type-collection pass (Phase B) has run.
     def self.from_annotation( node : ATypeNode, nominals : Hash( String, NominalType )? = nil ) : Type?
+      # `T?` (NilableType) : supported for class references only, and *erased*
+      # to the underlying type — Tier-0 has no union types, but every class
+      # reference is implicitly nilable at runtime (a `Value` slot can always
+      # hold Nil), so the annotation is accepted as documentation and the
+      # checker separately allows `nil` wherever an Object reference is
+      # expected. `Int64?` / struct `?` stay unsupported: erasing those would
+      # promise a nil the unboxed representation can't deliver.
+      if node.is_a?( NilableType )
+        inner = from_annotation( node.inner, nominals )
+        return inner if inner && inner.kind.object?
+        return nil
+      end
       return nil unless node.is_a?( SimpleType )
       case node.name
       when "Int8"                          then INT8
