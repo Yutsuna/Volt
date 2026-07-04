@@ -38,16 +38,28 @@ module Volt::IR
   # Phase 4 (architecture #9 perf plan): explicit `{tag, payload}` instead of a
   # Crystal mixed union. `payload` holds the exact bit pattern of the value —
   # for `String`/`::Regex`/`HeapObject` this is the reference's raw undisguised
-  # pointer, never OR'd with tag bits (unlike NaN-boxing, which was rejected —
-  # see below). `Value` instances only ever live inside `Vm@stack`
-  # (`Pointer(IR::Value).malloc`, i.e. `GC.malloc`-backed), so Boehm's
-  # conservative scanner still finds and traces that pointer bit-for-bit; the
-  # struct's static field type (`UInt64`) doesn't matter to a conservative GC.
-  # This is exactly why NaN-boxing was out: disguising the pointer (OR-ing tag
-  # bits into it) corrupts the address the scanner would otherwise recognize.
-  # Always 16 bytes (1 tag byte + padding + 8 payload bytes), same as the prior
-  # union representation, but `as_*` accessors are unsafe bit-reinterprets
-  # instead of Crystal's runtime union type-checks.
+  # pointer, never OR'd with tag bits (unlike NaN-boxing, which was rejected:
+  # disguising the pointer corrupts the address the scanner would otherwise
+  # recognize). Always 16 bytes (1 tag byte + padding + 8 payload bytes), same
+  # as the prior union representation, but `as_*` accessors are unsafe
+  # bit-reinterprets instead of Crystal's runtime union type-checks.
+  #
+  # CRITICAL — `payload` MUST be typed `Pointer(Void)`, never `UInt64`. Boehm
+  # only scans memory that was *registered for scanning*, and Crystal decides
+  # that per allocation from the element type's fields: a struct with no
+  # pointer-typed field is "atomic" and every container of it
+  # (`Pointer(Value).malloc` for `Vm@stack`, `Array(Value)` buffers for
+  # `HeapObject#fields` / chunk constants) is allocated with
+  # `GC_malloc_atomic` — *unscanned*. With a `UInt64` payload, any
+  # String/Regex/HeapObject reachable only through a `Value` was invisible to
+  # the GC and collected while still live (manifested as: regex matches
+  # segfaulting inside pcre2, interpolated strings going empty, object fields
+  # resetting — all only once enough allocation pressure triggered a
+  # collection, which is why Int-only benchmarks never noticed). Typing the
+  # payload as a real pointer keeps the struct pointer-bearing, so every
+  # container of Values is allocated scanned; non-pointer payloads (Int/
+  # Float/Bool) just ride along as harmless fake pointers the conservative
+  # scanner ignores or, at worst, falsely retains.
   struct Value
     enum Tag : UInt8
       Int
@@ -60,22 +72,22 @@ module Volt::IR
     end
 
     getter tag : Tag
-    @payload : UInt64
+    @payload : Pointer( Void )
 
-    private def initialize( @tag : Tag, @payload : UInt64 )
+    private def initialize( @tag : Tag, @payload : Pointer( Void ) )
     end
 
-    def self.int( v : Int64 ) : Value           ; new( Tag::Int, v.unsafe_as( UInt64 ) )               ; end
-    def self.float( v : Float64 ) : Value       ; new( Tag::Float, v.unsafe_as( UInt64 ) )              ; end
-    def self.bool( v : Bool ) : Value           ; new( Tag::Bool, v ? 1_u64 : 0_u64 )                   ; end
-    def self.str( v : String ) : Value          ; new( Tag::Str, v.unsafe_as( UInt64 ) )                ; end
-    def self.regex( v : ::Regex ) : Value       ; new( Tag::Regex, v.unsafe_as( UInt64 ) )              ; end
-    def self.nil_value : Value                  ; new( Tag::Nil, 0_u64 )                                ; end
-    def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.unsafe_as( UInt64 ) )           ; end
+    def self.int( v : Int64 ) : Value           ; new( Tag::Int, v.unsafe_as( Pointer( Void ) ) )       ; end
+    def self.float( v : Float64 ) : Value       ; new( Tag::Float, v.unsafe_as( Pointer( Void ) ) )     ; end
+    def self.bool( v : Bool ) : Value           ; new( Tag::Bool, Pointer( Void ).new( v ? 1_u64 : 0_u64 ) ) ; end
+    def self.str( v : String ) : Value          ; new( Tag::Str, v.unsafe_as( Pointer( Void ) ) )       ; end
+    def self.regex( v : ::Regex ) : Value       ; new( Tag::Regex, v.unsafe_as( Pointer( Void ) ) )     ; end
+    def self.nil_value : Value                  ; new( Tag::Nil, Pointer( Void ).null )                 ; end
+    def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.unsafe_as( Pointer( Void ) ) )  ; end
 
     def as_i : Int64                      ; @payload.unsafe_as( Int64 )               ; end
     def as_f : Float64                    ; @payload.unsafe_as( Float64 )             ; end
-    def as_bool : Bool                    ; @payload != 0_u64                         ; end
+    def as_bool : Bool                    ; !@payload.null?                           ; end
     def as_s : String                     ; @payload.unsafe_as( String )              ; end
     def as_regex : ::Regex                ; @payload.unsafe_as( ::Regex )             ; end
     def as_object : HeapObject            ; @payload.unsafe_as( HeapObject )          ; end
@@ -85,7 +97,7 @@ module Volt::IR
 
     # Volt truthiness: only `nil` and `false` are falsy.
     def truthy? : Bool
-      !( @tag == Tag::Nil || ( @tag == Tag::Bool && @payload == 0_u64 ) )
+      !( @tag == Tag::Nil || ( @tag == Tag::Bool && @payload.null? ) )
     end
 
     # Surface form used by `puts` / `print`.
@@ -107,8 +119,11 @@ module Volt::IR
       numeric1 = t1 == Tag::Int || t1 == Tag::Float
       numeric2 = t2 == Tag::Int || t2 == Tag::Float
       if numeric1 && numeric2
-        n1 = t1 == Tag::Int ? as_i : as_f
-        n2 = t2 == Tag::Int ? other.as_i : other.as_f
+        if t1 == Tag::Int && t2 == Tag::Int
+          return as_i == other.as_i
+        end
+        n1 = t1 == Tag::Int ? as_i.to_f64 : as_f
+        n2 = t2 == Tag::Int ? other.as_i.to_f64 : other.as_f
         return n1 == n2
       end
       return false unless t1 == t2
