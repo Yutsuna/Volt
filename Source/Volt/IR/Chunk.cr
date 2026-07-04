@@ -23,6 +23,18 @@ module Volt::IR
       @call_sites    = [] of CallSite
     end
 
+    @raii_regs : Array( Int32 )? = nil
+
+    def raii_regs : Array( Int32 )
+      cached = @raii_regs
+      return cached if cached
+      computed = [] of Int32
+      @drop_map.entries.each { |e| computed << e.register.to_i32 }
+      @scope_tables.each { |t| computed.concat( t ) }
+      @raii_regs = computed
+      computed
+    end
+
     def disassemble( io : IO ) : Nil
       io << "chunk " << @name << " (arity=" << @arity
       io << ", regs=" << @num_registers << ")\n"
