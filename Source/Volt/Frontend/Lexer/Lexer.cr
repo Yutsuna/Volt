@@ -28,7 +28,11 @@ module Volt::Frontend
       "until"     => TokenKind::Until,
       "for"       => TokenKind::For,
       "break"     => TokenKind::Break,
-      "next"      => TokenKind::Next,
+      # NOTE: `next` is deliberately NOT reserved. Loop-continue was never
+      # implemented (no parse rule ever consumed TokenKind::Next), and
+      # reserving it blocks the single most common field name in linked
+      # data structures (`next : ListNode`). When continue lands, make it a
+      # contextual keyword (Ident "next" in statement position) instead.
       "return"    => TokenKind::Return,
       "and"       => TokenKind::And,
       "or"        => TokenKind::Or,
@@ -482,7 +486,9 @@ module Volt::Frontend
 
     private def division_allowed? : Bool
       case @last_kind
-      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
+      # `TokenKind::Nil` spelled as a constant: `.nil?` would call
+      # `Object#nil?` (always false), silently dropping `nil` from the set.
+      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
         true
       when .def?   # `def /` declares the division operator, never a regex
         true
