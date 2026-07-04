@@ -34,57 +34,91 @@ module Volt::IR
 
 
   # A runtime value for the Tier-0 VM.
-  # v0.1.0 uses a simple boxed tagged union. The architecture calls for untagged
-  # registers + NaN-boxing once the contract is stable : that is a later optimization
-  # and must keep this public API (the `as_*` accessors + constructors) intact.
+  #
+  # Phase 4 (architecture #9 perf plan): explicit `{tag, payload}` instead of a
+  # Crystal mixed union. `payload` holds the exact bit pattern of the value —
+  # for `String`/`::Regex`/`HeapObject` this is the reference's raw undisguised
+  # pointer, never OR'd with tag bits (unlike NaN-boxing, which was rejected —
+  # see below). `Value` instances only ever live inside `Vm@stack`
+  # (`Pointer(IR::Value).malloc`, i.e. `GC.malloc`-backed), so Boehm's
+  # conservative scanner still finds and traces that pointer bit-for-bit; the
+  # struct's static field type (`UInt64`) doesn't matter to a conservative GC.
+  # This is exactly why NaN-boxing was out: disguising the pointer (OR-ing tag
+  # bits into it) corrupts the address the scanner would otherwise recognize.
+  # Always 16 bytes (1 tag byte + padding + 8 payload bytes), same as the prior
+  # union representation, but `as_*` accessors are unsafe bit-reinterprets
+  # instead of Crystal's runtime union type-checks.
   struct Value
-    alias Raw = Int64 | Float64 | Bool | String | ::Regex | Nil | HeapObject
-
-    getter raw : Raw
-
-    def initialize( @raw : Raw )
+    enum Tag : UInt8
+      Int
+      Float
+      Bool
+      Str
+      Regex
+      Nil
+      Object
     end
 
-    def self.int( v : Int64 ) : Value                     ; new( v )    ; end
-    def self.float( v : Float64 ) : Value                 ; new( v )    ; end
-    def self.bool( v : Bool ) : Value                     ; new( v )    ; end
-    def self.str( v : String ) : Value                    ; new( v )    ; end
-    def self.regex( v : ::Regex ) : Value                 ; new( v )    ; end
-    def self.nil_value : Value                            ; new( nil )  ; end
-    def self.object( obj : HeapObject ) : Value           ; new( obj )  ; end
+    getter tag : Tag
+    @payload : UInt64
 
-    def as_i : Int64                      ; raw.as( Int64 )           ; end
-    def as_f : Float64                    ; raw.as( Float64 )         ; end
-    def as_bool : Bool                    ; raw.as( Bool )            ; end
-    def as_s : String                     ; raw.as( String )          ; end
-    def as_regex : ::Regex                ; raw.as( ::Regex )         ; end
-    def as_object : HeapObject            ; raw.as( HeapObject )      ; end
+    private def initialize( @tag : Tag, @payload : UInt64 )
+    end
+
+    def self.int( v : Int64 ) : Value           ; new( Tag::Int, v.unsafe_as( UInt64 ) )               ; end
+    def self.float( v : Float64 ) : Value       ; new( Tag::Float, v.unsafe_as( UInt64 ) )              ; end
+    def self.bool( v : Bool ) : Value           ; new( Tag::Bool, v ? 1_u64 : 0_u64 )                   ; end
+    def self.str( v : String ) : Value          ; new( Tag::Str, v.unsafe_as( UInt64 ) )                ; end
+    def self.regex( v : ::Regex ) : Value       ; new( Tag::Regex, v.unsafe_as( UInt64 ) )              ; end
+    def self.nil_value : Value                  ; new( Tag::Nil, 0_u64 )                                ; end
+    def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.unsafe_as( UInt64 ) )           ; end
+
+    def as_i : Int64                      ; @payload.unsafe_as( Int64 )               ; end
+    def as_f : Float64                    ; @payload.unsafe_as( Float64 )             ; end
+    def as_bool : Bool                    ; @payload != 0_u64                         ; end
+    def as_s : String                     ; @payload.unsafe_as( String )              ; end
+    def as_regex : ::Regex                ; @payload.unsafe_as( ::Regex )             ; end
+    def as_object : HeapObject            ; @payload.unsafe_as( HeapObject )          ; end
     def is_nil? : Bool
-      raw.nil?
+      @tag == Tag::Nil
     end
 
     # Volt truthiness: only `nil` and `false` are falsy.
     def truthy? : Bool
-      r = raw
-      !( r.nil? || r == false )
+      !( @tag == Tag::Nil || ( @tag == Tag::Bool && @payload == 0_u64 ) )
     end
 
     # Surface form used by `puts` / `print`.
     def to_display : String
-      r = raw
-      case r
-      when Nil        then "nil"
-      when ::Regex    then r.source
-      when HeapObject then "<object:#{r.type_id}>"
-      else                 r.to_s
+      case @tag
+      when Tag::Nil    then "nil"
+      when Tag::Regex  then as_regex.source
+      when Tag::Object then "<object:#{as_object.type_id}>"
+      when Tag::Str    then as_s
+      when Tag::Bool   then as_bool.to_s
+      when Tag::Float  then as_f.to_s
+      else                  as_i.to_s
       end
     end
 
     def ==( other : Value ) : Bool
-      r1 = raw
-      r2 = other.raw
-      return r1 == r2 if r1.is_a?( Number ) && r2.is_a?( Number )
-      raw == other.raw
+      t1 = @tag
+      t2 = other.tag
+      numeric1 = t1 == Tag::Int || t1 == Tag::Float
+      numeric2 = t2 == Tag::Int || t2 == Tag::Float
+      if numeric1 && numeric2
+        n1 = t1 == Tag::Int ? as_i : as_f
+        n2 = t2 == Tag::Int ? other.as_i : other.as_f
+        return n1 == n2
+      end
+      return false unless t1 == t2
+      case t1
+      when Tag::Bool   then as_bool   == other.as_bool
+      when Tag::Str    then as_s      == other.as_s
+      when Tag::Regex  then as_regex  == other.as_regex
+      when Tag::Object then as_object == other.as_object
+      else                  true # Nil == Nil
+      end
     end
 
   end
