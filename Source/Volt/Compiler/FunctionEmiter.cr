@@ -749,7 +749,12 @@ module Volt::Compiler
 
       is_f64 = numeric_float?( expr.left )
       dest   = alloc
-      emit_abc( binary_opcode( expr.op, is_f64 ), dest, lreg, rreg )
+      op     = binary_opcode( expr.op, is_f64 )
+      if ( expr.op.eq_eq? || expr.op.bang_eq? ) &&
+         expr.left.resolved_type.try( &.integer? ) && expr.right.resolved_type.try( &.integer? )
+        op = expr.op.eq_eq? ? IR::Opcode::EQ_INT : IR::Opcode::NE_INT
+      end
+      emit_abc( op, dest, lreg, rreg )
 
       if expr.op.amp_plus? || expr.op.amp_minus? || expr.op.amp_star? || expr.op.amp_star_star?
         if ( t = expr.resolved_type ) && t.integer? && t.int_bit_width < 64
