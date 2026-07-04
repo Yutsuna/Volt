@@ -28,11 +28,7 @@ module Volt::Frontend
       "until"     => TokenKind::Until,
       "for"       => TokenKind::For,
       "break"     => TokenKind::Break,
-      # NOTE: `next` is deliberately NOT reserved. Loop-continue was never
-      # implemented (no parse rule ever consumed TokenKind::Next), and
-      # reserving it blocks the single most common field name in linked
-      # data structures (`next : ListNode`). When continue lands, make it a
-      # contextual keyword (Ident "next" in statement position) instead.
+      "next"      => TokenKind::Next,
       "return"    => TokenKind::Return,
       "and"       => TokenKind::And,
       "or"        => TokenKind::Or,
