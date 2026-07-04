@@ -71,7 +71,7 @@ module Volt::Frontend
         BoolLit.new( true, tok.span )
       when .false?
         BoolLit.new( false, tok.span )
-      when .nil?
+      when TokenKind::Nil
         NilLit.new( tok.span )
       when .ident?
         Ident.new( tok.value, tok.span )
@@ -129,6 +129,8 @@ module Volt::Frontend
         ReturnExpr.new( expr_if_on_same_line, tok.span )
       when .break?
         BreakExpr.new( expr_if_on_same_line, tok.span )
+      when .next?
+        NextExpr.new( expr_if_on_same_line, tok.span )
       when .raise?
         RaiseExpr.new( parse_expr( Prec::Unary ), tok.span )
       else
@@ -373,11 +375,13 @@ module Volt::Frontend
 
     private def can_start_expr?( kind : TokenKind ) : Bool
       case kind
-      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?, .at?,
+      # `TokenKind::Nil` spelled as a constant: `.nil?` here would call
+      # `Object#nil?` (always false), silently dropping `nil` from the set.
+      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
             .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?,
             .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
             .if?, .unless?, .match?, .while?, .until?, .await?,
-            .return?, .break?, .raise?
+            .return?, .break?, .next?, .raise?
         true
       else
         false

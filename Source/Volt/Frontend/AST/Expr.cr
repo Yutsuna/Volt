@@ -270,6 +270,15 @@ module Volt::Frontend
   end
 
 
+  class NextExpr < AExpr
+    property value : AExpr?
+
+    def initialize( @value : AExpr?, loc : Span )
+      super( loc )
+    end
+  end
+
+
   class RaiseExpr < AExpr
     property value : AExpr
 
