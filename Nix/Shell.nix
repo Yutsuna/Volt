@@ -12,6 +12,7 @@ mkShell {
     python3
     php
     ruby
+    hyperfine
   ];
 
   buildInputs = [
