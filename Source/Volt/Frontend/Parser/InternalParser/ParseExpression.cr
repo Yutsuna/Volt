@@ -11,7 +11,7 @@ module Volt::Frontend
 
         if @paren_depth == 0 && @current.kind.newline?
           continuation = led_prec( @peek.kind )
-          break if continuation <= min_prec
+          break if continuation <= min_prec || continuation.modifier?
           advance
         end
 
@@ -138,6 +138,13 @@ module Volt::Frontend
 
     private def led( left : AExpr, op : Token ) : AExpr
       case op.kind
+      when .if?
+        cond = parse_expr( Prec::Modifier )
+        IfExpr.new( cond, [ left.as(ANode) ], [] of { AExpr, Array(ANode) }, nil, left.loc )
+      when .unless?
+        cond = parse_expr( Prec::Modifier )
+        neg = UnaryOp.new( TokenKind::Bang, cond, op.span )
+        IfExpr.new( neg, [ left.as(ANode) ], [] of { AExpr, Array(ANode) }, nil, left.loc )
       when .plus?, .minus?, .star?, .slash?, .percent?,
            .amp_plus?, .amp_minus?, .amp_star?, .slash_slash?,
            .amp?, .pipe?, .caret?, .lt_lt?, .gt_gt?,
@@ -203,6 +210,8 @@ module Volt::Frontend
 
     private def led_prec( kind : TokenKind ) : Prec
       case kind
+      when .if?, .unless?
+        Prec::Modifier
       when .eq?, .colon?, .plus_eq?, .minus_eq?, .star_eq?, .slash_eq?, .slash_slash_eq?,
            .percent_eq?, .pipe_eq?, .amp_eq?, .caret_eq?, .amp_plus_eq?
         Prec::Assignment
