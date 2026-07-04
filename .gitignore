@@ -11,3 +11,5 @@
 *.ll
 *.o
 .volt_history
+graphify-out/
+result/
