@@ -5,7 +5,8 @@ module Volt::Frontend
     def initialize( @sigs : SignatureTable, @bag : DiagnosticBag,
                     @types : Hash( String, TypeInfo ) = {} of String => TypeInfo,
                     @nominals : Hash( String, NominalType ) = {} of String => NominalType )
-      @self_type = nil.as( TypeInfo? )
+      @self_type  = nil.as( TypeInfo? )
+      @loop_depth = 0
     end
 
     def check_function( fn : FuncDecl, sig : FuncSig ) : Nil
@@ -87,6 +88,18 @@ module Volt::Frontend
         Type::UNKNOWN
       when MethodCall then infer_method_call( expr, scope )
       when ReturnExpr
+        if v = expr.value
+          infer( v, scope )
+        end
+        Type::NIL
+      when BreakExpr
+        @bag << Catalog::Sema.break_outside_loop( expr.loc ) if @loop_depth == 0
+        if v = expr.value
+          infer( v, scope )
+        end
+        Type::NIL
+      when NextExpr
+        @bag << Catalog::Sema.next_outside_loop( expr.loc ) if @loop_depth == 0
         if v = expr.value
           infer( v, scope )
         end
@@ -479,6 +492,11 @@ module Volt::Frontend
     private def type_compatible?( declared : Type, actual : Type ) : Bool
       return true if declared.kind.unknown? || actual.kind.unknown?
       return true if declared == actual
+      # Class references are implicitly nilable (Java-style) : `nil` is
+      # assignable wherever an Object reference is declared. `T?` annotations
+      # erase to `T` (see `Type.from_annotation`), so this single rule covers
+      # both spellings. Value types (Int/Float/Bool/struct) stay non-nilable.
+      return true if actual.nil_type? && declared.kind.object?
       if declared.is_a?( NominalType ) && actual.is_a?( NominalType )
         cur = actual.name
         while cur
@@ -545,6 +563,16 @@ module Volt::Frontend
         end
 
         if lt.numeric? && rt.numeric?
+          return Type::BOOL
+        end
+
+        # `x == nil` / `x != nil` : always a legitimate question against a
+        # class reference (implicitly nilable) — the runtime compares tags.
+        if lt.nil_type? || rt.nil_type?
+          other = lt.nil_type? ? rt : lt
+          unless other.kind.object? || other.nil_type?
+            @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
+          end
           return Type::BOOL
         end
 
@@ -659,7 +687,9 @@ module Volt::Frontend
 
     private def infer_while( expr : WhileExpr, scope : Scope ) : Type
       infer( expr.cond, scope )
+      @loop_depth += 1
       check_body( expr.body, scope )
+      @loop_depth -= 1
       Type::NIL
     end
 
