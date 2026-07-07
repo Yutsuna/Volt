@@ -674,15 +674,17 @@ module Volt::Frontend
 
     private def infer_if( expr : IfExpr, scope : Scope ) : Type
       infer( expr.cond, scope )
-      check_body( expr.then_b, scope )
+      then_ty = check_body( expr.then_b, scope )
       expr.elsifs.each do |cond, body|
         infer( cond, scope )
         check_body( body, scope )
       end
       if eb = expr.else_b
-        check_body( eb, scope )
+        else_ty = check_body( eb, scope )
+        then_ty
+      else
+        Type::NIL
       end
-      Type::NIL
     end
 
     private def infer_while( expr : WhileExpr, scope : Scope ) : Type
