@@ -48,6 +48,10 @@ def test_ternary(x : Int32) -> Int32
   x * 2 > 10 ? x * 3 : x + 5
 end
 
+def test_ternary_if_else(x : Int32) -> Int32
+  x * 2 > 10 if x * 3 else x + 5
+end
+
 def run_all_tests -> Void
   assert( test_break_until() == 50 )
 
@@ -63,7 +67,10 @@ def run_all_tests -> Void
   assert( test_if_block(8) == 5 )
 
   assert( test_ternary(10) == 30 )
+  assert( test_ternary_if_else(10) == 30 )
+
   assert( test_ternary(3) == 8 )
+  assert( test_ternary_if_else(3) == 8 )
 end
 
 run_all_tests
