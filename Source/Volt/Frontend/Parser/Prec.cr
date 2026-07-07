@@ -5,21 +5,22 @@ module Volt::Frontend
     None       =  0
     Modifier   =  1   # postfix if / unless / while / until
     Assignment =  2   # =  += -= etc.
-    Or         =  3   # or  ||
-    And        =  4   # and  &&
-    Equality   =  5   # ==  !=  ===  =~  !~
-    Comparison =  6   # <  >  <=  >=  <=>
-    Range      =  7   # ..  ...
-    Pipe       =  8   # |>
-    BitOr      =  9   # |  ^
-    BitAnd     = 10   # &
-    Shift      = 11   # <<  >>
-    Term       = 12   # +  -  &+  &-
-    Factor     = 13   # *  /  //  %  &*
-    Power      = 14   # **  &**
-    Unary      = 15   # !  not  -(prefix)  ~  +(prefix)
-    Call       = 16   # ()  []  .  ?.
-    Primary    = 17
+    Ternary    =  3   # ? :
+    Or         =  4   # or  ||
+    And        =  5   # and  &&
+    Equality   =  6   # ==  !=  ===  =~  !~
+    Comparison =  7   # <  >  <=  >=  <=>
+    Range      =  8   # ..  ...
+    Pipe       =  9   # |>
+    BitOr      = 10   # |  ^
+    BitAnd     = 11   # &
+    Shift      = 12   # <<  >>
+    Term       = 13   # +  -  &+  &-
+    Factor     = 14   # *  /  //  %  &*
+    Power      = 15   # **  &**
+    Unary      = 16   # !  not  -(prefix)  ~  +(prefix)
+    Call       = 17   # ()  []  .  ?.
+    Primary    = 18
   end
 
 
