@@ -69,6 +69,19 @@ module Volt::Frontend
   end
 
 
+  # super( args ) | super — calls the nearest ancestor's implementation of the
+  # enclosing method. A bare `super` (implicit_args) forwards the enclosing
+  # method's parameters; Semantic materialises them into `args`.
+  class SuperCall < AExpr
+    property args          : Array( AExpr )
+    property implicit_args : Bool
+
+    def initialize( @args : Array( AExpr ), @implicit_args : Bool, loc : Span )
+      super( loc )
+    end
+  end
+
+
   # @name instance-variable reference (valid only inside instance methods)
   class InstanceVar < AExpr
     property name : String
