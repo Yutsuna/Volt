@@ -39,9 +39,27 @@ module Volt::Compiler
         next_idx += 1
       end
 
+      # Collect classes that need a synthesized destructor chunk
+      dtor_classes = @typed.types.values.select do |info|
+        info.kind.class? && ( @func_index[ "#{info.name}#finalize" ]? || @func_index[ "#{info.name}#__drop_fields" ]? )
+      end
+      dtor_classes.each do |info|
+        @func_index[ "#{info.name}#__dtor" ] = next_idx
+        next_idx += 1
+      end
+
       chunks = @typed.functions.map { |fn| compile_function( fn ) }
       chunks.concat( method_jobs.map { |mangled, owner, decl, sig| compile_method( mangled, owner, decl, sig ) } )
       chunks.concat( drop_fields_types.map { |info| compile_drop_fields( info ) } )
+
+      # Compile synthesized destructor chunks
+      dtor_chunks = dtor_classes.map do |info|
+        finalize_idx = @func_index[ "#{info.name}#finalize" ]? || -1
+        drop_idx     = @func_index[ "#{info.name}#__drop_fields" ]? || -1
+        compile_dtor( info.name, finalize_idx, drop_idx )
+      end
+      chunks.concat( dtor_chunks )
+
       chunks << compile_main
 
       Unit.new( chunks, chunks.size - 1, @natives.natives, build_classes, @global_index.size )
@@ -120,7 +138,8 @@ module Volt::Compiler
         slots        = info.reg_layout.try( &.total_size ) || 0
         finalize_idx = @func_index[ "#{name}#finalize" ]? || -1
         drop_idx     = @func_index[ "#{name}#__drop_fields" ]? || -1
-        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, build_vtable( info ) )
+        dtor_idx     = @func_index[ "#{name}#__dtor" ]? || -1
+        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, dtor_idx, build_vtable( info ) )
       end
     end
 
@@ -205,6 +224,27 @@ module Volt::Compiler
       info.layout.not_nil!.fields.select { |f| droppable?( f ) }.each { |f| emitter.emit_drop_field( info, f ) }
       emitter.emit_ret_nil
       emitter.finish
+    end
+
+    private def compile_dtor( class_name : String, finalize_idx : Int32, drop_idx : Int32 ) : IR::Chunk
+      code = [] of IR::Instruction
+      
+      if finalize_idx >= 0
+        code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
+        code << IR::Instruction.abc( IR::Opcode::CALL, 1, finalize_idx, 1 )
+      end
+
+      if drop_idx >= 0
+        code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
+        code << IR::Instruction.abc( IR::Opcode::CALL, 1, drop_idx, 1 )
+      end
+
+      code << IR::Instruction.abx( IR::Opcode::RET, 0, 0 )
+
+      chunk = IR::Chunk.new( "#{class_name}#__dtor", 1 )
+      chunk.num_registers = 3
+      chunk.code = code
+      chunk
     end
 
     # `FieldSlot#is_ref` marks every reference-kind field (architecture #4.2's

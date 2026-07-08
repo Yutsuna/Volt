@@ -47,6 +47,14 @@ module Volt::VM
       @chunk_table_size = 0
       @chunk_index_of   = {} of UInt64 => Int32
       @chunk_raii_keep  = [] of Bytes   # keeps raii-reg buffers alive for the GC
+      @chunk_feedback_keep = [] of Pointer( LibVoltDispatch::CallFeedback )
+
+      # Stable FRClass heap boxes and flat class_index for FFI
+      @class_boxes         = {} of Int32 => Pointer( LibVoltDispatch::RClass )
+      @class_index         = Pointer( Pointer( LibVoltDispatch::RClass ) ).null
+      @class_index_size    = 0
+      @class_vtable_keep   = [] of Array( Int32 )
+      @class_needs_rebuild = true
     end
 
     #--------------------------------------------------------------------------
@@ -63,6 +71,7 @@ module Volt::VM
       n   = @unit.chunks.size
       tbl = Pointer( LibVoltDispatch::ChunkInfo ).malloc( n.to_u64 )
       keep     = Array( Bytes ).new( n )
+      feedback_keep = Array( Pointer( LibVoltDispatch::CallFeedback ) ).new( n )
       index_of = {} of UInt64 => Int32
 
       @unit.chunks.each_with_index do |c, i|
@@ -70,6 +79,17 @@ module Volt::VM
         buf  = Bytes.new( raii.size )
         raii.each_with_index { |r, k| buf[ k ] = r.to_u8 }
         keep << buf
+
+        fb_size = c.code.size
+        if fb_size > 0
+          fb = Pointer( LibVoltDispatch::CallFeedback ).malloc( fb_size )
+          fb_size.times do |k|
+            fb[ k ] = LibVoltDispatch::CallFeedback.new( last_class_id: -1, hit_count: 0 )
+          end
+        else
+          fb = Pointer( LibVoltDispatch::CallFeedback ).null
+        end
+        feedback_keep << fb
 
         info = LibVoltDispatch::ChunkInfo.new
         info.code            = c.code.to_unsafe.as( Void* )
@@ -79,20 +99,64 @@ module Volt::VM
         info.raii_regs       = buf.to_unsafe.as( Void* )
         info.raii_regs_count  = raii.size
         info.has_drop_map    = c.drop_map.empty? ? 0_u8 : 1_u8
+        info.feedback        = fb.as( Void* )
         tbl[ i ] = info
 
         index_of[ c.object_id ] = i
       end
 
-      @chunk_table      = tbl
-      @chunk_table_size = n
-      @chunk_index_of   = index_of
-      @chunk_raii_keep  = keep
+      @chunk_table         = tbl
+      @chunk_table_size    = n
+      @chunk_index_of      = index_of
+      @chunk_raii_keep     = keep
+      @chunk_feedback_keep = feedback_keep
+    end
+
+    private def ensure_class_table : Nil
+      return if !@class_needs_rebuild && !@class_index.null?
+      build_class_table
+    end
+
+    private def build_class_table : Nil
+      max_id = -1
+      @unit.classes.each do |c|
+        max_id = c.type_id if c.type_id > max_id
+      end
+
+      n = max_id + 1
+      n = 0 if n < 0
+
+      idx = Pointer( Pointer( LibVoltDispatch::RClass ) ).malloc( n ) { Pointer( LibVoltDispatch::RClass ).null }
+      vtable_keep = [] of Array( Int32 )
+
+      @unit.classes.each do |c|
+        box = @class_boxes[ c.type_id ]?
+        if box.nil?
+          box = Pointer( LibVoltDispatch::RClass ).malloc( 1_u64 )
+          @class_boxes[ c.type_id ] = box
+        end
+
+        vtable_keep << c.vtable
+
+        box.value.type_id     = c.type_id
+        box.value.slot_count  = c.slot_count
+        box.value.dtor_index  = c.dtor_index
+        box.value.vtable_size = c.vtable.size
+        box.value.vtable      = c.vtable.to_unsafe
+
+        idx[ c.type_id ] = box
+      end
+
+      @class_index          = idx
+      @class_index_size     = n
+      @class_vtable_keep    = vtable_keep
+      @class_needs_rebuild  = false
     end
 
     #--------------------------------------------------------------------------
 
     def extend( unit : Compiler::Unit ) : Nil
+      @class_needs_rebuild = true
       @unit.chunks.concat( unit.chunks )
       @unit.classes.concat( unit.classes )
       unit.classes.each { |c| @registry.register( c ) }
@@ -108,6 +172,15 @@ module Volt::VM
         additional = @unit.num_globals - @globals.size
         @globals.concat( Array( IR::Value ).new( additional, IR::Value.nil_value ) )
       end
+    end
+
+    def allocate_object_for_c( type_id : Int32, out_val : IR::Value* ) : Nil
+      slots = @registry[ type_id ]?.try( &.slot_count ) || 0
+      obj = IR::HeapObject.allocate( type_id, slots )
+      if box = @class_boxes[ type_id ]?
+        obj.class_ref = box.as( Void* )
+      end
+      out_val.value = IR::Value.object( obj )
     end
 
     def call_chunk_at( index : Int32, args : Array( IR::Value ) = [] of IR::Value ) : Array( IR::Value )
@@ -207,6 +280,7 @@ module Volt::VM
     # results are written to `@stack[base - 1 ..]` and the slot count returned.
     private def execute_index( chunk_index : Int32, base : Int32 ) : Int32
       ensure_chunk_table
+      ensure_class_table
       chunk     = @unit.chunks[ chunk_index ]
       saved_top = @stack_top
       @stack_top = base + chunk.num_registers
@@ -234,6 +308,14 @@ module Volt::VM
       ctx.ip             = 0
       ctx.frame_depth    = 0
       ctx.stack_top      = @stack_top
+      ctx.class_index    = @class_index.as( Void* )
+      ctx.class_count    = @class_index_size
+      ctx.user_data      = Pointer( Void ).new( self.object_id )
+      ctx.alloc_object   = ->( user_data : Void*, type_id : Int32, out_val : Void* ) {
+        vm = user_data.unsafe_as( Vm )
+        vm.allocate_object_for_c( type_id, out_val.as( IR::Value* ) )
+        nil
+      }
 
       begin
         while true
@@ -250,6 +332,18 @@ module Volt::VM
             raise OverflowError.new
           when DispatchStatus::ERR_STACKOVER
             raise VoltRuntimeError.new( "stack overflow" )
+          when DispatchStatus::ERR_NILRECEIVER
+            raise VoltRuntimeError.new( "nil receiver" )
+          when DispatchStatus::ERR_NOMETHOD
+            ins  = IR::Instruction.new( ctx.stack.as( UInt32* )[ ctx.base + ctx.ip ] )
+            recv = ctx.stack.as( IR::Value* )[ ctx.base + ins.a + 1 ]
+            obj  = recv.as_object
+            rclass = @registry[ obj.type_id ]?
+            if rclass
+              raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
+            else
+              raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" )
+            end
           when DispatchStatus::ERR_BADOP
             raise VoltRuntimeError.new( "opcode #{IR::Opcode.new( ctx.cold_op.to_u8 )} is not yet implemented" )
           else

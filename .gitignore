@@ -13,3 +13,5 @@
 .volt_history
 graphify-out/
 result/
+libvoltvm.so
+compile_commands.json

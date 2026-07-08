@@ -5,10 +5,19 @@
 
 set -euo pipefail
 
-readonly DIR="$(cd "$(dirname "$0")" && pwd)"
+readonly C_DIR="$(cd "$(dirname "$0")" && pwd)"
+readonly C_INC_DIR="$C_DIR/Include"
+readonly C_FILES="$(find "$C_DIR" -type f -name '*.c')"
+readonly C_FLAGS="-O3 -fPIC -fno-gcse -fno-crossjumping -std=c23"
+readonly C_INC="-I$C_INC_DIR"
+readonly C_WARNS="-Wall -Wextra -Wno-unused-parameter -Wconversion -Werror"
 
-cc -O3 -fPIC -fno-gcse -fno-crossjumping \
-   -Wall -Wextra \
-   -c "$DIR/Dispatch.c" -o "$DIR/Dispatch.o"
+readonly LIB_VM="libvoltvm"
 
-echo "built $DIR/Dispatch.o"
+for FILE in $C_FILES; do
+    cc $C_FLAGS $C_WARNS -c "$FILE" -o "${FILE%.*}.o" $C_INC
+done
+
+readonly O_FILES="${C_FILES//.c/.o}"
+
+cc $C_FLAGS $C_WARNS -shared -o "$C_DIR/$LIB_VM.so" $O_FILES

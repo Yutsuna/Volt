@@ -15,20 +15,43 @@ module Volt::IR
   # pointers). It's kept as an opaque `Void*` here rather than typed as
   # `RClass` directly: IR has no dependencies (architecture #10 build order),
   # so the object-model layer casts it back once allocation is wired.
-  class HeapObject
-    getter type_id    : Int32
-    getter? destroyed : Bool
-    property fields    : Array( Value )
-    property class_ref : Pointer( Void )
+  struct HeapObject
+    HEADER_BYTES = 16
 
-    def initialize( @type_id : Int32, slot_count : Int32 = 0 )
-      @destroyed = false
-      @fields    = Array( Value ).new( slot_count ) { Value.nil_value }
-      @class_ref = Pointer( Void ).null
+    def initialize( @ptr : Pointer( Void ) )
     end
 
-    def destroy
-      @destroyed = true
+    def self.allocate( type_id : Int32, slot_count : Int32 ) : HeapObject
+      bytes = HEADER_BYTES + slot_count * sizeof( Value )
+      ptr   = GC.malloc( bytes.to_u64 )
+      ptr.as( Int32* ).value = type_id
+      ( ptr + 4 ).as( UInt8* ).value = 0_u8
+      ( ptr + 8 ).as( Pointer( Void )* ).value = Pointer( Void ).null
+
+      fields_ptr = ( ptr + HEADER_BYTES ).as( Pointer( Value ) )
+      slot_count.times do |i|
+        fields_ptr[ i ] = Value.nil_value
+      end
+
+      new( ptr )
+    end
+
+    def to_unsafe  : Pointer( Void )         ; @ptr                                      ; end
+    def type_id    : Int32                  ; @ptr.as( Int32* ).value                   ; end
+    def destroyed? : Bool                   ; ( @ptr + 4 ).as( UInt8* ).value != 0      ; end
+    def destroyed  : Bool                   ; destroyed?                                ; end
+    def class_ref  : Pointer( Void )         ; ( @ptr + 8 ).as( Pointer( Void )* ).value ; end
+
+    def class_ref=( val : Pointer( Void ) )
+      ( @ptr + 8 ).as( Pointer( Void )* ).value = val
+    end
+
+    def destroy : Nil
+      ( @ptr + 4 ).as( UInt8* ).value = 1_u8
+    end
+
+    def fields : Pointer( Value )
+      ( @ptr + HEADER_BYTES ).as( Pointer( Value ) )
     end
   end
 
@@ -83,14 +106,14 @@ module Volt::IR
     def self.str( v : String ) : Value          ; new( Tag::Str, v.unsafe_as( Pointer( Void ) ) )       ; end
     def self.regex( v : ::Regex ) : Value       ; new( Tag::Regex, v.unsafe_as( Pointer( Void ) ) )     ; end
     def self.nil_value : Value                  ; new( Tag::Nil, Pointer( Void ).null )                 ; end
-    def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.unsafe_as( Pointer( Void ) ) )  ; end
+    def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.to_unsafe )                     ; end
 
     def as_i : Int64                      ; @payload.unsafe_as( Int64 )               ; end
     def as_f : Float64                    ; @payload.unsafe_as( Float64 )             ; end
     def as_bool : Bool                    ; !@payload.null?                           ; end
     def as_s : String                     ; @payload.unsafe_as( String )              ; end
     def as_regex : ::Regex                ; @payload.unsafe_as( ::Regex )             ; end
-    def as_object : HeapObject            ; @payload.unsafe_as( HeapObject )          ; end
+    def as_object : HeapObject            ; HeapObject.new( @payload )                ; end
     def is_nil? : Bool
       @tag == Tag::Nil
     end
