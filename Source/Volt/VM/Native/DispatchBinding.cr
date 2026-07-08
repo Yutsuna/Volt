@@ -1,14 +1,7 @@
 require "../../IR/Value"
 
-# FFI binding to the C direct-threaded dispatch core (Source/C/Dispatch.c).
-#
-# The `.o` is produced by `Source/C/Build.sh` and linked in via `ldflags`. The
-# pointer fields below are declared `Void*` on purpose: only raw addresses cross
-# the boundary (the C side gives them their real `FValue* / FChunkInfo* / ...`
-# types via Dispatch.h), which keeps the Crystal `lib` free of struct-ABI
-# friction while staying layout-identical (a pointer is a pointer). The scalar
-# `Int32`/`UInt8` fields are read back after each call to drive the loop.
-@[Link(ldflags: "#{__DIR__}/../../../C/Dispatch.o")]
+# FFI binding to the C direct-threaded dispatch core (Source/C).
+@[Link(ldflags: "#{__DIR__}/../../../C/libvoltvm.so")]
 lib LibVoltDispatch
   # Mirror of C `FChunkInfo` (Dispatch.h) — one per Unit chunk.
   struct ChunkInfo
