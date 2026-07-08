@@ -143,11 +143,11 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 44 ] = &&LCold;        /* MATCH_STR     */
 		DispatchTable[ 45 ] = &&LCold;        /* NOT_MATCH_STR */
 		DispatchTable[ 46 ] = &&LCold;        /* EQ_CASE       */
-		DispatchTable[ 47 ] = &&LCold;        /* INIT          */
+		DispatchTable[ 47 ] = &&LInitObj;     /* INIT          */
 		DispatchTable[ 48 ] = &&LCold;        /* DROP          */
 		DispatchTable[ 49 ] = &&LCold;        /* DROP_SCOPE    */
 		DispatchTable[ 50 ] = &&LCold;        /* RAISE         */
-		DispatchTable[ 51 ] = &&LCold;        /* INIT_OBJ      */
+		DispatchTable[ 51 ] = &&LInitObj;     /* INIT_OBJ      */
 		DispatchTable[ 52 ] = &&LLoadField;   /* LOAD_FIELD    */
 		DispatchTable[ 53 ] = &&LStoreField;  /* STORE_FIELD   */
 		DispatchTable[ 54 ] = &&LCold;        /* CALL_METHOD   */
@@ -472,6 +472,12 @@ LLoadGlobal:
 	DISPATCH();
 LStoreGlobal:
 	Ctx->Globals[ OP_BX ] = Regs[ OP_A ];
+	DISPATCH();
+
+LInitObj:
+	{
+		Ctx->AllocObject( Ctx->UserData, (Int32)OP_BX, &Regs[ OP_A ] );
+	}
 	DISPATCH();
 
 LLoadField:
