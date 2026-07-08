@@ -47,9 +47,13 @@ module Volt::VM
     private def destroy_object( obj : IR::HeapObject )
       return if obj.destroyed?
       if rclass = @registry[ obj.type_id ]?
-        self_arg = [ IR::Value.object( obj ) ]
-        call_chunk( @unit.chunks[ rclass.finalize_index ], self_arg ) if rclass.finalize_index >= 0
-        call_chunk( @unit.chunks[ rclass.drop_fields_index ], self_arg ) if rclass.drop_fields_index >= 0
+        if rclass.dtor_index >= 0
+          call_chunk( @unit.chunks[ rclass.dtor_index ], [ IR::Value.object( obj ) ] )
+        else
+          self_arg = [ IR::Value.object( obj ) ]
+          call_chunk( @unit.chunks[ rclass.finalize_index ], self_arg ) if rclass.finalize_index >= 0
+          call_chunk( @unit.chunks[ rclass.drop_fields_index ], self_arg ) if rclass.drop_fields_index >= 0
+        end
       end
       obj.destroy
     end
