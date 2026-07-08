@@ -120,8 +120,8 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 21 ] = &&LLeF64;
 		DispatchTable[ 22 ] = &&LGtF64;
 		DispatchTable[ 23 ] = &&LGeF64;
-		DispatchTable[ 24 ] = &&LCold;        /* EQ            */
-		DispatchTable[ 25 ] = &&LCold;        /* NE            */
+		DispatchTable[ 24 ] = &&LEq;          /* EQ            */
+		DispatchTable[ 25 ] = &&LNe;          /* NE            */
 		DispatchTable[ 26 ] = &&LEqInt;
 		DispatchTable[ 27 ] = &&LNeInt;
 		DispatchTable[ 28 ] = &&LNot;
@@ -144,7 +144,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 45 ] = &&LCold;        /* NOT_MATCH_STR */
 		DispatchTable[ 46 ] = &&LCold;        /* EQ_CASE       */
 		DispatchTable[ 47 ] = &&LInitObj;     /* INIT          */
-		DispatchTable[ 48 ] = &&LCold;        /* DROP          */
+		DispatchTable[ 48 ] = &&LDrop;        /* DROP          */
 		DispatchTable[ 49 ] = &&LCold;        /* DROP_SCOPE    */
 		DispatchTable[ 50 ] = &&LCold;        /* RAISE         */
 		DispatchTable[ 51 ] = &&LInitObj;     /* INIT_OBJ      */
@@ -352,6 +352,119 @@ LGtF64:
 LGeF64:
 	Regs[ OP_A ] = MakeBool( AsF64( Regs[ OP_B ] ) >= AsF64( Regs[ OP_C ] ) );
 	DISPATCH();
+
+LEq:
+	{
+		FValue V1 = Regs[ OP_B ];
+		FValue V2 = Regs[ OP_C ];
+		Int32 Result = 0;
+		if ( V1.Tag == V2.Tag && V1.Payload == V2.Payload )
+		{
+			Result = 1;
+		}
+		else
+		{
+			Int32 Num1 = ( V1.Tag == VAL_INT || V1.Tag == VAL_FLOAT );
+			Int32 Num2 = ( V2.Tag == VAL_INT || V2.Tag == VAL_FLOAT );
+			if ( Num1 && Num2 )
+			{
+				if ( V1.Tag == VAL_INT && V2.Tag == VAL_INT )
+				{
+					Result = ( AsInt( V1 ) == AsInt( V2 ) );
+				}
+				else
+				{
+					double D1 = V1.Tag == VAL_INT ? (double)AsInt( V1 ) : AsF64( V1 );
+					double D2 = V2.Tag == VAL_INT ? (double)AsInt( V2 ) : AsF64( V2 );
+					Result = ( D1 == D2 );
+				}
+			}
+			else if ( V1.Tag != V2.Tag )
+			{
+				Result = 0;
+			}
+			else
+			{
+				switch ( V1.Tag )
+				{
+				case VAL_BOOL:
+					Result = ( V1.Payload == V2.Payload );
+					break;
+				case VAL_OBJECT:
+					Result = ( V1.Payload == V2.Payload );
+					break;
+				case VAL_NIL:
+					Result = 1;
+					break;
+				case VAL_STR:
+				case VAL_REGEX:
+					goto LCold;
+				default:
+					Result = 0;
+					break;
+				}
+			}
+		}
+		Regs[ OP_A ] = MakeBool( Result );
+	}
+	DISPATCH();
+
+LNe:
+	{
+		FValue V1 = Regs[ OP_B ];
+		FValue V2 = Regs[ OP_C ];
+		Int32 Result = 0;
+		if ( V1.Tag == V2.Tag && V1.Payload == V2.Payload )
+		{
+			Result = 0;
+		}
+		else
+		{
+			Int32 Num1 = ( V1.Tag == VAL_INT || V1.Tag == VAL_FLOAT );
+			Int32 Num2 = ( V2.Tag == VAL_INT || V2.Tag == VAL_FLOAT );
+			if ( Num1 && Num2 )
+			{
+				if ( V1.Tag == VAL_INT && V2.Tag == VAL_INT )
+				{
+					Result = ( AsInt( V1 ) != AsInt( V2 ) );
+				}
+				else
+				{
+					double D1 = V1.Tag == VAL_INT ? (double)AsInt( V1 ) : AsF64( V1 );
+					double D2 = V2.Tag == VAL_INT ? (double)AsInt( V2 ) : AsF64( V2 );
+					Result = ( D1 != D2 );
+				}
+			}
+			else if ( V1.Tag != V2.Tag )
+			{
+				Result = 1;
+			}
+			else
+			{
+				switch ( V1.Tag )
+				{
+				case VAL_BOOL:
+					Result = ( V1.Payload != V2.Payload );
+					break;
+				case VAL_OBJECT:
+					Result = ( V1.Payload != V2.Payload );
+					break;
+				case VAL_NIL:
+					Result = 0;
+					break;
+				case VAL_STR:
+				case VAL_REGEX:
+					goto LCold;
+				default:
+					Result = 1;
+					break;
+				}
+			}
+		}
+		Regs[ OP_A ] = MakeBool( Result );
+	}
+	DISPATCH();
+
 LEqInt:
 	Regs[ OP_A ] = MakeBool( AsInt( Regs[ OP_B ] ) == AsInt( Regs[ OP_C ] ) );
 	DISPATCH();
@@ -477,6 +590,60 @@ LStoreGlobal:
 LInitObj:
 	{
 		Ctx->AllocObject( Ctx->UserData, (Int32)OP_BX, &Regs[ OP_A ] );
+	}
+	DISPATCH();
+
+LDrop:
+	{
+		FValue Val = Regs[ OP_A ];
+		if ( Val.Tag == VAL_OBJECT && Val.Payload != NULL )
+		{
+			FHeapObject* Obj = (FHeapObject*)Val.Payload;
+			if ( !Obj->Destroyed )
+			{
+				FRClass* Class = (FRClass*)Obj->ClassRef;
+				if ( Class != NULL && Class->DtorIndex >= 0 )
+				{
+					Int32 DtorIndex = Class->DtorIndex;
+					const FChunkInfo* Dtor = &Chunks[ DtorIndex ];
+
+					if ( FrameDepth >= Ctx->FrameCap )
+					{
+						SAVE_CURSOR();
+						return VM_ERR_STACKOVERFLOW;
+					}
+
+					Ctx->Frames[ FrameDepth ].ChunkIndex = CurChunk;
+					Ctx->Frames[ FrameDepth ].Base       = Base;
+					Ctx->Frames[ FrameDepth ].Ip         = Ip;
+					FrameDepth += 1;
+
+					Int32 DtorBase = StackTop;
+					if ( DtorBase + Dtor->NumRegisters > Ctx->StackCapacity )
+					{
+						SAVE_CURSOR();
+						return VM_ERR_STACKOVERFLOW;
+					}
+
+					Stack[ DtorBase ] = Val;
+
+					CurChunk = DtorIndex;
+					Base     = DtorBase;
+					REBIND();
+					StackTop = Base + Dtor->NumRegisters;
+					Ip       = 0;
+
+					for ( Int32 K = 0; K < Dtor->RaiiRegsCount; ++K )
+					{
+						Regs[ Dtor->RaiiRegs[ K ] ] = MakeNil();
+					}
+				}
+
+				Obj->Destroyed = 1;
+			}
+		}
+
+		Regs[ OP_A ] = MakeNil();
 	}
 	DISPATCH();
 
