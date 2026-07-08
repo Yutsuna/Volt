@@ -1,6 +1,7 @@
 {
   "file_types": {
     "Crystal": ["cr", "vl"],
+    "C": ["c", "h", "inc"],
   },
   "load_direnv": "shell_hook",
 }

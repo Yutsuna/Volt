@@ -1,24 +1,18 @@
 require "../../IR/Value"
 
-# FFI binding to the C direct-threaded dispatch core (Source/C/Dispatch.c).
-#
-# The `.o` is produced by `Source/C/Build.sh` and linked in via `ldflags`. The
-# pointer fields below are declared `Void*` on purpose: only raw addresses cross
-# the boundary (the C side gives them their real `FValue* / FChunkInfo* / ...`
-# types via Dispatch.h), which keeps the Crystal `lib` free of struct-ABI
-# friction while staying layout-identical (a pointer is a pointer). The scalar
-# `Int32`/`UInt8` fields are read back after each call to drive the loop.
-@[Link(ldflags: "#{__DIR__}/../../../C/Dispatch.o")]
+# FFI binding to the C direct-threaded dispatch core (Source/C).
+@[Link(ldflags: "#{__DIR__}/../../../C/libvoltvm.so")]
 lib LibVoltDispatch
   # Mirror of C `FChunkInfo` (Dispatch.h) — one per Unit chunk.
   struct ChunkInfo
-    code           : Void*   # UInt32*  : chunk.code buffer
-    code_size      : Int32
-    consts         : Void*   # IR::Value* : chunk.constants buffer
-    num_registers  : Int32
-    raii_regs      : Void*   # UInt8*   : registers to nil on frame entry
+    code            : Void*   # UInt32*  : chunk.code buffer
+    code_size       : Int32
+    consts          : Void*   # IR::Value* : chunk.constants buffer
+    num_registers   : Int32
+    raii_regs       : Void*   # UInt8*   : registers to nil on frame entry
     raii_regs_count : Int32
-    has_drop_map   : UInt8
+    has_drop_map    : UInt8
+    feedback        : Void*   # FCallFeedback*
   end
 
   # Mirror of C `FCallFrame` — one suspended caller on the shared frame stack.
@@ -26,6 +20,21 @@ lib LibVoltDispatch
     chunk_index : Int32
     base        : Int32
     ip          : Int32
+  end
+
+  # Mirror of C `FCallFeedback` — type feedback per instruction slot.
+  struct CallFeedback
+    last_class_id : Int32
+    hit_count     : Int32
+  end
+
+  # Mirror of C `FRClass` — runtime metadata per class.
+  struct RClass
+    type_id     : Int32
+    slot_count  : Int32
+    dtor_index  : Int32
+    vtable_size : Int32
+    vtable      : Int32*
   end
 
   # Mirror of C `FVmContext` — mutable cursor + environment. Field order and
@@ -46,6 +55,10 @@ lib LibVoltDispatch
     stack_top      : Int32
     cold_op        : Int32
     result_slots   : Int32
+    class_index    : Void*   # FRClass* const*
+    class_count    : Int32
+    user_data      : Void*   # Pointer back to Vm
+    alloc_object   : (Void*, Int32, Void*) -> Nil
   end
 
   # Runs the threaded core; returns an EVmStatus (see Volt::VM::DispatchStatus).
@@ -64,6 +77,8 @@ module Volt::VM
     ERR_STACKOVER  =  3
     ERR_BADOP      =  4
     ERR_OVERFLOW   =  5
+    ERR_NILRECEIVER =  6
+    ERR_NOMETHOD    =  7
   end
 
 

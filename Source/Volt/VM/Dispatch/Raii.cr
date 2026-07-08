@@ -14,7 +14,11 @@ module Volt::VM
 
     private def exec_raii_init( frame : Frame, chunk : IR::Chunk, ins : IR::Instruction )
       slots = @registry[ ins.bx ]?.try( &.slot_count ) || 0
-      frame[ ins.a ] = IR::Value.object( IR::HeapObject.new( ins.bx, slots ) )
+      obj = IR::HeapObject.allocate( ins.bx, slots )
+      if box = @class_boxes[ ins.bx ]?
+        obj.class_ref = box.as( Void* )
+      end
+      frame[ ins.a ] = IR::Value.object( obj )
     end
 
     private def exec_raii_drop( frame : Frame, chunk : IR::Chunk, ins : IR::Instruction )
@@ -43,9 +47,13 @@ module Volt::VM
     private def destroy_object( obj : IR::HeapObject )
       return if obj.destroyed?
       if rclass = @registry[ obj.type_id ]?
-        self_arg = [ IR::Value.object( obj ) ]
-        call_chunk( @unit.chunks[ rclass.finalize_index ], self_arg ) if rclass.finalize_index >= 0
-        call_chunk( @unit.chunks[ rclass.drop_fields_index ], self_arg ) if rclass.drop_fields_index >= 0
+        if rclass.dtor_index >= 0
+          call_chunk( @unit.chunks[ rclass.dtor_index ], [ IR::Value.object( obj ) ] )
+        else
+          self_arg = [ IR::Value.object( obj ) ]
+          call_chunk( @unit.chunks[ rclass.finalize_index ], self_arg ) if rclass.finalize_index >= 0
+          call_chunk( @unit.chunks[ rclass.drop_fields_index ], self_arg ) if rclass.drop_fields_index >= 0
+        end
       end
       obj.destroy
     end
