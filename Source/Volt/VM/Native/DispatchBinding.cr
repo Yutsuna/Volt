@@ -52,7 +52,7 @@ lib LibVoltDispatch
     class_index    : Void*   # FRClass* const*
     class_count    : Int32
     user_data      : Void*   # Pointer back to Vm
-    alloc_object   : Void*   # Function pointer (AllocObject)
+    alloc_object   : (Void*, Int32, Void*) -> Nil
   end
 
   # Runs the threaded core; returns an EVmStatus (see Volt::VM::DispatchStatus).
@@ -71,6 +71,8 @@ module Volt::VM
     ERR_STACKOVER  =  3
     ERR_BADOP      =  4
     ERR_OVERFLOW   =  5
+    ERR_NILRECEIVER =  6
+    ERR_NOMETHOD    =  7
   end
 
 
