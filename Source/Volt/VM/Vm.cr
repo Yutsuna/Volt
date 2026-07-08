@@ -47,6 +47,13 @@ module Volt::VM
       @chunk_table_size = 0
       @chunk_index_of   = {} of UInt64 => Int32
       @chunk_raii_keep  = [] of Bytes   # keeps raii-reg buffers alive for the GC
+
+      # Stable FRClass heap boxes and flat class_index for FFI
+      @class_boxes         = {} of Int32 => Pointer( LibVoltDispatch::RClass )
+      @class_index         = Pointer( Pointer( LibVoltDispatch::RClass ) ).null
+      @class_index_size    = 0
+      @class_vtable_keep   = [] of Array( Int32 )
+      @class_needs_rebuild = true
     end
 
     #--------------------------------------------------------------------------
@@ -90,9 +97,51 @@ module Volt::VM
       @chunk_raii_keep  = keep
     end
 
+    private def ensure_class_table : Nil
+      return if !@class_needs_rebuild && !@class_index.null?
+      build_class_table
+    end
+
+    private def build_class_table : Nil
+      max_id = -1
+      @unit.classes.each do |c|
+        max_id = c.type_id if c.type_id > max_id
+      end
+
+      n = max_id + 1
+      n = 0 if n < 0
+
+      idx = Pointer( Pointer( LibVoltDispatch::RClass ) ).malloc( n ) { Pointer( LibVoltDispatch::RClass ).null }
+      vtable_keep = [] of Array( Int32 )
+
+      @unit.classes.each do |c|
+        box = @class_boxes[ c.type_id ]?
+        if box.nil?
+          box = Pointer( LibVoltDispatch::RClass ).malloc( 1_u64 )
+          @class_boxes[ c.type_id ] = box
+        end
+
+        vtable_keep << c.vtable
+
+        box.value.type_id     = c.type_id
+        box.value.slot_count  = c.slot_count
+        box.value.dtor_index  = -1
+        box.value.vtable_size = c.vtable.size
+        box.value.vtable      = c.vtable.to_unsafe
+
+        idx[ c.type_id ] = box
+      end
+
+      @class_index          = idx
+      @class_index_size     = n
+      @class_vtable_keep    = vtable_keep
+      @class_needs_rebuild  = false
+    end
+
     #--------------------------------------------------------------------------
 
     def extend( unit : Compiler::Unit ) : Nil
+      @class_needs_rebuild = true
       @unit.chunks.concat( unit.chunks )
       @unit.classes.concat( unit.classes )
       unit.classes.each { |c| @registry.register( c ) }
@@ -207,6 +256,7 @@ module Volt::VM
     # results are written to `@stack[base - 1 ..]` and the slot count returned.
     private def execute_index( chunk_index : Int32, base : Int32 ) : Int32
       ensure_chunk_table
+      ensure_class_table
       chunk     = @unit.chunks[ chunk_index ]
       saved_top = @stack_top
       @stack_top = base + chunk.num_registers
@@ -234,6 +284,8 @@ module Volt::VM
       ctx.ip             = 0
       ctx.frame_depth    = 0
       ctx.stack_top      = @stack_top
+      ctx.class_index    = @class_index.as( Void* )
+      ctx.class_count    = @class_index_size
 
       begin
         while true
