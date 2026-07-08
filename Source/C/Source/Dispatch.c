@@ -150,7 +150,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 51 ] = &&LInitObj;     /* INIT_OBJ      */
 		DispatchTable[ 52 ] = &&LLoadField;   /* LOAD_FIELD    */
 		DispatchTable[ 53 ] = &&LStoreField;  /* STORE_FIELD   */
-		DispatchTable[ 54 ] = &&LCold;        /* CALL_METHOD   */
+		DispatchTable[ 54 ] = &&LCallMethod;  /* CALL_METHOD   */
 		DispatchTable[ 55 ] = &&LCold;        /* CALL_MIXIN    */
 		DispatchTable[ 56 ] = &&LCopyBlock;   /* COPY_BLOCK    */
 		DispatchTable[ 57 ] = &&LNewStruct;   /* NEW_STRUCT    */
@@ -521,6 +521,57 @@ LNop:
 	DISPATCH();
 
 	/* ---- calls ---------------------------------------------------------- */
+LCallMethod:
+	{
+		FValue Recv = Regs[ OP_A + 1 ];
+		if ( Recv.Tag != VAL_OBJECT || Recv.Payload == NULL )
+		{
+			Ip -= 1;
+			SAVE_CURSOR();
+			return VM_ERR_NILRECEIVER;
+		}
+
+		FHeapObject* Obj = (FHeapObject*)Recv.Payload;
+		FRClass* Class = (FRClass*)Obj->ClassRef;
+		if ( Class == NULL || OP_B >= Class->VTableSize || Class->VTable[ OP_B ] < 0 )
+		{
+			Ip -= 1;
+			SAVE_CURSOR();
+			return VM_ERR_NOMETHOD;
+		}
+
+		Int32 CalleeIndex = Class->VTable[ OP_B ];
+		Int32 CalleeBase  = Base + OP_A + 1;
+		const FChunkInfo* Callee = &Chunks[ CalleeIndex ];
+
+		if ( CalleeBase + Callee->NumRegisters > Ctx->StackCapacity ||
+		     FrameDepth >= Ctx->FrameCap )
+		{
+			SAVE_CURSOR();
+			return VM_ERR_STACKOVERFLOW;
+		}
+
+		/* Push resume state (Ip already points past the CALL_METHOD). */
+		Ctx->Frames[ FrameDepth ].ChunkIndex = CurChunk;
+		Ctx->Frames[ FrameDepth ].Base       = Base;
+		Ctx->Frames[ FrameDepth ].Ip         = Ip;
+		FrameDepth += 1;
+
+		/* Enter callee: args are already contiguous at Regs[A+1..]. */
+		CurChunk = CalleeIndex;
+		Base     = CalleeBase;
+		REBIND();
+		StackTop = Base + Callee->NumRegisters;
+		Ip       = 0;
+
+		/* Nil-init recycled RAII registers. */
+		for ( Int32 K = 0; K < Callee->RaiiRegsCount; ++K )
+		{
+			Regs[ Callee->RaiiRegs[ K ] ] = MakeNil();
+		}
+	}
+	DISPATCH();
+
 LCall:
 	{
 		Int32 CalleeIndex = OP_B;
