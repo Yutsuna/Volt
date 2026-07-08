@@ -22,6 +22,15 @@ lib LibVoltDispatch
     ip          : Int32
   end
 
+  # Mirror of C `FRClass` — runtime metadata per class.
+  struct RClass
+    type_id     : Int32
+    slot_count  : Int32
+    dtor_index  : Int32
+    vtable_size : Int32
+    vtable      : Int32*
+  end
+
   # Mirror of C `FVmContext` — mutable cursor + environment. Field order and
   # types MUST match Dispatch.h exactly (C ABI layout).
   struct VmContext
