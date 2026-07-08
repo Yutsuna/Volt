@@ -44,11 +44,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1783499884,
-        "narHash": "sha256-VeCiMPP+o7+atMqMEWqF/8DTTofDpcifgOh3P9BvUi0=",
+        "lastModified": 1783535532,
+        "narHash": "sha256-AFadnq5PStBHjOenXPAJ26iPCFsv3KjiU2oM3NBjelg=",
         "owner": "Yutsuna",
         "repo": "Krystal",
-        "rev": "b4bfd3973d46d780fbfeefacb27ae29031f395a2",
+        "rev": "ea83937af42ec8c04aea642b738a15df2956e0a2",
         "type": "github"
       },
       "original": {
