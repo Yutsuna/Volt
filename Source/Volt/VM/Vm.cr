@@ -1,5 +1,6 @@
 require "./Frame"
 require "./Dispatch/__all__"
+require "./Native/DispatchBinding"
 
 
 module Volt::VM
@@ -21,6 +22,11 @@ module Volt::VM
     # stays alive.
     STACK_CAPACITY = 1 << 20
 
+    # Upper bound on Volt call depth threaded through the C core's shared frame
+    # buffer. A deeper recursion is reported as a stack overflow (it would blow
+    # the register stack anyway). 64K frames × 12 bytes = 768 KB per `execute`.
+    FRAME_CAP = 1 << 16
+
     def initialize( @unit : Compiler::Unit, @stdout : IO = STDOUT, @stderr : IO = STDERR )
       @registry = Runtime::ObjectModel::TypeRegistry.new( @unit.classes )
       # Process-global storage for module `@@vars` (`main` writes their
@@ -34,6 +40,54 @@ module Volt::VM
       # `resolve_native` on a native's first `CALL_NATIVE` (architecture #9
       # Phase 5 — dlopen/dlsym used to be redone on every call).
       @native_ptrs = Array( Void* ).new( @unit.natives.size, Pointer(Void).null )
+
+      # Flat C-readable chunk metadata table for the direct-threaded core,
+      # rebuilt lazily when the chunk set changes (see `ensure_chunk_table`).
+      @chunk_table      = Pointer( LibVoltDispatch::ChunkInfo ).null
+      @chunk_table_size = 0
+      @chunk_index_of   = {} of UInt64 => Int32
+      @chunk_raii_keep  = [] of Bytes   # keeps raii-reg buffers alive for the GC
+    end
+
+    #--------------------------------------------------------------------------
+
+    # Builds the `FChunkInfo[]` the C core indexes on CALL, plus the
+    # object-id → index map the Crystal driver needs to enter a chunk by object.
+    # Idempotent: rebuilt only when `@unit.chunks` grows (REPL / `extend`).
+    private def ensure_chunk_table : Nil
+      return if @chunk_table_size == @unit.chunks.size && !@chunk_table.null?
+      build_chunk_table
+    end
+
+    private def build_chunk_table : Nil
+      n   = @unit.chunks.size
+      tbl = Pointer( LibVoltDispatch::ChunkInfo ).malloc( n.to_u64 )
+      keep     = Array( Bytes ).new( n )
+      index_of = {} of UInt64 => Int32
+
+      @unit.chunks.each_with_index do |c, i|
+        raii = c.raii_regs
+        buf  = Bytes.new( raii.size )
+        raii.each_with_index { |r, k| buf[ k ] = r.to_u8 }
+        keep << buf
+
+        info = LibVoltDispatch::ChunkInfo.new
+        info.code            = c.code.to_unsafe.as( Void* )
+        info.code_size       = c.code.size
+        info.consts          = c.constants.to_unsafe.as( Void* )
+        info.num_registers   = c.num_registers
+        info.raii_regs       = buf.to_unsafe.as( Void* )
+        info.raii_regs_count  = raii.size
+        info.has_drop_map    = c.drop_map.empty? ? 0_u8 : 1_u8
+        tbl[ i ] = info
+
+        index_of[ c.object_id ] = i
+      end
+
+      @chunk_table      = tbl
+      @chunk_table_size = n
+      @chunk_index_of   = index_of
+      @chunk_raii_keep  = keep
     end
 
     #--------------------------------------------------------------------------
@@ -63,7 +117,7 @@ module Volt::VM
     #--------------------------------------------------------------------------
 
     def run : Int32
-      execute( @unit.chunks[ @unit.main_index ], 1 )
+      execute_index( @unit.main_index, 1 )
       0
     rescue e : VoltRuntimeError
       @stderr.puts( "runtime error: #{e.message || "unknown"}" )
@@ -80,10 +134,13 @@ module Volt::VM
     # result back into an `Array` : the boxing lives only on this cold boundary,
     # never on the hot `CALL` path (which is windowed and copy-free).
     def call_chunk( chunk : IR::Chunk, args : Array( IR::Value ) ) : Array( IR::Value )
+      ensure_chunk_table
+      idx = @chunk_index_of[ chunk.object_id ]?
+      raise VoltRuntimeError.new( "chunk '#{chunk.name}' is not part of this unit" ) unless idx
       base = @stack_top
       base = 1 if base < 1
       args.each_with_index { |a, i| @stack[ base + i ] = a }
-      n = execute( chunk, base )
+      n = execute_index( idx, base )
       Array( IR::Value ).new( n ) { |i| @stack[ base - 1 + i ] }
     end
 
@@ -140,6 +197,221 @@ module Volt::VM
       @stack_top = base + chunk.num_registers
     end
 
+    # ── LIVE PATH ─────────────────────────────────────────────────────────
+    #
+    # Interpret the chunk at `chunk_index` in the register window at `base` by
+    # driving the C direct-threaded core (Source/C/Dispatch.c). The core owns
+    # the hot loop (arith, comparisons, branches, CALL/RET) and returns only to
+    # let Crystal service a cold opcode (VM_CALLBACK), halt (VM_HALT), or raise
+    # (VM_ERR_*). Return/results contract is identical to `execute_reference`:
+    # results are written to `@stack[base - 1 ..]` and the slot count returned.
+    private def execute_index( chunk_index : Int32, base : Int32 ) : Int32
+      ensure_chunk_table
+      chunk     = @unit.chunks[ chunk_index ]
+      saved_top = @stack_top
+      @stack_top = base + chunk.num_registers
+
+      # Nil-init the initial frame's recycled RAII registers (the C core and the
+      # CALL_METHOD cold handler nil-init callee frames themselves).
+      regs = @stack + base
+      chunk.raii_regs.each { |r| regs[ r ] = IR::Value.nil_value }
+
+      # Per-invocation frame buffer (matches the re-entrant `frames` Array of the
+      # reference loop: a nested `call_chunk` gets its own).
+      frames_buf = Pointer( LibVoltDispatch::CallFrame ).malloc( FRAME_CAP.to_u64 )
+
+      ctx = LibVoltDispatch::VmContext.new
+      ctx.chunks         = @chunk_table.as( Void* )
+      ctx.chunk_count    = @unit.chunks.size
+      ctx.stack          = @stack.as( Void* )
+      ctx.stack_capacity = STACK_CAPACITY
+      ctx.globals        = @globals.to_unsafe.as( Void* )
+      ctx.global_count   = @globals.size
+      ctx.frames         = frames_buf.as( Void* )
+      ctx.frame_cap      = FRAME_CAP
+      ctx.cur_chunk      = chunk_index
+      ctx.base           = base
+      ctx.ip             = 0
+      ctx.frame_depth    = 0
+      ctx.stack_top      = @stack_top
+
+      begin
+        while true
+          status = LibVoltDispatch.dispatch( pointerof( ctx ) )
+          case status
+          when DispatchStatus::HALT
+            return ctx.result_slots
+          when DispatchStatus::CALLBACK
+            halt = handle_cold( pointerof( ctx ), frames_buf )
+            return halt if halt
+          when DispatchStatus::ERR_DIVZERO
+            raise DivisionByZeroError.new
+          when DispatchStatus::ERR_OVERFLOW
+            raise OverflowError.new
+          when DispatchStatus::ERR_STACKOVER
+            raise VoltRuntimeError.new( "stack overflow" )
+          when DispatchStatus::ERR_BADOP
+            raise VoltRuntimeError.new( "opcode #{IR::Opcode.new( ctx.cold_op.to_u8 )} is not yet implemented" )
+          else
+            raise VoltRuntimeError.new( "unknown dispatch status #{status}" )
+          end
+        end
+      rescue ex
+        # Exception unwind: run RAII drops for the faulting frame and every
+        # suspended caller, deepest first (mirrors the reference loop's rescue).
+        unwind_all( ctx, frames_buf )
+        raise ex
+      ensure
+        @stack_top = saved_top
+      end
+    end
+
+    #--------------------------------------------------------------------------
+
+    # Services one cold opcode at the `ctx` cursor, mutating `ctx` to advance.
+    # Returns a non-nil slot count only when a RAII-bearing RET unwinds the
+    # outermost frame (halt); otherwise nil to keep driving the loop.
+    private def handle_cold( ctx : LibVoltDispatch::VmContext*, frames_buf : Pointer( LibVoltDispatch::CallFrame ) ) : Int32?
+      # Keep a re-entrant `call_chunk` (e.g. from a `finalize` during DROP)
+      # windowed above this frame.
+      @stack_top = ctx.value.stack_top
+
+      chunk = @unit.chunks[ ctx.value.cur_chunk ]
+      ip    = ctx.value.ip
+      base  = ctx.value.base
+      ins   = chunk.code[ ip ]
+      op    = ins.op
+      frame = Frame.new( @stack + base )
+
+      case op
+      when .call_method?
+        return handle_call_method( ctx, frames_buf )
+      when .ret?
+        return handle_ret_dropmap( ctx, frames_buf )
+      when .call_native?
+        frame[ ins.a ] = call_native( ins.b, collect_args( frame, ins ) )
+      when .eq?, .ne?, .cmp_int?, .eq_case?, .match_str?, .not_match_str?
+        frame[ ins.a ] = eval_cmp( op, frame[ ins.b ], frame[ ins.c ] )
+      when .shl_int?, .shr_int?, .pow_int?
+        frame[ ins.a ] = eval_arith( op, frame[ ins.b ], frame[ ins.c ] )
+      when .to_string?
+        frame[ ins.a ] = IR::Value.str( frame[ ins.b ].to_display )
+      when .concat_str?
+        frame[ ins.a ] = IR::Value.str( frame[ ins.b ].as_s + frame[ ins.c ].as_s )
+      when .raise?
+        raise VoltRuntimeError.new( frame[ ins.a ].to_display )
+      when .init?, .drop?, .drop_scope?
+        exec_raii( frame, chunk, ins )
+      when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
+        exec_object( frame, chunk, ins )
+      else
+        raise VoltRuntimeError.new( "opcode #{op} is not yet implemented" )
+      end
+
+      # Every serviced cold opcode is single-slot: advance past it.
+      c = ctx.value
+      c.ip = ip + 1
+      ctx.value = c
+      nil
+    end
+
+    # CALL_METHOD serviced in Crystal (needs the class registry / vtable), then
+    # the callee frame is pushed onto the shared C frame buffer so the core
+    # resumes inside it. Mirrors the reference loop's CALL_METHOD arm.
+    private def handle_call_method( ctx : LibVoltDispatch::VmContext*, frames_buf : Pointer( LibVoltDispatch::CallFrame ) ) : Int32?
+      c     = ctx.value
+      chunk = @unit.chunks[ c.cur_chunk ]
+      ins   = chunk.code[ c.ip ]
+
+      obj    = @stack[ c.base + ins.a + 1 ].as_object
+      rclass = @registry[ obj.type_id ]?
+      raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" ) unless rclass
+      chunk_idx = rclass.vtable[ ins.b ]?
+      if chunk_idx.nil? || chunk_idx < 0
+        raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
+      end
+
+      callee = @unit.chunks[ chunk_idx ]
+      cbase  = c.base + ins.a + 1
+      if cbase + callee.num_registers > STACK_CAPACITY || c.frame_depth >= FRAME_CAP
+        raise VoltRuntimeError.new( "stack overflow" )
+      end
+
+      resume = LibVoltDispatch::CallFrame.new
+      resume.chunk_index      = c.cur_chunk
+      resume.base             = c.base
+      resume.ip               = c.ip + 1
+      frames_buf[ c.frame_depth ] = resume
+      c.frame_depth += 1
+
+      c.cur_chunk = chunk_idx
+      c.base      = cbase
+      c.ip        = 0
+      c.stack_top = cbase + callee.num_registers
+      ctx.value   = c
+      @stack_top  = c.stack_top
+
+      regs = @stack + cbase
+      callee.raii_regs.each { |r| regs[ r ] = IR::Value.nil_value }
+      nil
+    end
+
+    # RET bounced from the core because the returning chunk has live RAII
+    # objects to drop on an early return. Copies results, runs the drops, then
+    # pops the caller (or halts if outermost). Mirrors the reference RET arm.
+    private def handle_ret_dropmap( ctx : LibVoltDispatch::VmContext*, frames_buf : Pointer( LibVoltDispatch::CallFrame ) ) : Int32?
+      c     = ctx.value
+      chunk = @unit.chunks[ c.cur_chunk ]
+      ins   = chunk.code[ c.ip ]
+      base  = c.base
+      slots = ins.bx > 0 ? ins.bx : 1
+
+      j = 0
+      while j < slots
+        @stack[ base - 1 + j ] = @stack[ base + ins.a + j ]
+        j += 1
+      end
+
+      resume_ip = c.ip + 1
+      unwind_frame( Frame.new( @stack + base ), chunk, resume_ip ) if resume_ip < chunk.code.size && !chunk.drop_map.empty?
+
+      if c.frame_depth == 0
+        ctx.value = c
+        return slots
+      end
+
+      c.frame_depth -= 1
+      resumed     = frames_buf[ c.frame_depth ]
+      c.cur_chunk = resumed.chunk_index
+      c.base      = resumed.base
+      c.ip        = resumed.ip
+      c.stack_top = resumed.base + @unit.chunks[ resumed.chunk_index ].num_registers
+      ctx.value   = c
+      @stack_top  = c.stack_top
+      nil
+    end
+
+    # Walks the current frame and every suspended caller (deepest first),
+    # running RAII drops for any whose DropMap covers its live pc. Used on the
+    # exception path, identical in effect to the reference loop's rescue.
+    private def unwind_all( ctx : LibVoltDispatch::VmContext, frames_buf : Pointer( LibVoltDispatch::CallFrame ) ) : Nil
+      cur = @unit.chunks[ ctx.cur_chunk ]
+      if ctx.ip < cur.code.size && !cur.drop_map.empty?
+        unwind_frame( Frame.new( @stack + ctx.base ), cur, ctx.ip )
+      end
+      d = ctx.frame_depth - 1
+      while d >= 0
+        f  = frames_buf[ d ]
+        sc = @unit.chunks[ f.chunk_index ]
+        if f.ip < sc.code.size && !sc.drop_map.empty?
+          unwind_frame( Frame.new( @stack + f.base ), sc, f.ip )
+        end
+        d -= 1
+      end
+    end
+
+    #--------------------------------------------------------------------------
+
     # Interpret `chunk` in the register window starting at `base`. Returns the
     # number of result slots; the results are written to `@stack[base - 1 ..]`
     # (i.e. into the caller's result register), so a `CALL` is copy-free : the
@@ -152,7 +424,11 @@ module Volt::VM
     # code (fib). `execute` is still re-entrant (specs / REPL / `destroy_object`
     # via `call_chunk`): each invocation owns its own `frames`, so a nested call
     # never disturbs an outer loop's stack.
-    private def execute( chunk : IR::Chunk, base : Int32 ) : Int32
+    #
+    # RETAINED as the pure-Crystal reference implementation (fallback + A/B
+    # correctness oracle). The live path is `execute_index`, which hands the hot
+    # loop to the C direct-threaded core (Source/C/Dispatch.c).
+    private def execute_reference( chunk : IR::Chunk, base : Int32 ) : Int32
       saved_top  = @stack_top
       @stack_top = base + chunk.num_registers
 
