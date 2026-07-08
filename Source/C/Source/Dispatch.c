@@ -148,12 +148,12 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 49 ] = &&LCold;        /* DROP_SCOPE    */
 		DispatchTable[ 50 ] = &&LCold;        /* RAISE         */
 		DispatchTable[ 51 ] = &&LCold;        /* INIT_OBJ      */
-		DispatchTable[ 52 ] = &&LCold;        /* LOAD_FIELD    */
-		DispatchTable[ 53 ] = &&LCold;        /* STORE_FIELD   */
+		DispatchTable[ 52 ] = &&LLoadField;   /* LOAD_FIELD    */
+		DispatchTable[ 53 ] = &&LStoreField;  /* STORE_FIELD   */
 		DispatchTable[ 54 ] = &&LCold;        /* CALL_METHOD   */
 		DispatchTable[ 55 ] = &&LCold;        /* CALL_MIXIN    */
-		DispatchTable[ 56 ] = &&LCold;        /* COPY_BLOCK    */
-		DispatchTable[ 57 ] = &&LCold;        /* NEW_STRUCT    */
+		DispatchTable[ 56 ] = &&LCopyBlock;   /* COPY_BLOCK    */
+		DispatchTable[ 57 ] = &&LNewStruct;   /* NEW_STRUCT    */
 		DispatchTable[ 58 ] = &&LLoadGlobal;
 		DispatchTable[ 59 ] = &&LStoreGlobal;
 		DispatchTable[ 60 ] = &&LCold;        /* TO_STRING     */
@@ -472,6 +472,43 @@ LLoadGlobal:
 	DISPATCH();
 LStoreGlobal:
 	Ctx->Globals[ OP_BX ] = Regs[ OP_A ];
+	DISPATCH();
+
+LLoadField:
+	{
+		FHeapObject* Obj = (FHeapObject*)Regs[ OP_B ].Payload;
+		Regs[ OP_A ] = Obj->Fields[ OP_C ];
+	}
+	DISPATCH();
+
+LStoreField:
+	{
+		FHeapObject* Obj = (FHeapObject*)Regs[ OP_A ].Payload;
+		Obj->Fields[ OP_B ] = Regs[ OP_C ];
+	}
+	DISPATCH();
+
+LCopyBlock:
+	{
+		Int32 Count = OP_C;
+		Int32 Dest  = OP_A;
+		Int32 Src   = OP_B;
+		for ( Int32 I = 0; I < Count; ++I )
+		{
+			Regs[ Dest + I ] = Regs[ Src + I ];
+		}
+	}
+	DISPATCH();
+
+LNewStruct:
+	{
+		Int32 Count = OP_BX;
+		Int32 Dest  = OP_A;
+		for ( Int32 I = 0; I < Count; ++I )
+		{
+			Regs[ Dest + I ] = MakeNil();
+		}
+	}
 	DISPATCH();
 
 LNop:
