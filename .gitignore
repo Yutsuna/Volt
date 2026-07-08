@@ -4,9 +4,12 @@
 /.shards/
 *.dwarf
 .*/
+!.zed/
 !.github/
 !.agents/
 .crystal_build_cache.json
 *.ll
 *.o
 .volt_history
+graphify-out/
+result/

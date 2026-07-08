@@ -103,7 +103,7 @@ module Volt::Frontend
 
     private def expr_if_on_same_line : AExpr?
       return nil if @current.kind.newline? || @current.kind.semicolon? || at_end?
-      parse_expr( Prec::None )
+      parse_expr( Prec::Modifier )
     end
 
     #------------------------------------------------------------------------------------

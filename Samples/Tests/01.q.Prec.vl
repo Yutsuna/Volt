@@ -1,0 +1,76 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+macro assert( condition )
+  if {{ condition }}
+    puts "PASS"
+  else
+    puts "FAIL"
+  end
+end
+
+def test_break_until -> Int32
+  i = 0
+  while true
+    i += 1
+    break i * 10 until i * 2 < 10
+  end
+end
+
+def test_break_if -> Int32
+  i = 0
+  while true
+    i += 1
+    break i * 10 if i == 3
+  end
+end
+
+def test_return_unless(x : Int32) -> Int32
+  return x * 2 unless x % 2 == 0
+  return -1
+end
+
+def test_return_if(x : Int32) -> Int32
+  return x + 10 if x > 5
+  return 0
+end
+
+def test_if_block(x : Int32) -> Int32
+  res = if x > 10
+    x * 2
+  else
+    x / 2
+  end
+  res + 1
+end
+
+def test_ternary(x : Int32) -> Int32
+  x * 2 > 10 ? x * 3 : x + 5
+end
+
+def test_ternary_if_else(x : Int32) -> Int32
+  x * 2 > 10 if x * 3 else x + 5
+end
+
+def run_all_tests -> Void
+  assert( test_break_until() == 50 )
+
+  assert( test_break_if() == 30 )
+
+  assert( test_return_unless(3) == 6 )
+  assert( test_return_unless(4) == -1 )
+
+  assert( test_return_if(10) == 20 )
+  assert( test_return_if(3) == 0 )
+
+  assert( test_if_block(20) == 41 )
+  assert( test_if_block(8) == 5 )
+
+  assert( test_ternary(10) == 30 )
+  assert( test_ternary_if_else(10) == 30 )
+
+  assert( test_ternary(3) == 8 )
+  assert( test_ternary_if_else(3) == 8 )
+end
+
+run_all_tests

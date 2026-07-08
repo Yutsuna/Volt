@@ -337,6 +337,16 @@ module Volt::Frontend
         Diagnostic.error( "S0051", "cannot interpolate value of type #{actual_type} into a string" )
           .with_primary( span, "only String, Char, and numeric types can be interpolated" )
       end
+
+      def break_outside_loop( span : Span ) : Diagnostic
+        Diagnostic.error( "S0052", "`break` used outside of a loop" )
+          .with_primary( span )
+      end
+
+      def next_outside_loop( span : Span ) : Diagnostic
+        Diagnostic.error( "S0053", "`next` used outside of a loop" )
+          .with_primary( span )
+      end
     end
 
 

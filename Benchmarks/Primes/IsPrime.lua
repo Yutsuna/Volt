@@ -1,28 +1,28 @@
-local function is_prime( n )
+local function is_prime(n)
     if n < 2 then
         return false
     end
 
-    i = 2
+    local i = 2
     while i * i <= n do
         if n % i == 0 then
             return false
         end
-        i += 1
+        i = i + 1
     end
     return true
 end
 
-local function count_primes( limit )
+local function count_primes(limit)
     local count = 0
     for i = 2, limit do
-        if is_prime( i ) then
-            count += 1
+        if is_prime(i) then
+            count = count + 1
         end
     end
     return count
 end
 
-limit = 100000
-count = count_primes( limit )
-print( "Number of primes up to " .. limit .. ": " .. count )
+local limit = 100000
+local count = count_primes(limit)
+print("Number of primes up to " .. limit .. ": " .. count)

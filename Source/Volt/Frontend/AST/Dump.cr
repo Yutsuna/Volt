@@ -606,6 +606,15 @@ module Volt::Frontend
     end
   end
 
+  class NextExpr
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("NextExpr") << ASTDump.loc(@loc) << "\n"
+      if v = @value
+        field(io, "value", v, prefix, true)
+      end
+    end
+  end
+
   class RaiseExpr
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("RaiseExpr") << ASTDump.loc(@loc) << "\n"
