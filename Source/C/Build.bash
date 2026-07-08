@@ -8,7 +8,7 @@ set -euo pipefail
 readonly C_DIR="$(cd "$(dirname "$0")" && pwd)"
 readonly C_INC_DIR="$C_DIR/Include"
 readonly C_FILES="$(find "$C_DIR" -type f -name '*.c')"
-readonly C_FLAGS="-O3 -fPIC -fno-gcse -fno-crossjumping -std=c23"
+readonly C_FLAGS="-O3 -fPIC -fno-gcse -fno-crossjumping"
 readonly C_INC="-I$C_INC_DIR"
 readonly C_WARNS="-Wall -Wextra -Wno-unused-parameter -Wconversion -Werror"
 
