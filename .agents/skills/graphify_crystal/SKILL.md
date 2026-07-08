@@ -23,10 +23,10 @@ To rebuild the graph for the current repository with Crystal AST parsing enabled
 
 ```bash
 # 1. Build/Extract the graph
-/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13/bin/python3 .agents/skills/graphify_crystal/run_graphify.py .
+python3 .agents/skills/graphify_crystal/run_graphify.py .
 
 # 2. Cluster the graph and generate report outputs
-/nix/store/l9k0anq0z7zz81zcwy035jfwap9ga6rl-python3-3.13.13/bin/python3 .agents/skills/graphify_crystal/run_graphify.py cluster-only .
+python3 .agents/skills/graphify_crystal/run_graphify.py cluster-only .
 ```
 
 Outputs will be saved in `graphify-out/` as usual.
