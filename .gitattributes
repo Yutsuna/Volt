@@ -1,0 +1,5 @@
+*.{c,h,inc} diff=c
+*.{volt,vl} text diff=volt
+*.cr text diff=crystal
+*.bash text diff=bash
+*.nix text diff=nix
