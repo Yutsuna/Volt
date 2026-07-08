@@ -9,6 +9,8 @@ targets:
     main: Source/Volt.cr
 
 krystal:
+  run_before:
+    - "bash Source/C/Build.bash"
   extra_args:
     - "--progress"
     - "--stats"
