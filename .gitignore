@@ -13,3 +13,4 @@
 .volt_history
 graphify-out/
 result/
+libvoltvm.so

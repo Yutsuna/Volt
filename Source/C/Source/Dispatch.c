@@ -4,11 +4,11 @@
  * FValue construction / access — bit-exact with IR::Value.
  * ------------------------------------------------------------------------- */
 
-static inline FValue MakeInt( int64_t Value )
+static inline FValue MakeInt( Int64 Value )
 {
 	FValue Result;
 	Result.Tag     = VAL_INT;
-	Result.Payload = (void*)(intptr_t)Value;
+	Result.Payload = (Void*)(IntPtr)Value;
 	return Result;
 }
 
@@ -16,13 +16,13 @@ static inline FValue MakeBool( int Value )
 {
 	FValue Result;
 	Result.Tag     = VAL_BOOL;
-	Result.Payload = (void*)(intptr_t)( Value ? 1 : 0 );
+	Result.Payload = (Void*)(IntPtr)( Value ? 1 : 0 );
 	return Result;
 }
 
 static inline FValue MakeFloat( double Value )
 {
-	union { double D; void* P; } Bits;
+	union { double D; Void* P; } Bits;
 	FValue Result;
 	Bits.D         = Value;
 	Result.Tag     = VAL_FLOAT;
@@ -30,22 +30,22 @@ static inline FValue MakeFloat( double Value )
 	return Result;
 }
 
-static inline FValue MakeNil( void )
+static inline FValue MakeNil( Void )
 {
 	FValue Result;
 	Result.Tag     = VAL_NIL;
-	Result.Payload = (void*)0;
+	Result.Payload = (Void*)0;
 	return Result;
 }
 
-static inline int64_t AsInt( FValue Value )
+static inline Int64 AsInt( FValue Value )
 {
-	return (int64_t)(intptr_t)Value.Payload;
+	return (Int64)(IntPtr)Value.Payload;
 }
 
 static inline double AsF64( FValue Value )
 {
-	union { void* P; double D; } Bits;
+	union { Void* P; double D; } Bits;
 	Bits.P = Value.Payload;
 	return Bits.D;
 }
@@ -53,14 +53,14 @@ static inline double AsF64( FValue Value )
 /** Volt truthiness: only nil and false are falsy (mirror of Value#truthy?). */
 static inline int IsTruthy( FValue Value )
 {
-	return !( Value.Tag == VAL_NIL || ( Value.Tag == VAL_BOOL && Value.Payload == (void*)0 ) );
+	return !( Value.Tag == VAL_NIL || ( Value.Tag == VAL_BOOL && Value.Payload == (Void*)0 ) );
 }
 
 /** Floored integer division / modulo — matches Crystal's `//` and `%`. */
-static inline int64_t FloorDiv( int64_t A, int64_t B )
+static inline Int64 FloorDiv( Int64 A, Int64 B )
 {
-	int64_t Q = A / B;
-	int64_t R = A % B;
+	Int64 Q = A / B;
+	Int64 R = A % B;
 	if ( ( R != 0 ) && ( ( R < 0 ) != ( B < 0 ) ) )
 	{
 		Q -= 1;
@@ -68,9 +68,9 @@ static inline int64_t FloorDiv( int64_t A, int64_t B )
 	return Q;
 }
 
-static inline int64_t FloorMod( int64_t A, int64_t B )
+static inline Int64 FloorMod( Int64 A, Int64 B )
 {
-	int64_t R = A % B;
+	Int64 R = A % B;
 	if ( ( R != 0 ) && ( ( R < 0 ) != ( B < 0 ) ) )
 	{
 		R += B;
@@ -82,12 +82,12 @@ static inline int64_t FloorMod( int64_t A, int64_t B )
  * Dispatch core.
  * ------------------------------------------------------------------------- */
 
-int32_t Volt_Dispatch( FVmContext* Ctx )
+Int32 Volt_Dispatch( FVmContext* Ctx )
 {
 	/* One computed-goto table shared by every entry; label addresses are fixed
 	 * for the program's lifetime, so it is filled exactly once. Crystal fibers
 	 * are cooperative (no preemptive data race on Inited). */
-	static void* DispatchTable[ 256 ];
+	static Void* DispatchTable[ 256 ];
 	static int   Inited = 0;
 
 	if ( !Inited )
@@ -181,19 +181,19 @@ int32_t Volt_Dispatch( FVmContext* Ctx )
 	/* Hot locals. Rebound by REBIND on every CALL/RET/fall-through. */
 	const FChunkInfo* Chunks   = Ctx->Chunks;
 	FValue*           Stack    = Ctx->Stack;
-	int32_t           CurChunk = Ctx->CurChunk;
-	int32_t           Base     = Ctx->Base;
-	int32_t           Ip       = Ctx->Ip;
-	int32_t           FrameDepth = Ctx->FrameDepth;
-	int32_t           StackTop = Ctx->StackTop;
+	Int32           CurChunk = Ctx->CurChunk;
+	Int32           Base     = Ctx->Base;
+	Int32           Ip       = Ctx->Ip;
+	Int32           FrameDepth = Ctx->FrameDepth;
+	Int32           StackTop = Ctx->StackTop;
 
-	const uint32_t*   Code   = Chunks[ CurChunk ].Code;
-	int32_t           Size   = Chunks[ CurChunk ].CodeSize;
+	const UInt32*   Code   = Chunks[ CurChunk ].Code;
+	Int32           Size   = Chunks[ CurChunk ].CodeSize;
 	const FValue*     Consts = Chunks[ CurChunk ].Consts;
 	FValue*           Regs   = Stack + Base;
 
-	uint32_t Ins = 0;
-	uint32_t Op  = 0;
+	UInt32 Ins = 0;
+	UInt32 Op  = 0;
 
 #define SAVE_CURSOR()             \
 	Ctx->CurChunk   = CurChunk;   \
@@ -217,10 +217,10 @@ int32_t Volt_Dispatch( FVmContext* Ctx )
 	} while ( 0 )
 
 /* Operand accessors on the current instruction word. */
-#define OP_A  ( (int32_t)( ( Ins >> 16 ) & 0xFF ) )
-#define OP_B  ( (int32_t)( ( Ins >> 8 ) & 0xFF ) )
-#define OP_C  ( (int32_t)( Ins & 0xFF ) )
-#define OP_BX ( (int32_t)( Ins & 0xFFFF ) )
+#define OP_A  ( (Int32)( ( Ins >> 16 ) & 0xFF ) )
+#define OP_B  ( (Int32)( ( Ins >> 8 ) & 0xFF ) )
+#define OP_C  ( (Int32)( Ins & 0xFF ) )
+#define OP_BX ( (Int32)( Ins & 0xFFFF ) )
 
 	DISPATCH();
 
@@ -244,7 +244,7 @@ LMove:
 	/* ---- integer arithmetic (overflow-checked, like Crystal) ------------ */
 LAddInt:
 	{
-		int64_t R;
+		Int64 R;
 		if ( __builtin_add_overflow( AsInt( Regs[ OP_B ] ), AsInt( Regs[ OP_C ] ), &R ) )
 		{
 			SAVE_CURSOR();
@@ -255,7 +255,7 @@ LAddInt:
 	DISPATCH();
 LSubInt:
 	{
-		int64_t R;
+		Int64 R;
 		if ( __builtin_sub_overflow( AsInt( Regs[ OP_B ] ), AsInt( Regs[ OP_C ] ), &R ) )
 		{
 			SAVE_CURSOR();
@@ -266,7 +266,7 @@ LSubInt:
 	DISPATCH();
 LMulInt:
 	{
-		int64_t R;
+		Int64 R;
 		if ( __builtin_mul_overflow( AsInt( Regs[ OP_B ] ), AsInt( Regs[ OP_C ] ), &R ) )
 		{
 			SAVE_CURSOR();
@@ -278,7 +278,7 @@ LMulInt:
 LDivInt:
 LIDivInt:
 	{
-		int64_t Divisor = AsInt( Regs[ OP_C ] );
+		Int64 Divisor = AsInt( Regs[ OP_C ] );
 		if ( Divisor == 0 )
 		{
 			SAVE_CURSOR();
@@ -289,7 +289,7 @@ LIDivInt:
 	DISPATCH();
 LModInt:
 	{
-		int64_t Divisor = AsInt( Regs[ OP_C ] );
+		Int64 Divisor = AsInt( Regs[ OP_C ] );
 		if ( Divisor == 0 )
 		{
 			SAVE_CURSOR();
@@ -300,8 +300,8 @@ LModInt:
 	DISPATCH();
 LNegInt:
 	{
-		int64_t R;
-		if ( __builtin_sub_overflow( (int64_t)0, AsInt( Regs[ OP_B ] ), &R ) )
+		Int64 R;
+		if ( __builtin_sub_overflow( (Int64)0, AsInt( Regs[ OP_B ] ), &R ) )
 		{
 			SAVE_CURSOR();
 			return VM_ERR_OVERFLOW;
@@ -379,8 +379,8 @@ LNot:
 	DISPATCH();
 LConvInt:
 	{
-		int64_t Val   = AsInt( Regs[ OP_A ] );
-		int32_t Shift = 64 - OP_BX;
+		Int64 Val   = AsInt( Regs[ OP_A ] );
+		Int32 Shift = 64 - OP_BX;
 		Regs[ OP_A ]  = MakeInt( ( Val << Shift ) >> Shift );
 	}
 	DISPATCH();
@@ -388,8 +388,8 @@ LConvInt:
 	/* ---- immediate superinstructions ------------------------------------ */
 LAddIntImm:
 	{
-		int64_t R;
-		if ( __builtin_add_overflow( AsInt( Regs[ OP_B ] ), (int64_t)OP_C, &R ) )
+		Int64 R;
+		if ( __builtin_add_overflow( AsInt( Regs[ OP_B ] ), (Int64)OP_C, &R ) )
 		{
 			SAVE_CURSOR();
 			return VM_ERR_OVERFLOW;
@@ -399,8 +399,8 @@ LAddIntImm:
 	DISPATCH();
 LSubIntImm:
 	{
-		int64_t R;
-		if ( __builtin_sub_overflow( AsInt( Regs[ OP_B ] ), (int64_t)OP_C, &R ) )
+		Int64 R;
+		if ( __builtin_sub_overflow( AsInt( Regs[ OP_B ] ), (Int64)OP_C, &R ) )
 		{
 			SAVE_CURSOR();
 			return VM_ERR_OVERFLOW;
@@ -409,10 +409,10 @@ LSubIntImm:
 	}
 	DISPATCH();
 LEqIntImm:
-	Regs[ OP_A ] = MakeBool( AsInt( Regs[ OP_B ] ) == (int64_t)OP_C );
+	Regs[ OP_A ] = MakeBool( AsInt( Regs[ OP_B ] ) == (Int64)OP_C );
 	DISPATCH();
 LNeIntImm:
-	Regs[ OP_A ] = MakeBool( AsInt( Regs[ OP_B ] ) != (int64_t)OP_C );
+	Regs[ OP_A ] = MakeBool( AsInt( Regs[ OP_B ] ) != (Int64)OP_C );
 	DISPATCH();
 
 	/* ---- control flow --------------------------------------------------- */
@@ -430,40 +430,40 @@ LJmpIfFalse:
 	 * When the comparison is TRUE the branch is not taken: skip the trailing
 	 * (untouched) JMP_IF_FALSE. When FALSE, jump to that JMP_IF_FALSE's Bx. */
 LBrLtInt:
-	if ( AsInt( Regs[ OP_B ] ) <  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrLeInt:
-	if ( AsInt( Regs[ OP_B ] ) <= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrGtInt:
-	if ( AsInt( Regs[ OP_B ] ) >  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrGeInt:
-	if ( AsInt( Regs[ OP_B ] ) >= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrEqInt:
-	if ( AsInt( Regs[ OP_B ] ) == AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) == AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrNeInt:
-	if ( AsInt( Regs[ OP_B ] ) != AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) != AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrLtIntImm:
-	if ( AsInt( Regs[ OP_B ] ) <  (int64_t)OP_C ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <  (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrLeIntImm:
-	if ( AsInt( Regs[ OP_B ] ) <= (int64_t)OP_C ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <= (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrGtIntImm:
-	if ( AsInt( Regs[ OP_B ] ) >  (int64_t)OP_C ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >  (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrGeIntImm:
-	if ( AsInt( Regs[ OP_B ] ) >= (int64_t)OP_C ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >= (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrEqIntImm:
-	if ( AsInt( Regs[ OP_B ] ) == (int64_t)OP_C ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) == (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 LBrNeIntImm:
-	if ( AsInt( Regs[ OP_B ] ) != (int64_t)OP_C ) { Ip += 1; } else { Ip = (int32_t)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) != (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
 	DISPATCH();
 
 	/* ---- module globals ------------------------------------------------- */
@@ -480,8 +480,8 @@ LNop:
 	/* ---- calls ---------------------------------------------------------- */
 LCall:
 	{
-		int32_t CalleeIndex = OP_B;
-		int32_t CalleeBase  = Base + OP_A + 1;
+		Int32 CalleeIndex = OP_B;
+		Int32 CalleeBase  = Base + OP_A + 1;
 		const FChunkInfo* Callee = &Chunks[ CalleeIndex ];
 
 		if ( CalleeBase + Callee->NumRegisters > Ctx->StackCapacity ||
@@ -505,7 +505,7 @@ LCall:
 		Ip       = 0;
 
 		/* Nil-init recycled RAII registers. */
-		for ( int32_t K = 0; K < Callee->RaiiRegsCount; ++K )
+		for ( Int32 K = 0; K < Callee->RaiiRegsCount; ++K )
 		{
 			Regs[ Callee->RaiiRegs[ K ] ] = MakeNil();
 		}
@@ -519,13 +519,13 @@ LRet:
 		{
 			Ip -= 1;               /* rewind to point at the RET */
 			SAVE_CURSOR();
-			Ctx->ColdOp = (int32_t)Op;
+			Ctx->ColdOp = (Int32)Op;
 			return VM_CALLBACK;
 		}
 
-		int32_t Slots = OP_BX > 0 ? OP_BX : 1;
-		int32_t RetA  = OP_A;
-		for ( int32_t J = 0; J < Slots; ++J )
+		Int32 Slots = OP_BX > 0 ? OP_BX : 1;
+		Int32 RetA  = OP_A;
+		for ( Int32 J = 0; J < Slots; ++J )
 		{
 			Stack[ Base - 1 + J ] = Regs[ RetA + J ];
 		}
@@ -567,13 +567,13 @@ LFellOff:
 LCold:
 	Ip -= 1;                       /* rewind to point at the cold instruction */
 	SAVE_CURSOR();
-	Ctx->ColdOp = (int32_t)Op;
+	Ctx->ColdOp = (Int32)Op;
 	return VM_CALLBACK;
 
 LBadOp:
 	Ip -= 1;
 	SAVE_CURSOR();
-	Ctx->ColdOp = (int32_t)Op;
+	Ctx->ColdOp = (Int32)Op;
 	return VM_ERR_BADOP;
 
 #undef SAVE_CURSOR
