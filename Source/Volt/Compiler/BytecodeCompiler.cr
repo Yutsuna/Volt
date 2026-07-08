@@ -176,7 +176,7 @@ module Volt::Compiler
       # occupy the first registers, exactly like a free function.
       is_static = owner.kind.module?
       arity     = decl.params.size + ( is_static ? 0 : 1 )
-      emitter   = FunctionEmiter.new( mangled, arity, @func_index, @typed.signatures, @natives, @typed.types, owner, @global_index )
+      emitter   = FunctionEmiter.new( mangled, arity, @func_index, @typed.signatures, @natives, @typed.types, owner, @global_index, decl.name )
       emitter.bind_param( "self", nominal_for( owner ) ) unless is_static
       decl.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }
       decl.params.each { |p| emitter.store_ivar_param( owner, p.name ) if p.is_ivar }

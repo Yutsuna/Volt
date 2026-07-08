@@ -1,0 +1,78 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+
+class Vehicle
+  name  : String
+  speed : Int64
+
+  def initialize(name : String, speed : Int64)
+    @name  = name
+    @speed = speed
+    puts("BUILD Vehicle " + name)
+  end
+
+  def describe -> Void
+    puts("Vehicle " + @name + " @ " + @speed.to_s + "km/h")
+  end
+
+  def label(prefix : String) -> String
+    return prefix + ": " + @name
+  end
+end
+
+
+class Car < Vehicle
+  wheels : Int64
+
+  def initialize(name : String, speed : Int64)
+    super(name, speed)
+    @wheels = 4
+    puts("BUILD Car " + name)
+  end
+
+  def describe -> Void
+    super
+    puts("Car with " + @wheels.to_s + " wheels")
+  end
+
+  def label(prefix : String) -> String
+    return super + " [car]"
+  end
+end
+
+
+class RaceCar < Car
+  def initialize(name : String)
+    super(name, 300)
+    puts("BUILD RaceCar " + name)
+  end
+
+  def label(prefix : String) -> String
+    return super("RACE") + "!"
+  end
+end
+
+
+class SilentCar < Car
+end
+
+
+class ElectricCar < SilentCar
+  def describe -> Void
+    super
+    puts("EV mode")
+  end
+end
+
+
+v : Vehicle = Car.new("Golf", 180)
+v.describe()
+puts(v.label("std"))
+
+r = RaceCar.new("Falcon")
+r.describe()
+puts(r.label("ignored"))
+
+e = ElectricCar.new("Zoe", 140)
+e.describe()

@@ -410,6 +410,14 @@ module Volt::Frontend
     end
   end
 
+  class SuperCall
+    def dump(io : IO, prefix : String) : Nil
+      implicit_s = @implicit_args ? " #{ASTDump.key("implicit-args")}" : ""
+      io << ASTDump.nd("SuperCall") << implicit_s << ASTDump.loc(@loc) << "\n"
+      section(io, "args", @args.map(&.as(ANode)), prefix, true) unless @args.empty?
+    end
+  end
+
   class InstanceVar
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("InstanceVar") << " " << ASTDump.val("'@#{@name}'") << ASTDump.loc(@loc) << "\n"

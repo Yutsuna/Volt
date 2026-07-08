@@ -17,7 +17,11 @@ module Volt::Compiler
                     # function : drives InstanceVar / implicit-self lowering.
                     @self_owner : Frontend::TypeInfo? = nil,
                     # `@@var` -> global slot, shared across the whole unit.
-                    @global_index : Hash( String, Int32 ) = {} of String => Int32 )
+                    @global_index : Hash( String, Int32 ) = {} of String => Int32,
+                    # Unmangled name of the method being compiled (nil for a free
+                    # function / main) : what a `super` inside the body resolves to
+                    # on the superclass chain.
+                    @method_name : String? = nil )
       @chunk    = IR::Chunk.new( name, arity )
       @scope    = {} of String => Int32
       @next_reg = 0
@@ -175,6 +179,7 @@ module Volt::Compiler
       when Frontend::ClassVar     then compile_class_var( expr )
       when Frontend::MemberAccess then compile_member_access( expr )
       when Frontend::SelfExpr     then @scope[ "self" ]
+      when Frontend::SuperCall    then compile_super_call( expr )
       when Frontend::Assign       then compile_assign( expr )
       when Frontend::BinaryOp     then compile_binary( expr )
       when Frontend::UnaryOp      then compile_unary( expr )
@@ -647,6 +652,50 @@ module Volt::Compiler
         offset += n
       end
       emit_abc( IR::Opcode::CALL_METHOD, base, vtidx, total )
+      base
+    end
+
+    # `super( args )` : a *static* call to the nearest ancestor's chunk — never
+    # virtual (a virtual dispatch would land right back on the caller's own
+    # override and loop). The walk mirrors `BytecodeCompiler#build_vtable`'s
+    # inherited-slot resolution : the ancestor's chunk exists under its own
+    # name whether the method is written on it directly or adopted from a
+    # mixin. `self` is passed through unchanged (1 slot : classes only —
+    # Semantic rejects `super` everywhere else).
+    private def compile_super_call( expr : Frontend::SuperCall ) : Int32
+      owner  = @self_owner.not_nil!
+      method = @method_name.not_nil!
+
+      idx  = nil.as( Int32? )
+      msig = nil.as( Frontend::FuncSig? )
+      cur  = owner.superclass
+      while cur && ( info = @types[ cur ]? )
+        if i = @func_index[ "#{cur}##{method}" ]?
+          idx  = i
+          msig = find_method( cur, method )
+          break
+        end
+        cur = info.superclass
+      end
+      if idx.nil? || msig.nil?
+        raise "internal: unresolved super #{owner.name}##{method} (should be rejected by Semantic)"
+      end
+
+      self_reg  = @scope[ "self" ]
+      arg_regs  = expr.args.map { |a| compile_expr( a ) }
+      arg_slots = expr.args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
+      total     = 1 + arg_slots.sum
+      ret_slots = slot_count( msig.ret )
+
+      base = alloc_block( Math.max( 1 + total, ret_slots ) )
+      place_value( base + 1, self_reg, 1 )
+      offset = 2
+      arg_regs.each_with_index do |ar, i|
+        n = arg_slots[ i ]
+        place_value( base + offset, ar, n )
+        offset += n
+      end
+      emit_abc( IR::Opcode::CALL, base, idx, total )
       base
     end
 
