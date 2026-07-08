@@ -19,7 +19,11 @@ module Volt::VM
 
     private def exec_init_obj( frame : Frame, ins : IR::Instruction )
       slots = @registry[ ins.bx ]?.try( &.slot_count ) || 0
-      frame[ ins.a ] = IR::Value.object( IR::HeapObject.new( ins.bx, slots ) )
+      obj = IR::HeapObject.allocate( ins.bx, slots )
+      if box = @class_boxes[ ins.bx ]?
+        obj.class_ref = box.as( Void* )
+      end
+      frame[ ins.a ] = IR::Value.object( obj )
     end
 
     # `C` = slot count. Copies register-to-register (a local struct
