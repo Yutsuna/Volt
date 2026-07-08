@@ -5,13 +5,14 @@ require "../../IR/Value"
 lib LibVoltDispatch
   # Mirror of C `FChunkInfo` (Dispatch.h) — one per Unit chunk.
   struct ChunkInfo
-    code           : Void*   # UInt32*  : chunk.code buffer
-    code_size      : Int32
-    consts         : Void*   # IR::Value* : chunk.constants buffer
-    num_registers  : Int32
-    raii_regs      : Void*   # UInt8*   : registers to nil on frame entry
+    code            : Void*   # UInt32*  : chunk.code buffer
+    code_size       : Int32
+    consts          : Void*   # IR::Value* : chunk.constants buffer
+    num_registers   : Int32
+    raii_regs       : Void*   # UInt8*   : registers to nil on frame entry
     raii_regs_count : Int32
-    has_drop_map   : UInt8
+    has_drop_map    : UInt8
+    feedback        : Void*   # FCallFeedback*
   end
 
   # Mirror of C `FCallFrame` — one suspended caller on the shared frame stack.
@@ -39,6 +40,10 @@ lib LibVoltDispatch
     stack_top      : Int32
     cold_op        : Int32
     result_slots   : Int32
+    class_index    : Void*   # FRClass* const*
+    class_count    : Int32
+    user_data      : Void*   # Pointer back to Vm
+    alloc_object   : Void*   # Function pointer (AllocObject)
   end
 
   # Runs the threaded core; returns an EVmStatus (see Volt::VM::DispatchStatus).
