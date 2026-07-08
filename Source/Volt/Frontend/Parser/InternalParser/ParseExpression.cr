@@ -77,6 +77,8 @@ module Volt::Frontend
         Ident.new( tok.value, tok.span )
       when .self_?
         SelfExpr.new( tok.span )
+      when TokenKind::Super
+        parse_super( tok )
       when .at?
         name_tok = expect( TokenKind::Ident )
         InstanceVar.new( name_tok.value, tok.span )
@@ -135,6 +137,24 @@ module Volt::Frontend
         RaiseExpr.new( parse_expr( Prec::Unary ), tok.span )
       else
         error!( Catalog::Parse.unexpected_expr( tok ) )
+      end
+    end
+
+    # `super( args )` — explicit arguments (possibly zero: `super()`);
+    # `super a, b`   — space-call arguments, same shape as other space calls;
+    # `super`        — bare: forwards the enclosing method's parameters
+    #                  (materialised by Semantic, which knows the method).
+    private def parse_super( tok : Token ) : AExpr
+      if @current.kind.l_paren?
+        advance
+        @paren_depth += 1
+        args = parse_arg_list( TokenKind::RParen )
+        @paren_depth -= 1
+        SuperCall.new( args, false, tok.span )
+      elsif can_start_expr?( @current.kind ) && led_prec( @current.kind ) == Prec::None
+        SuperCall.new( parse_space_call_args, false, tok.span )
+      else
+        SuperCall.new( [] of AExpr, true, tok.span )
       end
     end
 
