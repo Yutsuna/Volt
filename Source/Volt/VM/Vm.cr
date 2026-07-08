@@ -125,7 +125,7 @@ module Volt::VM
 
         box.value.type_id     = c.type_id
         box.value.slot_count  = c.slot_count
-        box.value.dtor_index  = -1
+        box.value.dtor_index  = c.dtor_index
         box.value.vtable_size = c.vtable.size
         box.value.vtable      = c.vtable.to_unsafe
 
