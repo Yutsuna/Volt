@@ -347,6 +347,21 @@ module Volt::Frontend
         Diagnostic.error( "S0053", "`next` used outside of a loop" )
           .with_primary( span )
       end
+
+      def super_outside_method( span : Span ) : Diagnostic
+        Diagnostic.error( "S0054", "`super` used outside of an instance method" )
+          .with_primary( span )
+      end
+
+      def super_without_parent( owner : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0055", "`super` used in `#{owner}`, which has no parent class" )
+          .with_primary( span )
+      end
+
+      def super_no_parent_method( owner : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0056", "no ancestor of `#{owner}` defines a method named `#{name}`" )
+          .with_primary( span, "`super` called here" )
+      end
     end
 
 

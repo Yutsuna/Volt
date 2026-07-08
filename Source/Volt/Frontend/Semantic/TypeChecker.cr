@@ -5,8 +5,9 @@ module Volt::Frontend
     def initialize( @sigs : SignatureTable, @bag : DiagnosticBag,
                     @types : Hash( String, TypeInfo ) = {} of String => TypeInfo,
                     @nominals : Hash( String, NominalType ) = {} of String => NominalType )
-      @self_type  = nil.as( TypeInfo? )
-      @loop_depth = 0
+      @self_type      = nil.as( TypeInfo? )
+      @current_method = nil.as( FuncDecl? )
+      @loop_depth     = 0
     end
 
     def check_function( fn : FuncDecl, sig : FuncSig ) : Nil
@@ -35,10 +36,13 @@ module Volt::Frontend
         scope.define( p.name, sig.params[ i ]? || Type::UNKNOWN )
       end
 
-      previous  = @self_type
-      @self_type = info
+      previous        = @self_type
+      previous_method = @current_method
+      @self_type      = info
+      @current_method = fn
       check_body( fn.body, scope )
-      @self_type = previous
+      @self_type      = previous
+      @current_method = previous_method
     end
 
     #------------------------------------------------------------------------------------
@@ -76,6 +80,7 @@ module Volt::Frontend
       when ClassVar     then infer_class_var( expr, scope )
       when MemberAccess then infer_member_access( expr, scope )
       when SelfExpr     then infer_self( expr, scope )
+      when SuperCall    then infer_super( expr, scope )
       when Assign     then infer_assign( expr, scope )
       when BinaryOp   then infer_binary( expr, scope )
       when UnaryOp    then infer_unary( expr, scope )
@@ -277,6 +282,65 @@ module Volt::Frontend
         @bag << Catalog::Sema.self_outside_method( expr.loc )
         Type::UNKNOWN
       end
+    end
+
+    # `super` resolves against the *enclosing method's* name on the superclass
+    # chain. Only meaningful inside a class's instance method : a mixin method
+    # can't know its includer's parent, a struct/module has no parent at all.
+    # A bare `super` forwards the enclosing method's parameters : they're
+    # materialised here as `Ident` args (the params are in scope under the
+    # same names in both this checker and `FunctionEmiter`).
+    private def infer_super( expr : SuperCall, scope : Scope ) : Type
+      owner = @self_type
+      fn    = @current_method
+      if owner.nil? || fn.nil?
+        @bag << Catalog::Sema.super_outside_method( expr.loc )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+
+      sup = owner.superclass
+      if sup.nil? || !owner.kind.class?
+        @bag << Catalog::Sema.super_without_parent( owner.name, expr.loc )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+
+      m = find_super_target( sup, fn.name )
+      if m.nil?
+        @bag << Catalog::Sema.super_no_parent_method( owner.name, fn.name, expr.loc )
+        expr.args.each { |a| infer( a, scope ) }
+        return Type::UNKNOWN
+      end
+
+      if expr.implicit_args
+        expr.args          = fn.params.map { |p| Ident.new( p.name, expr.loc ).as( AExpr ) }
+        expr.implicit_args = false
+      end
+      check_call_args( "super", m.params, expr.args, expr.loc, scope )
+      m.ret
+    end
+
+    # Nearest ancestor (starting at `type_name`, walking up) that will actually
+    # have a compiled chunk for `name` : its own concrete method, or one
+    # adopted from a mixin when it declares none itself (mirroring
+    # `BytecodeCompiler#collect_method_jobs`). An `abstract def` has no body,
+    # so it can't be a `super` target and the walk continues past it.
+    private def find_super_target( type_name : String?, name : String ) : FuncSig?
+      cur = type_name
+      while cur && ( info = @types[ cur ]? )
+        if decl = info.methods_ast[ name ]?
+          return info.methods[ name ]? unless decl.is_abstract
+        else
+          info.mixins.each do |mx|
+            if ( mi = @types[ mx ]? ) && ( md = mi.methods_ast[ name ]? ) && !md.is_abstract
+              return mi.methods[ name ]?
+            end
+          end
+        end
+        cur = info.superclass
+      end
+      nil
     end
 
     private def infer_member_access( expr : MemberAccess, scope : Scope ) : Type
