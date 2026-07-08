@@ -33,6 +33,7 @@ module Volt::Frontend
       @file        = file
       @current     = @lexer.next_token
       @peek        = @lexer.next_token
+      @peek_two    = @lexer.next_token
       @paren_depth = 0
       @bag         = DiagnosticBag.new
       @macro_table = {} of String => MacroDef
@@ -43,7 +44,8 @@ module Volt::Frontend
       @tokens_stream = tokens
       @current       = tokens[ 0 ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, Span.new( @file, 1, 1, 0 ) )
       @peek          = tokens[ 1 ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, Span.new( @file, 1, 1, 0 ) )
-      @token_index   = 2
+      @peek_two      = tokens[ 2 ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, Span.new( @file, 1, 1, 0 ) )
+      @token_index   = 3
       @paren_depth   = 0
       @macro_table   = {} of String => MacroDef
     end
@@ -83,11 +85,13 @@ module Volt::Frontend
       tok = @current
       if stream = @tokens_stream
         @current = @peek
-        @peek = stream[ @token_index ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, tok.span )
+        @peek    = @peek_two
+        @peek_two = stream[ @token_index ]? || Token.new( TokenKind::Eof, Pointer( UInt8 ).null, 0, tok.span )
         @token_index += 1
       else
         @current = @peek
-        @peek    = @lexer.next_token
+        @peek    = @peek_two
+        @peek_two = @lexer.next_token
       end
       tok
     end

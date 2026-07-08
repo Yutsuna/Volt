@@ -40,6 +40,8 @@ module Volt::IR
     GE_F64
     EQ            # A,B,C  : reg[A] = reg[B] == reg[C]   (value equality, any type)
     NE
+    EQ_INT        # A,B,C  : reg[A] = reg[B] == reg[C]   (typed : both operands proven Int)
+    NE_INT
 
     # --- logical -----------------------------------------------------
     NOT           # A,B    : reg[A] = !truthy?(reg[B])
@@ -138,6 +140,42 @@ module Volt::IR
     # --- minimal string builtins ---
     TO_STRING     # A,B   : reg[A] = reg[B].to_display   (Int/Float/Bool/... -> String)
     CONCAT_STR    # A,B,C : reg[A] = reg[B] + reg[C]      (String concatenation)
+
+    # --- peephole superinstructions (Compiler::Peephole, architecture #9) ---
+    #
+    # Emitted only by the peephole pass, never by FunctionEmiter directly.
+    # Every fusion is *instruction-count-preserving* : the slot(s) it removes
+    # become `NOP`, so `JMP`/`JMP_IF_FALSE` targets and `DropMap` pc ranges
+    # never need remapping.
+    NOP           #        : no-op (peephole padding)
+
+    # 8-bit unsigned immediate forms : reg[C] is a literal 0..255, not a
+    # register. Fused from `[LOAD_CONST t,k][op a,b,t]` when `k` fits.
+    ADD_INT_IMM   # A,B,C  : reg[A] = reg[B] + C
+    SUB_INT_IMM   # A,B,C  : reg[A] = reg[B] - C
+    EQ_INT_IMM    # A,B,C  : reg[A] = reg[B] == C
+    NE_INT_IMM    # A,B,C  : reg[A] = reg[B] != C
+
+    # Compare+branch fusion : fused from `[LT/LE/GT/GE/EQ/NE_INT d,B,C][JMP_IF_FALSE d,_]`.
+    # `A` is unused. The jump target is *not* encoded in this instruction: the
+    # following code slot is left as the original (untouched) `JMP_IF_FALSE`,
+    # whose `Bx` the VM reads directly for the target -- so no boolean `Value`
+    # is ever materialised for the branch. B,C : compared registers.
+    BR_LT_INT
+    BR_LE_INT
+    BR_GT_INT
+    BR_GE_INT
+    BR_EQ_INT
+    BR_NE_INT
+
+    # Same, but C is an 8-bit unsigned immediate instead of a register.
+    # Fused from `[LOAD_CONST t,k][CMP_INT d,B,t][JMP_IF_FALSE d,_]`.
+    BR_LT_INT_IMM
+    BR_LE_INT_IMM
+    BR_GT_INT_IMM
+    BR_GE_INT_IMM
+    BR_EQ_INT_IMM
+    BR_NE_INT_IMM
   end
 
 

@@ -23,6 +23,27 @@ module Volt::Compiler
       @next_reg = 0
       @max_reg  = 0
       @scopes_resource_registers = [ [] of Tuple( Int32, Int32 ) ]
+      @loop_stack = [] of LoopCtx
+    end
+
+    # Per-`while` bookkeeping for `break`/`next`, pushed/popped around
+    # `compile_body` in `compile_while` (nesting = a stack). `continue_target`
+    # is the pc of the condition re-check (`next` jumps straight there,
+    # skipping the rest of the current iteration's body — no scope to unwind:
+    # `enter_scope`/`exit_scope` only ever wrap a whole function body, never a
+    # loop body, so no `DROP_SCOPE` is ever skipped by jumping out early).
+    # `result_reg` is the loop's overall value (nil unless a `break value`
+    # writes into it — Ruby/Crystal semantics); `break_jumps` collects the
+    # placeholder `JMP`s emitted for each `break`, patched to land just past
+    # the loop once its final address is known.
+    private struct LoopCtx
+      getter continue_target : Int32
+      getter result_reg      : Int32
+      getter break_jumps     : Array( Int32 )
+
+      def initialize( @continue_target : Int32, @result_reg : Int32 )
+        @break_jumps = [] of Int32
+      end
     end
 
     #------------------------------------------------------------------------------------
@@ -162,6 +183,8 @@ module Volt::Compiler
       when Frontend::IfExpr     then compile_if( expr )
       when Frontend::WhileExpr  then compile_while( expr )
       when Frontend::ReturnExpr then compile_return( expr )
+      when Frontend::BreakExpr  then compile_break( expr )
+      when Frontend::NextExpr   then compile_next( expr )
       when Frontend::RaiseExpr
         val_reg = compile_expr( expr.value )
         emit_abc( IR::Opcode::RAISE, val_reg, 0, 0 )
@@ -281,6 +304,19 @@ module Volt::Compiler
         place_value( home, value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
         home
       else
+        # First binding. A bare `x = y` / `x = self` RHS compiles to the
+        # *existing* name's home register — binding `x` to it directly would
+        # alias the two names (rebinding either then clobbers the other), and
+        # `track_raii_resource` below would put that shared register into
+        # `raii_regs`, which `execute` nil-inits at frame entry — for a
+        # parameter that wipes the argument before the body ever reads it.
+        # Copy into a fresh home register instead.
+        if expr.value.is_a?( Frontend::Ident ) || expr.value.is_a?( Frontend::SelfExpr )
+          n    = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+          home = n <= 1 ? alloc : alloc_block( n )
+          place_value( home, value_reg, n )
+          value_reg = home
+        end
         @scope[ name ] = value_reg
         if ( t = expr.value.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
           track_raii_resource( value_reg, t.type_id )
@@ -749,7 +785,12 @@ module Volt::Compiler
 
       is_f64 = numeric_float?( expr.left )
       dest   = alloc
-      emit_abc( binary_opcode( expr.op, is_f64 ), dest, lreg, rreg )
+      op     = binary_opcode( expr.op, is_f64 )
+      if ( expr.op.eq_eq? || expr.op.bang_eq? ) &&
+         expr.left.resolved_type.try( &.integer? ) && expr.right.resolved_type.try( &.integer? )
+        op = expr.op.eq_eq? ? IR::Opcode::EQ_INT : IR::Opcode::NE_INT
+      end
+      emit_abc( op, dest, lreg, rreg )
 
       if expr.op.amp_plus? || expr.op.amp_minus? || expr.op.amp_star? || expr.op.amp_star_star?
         if ( t = expr.resolved_type ) && t.integer? && t.int_bit_width < 64
@@ -911,16 +952,51 @@ module Volt::Compiler
     end
 
     private def compile_while( expr : Frontend::WhileExpr ) : Int32
+      # Allocated up front (rather than after the body, as a plain `while`
+      # with no `break value` would need) so `compile_break` has a register
+      # to write a break-value into regardless of where in the body it fires.
+      dest = alloc
+      emit_abc( IR::Opcode::LOAD_NIL, dest, 0, 0 )
+
       top    = here
       creg   = compile_expr( expr.cond )
       to_end = emit_jump_placeholder( IR::Opcode::JMP_IF_FALSE, creg )
+
+      @loop_stack.push( LoopCtx.new( top, dest ) )
       compile_body( expr.body )
+      ctx = @loop_stack.pop
+
       emit_abx( IR::Opcode::JMP, 0, top )
       patch_jump( to_end, here )
+      ctx.break_jumps.each { |j| patch_jump( j, here ) }
 
-      dest = alloc
-      emit_abc( IR::Opcode::LOAD_NIL, dest, 0, 0 )
       dest
+    end
+
+    # `break` / `break value` : an optional value first (Ruby/Crystal-style —
+    # becomes the enclosing `while`'s own result), then an unconditional jump
+    # patched to land just past the loop once its end address is known.
+    private def compile_break( expr : Frontend::BreakExpr ) : Int32
+      ctx = @loop_stack.last
+      if v = expr.value
+        vreg = compile_expr( v )
+        place_value( ctx.result_reg, vreg, 1 )
+      end
+      ctx.break_jumps << emit_jump_placeholder( IR::Opcode::JMP, 0 )
+      ctx.result_reg
+    end
+
+    # `next` : any value expression is still compiled for its side effects
+    # (matches evaluating a statement that's simply never used), then jumps
+    # straight back to the loop's condition re-check — no value it could
+    # carry is observable anywhere (`while` never yields per-iteration).
+    private def compile_next( expr : Frontend::NextExpr ) : Int32
+      ctx = @loop_stack.last
+      if v = expr.value
+        compile_expr( v )
+      end
+      emit_abx( IR::Opcode::JMP, 0, ctx.continue_target )
+      ctx.result_reg
     end
 
     private def compile_return( expr : Frontend::ReturnExpr ) : Int32

@@ -16,6 +16,14 @@ module Volt::Frontend
         name = "#{name}::#{expect( TokenKind::Ident ).value}"
       end
 
+      # The lexer folds a trailing `?` into the identifier itself (idents may
+      # end in `?`/`!` for method names), so `ListNode?` arrives as one Ident
+      # token — split the nilable marker back off the type name here. The
+      # standalone `?`-token check further down still covers the detached
+      # form (e.g. after a generic: `Array[Int]?`).
+      glued_nilable = name.ends_with?( '?' )
+      name = name.rchop( '?' ) if glued_nilable
+
       ty : ATypeNode = if @current.kind.l_bracket?
         advance
         @paren_depth += 1
@@ -31,6 +39,8 @@ module Volt::Frontend
       else
         SimpleType.new( name, loc )
       end
+
+      ty = NilableType.new( ty, loc ) if glued_nilable
 
       # T -> U  (function type sugar)
       if @current.kind.arrow?

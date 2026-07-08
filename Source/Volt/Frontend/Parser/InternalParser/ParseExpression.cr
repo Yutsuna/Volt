@@ -11,7 +11,7 @@ module Volt::Frontend
 
         if @paren_depth == 0 && @current.kind.newline?
           continuation = led_prec( @peek.kind )
-          break if continuation <= min_prec
+          break if continuation <= min_prec || continuation.modifier?
           advance
         end
 
@@ -71,7 +71,7 @@ module Volt::Frontend
         BoolLit.new( true, tok.span )
       when .false?
         BoolLit.new( false, tok.span )
-      when .nil?
+      when TokenKind::Nil
         NilLit.new( tok.span )
       when .ident?
         Ident.new( tok.value, tok.span )
@@ -129,6 +129,8 @@ module Volt::Frontend
         ReturnExpr.new( expr_if_on_same_line, tok.span )
       when .break?
         BreakExpr.new( expr_if_on_same_line, tok.span )
+      when .next?
+        NextExpr.new( expr_if_on_same_line, tok.span )
       when .raise?
         RaiseExpr.new( parse_expr( Prec::Unary ), tok.span )
       else
@@ -138,6 +140,33 @@ module Volt::Frontend
 
     private def led( left : AExpr, op : Token ) : AExpr
       case op.kind
+      when .if?
+        then_expr = parse_expr( Prec::Modifier )
+        if @current.kind.else?
+          expect( TokenKind::Else )
+          else_expr = parse_expr( Prec::Modifier )
+          IfExpr.new( left, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+        else
+          IfExpr.new( then_expr, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
+        end
+      when .unless?
+        then_expr = parse_expr( Prec::Modifier )
+        if @current.kind.else?
+          expect( TokenKind::Else )
+          else_expr = parse_expr( Prec::Modifier )
+          neg = UnaryOp.new( TokenKind::Bang, left, op.span )
+          IfExpr.new( neg, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+        else
+          neg = UnaryOp.new( TokenKind::Bang, then_expr, op.span )
+          IfExpr.new( neg, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
+        end
+      when .while?
+        cond = parse_expr( Prec::Modifier )
+        IfExpr.new( cond, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
+      when .until?
+        cond = parse_expr( Prec::Modifier )
+        neg = UnaryOp.new( TokenKind::Bang, cond, op.span )
+        IfExpr.new( neg, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
       when .plus?, .minus?, .star?, .slash?, .percent?,
            .amp_plus?, .amp_minus?, .amp_star?, .slash_slash?,
            .amp?, .pipe?, .caret?, .lt_lt?, .gt_gt?,
@@ -167,8 +196,15 @@ module Volt::Frontend
       when .colon_colon?
         parse_namespace_path( left )
       when .question?
-        expect( TokenKind::Dot )
-        parse_dot_call( left, safe: true )
+        if @current.kind.dot?
+          expect( TokenKind::Dot )
+          parse_dot_call( left, safe: true )
+        else
+          then_expr = parse_expr( Prec::Ternary )
+          expect( TokenKind::Colon )
+          else_expr = parse_expr( Prec::Ternary )
+          IfExpr.new( left, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+        end
       when .l_paren?
         if left.is_a?( Ident ) && ( macro_def = @macro_table[ left.name ]? )
           return expand_macro( macro_def, op )
@@ -203,6 +239,8 @@ module Volt::Frontend
 
     private def led_prec( kind : TokenKind ) : Prec
       case kind
+      when .if?, .unless?, .while?, .until?
+        Prec::Modifier
       when .eq?, .colon?, .plus_eq?, .minus_eq?, .star_eq?, .slash_eq?, .slash_slash_eq?,
            .percent_eq?, .pipe_eq?, .amp_eq?, .caret_eq?, .amp_plus_eq?
         Prec::Assignment
@@ -222,7 +260,9 @@ module Volt::Frontend
       when .star?, .slash?, .percent?,
            .slash_slash?, .amp_star?             then Prec::Factor
       when .star_star?, .amp_star_star?          then Prec::Power
-      when .dot?, .question?, .colon_colon?      then Prec::Call
+      when .dot?, .colon_colon?                  then Prec::Call
+      when .question?
+        @peek.kind.dot? ? Prec::Call : Prec::Ternary
       when .l_paren?, .l_bracket?, .l_brace?    then Prec::Call
       else                                        Prec::None
       end
@@ -364,11 +404,13 @@ module Volt::Frontend
 
     private def can_start_expr?( kind : TokenKind ) : Bool
       case kind
-      when .int?, .float?, .string?, .true?, .false?, .nil?, .ident?, .self_?, .at?,
+      # `TokenKind::Nil` spelled as a constant: `.nil?` here would call
+      # `Object#nil?` (always false), silently dropping `nil` from the set.
+      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
             .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?,
             .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
             .if?, .unless?, .match?, .while?, .until?, .await?,
-            .return?, .break?, .raise?
+            .return?, .break?, .next?, .raise?
         true
       else
         false

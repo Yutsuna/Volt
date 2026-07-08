@@ -26,20 +26,11 @@
       ];
 
       perSystem = { pkgs, inputs', ... }: {
+        devShells.default = pkgs.callPackage ./Nix/Shell.nix { inherit inputs'; };
 
-        devShells.default =
-          with pkgs;
-          mkShell {
-            name = "Volt";
-
-            buildInputs = [
-              inputs'.krystal-app.packages.default
-            ];
-
-            shellHook = ''
-              krystal --help
-            '';
-          };
+        packages.default = pkgs.callPackage ./Nix/Package.nix {
+          krystal = inputs'.krystal-app.packages.default;
+        };
       };
     };
 }
