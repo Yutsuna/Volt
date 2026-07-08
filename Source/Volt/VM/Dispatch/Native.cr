@@ -1,6 +1,3 @@
-# Source/VM/Dispatch/Native.cr
-
-# Interface native du système (POSIX) pour le chargement dynamique (FFI)
 @[Link("dl")]
 lib LibDL
   RTLD_LAZY = 1
@@ -10,15 +7,15 @@ end
 
 module Volt::VM
 
-  # Signatures FFI génériques représentées par des pointeurs machine
+  # Generic FFI signatures represented by machine pointers
   alias CFunc0 = -> Void*
   alias CFunc1 = Void* -> Void*
   alias CFunc2 = Void*, Void* -> Void*
   alias CFunc3 = Void*, Void*, Void* -> Void*
   alias CFunc4 = Void*, Void*, Void*, Void* -> Void*
 
-  # Structure miroir exacte de la structure interne d'une Proc Crystal (16 octets)
-  # Permet de recréer l'enveloppe sur la stack sans toucher au code machine d'exécution.
+  # Exact mirror structure of the internal structure of a Crystal Proc (16 bytes)
+  # Allows recreating the wrapper on the stack without touching the execution machine code.
   struct CFuncWrapper
     property fptr : Void*
     property env : Void*

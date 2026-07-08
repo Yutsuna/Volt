@@ -13,6 +13,9 @@ declare -A EXPECT=(
   [Primes/IsPrime]="Number of primes up to 100000: 9592"
 )
 
+echo ">> Building direct-threaded core (Source/C/Dispatch.o) ..."
+bash Source/C/Build.sh
+
 echo ">> Building Volt (release) ..."
 krystal -r -o "$BUILD"
 
