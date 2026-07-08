@@ -22,6 +22,12 @@ lib LibVoltDispatch
     ip          : Int32
   end
 
+  # Mirror of C `FCallFeedback` — type feedback per instruction slot.
+  struct CallFeedback
+    last_class_id : Int32
+    hit_count     : Int32
+  end
+
   # Mirror of C `FRClass` — runtime metadata per class.
   struct RClass
     type_id     : Int32
