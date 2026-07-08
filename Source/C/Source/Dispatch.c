@@ -707,6 +707,29 @@ LCallMethod:
 			return VM_ERR_NOMETHOD;
 		}
 
+		/* Record call-site type feedback (inline caching) */
+		if ( Chunks[ CurChunk ].Feedback != NULL )
+		{
+			FCallFeedback* IC = &Chunks[ CurChunk ].Feedback[ Ip - 1 ];
+			Int32 ClassId = Obj->TypeId;
+			if ( IC->LastClassId == ClassId )
+			{
+				IC->HitCount++;
+			}
+			else
+			{
+				if ( IC->HitCount == 0 )
+				{
+					IC->LastClassId = ClassId;
+					IC->HitCount = 1;
+				}
+				else
+				{
+					IC->LastClassId = -1; /* invalidated monomorphic status (polymorphic) */
+				}
+			}
+		}
+
 		Int32 CalleeIndex = Class->VTable[ OP_B ];
 		Int32 CalleeBase  = Base + OP_A + 1;
 		const FChunkInfo* Callee = &Chunks[ CalleeIndex ];
