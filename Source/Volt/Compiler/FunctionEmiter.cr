@@ -97,7 +97,9 @@ module Volt::Compiler
 
       unless regs.empty?
         table_idx = add_scope_table( regs )
-        emit_abx( IR::Opcode::DROP_SCOPE, 0, table_idx )
+        regs.each do |r|
+          emit_abc( IR::Opcode::DROP, r, 0, 0 )
+        end
 
         @chunk.drop_map.entries.each do |entry|
           if entry.pc_end == UInt32::MAX && regs.includes?( entry.register.to_i32 )
