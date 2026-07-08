@@ -159,6 +159,15 @@ module Volt::VM
       end
     end
 
+    def allocate_object_for_c( type_id : Int32, out_val : IR::Value* ) : Nil
+      slots = @registry[ type_id ]?.try( &.slot_count ) || 0
+      obj = IR::HeapObject.allocate( type_id, slots )
+      if box = @class_boxes[ type_id ]?
+        obj.class_ref = box.as( Void* )
+      end
+      out_val.value = IR::Value.object( obj )
+    end
+
     def call_chunk_at( index : Int32, args : Array( IR::Value ) = [] of IR::Value ) : Array( IR::Value )
       call_chunk( @unit.chunks[ index ], args )
     end
@@ -286,6 +295,12 @@ module Volt::VM
       ctx.stack_top      = @stack_top
       ctx.class_index    = @class_index.as( Void* )
       ctx.class_count    = @class_index_size
+      ctx.user_data      = Pointer( Void ).new( self.object_id )
+      ctx.alloc_object   = ->( user_data : Void*, type_id : Int32, out_val : Void* ) {
+        vm = user_data.unsafe_as( Vm )
+        vm.allocate_object_for_c( type_id, out_val.as( IR::Value* ) )
+        nil
+      }
 
       begin
         while true
@@ -302,6 +317,18 @@ module Volt::VM
             raise OverflowError.new
           when DispatchStatus::ERR_STACKOVER
             raise VoltRuntimeError.new( "stack overflow" )
+          when DispatchStatus::ERR_NILRECEIVER
+            raise VoltRuntimeError.new( "nil receiver" )
+          when DispatchStatus::ERR_NOMETHOD
+            ins  = IR::Instruction.new( ctx.stack.as( UInt32* )[ ctx.base + ctx.ip ] )
+            recv = ctx.stack.as( IR::Value* )[ ctx.base + ins.a + 1 ]
+            obj  = recv.as_object
+            rclass = @registry[ obj.type_id ]?
+            if rclass
+              raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
+            else
+              raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" )
+            end
           when DispatchStatus::ERR_BADOP
             raise VoltRuntimeError.new( "opcode #{IR::Opcode.new( ctx.cold_op.to_u8 )} is not yet implemented" )
           else
