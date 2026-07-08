@@ -47,6 +47,7 @@ module Volt::VM
       @chunk_table_size = 0
       @chunk_index_of   = {} of UInt64 => Int32
       @chunk_raii_keep  = [] of Bytes   # keeps raii-reg buffers alive for the GC
+      @chunk_feedback_keep = [] of Pointer( LibVoltDispatch::CallFeedback )
 
       # Stable FRClass heap boxes and flat class_index for FFI
       @class_boxes         = {} of Int32 => Pointer( LibVoltDispatch::RClass )
@@ -70,6 +71,7 @@ module Volt::VM
       n   = @unit.chunks.size
       tbl = Pointer( LibVoltDispatch::ChunkInfo ).malloc( n.to_u64 )
       keep     = Array( Bytes ).new( n )
+      feedback_keep = Array( Pointer( LibVoltDispatch::CallFeedback ) ).new( n )
       index_of = {} of UInt64 => Int32
 
       @unit.chunks.each_with_index do |c, i|
@@ -77,6 +79,17 @@ module Volt::VM
         buf  = Bytes.new( raii.size )
         raii.each_with_index { |r, k| buf[ k ] = r.to_u8 }
         keep << buf
+
+        fb_size = c.code.size
+        if fb_size > 0
+          fb = Pointer( LibVoltDispatch::CallFeedback ).malloc( fb_size )
+          fb_size.times do |k|
+            fb[ k ] = LibVoltDispatch::CallFeedback.new( last_class_id: -1, hit_count: 0 )
+          end
+        else
+          fb = Pointer( LibVoltDispatch::CallFeedback ).null
+        end
+        feedback_keep << fb
 
         info = LibVoltDispatch::ChunkInfo.new
         info.code            = c.code.to_unsafe.as( Void* )
@@ -86,15 +99,17 @@ module Volt::VM
         info.raii_regs       = buf.to_unsafe.as( Void* )
         info.raii_regs_count  = raii.size
         info.has_drop_map    = c.drop_map.empty? ? 0_u8 : 1_u8
+        info.feedback        = fb.as( Void* )
         tbl[ i ] = info
 
         index_of[ c.object_id ] = i
       end
 
-      @chunk_table      = tbl
-      @chunk_table_size = n
-      @chunk_index_of   = index_of
-      @chunk_raii_keep  = keep
+      @chunk_table         = tbl
+      @chunk_table_size    = n
+      @chunk_index_of      = index_of
+      @chunk_raii_keep     = keep
+      @chunk_feedback_keep = feedback_keep
     end
 
     private def ensure_class_table : Nil
