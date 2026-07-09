@@ -74,6 +74,7 @@ module Volt::Frontend
     Public
     Extend
     Circuit
+    Typeof
 
     # arithmetic
     Plus        # +

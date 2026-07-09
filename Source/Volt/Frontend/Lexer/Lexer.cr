@@ -47,6 +47,7 @@ module Volt::Frontend
       "public"    => TokenKind::Public,
       "extend"    => TokenKind::Extend,
       "circuit"   => TokenKind::Circuit,
+      "typeof"    => TokenKind::Typeof,
       "true"      => TokenKind::True,
       "false"     => TokenKind::False,
       "nil"       => TokenKind::Nil,
