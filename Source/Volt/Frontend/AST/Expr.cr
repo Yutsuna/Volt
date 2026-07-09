@@ -321,4 +321,14 @@ module Volt::Frontend
   end
 
 
+  class TypeofExpr < AExpr
+    property operand : AExpr
+    property resolved_operand_type : Type?
+
+    def initialize( @operand : AExpr, loc : Span )
+      super( loc )
+    end
+  end
+
+
 end
