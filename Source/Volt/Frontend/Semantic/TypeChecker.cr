@@ -115,6 +115,25 @@ module Volt::Frontend
       when RaiseExpr
         infer( expr.value, scope )
         Type::UNKNOWN
+      when TypeofExpr
+        op = expr.operand
+        opt = if op.is_a?(Ident) && scope.lookup(op.name)
+          infer(op, scope)
+        elsif op.is_a?(Ident) && (prim_ty = Type.from_primitive_name(op.name))
+          op.resolved_type = prim_ty
+          prim_ty
+        elsif op.is_a?(Ident) && (nom_ty = @nominals[op.name]?)
+          op.resolved_type = nom_ty
+          nom_ty
+        elsif op.is_a?(Ident) && (sig = @sigs[op.name]?)
+          func_ty = Type.func(sig.params, sig.ret)
+          op.resolved_type = func_ty
+          func_ty
+        else
+          infer(op, scope)
+        end
+        expr.resolved_operand_type = opt
+        Type::STR
       else
         @bag << Catalog::Sema.unsupported_expr( type_name( expr ), expr.loc )
         Type::UNKNOWN
