@@ -26,10 +26,10 @@ module Volt::Frontend
         case @current.value
         when "runtime"
           advance
-          runtime = expect_plain_string
+          runtime = parse_maybe_parenthesized_string
         when "entrypoint"
           advance
-          entrypoint = expect_plain_string
+          entrypoint = parse_maybe_parenthesized_string
         when "modules"
           advance
           modules = parse_circuit_modules
@@ -89,6 +89,19 @@ module Volt::Frontend
     # so it is rejected here rather than silently desugared.
     private def expect_plain_string : String
       expect_plain_string_value( expect( TokenKind::String ) )
+    end
+
+    private def parse_maybe_parenthesized_string : String
+      if @current.kind.l_paren?
+        advance
+        @paren_depth += 1
+        val = expect_plain_string
+        @paren_depth -= 1
+        expect( TokenKind::RParen )
+        val
+      else
+        expect_plain_string
+      end
     end
 
     private def expect_plain_string_value( tok : Token ) : String
