@@ -340,10 +340,12 @@ module Volt::VM
             obj  = recv.as_object
             rclass = @registry[ obj.type_id ]?
             if rclass
-              raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
+               raise VoltRuntimeError.new( "unresolved virtual method (vtable slot #{ins.b}) on #{rclass.name}" )
             else
-              raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" )
+               raise VoltRuntimeError.new( "unknown class for type_id #{obj.type_id}" )
             end
+          when DispatchStatus::ERR_NULLPTR
+            raise VoltRuntimeError.new( "null pointer exception" )
           when DispatchStatus::ERR_BADOP
             raise VoltRuntimeError.new( "opcode #{IR::Opcode.new( ctx.cold_op.to_u8 )} is not yet implemented" )
           else
@@ -698,6 +700,10 @@ module Volt::VM
             when IR::Opcode::INIT_OBJ, IR::Opcode::LOAD_FIELD, IR::Opcode::STORE_FIELD,
                  IR::Opcode::COPY_BLOCK, IR::Opcode::NEW_STRUCT
               exec_object( frame, chunk, ins )
+
+            when IR::Opcode::LOAD_PTR, IR::Opcode::STORE_PTR, IR::Opcode::PTR_ADD,
+                 IR::Opcode::PTR_SUB, IR::Opcode::ADDR_LOCAL, IR::Opcode::ADDR_FIELD
+              exec_pointer( frame, chunk, ins )
 
             else
               # CALL_MIXIN (reserved/unused) and any unhandled opcode.
