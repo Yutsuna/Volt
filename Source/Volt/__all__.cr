@@ -1,6 +1,7 @@
 require "./IR/__all__"
 require "./Frontend/__all__"
 require "./Circuit/__all__"
+require "./Core/__all__"
 require "./Runtime/__all__"
 require "./Compiler/__all__"
 require "./VM/__all__"
