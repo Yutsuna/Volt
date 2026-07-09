@@ -1,0 +1,157 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+module OOPBench
+
+
+  struct Vector3
+    x : Float64
+    y : Float64
+    z : Float64
+
+    def initialize( @x : Float64, @y : Float64, @z : Float64 )
+    end
+
+    def magnitude_squared -> Float64
+      @x * @x + @y * @y + @z * @z
+    end
+
+    def add( other : Vector3 ) -> Vector3
+      Vector3.new( @x + other.x, @y + other.y, @z + other.z )
+    end
+  end
+
+
+  mixin Loggable
+    log_count : Int64
+
+    def initialize
+      @log_count = 0
+    end
+
+    def log_message( message : String ) -> Void
+      @log_count = @log_count + 1
+    end
+
+    def get_log_count -> Int64
+      @log_count
+    end
+  end
+
+
+  abstract class Shape include Loggable
+    x : Float64
+    y : Float64
+
+    def initialize( @x : Float64, @y : Float64 )
+      @x = x
+      @y = y
+    end
+
+    abstract def area -> Float64
+    abstract def perimeter -> Float64
+  end
+
+
+  class Circle < Shape
+    radius : Float64
+
+    def initialize( @x : Float64, @y : Float64, @radius : Float64 )
+      @radius = radius
+    end
+
+    def area -> Float64
+      3.141592653589793 * @radius * @radius
+    end
+
+    def perimeter -> Float64
+      2.0 * 3.141592653589793 * @radius
+    end
+  end
+
+
+  class Rectangle < Shape
+    width : Float64
+    height : Float64
+
+    def initialize( @x : Float64, @y : Float64, @width : Float64, @height : Float64 )
+      @width = width
+      @height = height
+    end
+
+    def area -> Float64
+      @width * @height
+    end
+
+    def perimeter -> Float64
+      2.0 * (@width + @height)
+    end
+  end
+
+
+  class FileHandle
+    path : String
+    is_open : Bool
+
+    def initialize( @path : String )
+      @is_open = true
+    end
+
+    def read -> String
+      if @is_open
+        "Content"
+      else
+        "Closed"
+      end
+    end
+
+    def close -> Void
+      if @is_open
+        @is_open = false
+      end
+    end
+
+    def finalize
+      close
+    end
+  end
+
+
+end
+
+
+v1 = OOPBench::Vector3.new(1.0, 2.0, 3.0)
+v2 = OOPBench::Vector3.new(4.0, 5.0, 6.0)
+sum_struct = 0.0
+
+i = 0
+while i < 10000000
+  res = v1.add(v2)
+  sum_struct = sum_struct + res.magnitude_squared
+  i = i + 1
+end
+puts("Struct: #{sum_struct}")
+
+sum_area = 0.0
+
+j = 0
+while j < 5000000
+  shape : OOPBench::Shape = nil
+  if j % 2 == 0
+    shape = OOPBench::Circle.new(0.0, 0.0, 5.0)
+  else
+    shape = OOPBench::Rectangle.new(0.0, 0.0, 10.0, 20.0)
+  end
+  sum_area = sum_area + shape.area
+  j = j + 1
+end
+puts("Polymorphism: #{sum_area}")
+
+
+k = 0
+while k < 3000000
+  file = OOPBench::FileHandle.new("/tmp/test.txt")
+  file.read
+  k = k + 1
+end
+puts("RAII Completed.")

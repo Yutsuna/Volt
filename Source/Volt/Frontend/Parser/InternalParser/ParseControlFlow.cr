@@ -113,19 +113,46 @@ module Volt::Frontend
       raw[ 1, raw.bytesize - 2 ]
     end
 
+    private def unescape( s : String ) : String
+      String.build do |io|
+        chars = s.chars
+        i = 0
+        while i < chars.size
+          if chars[ i ] == '\\' && i + 1 < chars.size
+            case chars[ i + 1 ]
+            when 'n'  then io << '\n'; i += 2
+            when 't'  then io << '\t'; i += 2
+            when 'r'  then io << '\r'; i += 2
+            when '"'  then io << '"';  i += 2
+            when '\\' then io << '\\'; i += 2
+            else
+              io << '\\'
+              i += 1
+            end
+          else
+            io << chars[ i ]
+            i += 1
+          end
+        end
+      end
+    end
+
     # `"a #{expr} b"` desugars, at parse time, into a left-folded string
     # concatenation `"a " + (expr).to_s + " b"`, reusing the existing `+`
     # (CONCAT_STR) and `.to_s` machinery. A string with no `#{` interpolation
     # is returned as a plain `StringLit`, unchanged.
+    # `"a #{expr} b"` desugars, at parse time, into a left-folded string
     private def parse_string_literal( tok : Token ) : AExpr
       content = strip_quotes( tok )
-      return StringLit.new( content, tok.span ) unless content.includes?( "\#{" )
+
+      return StringLit.new( unescape(content), tok.span ) unless content.includes?( "\#{" )
 
       parts   = split_interpolation( content )
       result  = nil.as( AExpr? )
       parts.each do |part|
         piece = case part
-                in String   then StringLit.new( part, tok.span ).as( AExpr )
+                # On unescape également les segments littéraux au sein d'une interpolation
+                in String   then StringLit.new( unescape(part), tok.span ).as( AExpr )
                 in AExpr     then MemberAccess.new( part, "to_s", false, tok.span ).as( AExpr )
                 end
         result = result.nil? ? piece : BinaryOp.new( result, TokenKind::Plus, piece, tok.span )
