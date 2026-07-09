@@ -1,7 +1,4 @@
 @[External("libc")]
-def puts( str : String ) -> Int32
-
-@[External("libc")]
 def malloc( size : UInt64 ) -> Void*
 
 
