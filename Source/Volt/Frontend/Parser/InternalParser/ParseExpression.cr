@@ -109,6 +109,12 @@ module Volt::Frontend
       when .bang?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )
+      when .star?
+        operand = parse_expr( Prec::Unary )
+        UnaryOp.new( TokenKind::Star, operand, tok.span )
+      when .amp?
+        operand = parse_expr( Prec::Unary )
+        UnaryOp.new( TokenKind::Amp, operand, tok.span )
       when .not?
         # The English `not` keyword binds loosely (Ruby-style) : looser than
         # comparison/equality but tighter than `and`/`or`, so `not a == b`
