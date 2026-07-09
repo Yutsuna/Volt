@@ -1,0 +1,10 @@
+circuit "CycleApp"
+{
+  runtime "0.1.0"
+  entrypoint "Source/Main.vl"
+
+  modules(
+    "Alpha"  => "Source/Alpha",
+    "Beta"   => "Source/Beta",
+  )
+}
