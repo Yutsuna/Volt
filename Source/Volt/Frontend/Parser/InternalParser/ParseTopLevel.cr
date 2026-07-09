@@ -19,7 +19,14 @@ module Volt::Frontend
           elsif macro_invocation?
             nodes.concat( expand_macro_statements )
           else
-            nodes << parse_top_level_node
+            annots = collect_annotations
+            annots.reject! do |annot|
+              next false unless annot.name == "Link"
+              nodes << link_decl_from( annot )
+              true
+            end
+            # A file may end on bare `@[Link]` annotations with nothing after them.
+            nodes << parse_top_level_node( annots ) unless annots.empty? && at_end?
           end
         rescue ParseRecovery
           synchronize
@@ -28,8 +35,7 @@ module Volt::Frontend
       end
     end
 
-    private def parse_top_level_node : ANode
-      annots = collect_annotations
+    private def parse_top_level_node( annots : Array( Annotation ) ) : ANode
       case @current.kind
       when .def?
         parse_func_decl( annots, is_async: false )
@@ -86,6 +92,16 @@ module Volt::Frontend
           skip_separators
         end
         annots
+      end
+
+      # `@[Link("Module")]` is a file-level annotation: it never attaches to a decl,
+      # it becomes a standalone LinkDecl consumed by Circuit::Resolver.
+      private def link_decl_from( annot : Annotation ) : LinkDecl
+        arg = annot.args.first?
+        unless annot.args.size == 1 && arg.is_a?( StringLit )
+          error!( Catalog::Parse.link_expects_module_name( annot.loc ) )
+        end
+        LinkDecl.new( arg.value, annot.loc )
       end
 
 
