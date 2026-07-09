@@ -3,5 +3,5 @@
 
 
 user = Models::User.new( 42, "Yutsuna" )
-logger = Components::UserLogger.new( user )
+logger = Components::UserLogger.new( "[user]" )
 logger.log_user( user )

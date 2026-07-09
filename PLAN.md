@@ -60,7 +60,7 @@ S'assurer de restreindre les chemins des modules définis dans le manifest pour 
 - Brancher `volt check` sur ce chemin (validation sans exécution).
 - **Specs** : Resolver sur les deux fixtures (ordre topo, dédup diamant), cycle artificiel (fixture `CycleDeps` à créer), `@[Link]` vers module non déclaré → diagnostic.
 
-## Phase 4 — Exécution : `volt run` project-aware (bout en bout) | TODO with `Chore/Add-Circuits/Phase4/Run`
+## Phase 4 — Exécution : `volt run` project-aware (bout en bout) | DONE with `Chore/Add-Circuits/Phase4/Run`
 
 **But** : les circuits **fonctionnent** — les deux fixtures s'exécutent.
 
