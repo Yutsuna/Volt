@@ -599,6 +599,10 @@ module Volt::Frontend
       # Class references and pointers are implicitly nilable : `nil` is
       # assignable wherever an Object reference or Pointer is declared.
       return true if actual.nil_type? && ( declared.kind.object? || declared.pointer? )
+      # Void* compatibility with any pointer type
+      if declared.pointer? && actual.pointer?
+        return true if declared.void_pointer? || actual.void_pointer?
+      end
       if declared.is_a?( NominalType ) && actual.is_a?( NominalType )
         cur = actual.name
         while cur
@@ -686,7 +690,7 @@ module Volt::Frontend
           return Type::BOOL
         end
 
-        unless lt == rt
+        unless lt == rt || ( lt.pointer? && rt.pointer? && ( lt.void_pointer? || rt.void_pointer? ) )
           @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
         end
         Type::BOOL
