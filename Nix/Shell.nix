@@ -23,7 +23,9 @@ let
     declare -A EXPECT=(
       [Recursive/Fibonacci]="Fibonacci of 35 is 9227465"
       [Primes/IsPrime]="Number of primes up to 100000: 9592"
-      [OOP/OOP]="Struct: 1550000000.0\nPolymorphism: 696349540.8569596\nRAII Completed."
+      [OOP/OOP]="Struct: 1550000000.0
+Polymorphism: 696349540.8569596
+RAII Completed."
     )
 
     function run_check()
