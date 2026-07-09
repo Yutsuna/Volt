@@ -1,0 +1,19 @@
+@[Link("Core")]
+
+
+module Auth
+
+
+  class AuthService
+    config : Core::AppConfig
+
+    def initialize(@config : Core::AppConfig)
+    end
+
+    def verify_token -> Bool
+      true
+    end
+  end
+
+
+end

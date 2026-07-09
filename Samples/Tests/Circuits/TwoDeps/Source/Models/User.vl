@@ -1,0 +1,18 @@
+module Models
+
+
+  struct User
+    id : Int32
+    name : String
+
+    def initialize( @id : Int32, @name : String )
+    end
+
+    def get_id -> Int32
+      @id
+    end
+
+  end
+
+
+end
