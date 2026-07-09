@@ -56,6 +56,8 @@ module Volt::Frontend
         parse_component_decl( annots, is_async: false )
       when .use?
         parse_use_decl
+      when .circuit?
+        parse_circuit_decl
       else
         parse_expr_node
       end
