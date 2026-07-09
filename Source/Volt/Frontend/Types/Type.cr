@@ -180,6 +180,29 @@ module Volt::Frontend
       end
     end
 
+    def self.from_primitive_name( name : String ) : Type?
+      case name
+      when "Int8"                          then INT8
+      when "UInt8"                         then UINT8
+      when "Int16"                         then INT16
+      when "UInt16"                        then UINT16
+      when "Int32"                         then INT32
+      when "UInt32"                        then UINT32
+      when "Int64"                         then INT64
+      when "UInt64"                        then UINT64
+      when "Int"                           then INT
+      when "UInt"                          then UINT
+      when "Float"                         then FLOAT
+      when "Float32"                       then FLOAT32
+      when "Float64"                       then FLOAT64
+      when "Bool"                          then BOOL
+      when "String"                        then STR
+      when "Nil", "Void"                   then NIL
+      when "Regex"                         then REGEX
+      else                                 nil
+      end
+    end
+
     # Resolve a parsed type annotation to a `Type`. `nominals`, when given, is
     # consulted for any name that isn't a built-in primitive : this is how
     # `class`/`struct` names (`Point`, `Device`, ...) resolve to their
@@ -202,26 +225,7 @@ module Volt::Frontend
         return inner ? pointer( inner ) : nil
       end
       return nil unless node.is_a?( SimpleType )
-      case node.name
-      when "Int8"                          then INT8
-      when "UInt8"                         then UINT8
-      when "Int16"                         then INT16
-      when "UInt16"                        then UINT16
-      when "Int32"                         then INT32
-      when "UInt32"                        then UINT32
-      when "Int64"                         then INT64
-      when "UInt64"                        then UINT64
-      when "Int"                           then INT
-      when "UInt"                          then UINT
-      when "Float"                         then FLOAT
-      when "Float32"                       then FLOAT32
-      when "Float64"                       then FLOAT64
-      when "Bool"                          then BOOL
-      when "String"                        then STR
-      when "Nil", "Void"                   then NIL
-      when "Regex"                         then REGEX
-      else                                      nominals.try( &.[]?( node.name ) )
-      end
+      from_primitive_name( node.name ) || nominals.try( &.[]?( node.name ) )
     end
   end
 
