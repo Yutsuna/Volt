@@ -3,6 +3,7 @@ import site
 import os
 import shutil
 import re
+from pathlib import Path
 
 def setup_paths():
     # If graphify is already available, do nothing
@@ -26,7 +27,7 @@ def setup_paths():
     try:
         with open(real_graphify, "r") as f:
             wrapper_content = f.read(4096)
-        
+
         # Look for the wrapped script pattern
         match_wrapped = re.search(r'exec -a "\$0"\s+"([^"]+\.graphify-wrapped)"', wrapper_content)
         if match_wrapped:
@@ -61,8 +62,9 @@ setup_paths()
 import graphify.detect
 import graphify.extract
 
-# Patch CODE_EXTENSIONS to include .cr
+# Patch CODE_EXTENSIONS to include .cr and .inc
 graphify.detect.CODE_EXTENSIONS.add('.cr')
+graphify.detect.CODE_EXTENSIONS.add('.inc')
 
 # Define Crystal config using tree-sitter-crystal
 from graphify.extract import LanguageConfig, _extract_generic
@@ -83,7 +85,154 @@ _CRYSTAL_CONFIG = LanguageConfig(
 def extract_crystal(path):
     return _extract_generic(path, _CRYSTAL_CONFIG)
 
-graphify.extract._DISPATCH['.cr'] = extract_crystal
+def patched_extract(paths: list[Path], cache_root: Path | None = None) -> dict:
+    from graphify.extract import (
+        _check_tree_sitter_version, load_cached, save_cached,
+        _resolve_cross_file_imports, extract_blade,
+        extract_python, extract_js, extract_go, extract_rust,
+        extract_java, extract_c, extract_cpp, extract_ruby,
+        extract_csharp, extract_kotlin, extract_scala, extract_php,
+        extract_swift, extract_lua, extract_zig, extract_powershell,
+        extract_elixir, extract_objc, extract_julia, extract_dart,
+        extract_verilog
+    )
+
+    _check_tree_sitter_version()
+    per_file: list[dict] = []
+
+    # Infer a common root for cache keys
+    try:
+        if not paths:
+            root = Path(".")
+        elif len(paths) == 1:
+            root = paths[0].parent
+        else:
+            common_len = sum(
+                1 for i in range(min(len(p.parts) for p in paths))
+                if len({p.parts[i] for p in paths}) == 1
+            )
+            root = Path(*paths[0].parts[:common_len]) if common_len else Path(".")
+    except Exception:
+        root = Path(".")
+
+    _DISPATCH = {
+        ".py": extract_python,
+        ".js": extract_js,
+        ".jsx": extract_js,
+        ".mjs": extract_js,
+        ".ts": extract_js,
+        ".tsx": extract_js,
+        ".go": extract_go,
+        ".rs": extract_rust,
+        ".java": extract_java,
+        ".c": extract_c,
+        ".h": extract_c,
+        ".inc": extract_c,
+        ".cpp": extract_cpp,
+        ".cc": extract_cpp,
+        ".cxx": extract_cpp,
+        ".hpp": extract_cpp,
+        ".rb": extract_ruby,
+        ".cs": extract_csharp,
+        ".kt": extract_kotlin,
+        ".kts": extract_kotlin,
+        ".scala": extract_scala,
+        ".php": extract_php,
+        ".swift": extract_swift,
+        ".lua": extract_lua,
+        ".toc": extract_lua,
+        ".zig": extract_zig,
+        ".ps1": extract_powershell,
+        ".ex": extract_elixir,
+        ".exs": extract_elixir,
+        ".m": extract_objc,
+        ".mm": extract_objc,
+        ".jl": extract_julia,
+        ".vue": extract_js,
+        ".svelte": extract_js,
+        ".dart": extract_dart,
+        ".v": extract_verilog,
+        ".sv": extract_verilog,
+        ".cr": extract_crystal,
+    }
+
+    total = len(paths)
+    _PROGRESS_INTERVAL = 100
+    for i, path in enumerate(paths):
+        if total >= _PROGRESS_INTERVAL and i % _PROGRESS_INTERVAL == 0 and i > 0:
+            print(f"  AST extraction: {i}/{total} files ({i * 100 // total}%)", flush=True)
+        # .blade.php must be checked before suffix lookup since Path.suffix returns .php
+        if path.name.endswith(".blade.php"):
+            extractor = extract_blade
+        else:
+            extractor = _DISPATCH.get(path.suffix)
+        if extractor is None:
+            continue
+        cached = load_cached(path, cache_root or root)
+        if cached is not None:
+            per_file.append(cached)
+            continue
+        result = extractor(path)
+        if "error" not in result:
+            save_cached(path, result, cache_root or root)
+        per_file.append(result)
+    if total >= _PROGRESS_INTERVAL:
+        print(f"  AST extraction: {total}/{total} files (100%)", flush=True)
+
+    all_nodes: list[dict] = []
+    all_edges: list[dict] = []
+    for result in per_file:
+        all_nodes.extend(result.get("nodes", []))
+        all_edges.extend(result.get("edges", []))
+
+    # Add cross-file class-level edges (Python only - uses Python parser internally)
+    py_paths = [p for p in paths if p.suffix == ".py"]
+    if py_paths:
+        py_results = [r for r, p in zip(per_file, paths) if p.suffix == ".py"]
+        try:
+            cross_file_edges = _resolve_cross_file_imports(py_results, py_paths)
+            all_edges.extend(cross_file_edges)
+        except Exception as exc:
+            import logging
+            logging.getLogger(__name__).warning("Cross-file import resolution failed, skipping: %s", exc)
+
+    # Cross-file call resolution for all languages
+    global_label_to_nid: dict[str, str] = {}
+    for n in all_nodes:
+        raw = n.get("label", "")
+        normalised = raw.strip("()").lstrip(".")
+        if normalised:
+            global_label_to_nid[normalised.lower()] = n["id"]
+
+    existing_pairs = {(e["source"], e["target"]) for e in all_edges}
+    for result in per_file:
+        for rc in result.get("raw_calls", []):
+            callee = rc.get("callee", "")
+            if not callee:
+                continue
+            tgt = global_label_to_nid.get(callee.lower())
+            caller = rc["caller_nid"]
+            if tgt and tgt != caller and (caller, tgt) not in existing_pairs:
+                existing_pairs.add((caller, tgt))
+                all_edges.append({
+                    "source": caller,
+                    "target": tgt,
+                    "relation": "calls",
+                    "confidence": "INFERRED",
+                    "confidence_score": 0.8,
+                    "source_file": rc.get("source_file", ""),
+                    "source_location": rc.get("source_location"),
+                    "weight": 1.0,
+                })
+
+    return {
+        "nodes": all_nodes,
+        "edges": all_edges,
+        "input_tokens": 0,
+        "output_tokens": 0,
+    }
+
+graphify.extract.extract = patched_extract
 
 # Also run main CLI
 from graphify.__main__ import main
