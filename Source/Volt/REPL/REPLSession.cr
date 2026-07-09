@@ -29,6 +29,9 @@ module Volt::REPL
     private def compile_and_run( input : String, filename : String, stdout : IO, stderr : IO, is_evaluate : Bool ) : REPLEvaluationResult
       begin
         program = Frontend.parse( input, filename )
+        # First turn only : later turns inherit the Core names through
+        # `IncrementalState#signatures` (already marked redefinable).
+        program = Volt::Core.inject( program ) if @vm.nil?
         analyser = Frontend::IncrementalAnalyser.new( program, @state )
         typed = analyser.analyse
 
