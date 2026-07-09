@@ -239,13 +239,13 @@ module Volt::Spec
 
     it "returns correct string representation for pointer types" do
       int_ptr = Volt::Frontend::Type.pointer( Volt::Frontend::Type::INT64 )
-      int_ptr.to_s.should eq( "*Int64" )
+      int_ptr.to_s.should eq( "Int64*" )
 
       uint8_ptr = Volt::Frontend::Type.pointer( Volt::Frontend::Type::UINT8 )
-      uint8_ptr.to_s.should eq( "*UInt8" )
+      uint8_ptr.to_s.should eq( "UInt8*" )
 
       float64_ptr = Volt::Frontend::Type.pointer( Volt::Frontend::Type::FLOAT64 )
-      float64_ptr.to_s.should eq( "*Float64" )
+      float64_ptr.to_s.should eq( "Float64*" )
     end
 
     it "compares pointer types by pointee" do
@@ -265,7 +265,7 @@ module Volt::Spec
       int_ptr_ptr.pointer?.should be_true
       int_ptr_ptr.pointee.pointer?.should be_true
       int_ptr_ptr.pointee.pointee.should eq( Volt::Frontend::Type::INT64 )
-      int_ptr_ptr.to_s.should eq( "**Int64" )
+      int_ptr_ptr.to_s.should eq( "Int64**" )
     end
 
     it "creates pointer to all primitive types" do
