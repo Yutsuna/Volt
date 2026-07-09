@@ -174,9 +174,15 @@ LNot:
 
 LConvInt:
 	{
-		Int64 Val   = AsInt( Regs[ OP_A ] );
-		Int32 Shift = 64 - OP_BX;
-		Regs[ OP_A ]  = MakeInt( ( Val << Shift ) >> Shift );
+		Int64 Val = AsInt( Regs[ OP_A ] );
+		Int32 Bits = OP_BX;
+		if ( Bits < 64 )
+		{
+			UInt64 UVal = (UInt64)Val;
+			UInt64 Mask = (UInt64)1 << ( Bits - 1 );
+			Val = (Int64)( ( UVal & ( ( (UInt64)1 << Bits ) - 1 ) ) ^ Mask ) - (Int64)Mask;
+		}
+		Regs[ OP_A ] = MakeInt( Val );
 	}
 	DISPATCH();
 
