@@ -117,8 +117,17 @@ module Volt::IR
     def as_s : String                     ; @payload.unsafe_as( String )              ; end
     def as_regex : ::Regex                ; @payload.unsafe_as( ::Regex )             ; end
     def as_object : HeapObject            ; HeapObject.new( @payload )                ; end
-    def as_ptr : Pointer( Void )          ; @payload                                  ; end
-    def as_ptr_u64 : UInt64                ; @payload.address                          ; end
+    def as_ptr : Pointer( Void )
+      if @tag.str?
+        as_s.to_unsafe.as( Pointer( Void ) )
+      else
+        @payload
+      end
+    end
+
+    def as_ptr_u64 : UInt64
+      as_ptr.address
+    end
     def is_nil? : Bool
       @tag == Tag::Nil
     end

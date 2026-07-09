@@ -603,6 +603,10 @@ module Volt::Frontend
       if declared.pointer? && actual.pointer?
         return true if declared.void_pointer? || actual.void_pointer?
       end
+      # String to UInt8* / Void* compatibility
+      if declared.pointer? && ( declared.pointee.uint8? || declared.void_pointer? ) && actual.kind.str?
+        return true
+      end
       if declared.is_a?( NominalType ) && actual.is_a?( NominalType )
         cur = actual.name
         while cur
