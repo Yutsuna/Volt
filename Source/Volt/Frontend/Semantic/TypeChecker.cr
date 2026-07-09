@@ -128,8 +128,11 @@ module Volt::Frontend
       # A bare identifier inside a method may be a parenthesis-less zero-arg
       # call on `self` (`boot_sequence`), including inherited/mixed-in methods.
       if ( owner = @self_type ) && !scope.local?( expr.name ) && ( m = find_method( owner.name, expr.name ) )
-        @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
-        return m.ret
+        is_caller_static = @current_method.try( &.is_static ) || false
+        if !is_caller_static || m.is_static
+          @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
+          return m.ret
+        end
       end
       if sig = @sigs[ expr.name ]?
         if sig.params.size != 0
@@ -313,7 +316,7 @@ module Volt::Frontend
     end
 
     private def infer_self( expr : SelfExpr, scope : Scope ) : Type
-      if owner = @self_type
+      if ( owner = @self_type ) && !@current_method.try( &.is_static )
         @nominals[ owner.name ]? || Type::UNKNOWN
       else
         @bag << Catalog::Sema.self_outside_method( expr.loc )
@@ -481,7 +484,7 @@ module Volt::Frontend
     # `private` static method is reachable only from within the same module.
     private def infer_static_member( info : TypeInfo, name : String, args : Array( AExpr ), loc : Span, scope : Scope ) : Type
       sig = info.methods[ name ]?
-      if sig.nil?
+      if sig.nil? || !sig.is_static
         @bag << Catalog::Sema.unknown_field_or_method( info.name, name, loc )
         args.each { |a| infer( a, scope ) }
         return Type::UNKNOWN
@@ -764,8 +767,11 @@ module Volt::Frontend
       # own methods (including inherited/mixed-in ones) before free functions.
       if ( owner = @self_type ) && !scope.local?( name )
         if m = find_method( owner.name, name )
-          check_call_args( name, m.params, expr.args, expr.loc, scope )
-          return m.ret
+          is_caller_static = @current_method.try( &.is_static ) || false
+          if !is_caller_static || m.is_static
+            check_call_args( name, m.params, expr.args, expr.loc, scope )
+              return m.ret
+          end
         elsif owner.kind.mixin?
           # A mixin method calling another mixin's method by name : the
           # concrete resolution depends on whichever class ends up including
