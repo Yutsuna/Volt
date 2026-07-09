@@ -1,4 +1,5 @@
-@[Link("Models", "Components")]
+@[Link("Models")]
+@[Link("Components")]
 
 
 user = Models::User.new( 42, "Yutsuna" )
