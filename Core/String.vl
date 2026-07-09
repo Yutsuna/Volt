@@ -1,0 +1,24 @@
+# Volt Core — String
+#
+# Provisional name `VString` while the compiler still owns the `String`
+# primitive: once literals lower to this struct (de-hardcoding step 3 of
+# the Core migration), it takes over the `String` name and Tag::Str dies.
+# Layout follows the zero-overhead model proven by 02.a.String.vl:
+# two register slots, no heap, static dispatch.
+
+struct VString
+  ptr  : UInt8*
+  size : UInt64
+
+  def initialize( @ptr : UInt8* )
+    @size = strlen( @ptr )
+  end
+
+  def data -> UInt8*
+    @ptr
+  end
+
+  def bytesize -> UInt64
+    @size
+  end
+end
