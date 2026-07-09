@@ -59,7 +59,9 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "02.a.String.vl" => {exit_code: 0, stderr: "", stdout: "Hello, World\nZero-overhead strings!\n"},
       #------------------------------------------------------------------------------------
-      "02.b.Hash.vl" => {exit_code: 0, stderr: "", stdout: ""},
+      "02.vl" => {exit_code: 0, stderr: "", stdout: ""},
+      #------------------------------------------------------------------------------------
+      "02.b.Hash.vl" => {exit_code: 0, stderr: "", stdout: "PASS GET A\nPASS GET B\nPASS UPDATE A\nPASS HAS B\nPASS NOT HAS C\n"},
       #------------------------------------------------------------------------------------
     }
 
