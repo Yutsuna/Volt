@@ -5,6 +5,7 @@ module Volt::Frontend
     Int8
     Int16
     Int32
+    Int64
     Int       # inferred integer type
     Float     # inferred floating-point type
     Float32
@@ -16,6 +17,12 @@ module Volt::Frontend
     Func
     Object     # instance of a user-defined `class`  (heap reference)
     Struct     # value of a user-defined `struct`     (by-value block)
+    UInt8
+    UInt16
+    UInt32
+    UInt64
+    UInt
+    Pointer
     Unknown
   end
 

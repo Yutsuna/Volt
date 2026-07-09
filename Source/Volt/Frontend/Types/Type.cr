@@ -12,6 +12,7 @@ module Volt::Frontend
     INT8    = new TypeKind::Int8
     INT16   = new TypeKind::Int16
     INT32   = new TypeKind::Int32
+    INT64   = new TypeKind::Int64
     INT     = new TypeKind::Int
     FLOAT   = new TypeKind::Float
     FLOAT32 = new TypeKind::Float32
@@ -21,9 +22,58 @@ module Volt::Frontend
     REGEX   = new TypeKind::Regex
     NIL     = new TypeKind::Nil
     UNKNOWN = new TypeKind::Unknown
+    UINT8   = new TypeKind::UInt8
+    UINT16  = new TypeKind::UInt16
+    UINT32  = new TypeKind::UInt32
+    UINT64  = new TypeKind::UInt64
+    UINT    = new TypeKind::UInt
 
     def self.func( params : Array( Type ), ret : Type ) : Type
       new( TypeKind::Func, params, ret )
+    end
+
+    def self.pointer( pointee : Type ) : Type
+      new( TypeKind::Pointer, [pointee] )
+    end
+
+    def pointee : Type
+      params[0]
+    end
+
+    def pointer? : Bool
+      kind.pointer?
+    end
+
+    def int64? : Bool
+      kind.int64?
+    end
+
+     def uint8? : Bool
+      kind.u_int8?
+    end
+
+    def uint16? : Bool
+      kind.u_int16?
+    end
+
+    def uint32? : Bool
+      kind.u_int32?
+    end
+
+    def uint64? : Bool
+      kind.u_int64?
+    end
+
+    def uint? : Bool
+      kind.u_int?
+    end
+
+    def signed? : Bool
+      kind.int8? || kind.int16? || kind.int32? || kind.int64? || kind.int?
+    end
+
+    def unsigned? : Bool
+      kind.u_int8? || kind.u_int16? || kind.u_int32? || kind.u_int64? || kind.u_int?
     end
 
     def numeric? : Bool
@@ -31,7 +81,8 @@ module Volt::Frontend
     end
 
     def integer? : Bool
-      kind.int8? || kind.int16? || kind.int32? || kind.int?
+      kind.int8? || kind.int16? || kind.int32? || kind.int64? || kind.int? ||
+      kind.u_int8? || kind.u_int16? || kind.u_int32? || kind.u_int64? || kind.u_int?
     end
 
     def float? : Bool
@@ -55,10 +106,10 @@ module Volt::Frontend
 
     def byte_size : Int32
       case kind
-      when .int8?, .bool?     then 1
-      when .int16?            then 2
-      when .int32?, .float32? then 4
-      else                         8   # Int, Float, Float64, Str, Object, Struct-ref, Func, Regex, Nil, Unknown
+      when .int8?, .u_int8?, .bool? then 1
+      when .int16?, .u_int16?       then 2
+      when .int32?, .u_int32?, .float32? then 4
+      else                              8   # Int64, UInt64, Int, UInt, Float, Float64, Str, Object, Struct-ref, Func, Regex, Nil, Pointer, Unknown
       end
     end
 
@@ -68,11 +119,11 @@ module Volt::Frontend
 
     def int_bit_width : Int32
       case kind
-      when .int8?  then 8
-      when .int16? then 16
-      when .int32? then 32
-      when .int?   then 64
-      else              0
+      when .int8?, .u_int8?   then 8
+      when .int16?, .u_int16? then 16
+      when .int32?, .u_int32? then 32
+      when .int64?, .int?, .u_int64?, .u_int? then 64
+      else                        0
       end
     end
 
@@ -84,6 +135,9 @@ module Volt::Frontend
         return true
       end
       return false unless kind == other.kind
+      if kind.pointer?
+        return pointee == other.pointee
+      end
       return true unless kind.func?
       return false unless ( r = ret ) && ( o = other.ret ) && r == o
       params.size == other.params.size &&
@@ -93,9 +147,15 @@ module Volt::Frontend
     def to_s( io : IO ) : Nil
       case kind
       when .int8?    then io << "Int8"
+      when .u_int8?  then io << "UInt8"
       when .int16?   then io << "Int16"
+      when .u_int16? then io << "UInt16"
       when .int32?   then io << "Int32"
+      when .u_int32? then io << "UInt32"
+      when .int64?   then io << "Int64"
+      when .u_int64? then io << "UInt64"
       when .int?     then io << "Int"
+      when .u_int?   then io << "UInt"
       when .float?   then io << "Float"
       when .float32? then io << "Float32"
       when .float64? then io << "Float64"
@@ -107,6 +167,9 @@ module Volt::Frontend
       when TypeKind::Nil then io << "Nil"
       when .object?  then io << "Object"
       when .struct?  then io << "Struct"
+      when .pointer?
+        io << "*"
+        pointee.to_s( io )
       when .unknown? then io << "?"
       when .func?
         io << "(" << params.map( &.to_s ).join( ", " ) << ") -> " << ret
@@ -130,12 +193,22 @@ module Volt::Frontend
         return inner if inner && inner.kind.object?
         return nil
       end
+      if node.is_a?( PointerType )
+        inner = from_annotation( node.inner, nominals )
+        return inner ? pointer( inner ) : nil
+      end
       return nil unless node.is_a?( SimpleType )
       case node.name
       when "Int8"                          then INT8
+      when "UInt8"                         then UINT8
       when "Int16"                         then INT16
+      when "UInt16"                        then UINT16
       when "Int32"                         then INT32
-      when "Int", "Int64"                  then INT
+      when "UInt32"                        then UINT32
+      when "Int64"                         then INT64
+      when "UInt64"                        then UINT64
+      when "Int"                           then INT
+      when "UInt"                          then UINT
       when "Float"                         then FLOAT
       when "Float32"                       then FLOAT32
       when "Float64"                       then FLOAT64
