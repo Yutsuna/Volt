@@ -93,6 +93,7 @@ mkShell {
     ruby
     hyperfine
     benchScript
+    graphify
   ];
 
   buildInputs = [
