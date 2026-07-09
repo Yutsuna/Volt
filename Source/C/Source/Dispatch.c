@@ -175,6 +175,12 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 76 ] = &&LBrGeIntImm;
 		DispatchTable[ 77 ] = &&LBrEqIntImm;
 		DispatchTable[ 78 ] = &&LBrNeIntImm;
+		DispatchTable[ 79 ] = &&LLoadPtr;
+		DispatchTable[ 80 ] = &&LStorePtr;
+		DispatchTable[ 81 ] = &&LPtrAdd;
+		DispatchTable[ 82 ] = &&LPtrSub;
+		DispatchTable[ 83 ] = &&LAddrLocal;
+		DispatchTable[ 84 ] = &&LAddrField;
 		Inited = 1;
 	}
 
@@ -233,6 +239,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 #include "OPCode/Nop.inc"
 #include "OPCode/FellOff.inc"
 #include "OPCode/Cold.inc"
+#include "OPCode/Pointer.inc"
 
 #undef SAVE_CURSOR
 #undef REBIND
