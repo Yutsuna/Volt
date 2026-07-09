@@ -85,7 +85,7 @@ let v1 = new Vector3(1.0, 2.0, 3.0);
 let v2 = new Vector3(4.0, 5.0, 6.0);
 let sum_struct = 0.0;
 let i = 0;
-while (i < 10000000) {
+while (i < 10_000_000) {
     let res = v1.add(v2);
     sum_struct += res.magnitude_squared();
     i++;
@@ -94,7 +94,7 @@ console.log("Struct: " + sum_struct);
 
 let sum_area = 0.0;
 let j = 0;
-while (j < 5000000) {
+while (j < 5_000_000) {
     let shape;
     if (j % 2 === 0) {
         shape = new Circle(0.0, 0.0, 5.0);
@@ -107,7 +107,7 @@ while (j < 5000000) {
 console.log("Polymorphism: " + sum_area);
 
 let k = 0;
-while (k < 3000000) {
+while (k < 3_000_000) {
     let file = new FileHandle("/tmp/test.txt");
     file.read();
     file.finalize();
