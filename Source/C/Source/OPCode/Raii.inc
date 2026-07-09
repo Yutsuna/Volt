@@ -9,6 +9,10 @@ LInitObj:
 LDrop:
 	{
 		FValue Val = Regs[ OP_A ];
+		/* Clear the caller's register before any dtor frame switch: after
+		   REBIND() `Regs` points at the dtor's window, so writing OP_A there
+		   would clobber the dtor's own registers (its `self` when OP_A == 0). */
+		Regs[ OP_A ] = MakeNil();
 		if ( Val.Tag == VAL_OBJECT && Val.Payload != NULL )
 		{
 			FHeapObject* Obj = (FHeapObject*)Val.Payload;
@@ -55,7 +59,5 @@ LDrop:
 				Obj->Destroyed = 1;
 			}
 		}
-
-		Regs[ OP_A ] = MakeNil();
 	}
 	DISPATCH();
