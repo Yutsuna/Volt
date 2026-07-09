@@ -152,13 +152,30 @@ module Volt::Compiler
     def compile_body( nodes : Array( Frontend::ANode ) ) : Int32
       last = -1
       nodes.each do |node|
-        last = compile_expr( node.as( Frontend::AExpr ) )
+        expr = node.as( Frontend::AExpr )
+        last = compile_expr( expr )
+        # A bare `Type.new(...)` in statement position creates an object
+        # nobody owns : track the temporary so `exit_scope` DROPs it. Only
+        # constructor calls qualify — an assignment or a field/variable read
+        # of object type is owned elsewhere and must not be dropped here.
+        if ctor_temp?( expr ) && ( t = expr.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
+          track_raii_resource( last, t.type_id )
+        end
       end
       if last < 0
         last = alloc
         emit_abc( IR::Opcode::LOAD_NIL, last, 0, 0 )
       end
       last
+    end
+
+    # True for a bare constructor call (`Type.new` / `Type.new(...)`) — the
+    # only statement-position expression that *creates* an unowned object.
+    private def ctor_temp?( expr : Frontend::AExpr ) : Bool
+      return false unless expr.is_a?( Frontend::MethodCall ) || expr.is_a?( Frontend::MemberAccess )
+      return false unless expr.name == "new"
+      recv = expr.receiver
+      recv.is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) && @types.has_key?( recv.name )
     end
 
     def compile_expr( expr : Frontend::AExpr ) : Int32
