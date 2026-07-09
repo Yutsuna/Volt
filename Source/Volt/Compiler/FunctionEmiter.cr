@@ -213,6 +213,9 @@ module Volt::Compiler
         val_reg = compile_expr( expr.value )
         emit_abc( IR::Opcode::RAISE, val_reg, 0, 0 )
         val_reg
+      when Frontend::TypeofExpr
+        t = expr.resolved_operand_type || Frontend::Type::UNKNOWN
+        const_reg( IR::Value.str( t.to_s ) )
       else
         raise "internal: unlowerable node #{expr.class.name} (should be rejected by Semantic)"
       end

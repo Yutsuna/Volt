@@ -1,0 +1,37 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+macro assert( condition )
+  if {{ condition }}
+    puts "PASS"
+  else
+    puts "FAIL"
+  end
+end
+
+class MyClass
+  def initialize; end
+end
+
+struct MyStruct
+  def initialize; end
+end
+
+def my_func( x : Int32 ) -> Void
+end
+
+a = 42
+assert(typeof a == "Int")
+assert(typeof(a) == "Int")
+
+b = MyClass.new()
+assert(typeof b == "MyClass")
+
+c = MyStruct.new()
+assert(typeof c == "MyStruct")
+
+assert(typeof(MyClass) == "MyClass")
+assert(typeof(my_func) == "(Int32) -> Nil")
+
+d = 42_i32
+assert(typeof d == "Int32")
