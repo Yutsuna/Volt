@@ -163,6 +163,21 @@ module Volt::Frontend
           .with_primary( span )
       end
 
+      def deref_non_pointer( actual : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0040", "cannot dereference non-pointer type `#{actual}`" )
+          .with_primary( span )
+      end
+
+      def address_of_non_lvalue( span : Span ) : Diagnostic
+        Diagnostic.error( "S0041", "cannot take address of non-lvalue expression" )
+          .with_primary( span )
+      end
+
+      def pointer_escape( span : Span ) : Diagnostic
+        Diagnostic.error( "S0042", "pointer to local variable escapes its scope" )
+          .with_primary( span )
+      end
+
       def non_direct_call( span : Span ) : Diagnostic
         Diagnostic.error( "S0018", "only direct function calls `name(...)` are supported in #{VERSION}" )
           .with_primary( span )
