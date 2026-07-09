@@ -114,7 +114,7 @@ $v1 = new Vector3(1.0, 2.0, 3.0);
 $v2 = new Vector3(4.0, 5.0, 6.0);
 $sum_struct = 0.0;
 $i = 0;
-while ($i < 10000000) {
+while ($i < 10_000_000) {
     $res = $v1->add($v2);
     $sum_struct += $res->magnitude_squared();
     $i++;
@@ -123,7 +123,7 @@ echo "Struct: " . $sum_struct . "\n";
 
 $sum_area = 0.0;
 $j = 0;
-while ($j < 5000000) {
+while ($j < 5_000_000) {
     if ($j % 2 == 0) {
         $shape = new Circle(0.0, 0.0, 5.0);
     } else {
@@ -135,7 +135,7 @@ while ($j < 5000000) {
 echo "Polymorphism: " . $sum_area . "\n";
 
 $k = 0;
-while ($k < 3000000) {
+while ($k < 3_000_000) {
     $file = new FileHandle("/tmp/test.txt");
     $file->read();
     $k++;
