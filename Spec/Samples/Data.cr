@@ -4,7 +4,7 @@ require "../SpecHelper"
 module Volt::Spec
 
 
-  SAMPLES_01_DIR = File.expand_path("../../Samples/Tests/01.*.vl", __DIR__)
+  SAMPLES_01_DIR = File.expand_path("../../Samples/Tests/Functional/01.*.vl", __DIR__)
 
 
   class ExpectedResults
@@ -53,6 +53,8 @@ module Volt::Spec
       "01.s.Polymorphism.vl" => {exit_code: 0, stderr: "", stdout: ""},
       #------------------------------------------------------------------------------------
       "01.t.RaiiDtor.vl" => {exit_code: 0, stderr: "", stdout: "__CTOR__ global\n__CTOR__ func\n__DTOR__ func\n__DTOR__ global\n"},
+      #------------------------------------------------------------------------------------
+      "01.u.RawPointers.vl" => {exit_code: 0, stderr: "", stdout: "PASS LOCAL ADDR\nPASS NIL EQ\nPASS NONNIL NE\nPASS CLASS IVAR ADDR\nPASS STRUCT FIELD ADDR\nPASS MALLOC WRITE 0\nPASS MALLOC WRITE 1\n"},
     }
 
     def initialize( file_path : String )
