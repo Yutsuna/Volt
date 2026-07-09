@@ -35,7 +35,7 @@ Un **circuit** (`Project.vl` à la racine d'un projet) est le manifest Volt : no
 - `Frontend/AST/Dump.cr` : dump des nouveaux nœuds.
 - **Specs** : `Spec/Frontend/Lexer` (token `=>`), `Spec/Frontend/` parser (circuit `{}`, `do/end`, hash trailing comma, erreurs : clé non-string, entrée inconnue).
 
-## Phase 2 — Modèle : `Circuit::Manifest` (validation sémantique) | TODO with `Chore/Add-Circuits/Phase2/Manifest`
+## Phase 2 — Modèle : `Circuit::Manifest` (validation sémantique) | DONE WITH `Chore/Add-Circuits/Phase2/Manifest`
 
 **But** : transformer un `CircuitDecl` en manifest typé et validé, avec diagnostics `file:line:col`.
 
