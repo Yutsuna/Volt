@@ -1,0 +1,12 @@
+@[Link("Beta")]
+
+
+module Alpha
+
+
+  def self.ping -> Int64
+    1
+  end
+
+
+end

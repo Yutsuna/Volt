@@ -25,6 +25,23 @@ module Volt::Circuit
   end
 
 
+  # Walks up the directory tree from `path` (a `.vl` file or a directory)
+  # looking for a `Project.vl` manifest. Returns its path, or `nil` when the
+  # file does not belong to a circuit project (mono-file mode).
+  def discover( path : String ) : String?
+    dir = File.expand_path( File.directory?( path ) ? path : File.dirname( path ) )
+
+    loop do
+      candidate = File.join( dir, MANIFEST_NAME )
+      return candidate if File.file?( candidate )
+
+      parent = File.dirname( dir )
+      return nil if parent == dir
+      dir = parent
+    end
+  end
+
+
   private def single_circuit_decl( program : Frontend::Program, file : String ) : Frontend::CircuitDecl
     decls = program.nodes.select( Frontend::CircuitDecl )
 
