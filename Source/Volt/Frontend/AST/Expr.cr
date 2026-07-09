@@ -53,6 +53,16 @@ module Volt::Frontend
   end
 
 
+  # { key => value, ... }
+  class HashLiteralExpr < AExpr
+    property pairs : Array( { AExpr, AExpr } )
+
+    def initialize( @pairs : Array( { AExpr, AExpr } ), loc : Span )
+      super( loc )
+    end
+  end
+
+
   class Ident < AExpr
     property name : String
 

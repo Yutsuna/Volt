@@ -199,4 +199,31 @@ module Volt::Frontend
   end
 
 
+  # circuit "Name" { runtime "..." ; entrypoint "..." ; modules( "A" => "dir", ... ) }
+  # Project manifest declaration. Parsed like any other Volt source, but never
+  # compiled/executed by the VM — consumed at project-load time by Circuit::Loader.
+  class CircuitDecl < ADecl
+    property name       : String
+    property runtime    : String?
+    property entrypoint : String?
+    property modules    : HashLiteralExpr?
+
+    def initialize( @name : String, @runtime : String?, @entrypoint : String?,
+                    @modules : HashLiteralExpr?, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # @[Link("ModuleName")]  — file-level annotation (not attached to a decl)
+  # telling the resolver to load the manifest module `ModuleName` before this file.
+  class LinkDecl < ADecl
+    property module_name : String
+
+    def initialize( @module_name : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
 end
