@@ -76,6 +76,11 @@ module Volt::Frontend
         Diagnostic.error( "P0009", "string interpolation is not allowed inside a `circuit` manifest" )
           .with_primary( span, "manifest values must be plain string literals" )
       end
+
+      def link_expects_module_name( span : Span ) : Diagnostic
+        Diagnostic.error( "P0010", "`@[Link]` expects exactly one plain string argument" )
+          .with_primary( span, %(use `@[Link("ModuleName")]`) )
+      end
     end
 
 
@@ -123,6 +128,21 @@ module Volt::Frontend
       def path_escapes_project( path : String, span : Span ) : Diagnostic
         Diagnostic.error( "C0008", "path `#{path}` escapes the project root" )
           .with_primary( span, "manifest paths must be relative and stay inside the project" )
+      end
+
+      def link_unknown_module( name : String, span : Span, declared : Array( String ) ) : Diagnostic
+        diag = Diagnostic.error( "C0009", "`@[Link(\"#{name}\")]` references a module not declared in the circuit manifest" )
+          .with_primary( span, "unknown module `#{name}`" )
+        if declared.empty?
+          diag.with_help( "the manifest declares no modules; add a `modules( ... )` entry to `Project.vl`" )
+        else
+          diag.with_help( "declared modules are: #{declared.sort.join( ", " )}" )
+        end
+      end
+
+      def circular_dependency( chain : Array( String ), span : Span ) : Diagnostic
+        Diagnostic.error( "C0010", "circular module dependency: #{chain.join( " -> " )}" )
+          .with_primary( span, "this `@[Link]` closes the cycle" )
       end
     end
 

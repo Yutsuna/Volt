@@ -20,5 +20,7 @@ module Components
       puts( user.name )
     end
 
+  end
+
 
 end
