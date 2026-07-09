@@ -105,7 +105,7 @@ v1 = OOPBench::Vector3.new(1.0, 2.0, 3.0)
 v2 = OOPBench::Vector3.new(4.0, 5.0, 6.0)
 sum_struct = 0.0
 i = 0
-while i < 10000000
+while i < 10_000_000
   res = v1.add(v2)
   sum_struct += res.magnitude_squared
   i += 1
@@ -114,7 +114,7 @@ puts "Struct: #{sum_struct}"
 
 sum_area = 0.0
 j = 0
-while j < 5000000
+while j < 5_000_000
   if j % 2 == 0
     shape = OOPBench::Circle.new(0.0, 0.0, 5.0)
   else
@@ -126,7 +126,7 @@ end
 puts "Polymorphism: #{sum_area}"
 
 k = 0
-while k < 3000000
+while k < 3_000_000
   file = OOPBench::FileHandle.new("/tmp/test.txt")
   file.read
   file.finalize
