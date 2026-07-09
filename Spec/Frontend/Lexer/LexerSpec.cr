@@ -282,6 +282,25 @@ module Volt::Spec
       tokens[ 1 ].kind.should eq( Volt::Frontend::TokenKind::NotMatchOp )
     end
 
+    it "tokenizes the fat arrow operator" do
+      tokens = Volt::Frontend::Lexer.tokenize( "\"a\" => \"b\"", "<test>" )
+      tokens[ 0 ].kind.should eq( Volt::Frontend::TokenKind::String )
+      tokens[ 1 ].kind.should eq( Volt::Frontend::TokenKind::FatArrow )
+      tokens[ 2 ].kind.should eq( Volt::Frontend::TokenKind::String )
+    end
+
+    it "distinguishes fat arrow from equals and eq-eq" do
+      tokens = Volt::Frontend::Lexer.tokenize( "= == =>", "<test>" )
+      tokens[ 0 ].kind.should eq( Volt::Frontend::TokenKind::Eq )
+      tokens[ 1 ].kind.should eq( Volt::Frontend::TokenKind::EqEq )
+      tokens[ 2 ].kind.should eq( Volt::Frontend::TokenKind::FatArrow )
+    end
+
+    it "tokenizes the circuit keyword" do
+      tokens = Volt::Frontend::Lexer.tokenize( "circuit", "<test>" )
+      tokens[ 0 ].kind.should eq( Volt::Frontend::TokenKind::Circuit )
+    end
+
     it "tokenizes bitwise operators" do
       tokens = Volt::Frontend::Lexer.tokenize( "& | ^ ~ << >>", "<test>" )
       tokens[ 0 ].kind.should eq( Volt::Frontend::TokenKind::Amp )

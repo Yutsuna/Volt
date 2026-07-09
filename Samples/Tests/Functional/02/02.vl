@@ -1,0 +1,20 @@
+circuit "CircuitTest"
+{
+  runtime "0.1.0"
+  entrypoint "Source/Main.vl"
+  modules(
+    "A" => "B",
+    "B" => "C",
+    "D" => "E"
+  )
+}
+
+circuit "CircuitAlternativeSyntaxTest" do
+  runtime( "0.1.0" )
+  entrypoint( "Source/Main.vl" )
+  modules(
+    "A" => "B",
+    "B" => "C",
+    "D" => "E"
+  )
+end

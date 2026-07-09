@@ -46,6 +46,7 @@ module Volt::Frontend
       "protected" => TokenKind::Protected,
       "public"    => TokenKind::Public,
       "extend"    => TokenKind::Extend,
+      "circuit"   => TokenKind::Circuit,
       "typeof"    => TokenKind::Typeof,
       "true"      => TokenKind::True,
       "false"     => TokenKind::False,
@@ -187,6 +188,8 @@ module Volt::Frontend
             end
           when '~'.ord.to_u8
             step; make( TokenKind::MatchOp )
+          when '>'.ord.to_u8
+            step; make( TokenKind::FatArrow )
           else
             make( TokenKind::Eq )
           end
