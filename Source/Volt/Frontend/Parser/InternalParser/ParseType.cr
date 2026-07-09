@@ -6,6 +6,13 @@ module Volt::Frontend
     #------------------------------------------------------------------------------------
 
     private def parse_type : ATypeNode
+      if @current.kind.star?
+        loc = @current.span
+        advance
+        inner = parse_type
+        return PointerType.new( inner, loc )
+      end
+
       loc  = @current.span
       name = expect( TokenKind::Ident ).value
 

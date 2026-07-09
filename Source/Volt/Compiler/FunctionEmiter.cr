@@ -288,9 +288,23 @@ module Volt::Compiler
       when Frontend::InstanceVar  then compile_assign_ivar( expr, target )
       when Frontend::ClassVar     then compile_assign_class_var( expr, target )
       when Frontend::MemberAccess then compile_assign_member( expr, target )
+      when Frontend::UnaryOp
+        if target.op.star?
+          compile_assign_deref( expr, target )
+        else
+          raise "internal: unlowerable assignment target #{expr.target.class}"
+        end
       else
         raise "internal: unlowerable assignment target #{expr.target.class}"
       end
+    end
+
+    private def compile_assign_deref( expr : Frontend::Assign, target : Frontend::UnaryOp ) : Int32
+      ptr_reg = compile_expr( target.operand )
+      val_reg = compile_expr( expr.value )
+      width = IR::PtrWidth.for( target.resolved_type.not_nil! )
+      emit_abc( IR::Opcode::STORE_PTR, ptr_reg, val_reg, width.value )
+      val_reg
     end
 
     # `@@name` lives in a process-global slot (modules have no instances).
@@ -830,6 +844,26 @@ module Volt::Compiler
       when .or?  then return compile_or( expr )
       end
 
+      # Pointer arithmetic (+ / -)
+      lt = expr.left.resolved_type
+      if lt && lt.pointer? && ( expr.op.plus? || expr.op.minus? )
+        lreg = compile_expr( expr.left )
+        rreg = compile_expr( expr.right )
+        scale = lt.pointee.byte_size
+        scaled_reg = rreg
+        if scale > 1
+          scaled_reg = alloc
+          scale_const = alloc
+          scale_idx = add_const( IR::Value.int( scale.to_i64 ) )
+          emit_abx( IR::Opcode::LOAD_CONST, scale_const, scale_idx )
+          emit_abc( IR::Opcode::MUL_INT, scaled_reg, rreg, scale_const )
+        end
+        dest = alloc
+        op = expr.op.plus? ? IR::Opcode::PTR_ADD : IR::Opcode::PTR_SUB
+        emit_abc( op, dest, lreg, scaled_reg )
+        return dest
+      end
+
       lreg = compile_expr( expr.left )
       rreg = compile_expr( expr.right )
 
@@ -924,6 +958,43 @@ module Volt::Compiler
     end
 
     private def compile_unary( expr : Frontend::UnaryOp ) : Int32
+      if expr.op.amp?
+        dest = alloc
+        target = expr.operand
+        case target
+        when Frontend::Ident
+          name = target.name
+          if slot = @scope[ name ]?
+            emit_abc( IR::Opcode::ADDR_LOCAL, dest, slot, 0 )
+          else
+            raise "internal: address of undefined variable #{name}"
+          end
+        when Frontend::InstanceVar
+          self_reg = @scope[ "self" ]
+          owner = @self_owner.not_nil!
+          field_slot = field_slot_index( owner.name, target.name )
+          if owner.kind.struct?
+            emit_abc( IR::Opcode::ADDR_LOCAL, dest, self_reg + field_slot, 0 )
+          else
+            emit_abc( IR::Opcode::ADDR_FIELD, dest, self_reg, field_slot )
+          end
+        when Frontend::MemberAccess
+          recv_ty = target.receiver.resolved_type.not_nil!
+          if recv_ty.kind.struct?
+            slot = compile_expr( target )
+            emit_abc( IR::Opcode::ADDR_LOCAL, dest, slot, 0 )
+          else
+            raise "internal: expected nominal type for member access address-of" unless recv_ty.is_a?( Frontend::NominalType )
+            recv_reg = compile_expr( target.receiver )
+            field_slot = field_slot_index( recv_ty.name, target.name )
+            emit_abc( IR::Opcode::ADDR_FIELD, dest, recv_reg, field_slot )
+          end
+        else
+          raise "internal: unsupported address-of target: #{target.class}"
+        end
+        return dest
+      end
+
       oreg = compile_expr( expr.operand )
       dest = alloc
       case expr.op
@@ -932,6 +1003,9 @@ module Volt::Compiler
         emit_abc( op, dest, oreg, 0 )
       when .tilde?
         emit_abc( IR::Opcode::NOT_INT, dest, oreg, 0 )
+      when .star?
+        width = IR::PtrWidth.for( expr.resolved_type.not_nil! )
+        emit_abc( IR::Opcode::LOAD_PTR, dest, oreg, width.value )
       else # bang / not
         emit_abc( IR::Opcode::NOT, dest, oreg, 0 )
       end

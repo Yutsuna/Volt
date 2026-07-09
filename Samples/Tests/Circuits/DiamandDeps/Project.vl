@@ -1,0 +1,11 @@
+circuit "DiamonApp"
+{
+  runtime "0.1.0"
+  entrypoint "Source/Main.vl"
+
+    modules(
+      "Core"      => "Source/Core",
+      "Auth"      => "Source/Auth",
+      "Database"  => "Source/Database"
+    )
+}

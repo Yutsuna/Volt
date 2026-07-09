@@ -46,4 +46,15 @@ module Volt::Frontend
   end
 
 
+  # *T
+  class PointerType < ATypeNode
+    property inner : ATypeNode
+
+    def initialize( @inner : ATypeNode, loc : Span )
+      super( loc )
+    end
+  end
+
+
 end
+

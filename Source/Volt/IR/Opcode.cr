@@ -176,6 +176,14 @@ module Volt::IR
     BR_GE_INT_IMM
     BR_EQ_INT_IMM
     BR_NE_INT_IMM
+
+    # --- pointer & memory operations ---
+    LOAD_PTR      # A,B,C : reg[A] = *(reg[B].ptr)  (C = width)
+    STORE_PTR     # A,B,C : *(reg[A].ptr) = reg[B]  (C = width)
+    PTR_ADD       # A,B,C : reg[A] = reg[B].ptr + reg[C].offset
+    PTR_SUB       # A,B,C : reg[A] = reg[B].ptr - reg[C].offset
+    ADDR_LOCAL    # A,B   : reg[A] = &Stack[Base+B].Payload
+    ADDR_FIELD    # A,B,C : reg[A] = &obj(reg[B]).Fields[C].Payload
   end
 
 

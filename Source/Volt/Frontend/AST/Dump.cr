@@ -61,6 +61,7 @@ module Volt::Frontend
       when .lt_eq?       then "<="
       when .gt_eq?       then ">="
       when .amp_amp?     then "&&"
+      when .amp?         then "&"
       when .pipe_pipe?   then "||"
       when .bang?        then "!"
       when .pipe_gt?     then "|>"
@@ -672,6 +673,14 @@ module Volt::Frontend
   class NilableType
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("NilableType") << ASTDump.loc(@loc) << "\n"
+      field(io, "inner", @inner, prefix, true)
+    end
+  end
+
+
+  class PointerType
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("PointerType") << ASTDump.loc(@loc) << "\n"
       field(io, "inner", @inner, prefix, true)
     end
   end

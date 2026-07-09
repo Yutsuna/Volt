@@ -24,7 +24,21 @@ enum EValueTag
 	VAL_STR    = 3,
 	VAL_REGEX  = 4,
 	VAL_NIL    = 5,
-	VAL_OBJECT = 6
+	VAL_OBJECT = 6,
+	VAL_PTR    = 7
+};
+
+enum EPtrWidth
+{
+	WIDTH_I8  = 0,
+	WIDTH_I16 = 1,
+	WIDTH_I32 = 2,
+	WIDTH_I64 = 3,
+	WIDTH_U8  = 4,
+	WIDTH_U16 = 5,
+	WIDTH_U32 = 6,
+	WIDTH_U64 = 7,
+	WIDTH_PTR = 8
 };
 
 /**
@@ -160,7 +174,8 @@ enum EVmStatus
 	VM_ERR_BADOP         = 4,  /** unknown/unencodable opcode                    */
 	VM_ERR_OVERFLOW      = 5,  /** checked integer arithmetic overflowed         */
 	VM_ERR_NILRECEIVER   = 6,  /** CALL_METHOD on a nil/non-object receiver      */
-	VM_ERR_NOMETHOD      = 7   /** CALL_METHOD: no class / unresolved vtable slot */
+	VM_ERR_NOMETHOD      = 7,  /** CALL_METHOD: no class / unresolved vtable slot */
+	VM_ERR_NULLPTR       = 8   /** dereferenced pointer is null                  */
 };
 
 /* --- ABI tripwires: any drift from the Crystal mirrors fails the build --- */
