@@ -1,0 +1,12 @@
+@[Link("Alpha")]
+
+
+module Beta
+
+
+  def self.pong -> Int64
+    2
+  end
+
+
+end
