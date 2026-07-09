@@ -50,6 +50,9 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "01.r.ClassSuper.vl" => {exit_code: 0, stderr: "", stdout: "BUILD Vehicle Golf\nBUILD Car Golf\nVehicle Golf @ 180km/h\nCar with 4 wheels\nstd: Golf [car]\nBUILD Vehicle Falcon\nBUILD Car Falcon\nBUILD RaceCar Falcon\nVehicle Falcon @ 300km/h\nCar with 4 wheels\nRACE: Falcon [car]!\nBUILD Vehicle Zoe\nBUILD Car Zoe\nVehicle Zoe @ 140km/h\nCar with 4 wheels\nEV mode\n"},
       #------------------------------------------------------------------------------------
+      "01.s.Polymorphism.vl" => {exit_code: 0, stderr: "", stdout: ""},
+      #------------------------------------------------------------------------------------
+      "01.t.RaiiDtor.vl" => {exit_code: 0, stderr: "", stdout: "__CTOR__ global\n__CTOR__ func\n__DTOR__ func\n__DTOR__ global\n"},
     }
 
     def initialize( file_path : String )

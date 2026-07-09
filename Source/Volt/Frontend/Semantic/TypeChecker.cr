@@ -206,10 +206,11 @@ module Volt::Frontend
         unless type_compatible?( existing, value_ty )
           @bag << Catalog::Sema.reassign_type( name, existing.to_s, value_ty.to_s, expr.loc )
         end
-        static_ty = existing
-        # unless type_compatible?( existing, value_ty )
-        #   @bag << Catalog::Sema.reassign_type( name, existing.to_s, value_ty.to_s, expr.loc )
-        # end
+        if existing.is_a?(NominalType)
+          static_ty = existing
+        else
+          static_ty = value_ty
+        end
       end
 
       scope.define( name, static_ty )
