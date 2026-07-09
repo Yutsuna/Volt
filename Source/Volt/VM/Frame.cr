@@ -10,6 +10,10 @@ module Volt::VM
     def initialize( @regs : Pointer( IR::Value ) )
     end
 
+    def regs_ptr : Pointer( IR::Value )
+      @regs
+    end
+
     @[AlwaysInline]
     def []( i : Int32 ) : IR::Value
       @regs[ i ]
