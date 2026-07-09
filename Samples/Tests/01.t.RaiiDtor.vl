@@ -1,0 +1,26 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+
+class Object
+
+  name : String
+
+  def initialize( @name : String )
+    puts( "__CTOR__ " + @name )
+  end
+
+  def finalize
+    puts( "__DTOR__ " + @name )
+  end
+
+end
+
+def func
+  Object.new( "func" )
+  # func finalize
+end
+
+Object.new( "global")
+func
+# global finalize
