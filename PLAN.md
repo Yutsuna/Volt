@@ -46,7 +46,7 @@ Un **circuit** (`Project.vl` à la racine d'un projet) est le manifest Volt : no
 
 S'assurer de restreindre les chemins des modules définis dans le manifest pour qu'ils soient résolus relativement à la racine du projet et valider qu'ils ne sortent pas du projet via des `../` malveillants.
 
-## Phase 3 — `@[Link]` + résolveur de dépendances multi-fichiers | TODO with `Chore/Add-Circuits/Phase3/Resolver`
+## Phase 3 — `@[Link]` + résolveur de dépendances multi-fichiers | DONE with `Chore/Add-Circuits/Phase3/Resolver`
 
 **But** : depuis l'entrypoint, charger le graphe de modules et produire un `Program` fusionné analysable.
 
@@ -60,7 +60,7 @@ S'assurer de restreindre les chemins des modules définis dans le manifest pour 
 - Brancher `volt check` sur ce chemin (validation sans exécution).
 - **Specs** : Resolver sur les deux fixtures (ordre topo, dédup diamant), cycle artificiel (fixture `CycleDeps` à créer), `@[Link]` vers module non déclaré → diagnostic.
 
-## Phase 4 — Exécution : `volt run` project-aware (bout en bout) | TODO with `Chore/Add-Circuits/Phase4/Run`
+## Phase 4 — Exécution : `volt run` project-aware (bout en bout) | DONE with `Chore/Add-Circuits/Phase4/Run`
 
 **But** : les circuits **fonctionnent** — les deux fixtures s'exécutent.
 
