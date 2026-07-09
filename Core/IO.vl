@@ -1,0 +1,24 @@
+# Volt Core — IO
+#
+# Linked automatically into every program: no @[Link], no @[External]
+# required on the user side. A user redefinition of any of these names
+# shadows the Core one.
+#
+# Everything goes through the `write` syscall on fd 1 — no libc stdio
+# buffering, so `puts` and `print` output never interleaves out of order.
+
+@[External("libc")]
+def strlen( str : UInt8* ) -> UInt64
+
+@[External("libc")]
+def write( fd : Int64, buf : UInt8*, count : UInt64 ) -> Int64
+
+
+def print( str : String ) -> Void
+  write( 1, str, strlen( str ) )
+end
+
+def puts( str : String ) -> Void
+  print( str )
+  print( "\n" )
+end
