@@ -4,7 +4,7 @@ require "../SpecHelper"
 module Volt::Spec
 
 
-  SAMPLES_01_DIR = File.expand_path("../../Samples/Tests/Functional/01.*.vl", __DIR__)
+  SAMPLES_01_DIR = File.expand_path("../../Samples/Tests/Functional/01/01.*.vl", __DIR__)
 
 
   class ExpectedResults
