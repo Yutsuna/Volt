@@ -95,6 +95,9 @@ module Volt::Frontend
       when ReturnExpr
         if v = expr.value
           infer( v, scope )
+          if local_address_taken?( v, scope )
+            @bag << Catalog::Sema.pointer_escape( expr.loc )
+          end
         end
         Type::NIL
       when BreakExpr
@@ -144,11 +147,31 @@ module Volt::Frontend
       when InstanceVar  then infer_assign_ivar( expr, target, scope )
       when ClassVar     then infer_assign_class_var( expr, target, scope )
       when MemberAccess then infer_assign_member( expr, target, scope )
+      when UnaryOp
+        if target.op.star?
+          infer_assign_deref( expr, target, scope )
+        else
+          @bag << Catalog::Sema.non_simple_assign( expr.loc )
+          infer( expr.value, scope )
+          Type::UNKNOWN
+        end
       else
         @bag << Catalog::Sema.non_simple_assign( expr.loc )
         infer( expr.value, scope )
         Type::UNKNOWN
       end
+    end
+
+    private def infer_assign_deref( expr : Assign, target : UnaryOp, scope : Scope ) : Type
+      target_type = infer( target, scope )
+      value_type  = infer( expr.value, scope )
+      if target_type.kind.unknown?
+        return Type::UNKNOWN
+      end
+      unless type_compatible?( target_type, value_type )
+        @bag << Catalog::Sema.annotation_mismatch( "*ptr", target_type.to_s, value_type.to_s, expr.loc )
+      end
+      target_type
     end
 
     # `@@name` read : resolves against the enclosing type's class variables.
@@ -167,6 +190,9 @@ module Volt::Frontend
 
     private def infer_assign_class_var( expr : Assign, target : ClassVar, scope : Scope ) : Type
       value_ty = infer( expr.value, scope )
+      if local_address_taken?( expr.value, scope )
+        @bag << Catalog::Sema.pointer_escape( expr.loc )
+      end
       owner    = @self_type
       if owner.nil?
         @bag << Catalog::Sema.ivar_outside_method( target.name, expr.loc )
@@ -220,6 +246,9 @@ module Volt::Frontend
 
     private def infer_assign_ivar( expr : Assign, target : InstanceVar, scope : Scope ) : Type
       value_ty = infer( expr.value, scope )
+      if local_address_taken?( expr.value, scope )
+        @bag << Catalog::Sema.pointer_escape( expr.loc )
+      end
       owner    = @self_type
       if owner.nil?
         @bag << Catalog::Sema.ivar_outside_method( target.name, expr.loc )
@@ -246,6 +275,9 @@ module Volt::Frontend
     private def infer_assign_member( expr : Assign, target : MemberAccess, scope : Scope ) : Type
       recv_ty  = infer( target.receiver, scope )
       value_ty = infer( expr.value, scope )
+      if local_address_taken?( expr.value, scope )
+        @bag << Catalog::Sema.pointer_escape( expr.loc )
+      end
       return Type::UNKNOWN unless recv_ty.is_a?( NominalType )
 
       field = find_field( recv_ty.name, target.name )
@@ -561,11 +593,9 @@ module Volt::Frontend
     private def type_compatible?( declared : Type, actual : Type ) : Bool
       return true if declared.kind.unknown? || actual.kind.unknown?
       return true if declared == actual
-      # Class references are implicitly nilable (Java-style) : `nil` is
-      # assignable wherever an Object reference is declared. `T?` annotations
-      # erase to `T` (see `Type.from_annotation`), so this single rule covers
-      # both spellings. Value types (Int/Float/Bool/struct) stay non-nilable.
-      return true if actual.nil_type? && declared.kind.object?
+      # Class references and pointers are implicitly nilable : `nil` is
+      # assignable wherever an Object reference or Pointer is declared.
+      return true if actual.nil_type? && ( declared.kind.object? || declared.pointer? )
       if declared.is_a?( NominalType ) && actual.is_a?( NominalType )
         cur = actual.name
         while cur
@@ -587,6 +617,14 @@ module Volt::Frontend
            .amp_plus?, .amp_minus?, .amp_star?, .amp_star_star?,
            .slash_slash?
         return Type::STR if expr.op.plus? && lt.kind.str? && rt.kind.str?
+        if lt.pointer? && ( expr.op.plus? || expr.op.minus? )
+          if rt.integer?
+            return lt
+          else
+            @bag << Catalog::Sema.binary_numeric( op_text( expr.op ), lt.to_s, rt.to_s, expr.loc )
+            return Type::UNKNOWN
+          end
+        end
         if ( m = operator_method( lt, op_text( expr.op ) ) )
           unless m.params.size == 1 && ( m.params[ 0 ].kind.unknown? || rt.kind.unknown? || m.params[ 0 ] == rt )
             @bag << Catalog::Sema.argument_type( 1, "#{lt}##{op_text( expr.op )}", m.params[ 0 ]?.try( &.to_s ) || "?", rt.to_s, expr.loc )
@@ -639,7 +677,7 @@ module Volt::Frontend
         # class reference (implicitly nilable) — the runtime compares tags.
         if lt.nil_type? || rt.nil_type?
           other = lt.nil_type? ? rt : lt
-          unless other.kind.object? || other.nil_type?
+          unless other.kind.object? || other.pointer? || other.nil_type?
             @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
           end
           return Type::BOOL
@@ -683,6 +721,24 @@ module Volt::Frontend
 
       when .bang?
         Type::BOOL
+
+      when .star?
+        return ot if ot.kind.unknown?
+        if ot.pointer?
+          ot.pointee
+        else
+          @bag << Catalog::Sema.deref_non_pointer( ot.to_s, expr.loc )
+          Type::UNKNOWN
+        end
+
+      when .amp?
+        return ot if ot.kind.unknown?
+        if lvalue?( expr.operand )
+          Type.pointer( ot )
+        else
+          @bag << Catalog::Sema.address_of_non_lvalue( expr.loc )
+          Type::UNKNOWN
+        end
 
       else
         @bag << Catalog::Sema.unsupported_unary( expr.loc )
@@ -795,6 +851,21 @@ module Volt::Frontend
 
     private def type_name( node : ANode ) : String
       node.class.name.split( "::" ).last
+    end
+
+    private def lvalue?( node : AExpr ) : Bool
+      node.is_a?( Ident ) || node.is_a?( InstanceVar ) || node.is_a?( ClassVar ) || node.is_a?( MemberAccess ) ||
+        ( node.is_a?( UnaryOp ) && node.op.star? )
+    end
+
+    private def local_address_taken?( expr : AExpr, scope : Scope ) : Bool
+      if expr.is_a?( UnaryOp ) && expr.op.amp?
+        target = expr.operand
+        if target.is_a?( Ident )
+          return !scope.lookup( target.name ).nil?
+        end
+      end
+      false
     end
   end
 
