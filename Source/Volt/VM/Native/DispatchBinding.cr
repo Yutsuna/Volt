@@ -79,6 +79,7 @@ module Volt::VM
     ERR_OVERFLOW   =  5
     ERR_NILRECEIVER =  6
     ERR_NOMETHOD    =  7
+    ERR_NULLPTR     =  8
   end
 
 
