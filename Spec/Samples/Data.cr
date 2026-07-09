@@ -55,6 +55,7 @@ module Volt::Spec
       "01.t.RaiiDtor.vl" => {exit_code: 0, stderr: "", stdout: "__CTOR__ global\n__CTOR__ func\n__DTOR__ func\n__DTOR__ global\n"},
       #------------------------------------------------------------------------------------
       "01.u.RawPointers.vl" => {exit_code: 0, stderr: "", stdout: "PASS LOCAL ADDR\nPASS NIL EQ\nPASS NONNIL NE\nPASS CLASS IVAR ADDR\nPASS STRUCT FIELD ADDR\nPASS MALLOC WRITE 0\nPASS MALLOC WRITE 1\n"},
+      #------------------------------------------------------------------------------------
     }
 
     def initialize( file_path : String )
