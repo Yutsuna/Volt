@@ -23,7 +23,7 @@ Un **circuit** (`Project.vl` à la racine d'un projet) est le manifest Volt : no
 
 ---
 
-## Phase 1 — Syntaxe : token `=>`, HashLiteral, bloc `circuit`
+## Phase 1 — Syntaxe : token `=>`, HashLiteral, bloc `circuit` | DONE WITH `Chore/Add-Circuits/Phase1/Hash`
 
 **But** : `./bin/Volt parse Project.vl` dumpe un AST correct.
 
@@ -35,7 +35,7 @@ Un **circuit** (`Project.vl` à la racine d'un projet) est le manifest Volt : no
 - `Frontend/AST/Dump.cr` : dump des nouveaux nœuds.
 - **Specs** : `Spec/Frontend/Lexer` (token `=>`), `Spec/Frontend/` parser (circuit `{}`, `do/end`, hash trailing comma, erreurs : clé non-string, entrée inconnue).
 
-## Phase 2 — Modèle : `Circuit::Manifest` (validation sémantique)
+## Phase 2 — Modèle : `Circuit::Manifest` (validation sémantique) | TODO with `Chore/Add-Circuits/Phase2/Manifest`
 
 **But** : transformer un `CircuitDecl` en manifest typé et validé, avec diagnostics `file:line:col`.
 
@@ -46,7 +46,7 @@ Un **circuit** (`Project.vl` à la racine d'un projet) est le manifest Volt : no
 
 S'assurer de restreindre les chemins des modules définis dans le manifest pour qu'ils soient résolus relativement à la racine du projet et valider qu'ils ne sortent pas du projet via des `../` malveillants.
 
-## Phase 3 — `@[Link]` + résolveur de dépendances multi-fichiers
+## Phase 3 — `@[Link]` + résolveur de dépendances multi-fichiers | TODO with `Chore/Add-Circuits/Phase3/Resolver`
 
 **But** : depuis l'entrypoint, charger le graphe de modules et produire un `Program` fusionné analysable.
 
@@ -60,7 +60,7 @@ S'assurer de restreindre les chemins des modules définis dans le manifest pour 
 - Brancher `volt check` sur ce chemin (validation sans exécution).
 - **Specs** : Resolver sur les deux fixtures (ordre topo, dédup diamant), cycle artificiel (fixture `CycleDeps` à créer), `@[Link]` vers module non déclaré → diagnostic.
 
-## Phase 4 — Exécution : `volt run` project-aware (bout en bout)
+## Phase 4 — Exécution : `volt run` project-aware (bout en bout) | TODO with `Chore/Add-Circuits/Phase4/Run`
 
 **But** : les circuits **fonctionnent** — les deux fixtures s'exécutent.
 
@@ -68,7 +68,7 @@ S'assurer de restreindre les chemins des modules définis dans le manifest pour 
 - Corriger `Logger.vl` (le `end` manquant) + ajuster `Main.vl` des fixtures pour produire une sortie vérifiable (stdout/exit code).
 - **Specs fonctionnelles** : suivre le pattern `Spec/Samples/01.cr` + `Data.cr` — `RunVolt` sur les deux projets avec stdout/exit attendus. ⚠️ Risque : dépend du support runtime classes/structs/modules (présent d'après `Vm.cr` class tables / `TypeCollector`, mais si un trou apparaît, la spec de repli valide `volt check` exit 0 + un couple de fichiers minimal exécutable, et le trou est documenté.
 
-## Phase 5 — `volt circuit` : auto-génération / sync de `Project.vl`
+## Phase 5 — `volt circuit` : auto-génération / sync de `Project.vl` | TODO with `Chore/Add-Circuits/Phase5/Circuit`
 
 **But** : la commande stub devient réelle.
 
