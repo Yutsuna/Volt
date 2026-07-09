@@ -1,6 +1,3 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-
 mixin Upgradable
   def upgrade_stats( hp_bonus : Int64 ) -> Void
     @max_hp += hp_bonus
