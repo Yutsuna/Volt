@@ -354,6 +354,23 @@ module Volt::Frontend
     end
   end
 
+  class CircuitDecl
+    def dump(io : IO, prefix : String) : Nil
+      rt_s = @runtime ? " #{ASTDump.key("runtime=")}#{ASTDump.val("'#{@runtime}'")}" : ""
+      ep_s = @entrypoint ? " #{ASTDump.key("entrypoint=")}#{ASTDump.val("'#{@entrypoint}'")}" : ""
+      io << ASTDump.nd("CircuitDecl") << " " << ASTDump.val("'#{@name}'") << rt_s << ep_s << ASTDump.loc(@loc) << "\n"
+      if m = @modules
+        field(io, "modules", m, prefix, true)
+      end
+    end
+  end
+
+  class LinkDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("LinkDecl") << " " << ASTDump.val("'#{@module_name}'") << ASTDump.loc(@loc) << "\n"
+    end
+  end
+
 
 
   class IntLit
@@ -390,6 +407,19 @@ module Volt::Frontend
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("ArrayLit") << ASTDump.loc(@loc) << "\n"
       section(io, "elements", @elements.map(&.as(ANode)), prefix, true) unless @elements.empty?
+    end
+  end
+
+  class HashLiteralExpr
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("HashLiteralExpr") << ASTDump.loc(@loc) << "\n"
+      @pairs.each_with_index do |(k, v), i|
+        last = i == @pairs.size - 1
+        io << prefix << arm(last) << ASTDump.lbl("pair") << "\n"
+        sub = cpfx(prefix, last)
+        field(io, "key",   k, sub, false)
+        field(io, "value", v, sub, true)
+      end
     end
   end
 

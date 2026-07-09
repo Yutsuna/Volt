@@ -66,6 +66,84 @@ module Volt::Frontend
         Diagnostic.error( "P0007", "unexpected #{Catalog.describe( tok )} in type body" )
           .with_primary( tok.span, "only fields, methods, and nested types are allowed here" )
       end
+
+      def expected_one_of( what : String, got : Token ) : Diagnostic
+        Diagnostic.error( "P0008", "expected #{what}, found #{Catalog.describe( got )}" )
+          .with_primary( got.span, "expected #{what} here" )
+      end
+
+      def circuit_no_interpolation( span : Span ) : Diagnostic
+        Diagnostic.error( "P0009", "string interpolation is not allowed inside a `circuit` manifest" )
+          .with_primary( span, "manifest values must be plain string literals" )
+      end
+
+      def link_expects_module_name( span : Span ) : Diagnostic
+        Diagnostic.error( "P0010", "`@[Link]` expects exactly one plain string argument" )
+          .with_primary( span, %(use `@[Link("ModuleName")]`) )
+      end
+    end
+
+
+    # ------------------------------------------------------------------ circuit (C00xx)
+    module Circuit
+      extend self
+
+      def manifest_not_found( path : String ) : Diagnostic
+        Diagnostic.error( "C0001", "circuit manifest `#{path}` not found" )
+          .with_help( "run `volt circuit` at the project root to generate one" )
+      end
+
+      def no_circuit_block( file : String ) : Diagnostic
+        Diagnostic.error( "C0002", "no `circuit` block found in `#{file}`" )
+          .with_help( "a manifest must contain exactly one `circuit \"Name\" { ... }` block" )
+      end
+
+      def multiple_circuit_blocks( span : Span, first : Span ) : Diagnostic
+        Diagnostic.error( "C0003", "multiple `circuit` blocks in manifest" )
+          .with_primary( span, "second `circuit` block here" )
+          .with_secondary( first, "first `circuit` block here" )
+      end
+
+      def missing_entry( entry : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0004", "circuit is missing its `#{entry}` entry" )
+          .with_primary( span, "add `#{entry} \"...\"` inside this circuit block" )
+      end
+
+      def entrypoint_not_found( path : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0005", "entrypoint `#{path}` does not exist" )
+          .with_primary( span, "no such file relative to the project root" )
+      end
+
+      def duplicate_module( name : String, span : Span, first : Span ) : Diagnostic
+        Diagnostic.error( "C0006", "duplicate module `#{name}` in circuit manifest" )
+          .with_primary( span, "redeclared here" )
+          .with_secondary( first, "first declared here" )
+      end
+
+      def module_dir_not_found( name : String, path : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0007", "module `#{name}` points to `#{path}` which is not a directory" )
+          .with_primary( span, "no such directory relative to the project root" )
+      end
+
+      def path_escapes_project( path : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0008", "path `#{path}` escapes the project root" )
+          .with_primary( span, "manifest paths must be relative and stay inside the project" )
+      end
+
+      def link_unknown_module( name : String, span : Span, declared : Array( String ) ) : Diagnostic
+        diag = Diagnostic.error( "C0009", "`@[Link(\"#{name}\")]` references a module not declared in the circuit manifest" )
+          .with_primary( span, "unknown module `#{name}`" )
+        if declared.empty?
+          diag.with_help( "the manifest declares no modules; add a `modules( ... )` entry to `Project.vl`" )
+        else
+          diag.with_help( "declared modules are: #{declared.sort.join( ", " )}" )
+        end
+      end
+
+      def circular_dependency( chain : Array( String ), span : Span ) : Diagnostic
+        Diagnostic.error( "C0010", "circular module dependency: #{chain.join( " -> " )}" )
+          .with_primary( span, "this `@[Link]` closes the cycle" )
+      end
     end
 
 

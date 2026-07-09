@@ -73,6 +73,7 @@ module Volt::Frontend
     Protected
     Public
     Extend
+    Circuit
     Typeof
 
     # arithmetic
@@ -99,6 +100,7 @@ module Volt::Frontend
     EqEqEq      # ===
     MatchOp     # =~
     NotMatchOp  # !~
+    FatArrow    # =>
 
     # logical
     AmpAmp      # &&
