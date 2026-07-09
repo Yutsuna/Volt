@@ -66,6 +66,16 @@ module Volt::Frontend
         Diagnostic.error( "P0007", "unexpected #{Catalog.describe( tok )} in type body" )
           .with_primary( tok.span, "only fields, methods, and nested types are allowed here" )
       end
+
+      def expected_one_of( what : String, got : Token ) : Diagnostic
+        Diagnostic.error( "P0008", "expected #{what}, found #{Catalog.describe( got )}" )
+          .with_primary( got.span, "expected #{what} here" )
+      end
+
+      def circuit_no_interpolation( span : Span ) : Diagnostic
+        Diagnostic.error( "P0009", "string interpolation is not allowed inside a `circuit` manifest" )
+          .with_primary( span, "manifest values must be plain string literals" )
+      end
     end
 
 
