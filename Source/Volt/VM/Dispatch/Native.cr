@@ -34,6 +34,7 @@ module Volt::VM
       # (`to_u64` raises `OverflowError` on any negative value — the old bug.)
       when IR::Value::Tag::Int then Pointer(Void).new(val.as_i.to_u64!)
       when IR::Value::Tag::Str then val.as_s.to_unsafe.as(Void*)
+      when IR::Value::Tag::Ptr then val.as_ptr
       else                          Pointer(Void).null
       end
     end
