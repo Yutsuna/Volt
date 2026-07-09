@@ -194,6 +194,7 @@ module Volt::Frontend
     end
 
     private def resolve_module( node : ModuleDecl, info : TypeInfo ) : Nil
+      info.extend_self = node.body.any?( ExtendSelfDecl )
       collect_class_vars( node.body, info )
       collect_methods( node.body, info )
     end
@@ -368,8 +369,10 @@ module Volt::Frontend
           Type::UNKNOWN
         end
 
+      is_static = info.kind.module? ? ( decl.is_static || info.extend_self ) : decl.is_static
+
       FuncSig.new( decl.name, params, ret, decl_span: decl.loc, owner: info.name,
-                   is_static: info.kind.module? || decl.is_static, visibility: decl.visibility )
+                    is_static: is_static, visibility: decl.visibility )
     end
 
     # A concrete class must provide a non-abstract override for every abstract
