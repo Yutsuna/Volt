@@ -44,6 +44,10 @@ module Volt::Frontend
       kind.pointer?
     end
 
+    def void_pointer? : Bool
+      pointer? && pointee.nil_type?
+    end
+
     def int64? : Bool
       kind.int64?
     end
@@ -168,8 +172,8 @@ module Volt::Frontend
       when .object?  then io << "Object"
       when .struct?  then io << "Struct"
       when .pointer?
-        io << "*"
         pointee.to_s( io )
+        io << "*"
       when .unknown? then io << "?"
       when .func?
         io << "(" << params.map( &.to_s ).join( ", " ) << ") -> " << ret

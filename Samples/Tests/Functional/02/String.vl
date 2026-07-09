@@ -1,0 +1,30 @@
+@[External("libc")]
+def puts( str : UInt8* ) -> Int32
+
+@[External("libc")]
+def strlen( str : UInt8* ) -> UInt64
+
+
+struct FString
+  ptr : UInt8*
+  size : UInt64
+
+  def initialize( @ptr : UInt8* )
+    @size = strlen(@ptr)
+  end
+
+  # NOTE: in the future this will be:
+  # def to_string ... end
+  # with NO IO/puts
+  # and then puts will automatically try to call Object.to_string
+  def print
+    puts(@ptr)
+  end
+end
+
+
+s1 = FString.new("Hello, World")
+s1.print()
+
+s2 = FString.new("Zero-overhead strings!")
+s2.print()

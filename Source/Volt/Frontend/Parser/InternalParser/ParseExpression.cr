@@ -11,7 +11,9 @@ module Volt::Frontend
 
         if @paren_depth == 0 && @current.kind.newline?
           continuation = led_prec( @peek.kind )
-          break if continuation <= min_prec || continuation.modifier?
+          break if continuation <= min_prec || continuation.modifier? ||
+                   @peek.kind.star? || @peek.kind.amp? ||
+                   @peek.kind.plus? || @peek.kind.minus? || @peek.kind.tilde?
           advance
         end
 
@@ -433,7 +435,7 @@ module Volt::Frontend
       # `TokenKind::Nil` spelled as a constant: `.nil?` here would call
       # `Object#nil?` (always false), silently dropping `nil` from the set.
       when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
-            .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?,
+            .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?, .star?, .amp?,
             .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
             .if?, .unless?, .match?, .while?, .until?, .await?,
             .return?, .break?, .next?, .raise?
