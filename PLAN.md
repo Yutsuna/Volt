@@ -68,7 +68,7 @@ S'assurer de restreindre les chemins des modules définis dans le manifest pour 
 - Corriger `Logger.vl` (le `end` manquant) + ajuster `Main.vl` des fixtures pour produire une sortie vérifiable (stdout/exit code).
 - **Specs fonctionnelles** : suivre le pattern `Spec/Samples/01.cr` + `Data.cr` — `RunVolt` sur les deux projets avec stdout/exit attendus. ⚠️ Risque : dépend du support runtime classes/structs/modules (présent d'après `Vm.cr` class tables / `TypeCollector`, mais si un trou apparaît, la spec de repli valide `volt check` exit 0 + un couple de fichiers minimal exécutable, et le trou est documenté.
 
-## Phase 5 — `volt circuit` : auto-génération / sync de `Project.vl` | TODO with `Chore/Add-Circuits/Phase5/Circuit`
+## Phase 5 — `volt circuit` : auto-génération / sync de `Project.vl` | DONE with `Chore/Add-Circuits/Phase5/Circuit`
 
 **But** : la commande stub devient réelle.
 
