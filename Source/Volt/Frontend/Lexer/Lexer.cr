@@ -46,6 +46,7 @@ module Volt::Frontend
       "protected" => TokenKind::Protected,
       "public"    => TokenKind::Public,
       "extend"    => TokenKind::Extend,
+      "typeof"    => TokenKind::Typeof,
       "true"      => TokenKind::True,
       "false"     => TokenKind::False,
       "nil"       => TokenKind::Nil,
