@@ -64,6 +64,7 @@ module Volt::Frontend
     # storage (a module has no instances); the compiler assigns each a global
     # slot. Declaration order is preserved for deterministic slot/init emission.
     property class_vars : Hash( String, Type )
+    property extend_self : Bool = false
 
     def initialize( @kind, @name, @type_id,
                     @layout = nil, @superclass = nil,
@@ -72,7 +73,8 @@ module Volt::Frontend
                     @methods_ast = {} of String => FuncDecl,
                     @initializer = nil, @finalizer = nil,
                     @vtable_layout = {} of String => Int32, @vtable_size = 0,
-                    @class_vars = {} of String => Type )
+                    @class_vars = {} of String => Type,
+                    @extend_self = false)
     end
   end
 
