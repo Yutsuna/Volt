@@ -92,6 +92,7 @@ module Volt::IR
       Regex
       Nil
       Object
+      Ptr
     end
 
     getter tag : Tag
@@ -107,6 +108,8 @@ module Volt::IR
     def self.regex( v : ::Regex ) : Value       ; new( Tag::Regex, v.unsafe_as( Pointer( Void ) ) )     ; end
     def self.nil_value : Value                  ; new( Tag::Nil, Pointer( Void ).null )                 ; end
     def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.to_unsafe )                     ; end
+    def self.ptr( v : Pointer( Void ) ) : Value ; new( Tag::Ptr, v )                                    ; end
+    def self.ptr( addr : UInt64 ) : Value        ; new( Tag::Ptr, Pointer( Void ).new( addr ) )          ; end
 
     def as_i : Int64                      ; @payload.unsafe_as( Int64 )               ; end
     def as_f : Float64                    ; @payload.unsafe_as( Float64 )             ; end
@@ -114,6 +117,8 @@ module Volt::IR
     def as_s : String                     ; @payload.unsafe_as( String )              ; end
     def as_regex : ::Regex                ; @payload.unsafe_as( ::Regex )             ; end
     def as_object : HeapObject            ; HeapObject.new( @payload )                ; end
+    def as_ptr : Pointer( Void )          ; @payload                                  ; end
+    def as_ptr_u64 : UInt64                ; @payload.address                          ; end
     def is_nil? : Bool
       @tag == Tag::Nil
     end
@@ -132,6 +137,7 @@ module Volt::IR
       when Tag::Str    then as_s
       when Tag::Bool   then as_bool.to_s
       when Tag::Float  then as_f.to_s
+      when Tag::Ptr    then "<ptr:0x" + as_ptr_u64.to_s( 16 ) + ">"
       else                  as_i.to_s
       end
     end
@@ -155,6 +161,7 @@ module Volt::IR
       when Tag::Str    then as_s      == other.as_s
       when Tag::Regex  then as_regex  == other.as_regex
       when Tag::Object then as_object == other.as_object
+      when Tag::Ptr    then as_ptr_u64 == other.as_ptr_u64
       else                  true # Nil == Nil
       end
     end
