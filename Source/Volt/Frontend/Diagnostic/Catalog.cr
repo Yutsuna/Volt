@@ -79,6 +79,54 @@ module Volt::Frontend
     end
 
 
+    # ------------------------------------------------------------------ circuit (C00xx)
+    module Circuit
+      extend self
+
+      def manifest_not_found( path : String ) : Diagnostic
+        Diagnostic.error( "C0001", "circuit manifest `#{path}` not found" )
+          .with_help( "run `volt circuit` at the project root to generate one" )
+      end
+
+      def no_circuit_block( file : String ) : Diagnostic
+        Diagnostic.error( "C0002", "no `circuit` block found in `#{file}`" )
+          .with_help( "a manifest must contain exactly one `circuit \"Name\" { ... }` block" )
+      end
+
+      def multiple_circuit_blocks( span : Span, first : Span ) : Diagnostic
+        Diagnostic.error( "C0003", "multiple `circuit` blocks in manifest" )
+          .with_primary( span, "second `circuit` block here" )
+          .with_secondary( first, "first `circuit` block here" )
+      end
+
+      def missing_entry( entry : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0004", "circuit is missing its `#{entry}` entry" )
+          .with_primary( span, "add `#{entry} \"...\"` inside this circuit block" )
+      end
+
+      def entrypoint_not_found( path : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0005", "entrypoint `#{path}` does not exist" )
+          .with_primary( span, "no such file relative to the project root" )
+      end
+
+      def duplicate_module( name : String, span : Span, first : Span ) : Diagnostic
+        Diagnostic.error( "C0006", "duplicate module `#{name}` in circuit manifest" )
+          .with_primary( span, "redeclared here" )
+          .with_secondary( first, "first declared here" )
+      end
+
+      def module_dir_not_found( name : String, path : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0007", "module `#{name}` points to `#{path}` which is not a directory" )
+          .with_primary( span, "no such directory relative to the project root" )
+      end
+
+      def path_escapes_project( path : String, span : Span ) : Diagnostic
+        Diagnostic.error( "C0008", "path `#{path}` escapes the project root" )
+          .with_primary( span, "manifest paths must be relative and stay inside the project" )
+      end
+    end
+
+
     # ------------------------------------------------------------------ semantic (S00xx)
     module Sema
       extend self
