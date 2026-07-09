@@ -57,7 +57,9 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "01.u.RawPointers.vl" => {exit_code: 0, stderr: "", stdout: "PASS LOCAL ADDR\nPASS NIL EQ\nPASS NONNIL NE\nPASS CLASS IVAR ADDR\nPASS STRUCT FIELD ADDR\nPASS MALLOC WRITE 0\nPASS MALLOC WRITE 1\n"},
       #------------------------------------------------------------------------------------
-      "String.vl" => {exit_code: 0, stderr: "", stdout: "Hello, World\nZero-overhead strings!\n"},
+      "02.a.String.vl" => {exit_code: 0, stderr: "", stdout: "Hello, World\nZero-overhead strings!\n"},
+      #------------------------------------------------------------------------------------
+      "02.b.Hash.vl" => {exit_code: 0, stderr: "", stdout: ""},
       #------------------------------------------------------------------------------------
     }
 
