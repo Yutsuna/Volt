@@ -18,9 +18,21 @@ module Volt::CLI
 
     def execute( args : Array(String) )
       parse args
-      fatal! "Missing source analyzer validation inputs (-i)" unless @input
 
-      file = @input.not_nil!
+      input = @input || ( Dir.current if File.file?( File.join( Dir.current, Volt::Circuit::MANIFEST_NAME ) ) )
+      fatal! "Missing source analyzer validation inputs (-i)" unless input
+
+      if manifest_path = Volt::Circuit.discover( input )
+        check_project( manifest_path )
+      else
+        check_file( input )
+      end
+    end
+
+    #------------------------------------------------------------------------------------
+
+    # Mono-file mode: no `Project.vl` above the input (original behaviour).
+    private def check_file( file : String )
       source = begin
         File.read(file)
       rescue e
@@ -36,6 +48,35 @@ module Volt::CLI
         raise SystemExit.new
       end
 
+      report typed
+    end
+
+    # Circuit mode: validate the manifest, resolve the whole `@[Link]` graph
+    # from its entrypoint, and analyse the merged program (no execution).
+    private def check_project( manifest_path : String )
+      Logger.info( "Circuit manifest found: #{manifest_path}", "check" )
+
+      manifest = begin
+        Volt::Circuit.load( manifest_path )
+      rescue e : Frontend::CompilationError
+        DiagnosticRenderer.new( { manifest_path => File.read( manifest_path ) } ).render( e.bag )
+        raise SystemExit.new
+      end
+
+      Logger.info( "Running semantic analysis on circuit `#{manifest.name}`", "check" )
+
+      resolver = Volt::Circuit::Resolver.new( manifest )
+      typed = begin
+        Frontend.analyse( resolver.resolve.program )
+      rescue e : Frontend::CompilationError
+        DiagnosticRenderer.new( resolver.sources ).render( e.bag )
+        raise SystemExit.new
+      end
+
+      report typed
+    end
+
+    private def report( typed : Frontend::TypedProgram )
       fn_count = typed.functions.size
       Logger.info( "OK : #{fn_count} function(s), #{typed.top_level.size} top-level statement(s) type-checked", "check" )
     end
