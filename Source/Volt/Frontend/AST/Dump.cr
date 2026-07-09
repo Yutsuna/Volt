@@ -716,4 +716,12 @@ module Volt::Frontend
   end
 
 
+  class TypeofExpr
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("TypeofExpr") << ASTDump.loc(@loc) << "\n"
+      field(io, "operand", @operand, prefix, true)
+    end
+  end
+
+
 end
