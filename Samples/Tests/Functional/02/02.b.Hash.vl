@@ -1,0 +1,137 @@
+@[External("libc")]
+def puts( str : String ) -> Int32
+
+class FHashNode
+  key : String
+  value : String
+  nxt : FHashNode
+
+  def initialize(@key : String, @value : String, @nxt : FHashNode)
+  end
+
+  def get_key -> String
+    @key
+  end
+
+  def get_value -> String
+    @value
+  end
+
+  def set_value(val : String) -> Void
+    @value = val
+  end
+
+  def get_nxt -> FHashNode
+    @nxt
+  end
+
+  def set_nxt(nxt_node : FHashNode) -> Void
+    @nxt = nxt_node
+  end
+end
+
+class FHash
+  head : FHashNode
+
+  def initialize
+    @head = nil
+  end
+
+  def put(key : String, value : String) -> Void
+    curr = @head
+    found = false
+    while curr != nil
+      if curr.get_key() == key
+        curr.set_value(value)
+        found = true
+        curr = nil
+      else
+        curr = curr.get_nxt()
+      end
+    end
+
+    if not found
+      new_node = FHashNode.new(key, value, @head)
+      @head = new_node
+    end
+  end
+
+  def get(key : String) -> FHashNode
+    curr = @head
+    res : FHashNode = nil
+    while curr != nil
+      if curr.get_key() == key
+        res = curr
+        curr = nil
+      else
+        curr = curr.get_nxt()
+      end
+    end
+    res
+  end
+
+  def has_key(key : String) -> Bool
+    curr = @head
+    res = false
+    while curr != nil
+      if curr.get_key() == key
+        res = true
+        curr = nil
+      else
+        curr = curr.get_nxt()
+      end
+    end
+    res
+  end
+end
+
+h = FHash.new()
+
+h.put("a", "1")
+h.put("b", "2")
+
+node_a = h.get("a")
+if node_a != nil
+  if node_a.get_value() == "1"
+    puts("PASS GET A")
+  else
+    puts("FAIL GET A")
+  end
+else
+  puts("FAIL GET A NIL")
+end
+
+node_b = h.get("b")
+if node_b != nil
+  if node_b.get_value() == "2"
+    puts("PASS GET B")
+  else
+    puts("FAIL GET B")
+  end
+else
+  puts("FAIL GET B NIL")
+end
+
+h.put("a", "99")
+node_a2 = h.get("a")
+if node_a2 != nil
+  if node_a2.get_value() == "99"
+    puts("PASS UPDATE A")
+  else
+    puts("FAIL UPDATE A")
+  end
+else
+  puts("FAIL UPDATE A NIL")
+end
+
+if h.has_key("b")
+  puts("PASS HAS B")
+else
+  puts("FAIL HAS B")
+end
+
+if not h.has_key("c")
+  puts("PASS NOT HAS C")
+else
+  puts("FAIL NOT HAS C")
+end

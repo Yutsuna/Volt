@@ -3,6 +3,7 @@ import site
 import os
 import shutil
 import re
+import glob
 from pathlib import Path
 
 def setup_paths():
@@ -46,11 +47,11 @@ def setup_paths():
         with open(wrapped_path, "r") as f:
             wrapped_content = f.read()
 
-        # Extract the list of dependency paths passed to addsitedir
-        paths_match = re.search(r'\[\s*(\'/nix/store/[^\]]+)\s*\]', wrapped_content)
-        if paths_match:
-            paths_str = paths_match.group(1)
-            paths = [p.strip().strip("'").strip('"') for p in paths_str.split(",")]
+        # Extract the list of dependency paths dynamically
+        match_list = re.search(r'\[(.*?)\]', wrapped_content)
+        if match_list:
+            list_content = match_list.group(1)
+            paths = re.findall(r"['\"]([^'\"]+)['\"]", list_content)
             for p in paths:
                 if os.path.exists(p):
                     site.addsitedir(p)
@@ -59,12 +60,45 @@ def setup_paths():
 
 setup_paths()
 
+# Try to find and add tree-sitter-crystal dynamically
+try:
+    import tree_sitter_crystal
+except ImportError:
+    graphify_bin = shutil.which("graphify")
+    nix_store = "/nix/store"
+    if graphify_bin:
+        real_graphify = os.path.realpath(graphify_bin)
+        for parent in Path(real_graphify).parents:
+            if parent.name == "store" and parent.parent.name == "nix":
+                nix_store = str(parent)
+                break
+    if os.path.exists(nix_store):
+        py_ver = f"python{sys.version_info.major}.{sys.version_info.minor}"
+        patterns = [
+            os.path.join(nix_store, f"*python*-python-tree-sitter-crystal*/lib/{py_ver}/site-packages"),
+            os.path.join(nix_store, f"*python*-python-tree-sitter-crystal*/lib/python*/site-packages"),
+            os.path.join(nix_store, f"*tree-sitter-crystal*/lib/{py_ver}/site-packages"),
+            os.path.join(nix_store, f"*tree-sitter-crystal*/lib/python*/site-packages"),
+        ]
+        for pattern in patterns:
+            for p in glob.glob(pattern):
+                if os.path.exists(p):
+                    site.addsitedir(p)
+
 import graphify.detect
 import graphify.extract
 
 # Patch CODE_EXTENSIONS to include .cr and .inc
 graphify.detect.CODE_EXTENSIONS.add('.cr')
 graphify.detect.CODE_EXTENSIONS.add('.inc')
+
+# Override _is_sensitive to not skip .cr and .inc files (e.g. Token.cr, TokenSpec.cr)
+_orig_is_sensitive = graphify.detect._is_sensitive
+def _custom_is_sensitive(path):
+    if path.suffix in {'.cr', '.inc'}:
+        return False
+    return _orig_is_sensitive(path)
+graphify.detect._is_sensitive = _custom_is_sensitive
 
 # Define Crystal config using tree-sitter-crystal
 from graphify.extract import LanguageConfig, _extract_generic
