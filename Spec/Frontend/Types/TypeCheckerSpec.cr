@@ -21,10 +21,7 @@ describe "Volt::Frontend::TypeChecker - Polymorphism & Reassignment" do
     VOLT
 
     program = Volt::Frontend.parse(source, "test_spec.vl")
-
-    expect_no_raise do
-      Volt::Frontend.analyse(program)
-    end
+    Volt::Frontend.analyse(program)
   end
 
   it "maintains the wider declared type inside conditional branches" do
@@ -43,9 +40,7 @@ describe "Volt::Frontend::TypeChecker - Polymorphism & Reassignment" do
     VOLT
 
     program = Volt::Frontend.parse(source, "test_spec_branch.vl")
-    expect_no_raise do
-      Volt::Frontend.analyse(program)
-    end
+    Volt::Frontend.analyse(program)
   end
 
 end
