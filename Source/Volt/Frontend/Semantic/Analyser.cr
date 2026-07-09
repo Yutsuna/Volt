@@ -37,7 +37,7 @@ module Volt::Frontend
           @functions << node
         when AExpr
           @top_level << node
-        when ClassDecl, StructDecl, MixinDecl, ModuleDecl
+        when ClassDecl, StructDecl, MixinDecl, ModuleDecl, CircuitDecl
           # handled above by TypeCollector
         else
           @bag << Catalog::Sema.unsupported_top_level( type_name( node ), node.loc )
