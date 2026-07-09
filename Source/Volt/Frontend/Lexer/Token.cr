@@ -73,6 +73,7 @@ module Volt::Frontend
     Protected
     Public
     Extend
+    Typeof
 
     # arithmetic
     Plus        # +

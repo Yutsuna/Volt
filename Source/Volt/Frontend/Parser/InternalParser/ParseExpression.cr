@@ -143,6 +143,17 @@ module Volt::Frontend
         NextExpr.new( expr_if_on_same_line, tok.span )
       when .raise?
         RaiseExpr.new( parse_expr( Prec::Unary ), tok.span )
+      when .typeof?
+        if @current.kind.l_paren?
+          advance
+          @paren_depth += 1
+          operand = parse_expr
+          @paren_depth -= 1
+          expect( TokenKind::RParen )
+        else
+          operand = parse_expr( Prec::Unary )
+        end
+        TypeofExpr.new( operand, tok.span )
       else
         error!( Catalog::Parse.unexpected_expr( tok ) )
       end
