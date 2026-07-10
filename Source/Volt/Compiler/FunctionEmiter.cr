@@ -211,6 +211,7 @@ module Volt::Compiler
       when Frontend::UnaryOp      then compile_unary( expr )
       when Frontend::Call         then compile_call( expr )
       when Frontend::MethodCall   then compile_method_call( expr )
+      when Frontend::PipeExpr     then compile_expr( expr.desugared.not_nil! )
       when Frontend::IfExpr     then compile_if( expr )
       when Frontend::WhileExpr  then compile_while( expr )
       when Frontend::ReturnExpr then compile_return( expr )
