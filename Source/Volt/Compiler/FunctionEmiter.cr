@@ -500,7 +500,7 @@ module Volt::Compiler
       place_value( window + 2, ptr_reg, 1 )
       place_value( window + 3, size_reg, 1 )
       place_value( window + 4, owned_reg, 1 )
-      emit_abc( IR::Opcode::CALL, window, @func_index[ "String#initialize" ], 4 )
+      emit_abc( IR::Opcode::CALL, window, @func_index[ init_chunk_name( info, 3 ) ], 4 )
       obj
     end
 
@@ -605,6 +605,14 @@ module Volt::Compiler
       # the vtable instead (`compile_virtual_call`), since the receiver's
       # runtime type may be a subclass of its static type.
       recv_ty = expr.receiver.resolved_type
+      # An explicit `obj.finalize()` never dispatches virtually (no vtable
+      # slot exists for it) — resolved statically to the receiver's own or
+      # nearest ancestor's chunk, mirroring `compile_super_call`'s walk.
+      if recv_ty.is_a?( Frontend::NominalType ) && recv_ty.kind.object? && expr.name == "finalize" && expr.args.empty?
+        self_reg = compile_expr( expr.receiver )
+        return compile_static_finalize_call( recv_ty.name, self_reg )
+      end
+
       if recv_ty.is_a?( Frontend::NominalType ) && ( recv_ty.kind.struct? || recv_ty.kind.object? )
         self_reg  = compile_expr( expr.receiver )
         arg_regs  = expr.args.map { |a| compile_expr( a ) }
@@ -653,6 +661,28 @@ module Volt::Compiler
         offset += n
       end
       emit_abc( IR::Opcode::CALL, base, idx, total )
+      base
+    end
+
+    # Static (never virtual) call to `type_name`'s own `finalize`, or the
+    # nearest ancestor's if `type_name` declares none — same chain walk as
+    # `compile_super_call`, starting at the receiver's own type instead of
+    # its superclass. `finalize` takes no args : `self` is the only slot.
+    private def compile_static_finalize_call( type_name : String, self_reg : Int32 ) : Int32
+      idx  = nil.as( Int32? )
+      cur  = type_name
+      while cur && ( info = @types[ cur ]? )
+        if i = @func_index[ "#{cur}#finalize" ]?
+          idx = i
+          break
+        end
+        cur = info.superclass
+      end
+      raise "internal: unresolved finalize #{type_name}#finalize" if idx.nil?
+
+      base = alloc_block( 2 )
+      place_value( base + 1, self_reg, 1 )
+      emit_abc( IR::Opcode::CALL, base, idx, 1 )
       base
     end
 
@@ -797,7 +827,15 @@ module Volt::Compiler
       msig = nil.as( Frontend::FuncSig? )
       cur  = owner.superclass
       while cur && ( info = @types[ cur ]? )
-        if i = @func_index[ "#{cur}##{method}" ]?
+        if method == "initialize"
+          if sig = info.initializers[ expr.args.size ]? || info.initializer
+            if i = @func_index[ init_chunk_name( info, expr.args.size ) ]?
+              idx  = i
+              msig = sig
+              break
+            end
+          end
+        elsif i = @func_index[ "#{cur}##{method}" ]?
           idx  = i
           msig = find_method( cur, method )
           break
@@ -844,9 +882,8 @@ module Volt::Compiler
     # should live — the same `base`-is-both-return-and-arg-window convention
     # `compile_class_new`/`compile_call` already use.
     private def compile_struct_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
-      if init = info.initializer
-        mangled  = "#{info.name}#initialize"
-        idx      = @func_index[ mangled ]
+      if init = ( info.initializers[ args.size ]? || info.initializer )
+        idx      = @func_index[ init_chunk_name( info, args.size ) ]
         self_slots = info.reg_layout.try( &.total_size ) || 1
         arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total    = self_slots + arg_slot_counts.sum
@@ -881,9 +918,8 @@ module Volt::Compiler
       emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
 
       if provider = find_initializer_owner( info )
-        init    = provider.initializer.not_nil!
-        mangled = "#{provider.name}#initialize"
-        idx     = @func_index[ mangled ]
+        init    = provider.initializers[ args.size ]? || provider.initializer.not_nil!
+        idx     = @func_index[ init_chunk_name( provider, args.size ) ]
         arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total   = 1 + arg_slot_counts.sum
         # `window` (== A) is the CALL's return-value landing spot : args
@@ -910,6 +946,14 @@ module Volt::Compiler
     # and it's safe to run against `obj` regardless of `obj`'s real subtype
     # since inherited fields share the same slot offsets (layout prefix
     # sharing, architecture #1.A.3).
+    # Chunk key for a type's `initialize` overload : a lone constructor keeps
+    # the historical plain `Type#initialize` name, multiple overloads are
+    # arity-mangled `Type#initialize/<arity>` (see `TypeCollector`).
+    private def init_chunk_name( info : Frontend::TypeInfo, arity : Int32 ) : String
+      key = info.initializers.size > 1 ? "initialize/#{arity}" : "initialize"
+      "#{info.name}##{key}"
+    end
+
     private def find_initializer_owner( info : Frontend::TypeInfo ) : Frontend::TypeInfo?
       return info if info.initializer
       sup = info.superclass.try { |s| @types[ s ]? }
