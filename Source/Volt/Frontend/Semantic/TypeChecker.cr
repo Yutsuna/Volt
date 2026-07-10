@@ -23,6 +23,15 @@ module Volt::Frontend
       check_body( nodes, Scope.new )
     end
 
+    # `String` resolves nominally once the Core's `class String` has been
+    # collected (its `NominalType` is registered under `"String"`, shadowing
+    # `Type.from_primitive_name`'s old builtin). Without the Core present
+    # (bare unit specs constructing a `TypeChecker` directly), falls back to
+    # the legacy `Type::STR` primitive so those specs keep working unchanged.
+    private def string_type : Type
+      @nominals[ "String" ]? || Type::STR
+    end
+
     # Checks one method body with `self` bound to `owner` : instance-var and
     # implicit-self-call resolution both key off `@self_type`. `abstract def`
     # has no body to check.
@@ -71,7 +80,7 @@ module Volt::Frontend
       case expr
       when IntLit     then expr.resolved_type || Type::INT
       when FloatLit   then expr.resolved_type || Type::FLOAT
-      when StringLit  then Type::STR
+      when StringLit  then string_type
       when BoolLit    then Type::BOOL
       when NilLit     then Type::NIL
       when RegexLit   then Type::REGEX
@@ -133,7 +142,7 @@ module Volt::Frontend
           infer(op, scope)
         end
         expr.resolved_operand_type = opt
-        Type::STR
+        string_type
       else
         @bag << Catalog::Sema.unsupported_expr( type_name( expr ), expr.loc )
         Type::UNKNOWN
@@ -336,7 +345,8 @@ module Volt::Frontend
 
     private def infer_self( expr : SelfExpr, scope : Scope ) : Type
       if ( owner = @self_type ) && !@current_method.try( &.is_static )
-        @nominals[ owner.name ]? || Type::UNKNOWN
+        # A reopened primitive has no `NominalType` : `self` is the builtin.
+        @nominals[ owner.name ]? || Type.from_primitive_name( owner.name ) || Type::UNKNOWN
       else
         @bag << Catalog::Sema.self_outside_method( expr.loc )
         Type::UNKNOWN
@@ -425,10 +435,14 @@ module Volt::Frontend
 
       # `obj.field` without parens/block is how the parser spells both a field
       # read *and* a zero-arg method call without parens (`book.description`);
-      # `.to_s` is the one builtin every value supports ahead of a fuller
+      # `.to_string` is the one builtin every value supports ahead of a fuller
       # builtin method table.
       unless recv_ty.is_a?( NominalType )
-        return Type::STR if expr.name == "to_s"
+        if sig = primitive_method( recv_ty, expr.name )
+          @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+          return sig.ret
+        end
+        return Type::STR if expr.name == "to_string"
         @bag << Catalog::Sema.unsupported_expr( "member access `.#{expr.name}` on non-object type `#{recv_ty}`", expr.loc )
         return Type::UNKNOWN
       end
@@ -443,7 +457,7 @@ module Volt::Frontend
         return sig.ret
       end
 
-      return Type::STR if expr.name == "to_s"
+      return Type::STR if expr.name == "to_string"
 
       @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, expr.name, expr.loc )
       Type::UNKNOWN
@@ -474,9 +488,16 @@ module Volt::Frontend
       recv_ty = infer( expr.receiver, scope )
       return Type::UNKNOWN if recv_ty.kind.unknown?
 
-      # Minimal builtin: `.to_s` is usable on any value (the samples rely on
-      # it for string-concatenation logging) ahead of a fuller builtin table.
-      if expr.name == "to_s" && expr.args.empty?
+      # A reopened primitive's own method wins over the builtin fallback :
+      # `42.to_string` must run the Core `Int#to_string`, not `TO_STRING`.
+      if sig = primitive_method( recv_ty, expr.name )
+        check_call_args( "#{recv_ty}##{expr.name}", sig.params, expr.args, expr.loc, scope )
+        return sig.ret
+      end
+
+      # Minimal builtin: `.to_string` is usable on any value (the samples rely
+      # on it for string-concatenation logging) ahead of a fuller builtin table.
+      if expr.name == "to_string" && expr.args.empty?
         return Type::STR
       end
 
@@ -568,6 +589,18 @@ module Volt::Frontend
       end
     end
 
+    # A method call on a primitive receiver resolves through the reopened
+    # builtin's `TypeInfo` (`struct Int … end` in the Core) : exact width
+    # first (`Int32`), then the inferred family (`Int`).
+    private def primitive_method( recv_ty : Type, name : String ) : FuncSig?
+      recv_ty.reopen_names.each do |owner|
+        if sig = @types[ owner ]?.try( &.methods[ name ]? )
+          return sig
+        end
+      end
+      nil
+    end
+
     # Walks the superclass chain, then mixins, looking for a method named
     # `name` declared on `type_name`. Inherited fields already live in the
     # subclass's own packed layout (prefix-shared), so field lookup doesn't
@@ -610,11 +643,24 @@ module Volt::Frontend
       find_method( lt.name, op_name )
     end
 
+    # True for either the legacy `Type::STR` primitive (bare-TypeChecker
+    # specs with no Core injected) or the nominal Core `String` class —
+    # the only two shapes a "string" type can take post de-hardcoding.
+    private def string_ty?( t : Type ) : Bool
+      t.kind.str? || ( t.is_a?( NominalType ) && t.name == "String" )
+    end
+
     # `declared` accepts `actual` if they're equal, or `actual` is a subclass
     # of `declared` : walks the superclass chain (`Device` accepts `UsbDrive`).
     private def type_compatible?( declared : Type, actual : Type ) : Bool
       return true if declared.kind.unknown? || actual.kind.unknown?
       return true if declared == actual
+      # Legacy `Type::STR` (the builtin `.to_string` fallback for a type with
+      # no `to_string` of its own — currently only `Float`) and the nominal
+      # Core `String` are runtime-interchangeable (`Vm#to_string_value`
+      # builds a real `String` instance either way) : accept either wherever
+      # the other is declared.
+      return true if string_ty?( declared ) && string_ty?( actual )
       # Class references and pointers are implicitly nilable : `nil` is
       # assignable wherever an Object reference or Pointer is declared.
       return true if actual.nil_type? && ( declared.kind.object? || declared.pointer? )
@@ -622,10 +668,9 @@ module Volt::Frontend
       if declared.pointer? && actual.pointer?
         return true if declared.void_pointer? || actual.void_pointer?
       end
-      # String to UInt8* / Void* compatibility
-      if declared.pointer? && ( declared.pointee.uint8? || declared.void_pointer? ) && actual.kind.str?
-        return true
-      end
+      # No implicit String→UInt8* coercion : the Core passes `.data`/`.size`
+      # explicitly (`write(1, str.data, str.size)`) — a String no longer
+      # silently decays to a raw pointer at a call boundary.
       if declared.is_a?( NominalType ) && actual.is_a?( NominalType )
         cur = actual.name
         while cur
@@ -646,7 +691,15 @@ module Volt::Frontend
       when .plus?, .minus?, .star?, .slash?, .percent?,
            .amp_plus?, .amp_minus?, .amp_star?, .amp_star_star?,
            .slash_slash?
-        return Type::STR if expr.op.plus? && lt.kind.str? && rt.kind.str?
+        # `String + String` dispatches through `operator_method` below (the
+        # Core's `String#+`) like any other nominal operator overload — but
+        # a bare `TypeChecker` with no Core loaded (unit specs) never sees a
+        # `NominalType` "String", only the legacy `Type::STR` primitive, so
+        # `operator_method` (requires `NominalType`) can't fire for it :
+        # keep that one case as a builtin shortcut.
+        if expr.op.plus? && string_ty?( lt ) && string_ty?( rt ) && !lt.is_a?( NominalType )
+          return string_type
+        end
         if lt.pointer? && ( expr.op.plus? || expr.op.minus? )
           if rt.integer?
             return lt
@@ -656,7 +709,8 @@ module Volt::Frontend
           end
         end
         if ( m = operator_method( lt, op_text( expr.op ) ) )
-          unless m.params.size == 1 && ( m.params[ 0 ].kind.unknown? || rt.kind.unknown? || m.params[ 0 ] == rt )
+          unless m.params.size == 1 && ( m.params[ 0 ].kind.unknown? || rt.kind.unknown? || m.params[ 0 ] == rt ||
+                 ( string_ty?( m.params[ 0 ] ) && string_ty?( rt ) ) )
             @bag << Catalog::Sema.argument_type( 1, "#{lt}##{op_text( expr.op )}", m.params[ 0 ]?.try( &.to_s ) || "?", rt.to_s, expr.loc )
           end
           return m.ret
@@ -688,14 +742,21 @@ module Volt::Frontend
           return Type::BOOL
         end
         return Type::BOOL if unknown
+        # `typeof(x) == "SomeType"` : `typeof` still yields the legacy
+        # `Type::STR` (not a `NominalType`, so the `operator_method` branch
+        # above never fires), compared against a real nominal `String`
+        # literal — bridge the two `string_ty?` shapes here too.
+        if ( expr.op.eq_eq? || expr.op.bang_eq? ) && string_ty?( lt ) && string_ty?( rt )
+          return Type::BOOL
+        end
         if expr.op.match_op? || expr.op.not_match_op?
-          unless lt.kind.str? && rt.kind.regex?
+          unless string_ty?( lt ) && rt.kind.regex?
             @bag << Catalog::Sema.incomparable( lt.to_s, rt.to_s, expr.loc )
           end
           return Type::BOOL
         end
 
-        if expr.op.eq_eq_eq? && lt.kind.regex? && rt.kind.str?
+        if expr.op.eq_eq_eq? && lt.kind.regex? && string_ty?( rt )
           return Type::BOOL
         end
 
