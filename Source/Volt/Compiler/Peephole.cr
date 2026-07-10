@@ -32,7 +32,7 @@ module Volt::Compiler
       IR::Opcode::LE_F64, IR::Opcode::GT_F64, IR::Opcode::GE_F64, IR::Opcode::EQ, IR::Opcode::NE,
       IR::Opcode::EQ_INT, IR::Opcode::NE_INT, IR::Opcode::CMP_INT, IR::Opcode::EQ_CASE,
       IR::Opcode::MATCH_STR, IR::Opcode::NOT_MATCH_STR, IR::Opcode::NOT, IR::Opcode::TO_STRING,
-      IR::Opcode::CONCAT_STR, IR::Opcode::LOAD_GLOBAL, IR::Opcode::LOAD_FIELD, IR::Opcode::INIT_OBJ,
+      IR::Opcode::LOAD_GLOBAL, IR::Opcode::LOAD_FIELD, IR::Opcode::INIT_OBJ,
       IR::Opcode::ADD_INT_IMM, IR::Opcode::SUB_INT_IMM, IR::Opcode::EQ_INT_IMM, IR::Opcode::NE_INT_IMM,
     }
 
@@ -95,7 +95,7 @@ module Volt::Compiler
            IR::Opcode::LT_F64, IR::Opcode::LE_F64, IR::Opcode::GT_F64, IR::Opcode::GE_F64,
            IR::Opcode::EQ, IR::Opcode::NE, IR::Opcode::EQ_INT, IR::Opcode::NE_INT,
            IR::Opcode::CMP_INT, IR::Opcode::EQ_CASE, IR::Opcode::MATCH_STR, IR::Opcode::NOT_MATCH_STR,
-           IR::Opcode::CONCAT_STR, IR::Opcode::ADD_INT_IMM, IR::Opcode::SUB_INT_IMM,
+           IR::Opcode::ADD_INT_IMM, IR::Opcode::SUB_INT_IMM,
            IR::Opcode::EQ_INT_IMM, IR::Opcode::NE_INT_IMM,
            IR::Opcode::BR_LT_INT, IR::Opcode::BR_LE_INT, IR::Opcode::BR_GT_INT,
            IR::Opcode::BR_GE_INT, IR::Opcode::BR_EQ_INT, IR::Opcode::BR_NE_INT

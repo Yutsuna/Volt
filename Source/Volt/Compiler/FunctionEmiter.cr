@@ -962,10 +962,16 @@ module Volt::Compiler
       lreg = compile_expr( expr.left )
       rreg = compile_expr( expr.right )
 
-      if expr.op.plus? && expr.left.resolved_type.try( &.kind.str? ) && expr.right.resolved_type.try( &.kind.str? )
-        dest = alloc
-        emit_abc( IR::Opcode::CONCAT_STR, dest, lreg, rreg )
-        return dest
+      # `Float#to_string`'s runtime shim (`Vm#to_string_value`, the `TO_STRING`
+      # opcode) is a real Core `String` instance at runtime even though its
+      # *static* type stays the legacy `Type::STR` (no `NominalType` — see
+      # `TypeChecker#string_type`) : route `+` between two such legacy-typed
+      # operands to the same `String#+` dispatch as the nominal case, keyed
+      # off the Core's own registered `String` type rather than either
+      # operand's static type.
+      if expr.op.plus? && expr.left.resolved_type.try( &.kind.str? ) && expr.right.resolved_type.try( &.kind.str? ) &&
+         ( info = @types[ "String" ]? )
+        return compile_virtual_call( nominal_of( info ), "+", lreg, [ rreg ], [ Frontend::Type::UNKNOWN ] )
       end
 
       if ( lt = expr.left.resolved_type ).is_a?( Frontend::NominalType ) && ( lt.kind.struct? || lt.kind.object? ) &&
