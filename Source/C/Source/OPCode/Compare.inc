@@ -196,49 +196,49 @@ LNeIntImm:
 	 * When the comparison is TRUE the branch is not taken: skip the trailing
 	 * (untouched) JMP_IF_FALSE. When FALSE, jump to that JMP_IF_FALSE's Bx. */
 LBrLtInt:
-	if ( AsInt( Regs[ OP_B ] ) <  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrLeInt:
-	if ( AsInt( Regs[ OP_B ] ) <= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrGtInt:
-	if ( AsInt( Regs[ OP_B ] ) >  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >  AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrGeInt:
-	if ( AsInt( Regs[ OP_B ] ) >= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >= AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrEqInt:
-	if ( AsInt( Regs[ OP_B ] ) == AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) == AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrNeInt:
-	if ( AsInt( Regs[ OP_B ] ) != AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) != AsInt( Regs[ OP_C ] ) ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrLtIntImm:
-	if ( AsInt( Regs[ OP_B ] ) <  (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <  (Int64)OP_C ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrLeIntImm:
-	if ( AsInt( Regs[ OP_B ] ) <= (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) <= (Int64)OP_C ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrGtIntImm:
-	if ( AsInt( Regs[ OP_B ] ) >  (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >  (Int64)OP_C ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrGeIntImm:
-	if ( AsInt( Regs[ OP_B ] ) >= (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) >= (Int64)OP_C ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrEqIntImm:
-	if ( AsInt( Regs[ OP_B ] ) == (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) == (Int64)OP_C ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
 
 LBrNeIntImm:
-	if ( AsInt( Regs[ OP_B ] ) != (Int64)OP_C ) { Ip += 1; } else { Ip = (Int32)( Code[ Ip ] & 0xFFFF ); }
+	if ( AsInt( Regs[ OP_B ] ) != (Int64)OP_C ) { Ip += 1; } else { Ip = PEEK_BX_AT_IP(); }
 	DISPATCH();
