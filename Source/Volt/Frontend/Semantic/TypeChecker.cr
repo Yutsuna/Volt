@@ -607,6 +607,7 @@ module Volt::Frontend
     # subclass's own packed layout (prefix-shared), so field lookup doesn't
     # need this walk : only methods do.
     private def find_method( type_name : String, name : String ) : FuncSig?
+      return nil if name == "initialize" || name == "finalize"
       info = @types[ type_name ]?
       return nil unless info
       if sig = info.methods[ name ]?
