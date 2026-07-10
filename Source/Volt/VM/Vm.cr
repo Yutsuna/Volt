@@ -74,6 +74,47 @@ module Volt::VM
       volt_string( v ) || v.to_display
     end
 
+    # REPL-facing inspect : mirrors `crystal i` — strings are quoted,
+    # objects with an `inspect` method call it through a safe re-entrant
+    # `call_chunk` invocation, primitives are formatted in Crystal.
+    # Always falls back to `display_value` so no existing code breaks.
+    def inspect_value( v : IR::Value ) : String
+      case v.tag
+      when .nil?    then "nil"
+      when .bool?   then v.as_bool.to_s
+      when .int?    then v.as_i.to_s
+      when .float?  then v.as_f.to_s
+      when .regex?  then v.to_display
+      when .object?
+        if s = volt_string( v )
+          # String literal: show with double-quote delimiters and escape
+          # the minimum set that would break a double-quoted string.
+          '"' + s.gsub( '\\', "\\\\" ).gsub( '"', "\\\"" ) + '"'
+        else
+          call_inspect_method( v ) || display_value( v )
+        end
+      else
+        display_value( v )
+      end
+    end
+
+    # Calls the Volt `inspect` method on a heap object via its vtable
+    # `method_chunks` map and extracts the resulting Crystal `String`.
+    # Returns `nil` on any failure (no method, bad chunk index, runtime
+    # error) so callers can fall back gracefully — never raises.
+    private def call_inspect_method( v : IR::Value ) : String?
+      obj    = v.as_object
+      rclass = @registry[ obj.type_id ]?
+      return nil unless rclass
+      chunk_idx = rclass.method_chunks[ "inspect" ]?
+      return nil unless chunk_idx
+      return nil if chunk_idx < 0 || chunk_idx >= @unit.chunks.size
+      results = call_chunk( @unit.chunks[ chunk_idx ], [ v ] )
+      volt_string( results.first? || IR::Value.nil_value )
+    rescue
+      nil
+    end
+
     # Reads a `Value` as a Crystal `String` if it's a real Core `String`-class
     # instance (`Tag::Object` whose `type_id` matches the resolved "String"
     # class) — its bytes are read directly off the known field layout :
