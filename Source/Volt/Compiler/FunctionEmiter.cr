@@ -223,6 +223,11 @@ module Volt::Compiler
         val_reg
       when Frontend::TypeofExpr
         t = expr.resolved_operand_type || Frontend::Type::UNKNOWN
+        # An adopted mixin copy stamps `typeof self` with the mixin's own
+        # name (single typecheck) : re-resolve against the real includer.
+        if expr.operand.is_a?( Frontend::SelfExpr ) && ( owner = @self_owner )
+          t = nominal_of( owner )
+        end
         compile_string_lit( t.to_s )
       else
         raise "internal: unlowerable node #{expr.class.name} (should be rejected by Semantic)"
@@ -563,6 +568,17 @@ module Volt::Compiler
       # stringification : `@position.to_string` must run `GeoCoordinate#to_string`,
       # not print `<object:..>`. Structs resolve directly, classes go virtual.
       recv_ty = receiver.resolved_type
+      # A mixin body type-checks once with `self` bound to the mixin itself,
+      # so a bare self-call (`to_string` in `Inspectable#inspect`) is stamped
+      # `UNKNOWN` on the shared AST node. In the adopted per-includer copy
+      # `@self_owner` is the real class : re-resolve the ident against it
+      # (same refresh as `compile_instance_var`).
+      if ( recv_ty.nil? || recv_ty.kind.unknown? ) && receiver.is_a?( Frontend::Ident ) &&
+         ( owner = @self_owner ) && !@scope.has_key?( receiver.name ) &&
+         ( m = find_method( owner.name, receiver.name ) )
+        recv_ty = m.ret
+        receiver.resolved_type = recv_ty
+      end
       if recv_ty.is_a?( Frontend::NominalType ) && find_method( recv_ty.name, "to_string" )
         r = compile_expr( receiver )
         if recv_ty.kind.struct?
