@@ -48,7 +48,7 @@ module Volt::VM
       @chunk_index_of   = {} of UInt64 => Int32
       @chunk_raii_keep  = [] of Bytes   # keeps raii-reg buffers alive for the GC
       @chunk_feedback_keep = [] of Pointer( LibVoltDispatch::CallFeedback )
-      @chunk_threaded_keep = [] of Pointer(UInt64)
+      @chunk_threaded_keep = [] of Pointer(LibVoltDispatch::ThreadedIns)
 
       # Stable FRClass heap boxes and flat class_index for FFI
       @class_boxes         = {} of Int32 => Pointer( LibVoltDispatch::RClass )
@@ -107,7 +107,7 @@ module Volt::VM
       tbl = Pointer( LibVoltDispatch::ChunkInfo ).malloc( n.to_u64 )
       keep     = Array( Bytes ).new( n )
       feedback_keep = Array( Pointer( LibVoltDispatch::CallFeedback ) ).new( n )
-      threaded_keep = Array(Pointer(UInt64)).new(n)
+      threaded_keep = Array(Pointer(LibVoltDispatch::ThreadedIns)).new(n)
       index_of = {} of UInt64 => Int32
 
       @unit.chunks.each_with_index do |c, i|
@@ -137,18 +137,14 @@ module Volt::VM
         info.has_drop_map    = c.drop_map.empty? ? 0_u8 : 1_u8
         info.feedback        = fb.as( Void* )
 
-        # Direct-threaded dispatch: pre-thread the bytecode
-        if c.code.size > 0
-          threaded = Pointer(UInt64).malloc((c.code.size * 2).to_u64)
-          LibVoltDispatch.thread_chunk(c.code.to_unsafe.as(UInt32*), c.code.size, threaded)
-          info.threaded_code = threaded.as(Void*)
-          info.threaded_size = c.code.size
-          threaded_keep << threaded
-        else
-          info.threaded_code = Pointer(Void).null
-          info.threaded_size = 0
-          threaded_keep << Pointer(UInt64).null
-        end
+        # Direct-threaded dispatch: pre-thread the bytecode. Always code.size+1
+        # slots — the extra one holds the LFellOff sentinel that replaces the
+        # per-instruction bounds check, so even an empty chunk gets a buffer.
+        threaded = Pointer(LibVoltDispatch::ThreadedIns).malloc((c.code.size + 1).to_u64)
+        LibVoltDispatch.thread_chunk(c.code.to_unsafe.as(UInt32*), c.code.size, threaded)
+        info.threaded_code = threaded.as(Void*)
+        info.threaded_size = c.code.size
+        threaded_keep << threaded
 
         tbl[ i ] = info
 
