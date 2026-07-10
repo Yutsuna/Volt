@@ -1,9 +1,11 @@
-# Volt Core — Float
-
 @[External]
 def volt_format_float( val : Float64, buf : UInt8* ) -> Int32
 
-struct Float
+
+struct Float include Inspectable
+
+  #----------------------------------------------------------------------------
+
   def to_string -> String
     buf : UInt8* = malloc( 64 )
     len = volt_format_float( self, buf )
@@ -18,4 +20,7 @@ struct Float
 
     String.new( precise, len, true )
   end
+
+  #----------------------------------------------------------------------------
+
 end

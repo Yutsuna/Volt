@@ -156,11 +156,18 @@ module Volt::Frontend
       end
       # A bare identifier inside a method may be a parenthesis-less zero-arg
       # call on `self` (`boot_sequence`), including inherited/mixed-in methods.
-      if ( owner = @self_type ) && !scope.local?( expr.name ) && ( m = find_method( owner.name, expr.name ) )
-        is_caller_static = @current_method.try( &.is_static ) || false
-        if !is_caller_static || m.is_static
-          @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
-          return m.ret
+      if ( owner = @self_type ) && !scope.local?( expr.name )
+        if m = find_method( owner.name, expr.name )
+          is_caller_static = @current_method.try( &.is_static ) || false
+          if !is_caller_static || m.is_static
+            @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
+            return m.ret
+          end
+        elsif owner.kind.mixin?
+          # Same leniency as `infer_call` : a mixin body naming a method it
+          # doesn't define resolves against whichever class includes it,
+          # which isn't known here. Accept it duck-typed.
+          return Type::UNKNOWN
         end
       end
       if sig = @sigs[ expr.name ]?
@@ -376,19 +383,47 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
-      m = find_super_target( sup, fn.name )
+      # A bare `super` forwards the enclosing params; materialise them first
+      # so an `initialize` super can resolve its parent overload by arity.
+      if expr.implicit_args
+        expr.args          = fn.params.map { |p| Ident.new( p.name, expr.loc ).as( AExpr ) }
+        expr.implicit_args = false
+      end
+
+      m =
+        if fn.name == "initialize"
+          find_super_initializer( sup, expr.args.size, expr.loc, scope )
+        else
+          find_super_target( sup, fn.name )
+        end
       if m.nil?
         @bag << Catalog::Sema.super_no_parent_method( owner.name, fn.name, expr.loc )
         expr.args.each { |a| infer( a, scope ) }
         return Type::UNKNOWN
       end
 
-      if expr.implicit_args
-        expr.args          = fn.params.map { |p| Ident.new( p.name, expr.loc ).as( AExpr ) }
-        expr.implicit_args = false
-      end
       check_call_args( "super", m.params, expr.args, expr.loc, scope )
       m.ret
+    end
+
+    # `super` inside `initialize` targets the nearest ancestor that declares
+    # any constructor, then picks its overload by arg count. A declaring
+    # ancestor with no matching arity is a hard arity error here (returning
+    # `nil` would misreport it as "no ancestor defines initialize").
+    private def find_super_initializer( type_name : String?, arity : Int32, loc : Span, scope : Scope ) : FuncSig?
+      cur = type_name
+      while cur && ( info = @types[ cur ]? )
+        unless info.initializers.empty?
+          if sig = info.initializers[ arity ]?
+            return sig
+          end
+          expected = info.initializer.try( &.params.size ) || 0
+          @bag << Catalog::Sema.arity_mismatch( "super", expected, arity, loc )
+          return FuncSig.new( "initialize", Array( Type ).new( arity, Type::UNKNOWN ), Type::NIL )
+        end
+        cur = info.superclass
+      end
+      nil
     end
 
     # Nearest ancestor (starting at `type_name`, walking up) that will actually
@@ -508,6 +543,16 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
+      # `find_method` excludes `initialize`/`finalize` since neither dispatches
+      # virtually — but an explicit `obj.finalize()` (early/manual teardown) is
+      # still a legitimate call, resolved statically to the receiver's own (or
+      # nearest ancestor's) `finalize`, the same walk `super` uses.
+      if expr.name == "finalize" && expr.args.empty?
+        if fsig = find_super_target( recv_ty.name, "finalize" )
+          return fsig.ret
+        end
+      end
+
       sig = find_method( recv_ty.name, expr.name )
       if sig.nil?
         @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, expr.name, expr.loc )
@@ -566,8 +611,14 @@ module Volt::Frontend
     private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope ) : Type
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
-      if init = find_initializer( info.name )
-        check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
+      if owner = find_initializer_owner_info( info.name )
+        if init = owner.initializers[ expr.args.size ]?
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
+        else
+          expected = owner.initializer.try( &.params.size ) || 0
+          @bag << Catalog::Sema.arity_mismatch( "#{info.name}.new", expected, expr.args.size, expr.loc )
+          expr.args.each { |a| infer( a, scope ) }
+        end
       elsif layout = info.layout
         check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope )
       else
@@ -595,8 +646,14 @@ module Volt::Frontend
     # first (`Int32`), then the inferred family (`Int`).
     private def primitive_method( recv_ty : Type, name : String ) : FuncSig?
       recv_ty.reopen_names.each do |owner|
-        if sig = @types[ owner ]?.try( &.methods[ name ]? )
+        next unless info = @types[ owner ]?
+        if sig = info.methods[ name ]?
           return sig
+        end
+        info.mixins.each do |mixin_name|
+          if sig = find_method( mixin_name, name )
+            return sig
+          end
         end
       end
       nil
@@ -630,10 +687,11 @@ module Volt::Frontend
     # (`NetworkPrinter < Device` : `NetworkPrinter.new("OfficeJet")` must
     # type-check against `Device#initialize`'s params, not fall through to
     # the struct-style "one arg per field" default).
-    private def find_initializer( type_name : String ) : FuncSig?
+    private def find_initializer_owner_info( type_name : String ) : TypeInfo?
       info = @types[ type_name ]?
       return nil unless info
-      info.initializer || info.superclass.try { |s| find_initializer( s ) }
+      return info unless info.initializers.empty?
+      info.superclass.try { |s| find_initializer_owner_info( s ) }
     end
 
     private def find_field( type_name : String, name : String ) : FieldSlot?
