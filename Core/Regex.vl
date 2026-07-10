@@ -1,0 +1,10 @@
+# Volt Core — Regex
+
+@[External]
+def __volt_regex_match( regex : Regex, str : UInt8*, size : UInt64 ) -> Int64
+
+struct Regex
+  def ===( other : String ) -> Bool
+    __volt_regex_match( self, other.data, other.size ) != 0
+  end
+end

@@ -55,6 +55,40 @@ module Volt::VM
       @class_index_size    = 0
       @class_vtable_keep   = [] of Array( Int32 )
       @class_needs_rebuild = true
+      # `-2` = not yet looked up, `-1` = looked up, no Core `String` class
+      # registered (bare-unit specs) — resolved once, lazily, on first use.
+      @string_type_id = -2
+    end
+
+
+
+    # Human-readable rendering of any `Value`, `String`-class instances
+    # included : `Value#to_display`'s generic `Tag::Object` arm only knows
+    # `<object:id>` (it can't see method bodies), so a raised/REPL-printed
+    # `String` needs its bytes read directly off the known field layout
+    # (`ptr`, `size`, `owned` — slots 0/1/2, `Core/String.vl`'s declaration
+    # order) rather than calling back into `to_string` (this may run from
+    # inside `RAISE`/`unwind`, not a safe place to re-enter `execute`).
+    def display_value( v : IR::Value ) : String
+      volt_string( v ) || v.to_display
+    end
+
+    # Reads a `Value` as a Crystal `String` if it's a real Core `String`-class
+    # instance (`Tag::Object` whose `type_id` matches the resolved "String"
+    # class) — its bytes are read directly off the known field layout :
+    # `ptr`, `size`, `owned`, slots 0/1/2 per `Core/String.vl`'s declaration
+    # order. `nil` for anything else (an ordinary object, a Regex, ...).
+    def volt_string( v : IR::Value ) : String?
+      return nil unless v.tag.object?
+      obj = v.as_object
+      if @string_type_id == -2
+        @string_type_id = @registry.find_by_name( "String" ).try( &.type_id ) || -1
+      end
+      return nil unless obj.type_id == @string_type_id
+      fields = obj.fields
+      ptr    = fields[0].as_ptr.as( UInt8* )
+      size   = fields[1].as_i.to_i32
+      String.new( ptr, size )
     end
 
     #--------------------------------------------------------------------------
@@ -386,16 +420,12 @@ module Volt::VM
         return handle_ret_dropmap( ctx, frames_buf )
       when .call_native?
         frame[ ins.a ] = call_native( ins.b, collect_args( frame, ins ) )
-      when .eq?, .ne?, .cmp_int?, .eq_case?, .match_str?, .not_match_str?
+      when .eq?, .ne?, .cmp_int?
         frame[ ins.a ] = eval_cmp( op, frame[ ins.b ], frame[ ins.c ] )
       when .shl_int?, .shr_int?, .pow_int?
         frame[ ins.a ] = eval_arith( op, frame[ ins.b ], frame[ ins.c ] )
-      when .to_string?
-        frame[ ins.a ] = IR::Value.str( frame[ ins.b ].to_display )
-      when .concat_str?
-        frame[ ins.a ] = IR::Value.str( frame[ ins.b ].as_s + frame[ ins.c ].as_s )
       when .raise?
-        raise VoltRuntimeError.new( frame[ ins.a ].to_display )
+        raise VoltRuntimeError.new( display_value( frame[ ins.a ] ) )
       when .init?, .drop?, .drop_scope?
         exec_raii( frame, chunk, ins )
       when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
@@ -677,12 +707,8 @@ module Volt::VM
               end
               enter_callee( callee, cbase )
 
-            # ---- string builtins ----
-            when IR::Opcode::TO_STRING  then regs[ins.a] = IR::Value.str( regs[ins.b].to_display )
-            when IR::Opcode::CONCAT_STR then regs[ins.a] = IR::Value.str( regs[ins.b].as_s + regs[ins.c].as_s )
-
             when IR::Opcode::RAISE
-              raise VoltRuntimeError.new( regs[ins.a].to_display )
+              raise VoltRuntimeError.new( display_value( regs[ins.a] ) )
 
             # ---- cold / rare : delegate to family handlers ----
             when IR::Opcode::CONV_INT
@@ -691,7 +717,7 @@ module Volt::VM
             when IR::Opcode::CALL_NATIVE
               regs[ins.a] = call_native( ins.b, collect_args( frame, ins ) )
 
-            when IR::Opcode::CMP_INT, IR::Opcode::EQ_CASE, IR::Opcode::MATCH_STR, IR::Opcode::NOT_MATCH_STR
+            when IR::Opcode::CMP_INT
               regs[ins.a] = eval_cmp( op, regs[ins.b], regs[ins.c] )
 
             when IR::Opcode::INIT, IR::Opcode::DROP, IR::Opcode::DROP_SCOPE

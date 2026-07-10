@@ -1,6 +1,3 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-
 mixin Upgradable
   def upgrade_stats( hp_bonus : Int64 ) -> Void
     @max_hp += hp_bonus
@@ -32,7 +29,7 @@ class Paladin < AHero
 
   def use_ability -> String
     @shield_points = @shield_points + 10
-    "Holy Shield active (Shield: " + @shield_points.to_s + ")"
+    "Holy Shield active (Shield: " + @shield_points.to_string + ")"
   end
 
   def class_type -> String
@@ -50,7 +47,7 @@ class Ranger < AHero
   def use_ability -> String
     if @arrows > 0
       @arrows = @arrows - 1
-      "Double Shot! (Arrows remaining: " + @arrows.to_s + ")"
+      "Double Shot! (Arrows remaining: " + @arrows.to_string + ")"
     else
       "Out of arrows!"
     end
@@ -62,7 +59,7 @@ class Ranger < AHero
 end
 
 def trigger_hero_action( hero : AHero ) -> Void
-  puts( hero.class_type + " " + hero.name + " HP: " + hero.hp.to_s + "/" + hero.max_hp.to_s )
+  puts( hero.class_type + " " + hero.name + " HP: " + hero.hp.to_string + "/" + hero.max_hp.to_string )
   puts( "Action: " + hero.use_ability )
 end
 

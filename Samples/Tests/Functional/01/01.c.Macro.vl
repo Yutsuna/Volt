@@ -1,8 +1,5 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-
 macro log_info(expression)
-  puts("[INFO] " + __FILE__ + " (line " + __LINE__.to_s + ") : expression is: " + {{expression}})
+  puts("[INFO] " + __FILE__ + " (line " + __LINE__.to_string + ") : expression is: " + {{expression}})
 end
 
 score = 42

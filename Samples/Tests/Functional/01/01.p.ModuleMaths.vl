@@ -1,7 +1,3 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-
-
 module MathTools
 
   extend self

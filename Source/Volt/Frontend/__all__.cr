@@ -11,6 +11,19 @@ require "./Semantic/__all__"
 module Volt::Frontend
 
 
+  @@core_files = Set( String ).new
+
+
+  def self.core_files : Set( String )
+    @@core_files
+  end
+
+
+  def self.core_file?( path : String ) : Bool
+    @@core_files.includes?( path )
+  end
+
+
   def self.parse( source : String, file : String = "<unknown>" ) : Program
     Parser.new( source, file ).parse
   end

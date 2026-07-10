@@ -1,0 +1,66 @@
+# Volt Core — String
+#
+# A String is a class: `{ ptr : UInt8*, size : UInt64, owned : Bool }` on the
+# heap, RAII-managed by the existing class lifecycle (`INIT`/`DROP`/
+# `DROP_SCOPE` -> `finalize`). `owned` distinguishes a string that owns
+# malloc'd bytes (concatenation results) from one that only borrows static
+# data (every literal, whose bytes live in the chunk's constant pool) —
+# `finalize` frees only the former, so a literal's `free` is a no-op.
+
+# `Void*`-returning (the real libc signature) : a user program is free to
+# also declare its own `malloc`/`free`/... (extern redeclarations shadow
+# process-wide — Volt has no private/internal linkage), so Core call sites
+# always bind the result into an explicitly `UInt8*`-annotated local rather
+# than relying on whichever declaration's return type currently "wins" —
+# `Void*` bridges to any concrete pointer type at that point regardless.
+@[External("libc")]
+def malloc( size : UInt64 ) -> Void*
+
+@[External("libc")]
+def free( ptr : Void* ) -> Void
+
+@[External("libc")]
+def memcpy( dest : Void*, src : Void*, size : UInt64 ) -> Void*
+
+@[External("libc")]
+def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
+
+
+class String
+  def initialize( @ptr : UInt8*, @size : UInt64, @owned : Bool )
+  end
+
+  def finalize -> Void
+    free( @ptr ) if @owned
+  end
+
+  def data -> UInt8*
+    @ptr
+  end
+
+  def size -> UInt64
+    @size
+  end
+
+  def to_string -> String
+    self
+  end
+
+  def +( other : String ) -> String
+    total     = @size + other.size
+    buf : UInt8* = malloc( total + 1_u64 )
+    memcpy( buf, @ptr, @size )
+    memcpy( buf + @size, other.data, other.size )
+    *( buf + total ) = 0_u8
+    String.new( buf, total, true )
+  end
+
+  def ==( other : String ) -> Bool
+    return false if @size != other.size
+    memcmp( @ptr, other.data, @size ) == 0
+  end
+
+  def =~( other : Regex ) -> Bool
+    __volt_regex_match( other, @ptr, @size ) != 0
+  end
+end

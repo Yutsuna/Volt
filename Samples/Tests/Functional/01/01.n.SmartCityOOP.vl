@@ -1,13 +1,10 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-
 module SmartCity
 
   struct GeoCoordinate
     lat : Float64
     lng : Float64
 
-    def to_s -> String
+    def to_string -> String
       "[#{@lat}, #{@lng}]"
     end
   end
@@ -77,7 +74,7 @@ module SmartCity
     end
 
     def perform_diagnostic -> String
-      "SolarPanel check: Grid synchronization optimal. Location: #{@position.to_s}"
+      "SolarPanel check: Grid synchronization optimal. Location: #{@position.to_string}"
     end
 
     def consume_energy -> Float64

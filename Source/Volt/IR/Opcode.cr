@@ -80,12 +80,7 @@ module Volt::IR
     # --- spaceship ---
     CMP_INT       # A,B,C : reg[A] = (reg[B] <=> reg[C])
 
-    # --- regex match ---
-    MATCH_STR     # A,B,C : reg[A] = reg[B] =~ reg[C]
-    NOT_MATCH_STR # A,B,C : reg[A] = !(reg[B] =~ reg[C])
 
-    # --- triple equal ---
-    EQ_CASE       # A,B,C : reg[A] = reg[B] === reg[C]
 
     # --- memory RAII ---
     INIT          # A, Bx : reg[A] = allocate(Bx)
@@ -137,9 +132,7 @@ module Volt::IR
     LOAD_GLOBAL   # A,Bx  : reg[A]      = globals[Bx]
     STORE_GLOBAL  # A,Bx  : globals[Bx] = reg[A]
 
-    # --- minimal string builtins ---
-    TO_STRING     # A,B   : reg[A] = reg[B].to_display   (Int/Float/Bool/... -> String)
-    CONCAT_STR    # A,B,C : reg[A] = reg[B] + reg[C]      (String concatenation)
+
 
     # --- peephole superinstructions (Compiler::Peephole, architecture #9) ---
     #
