@@ -1,24 +1,62 @@
 # Volt Core — String
 #
-# Provisional name `VString` while the compiler still owns the `String`
-# primitive: once literals lower to this struct (de-hardcoding step 3 of
-# the Core migration), it takes over the `String` name and Tag::Str dies.
-# Layout follows the zero-overhead model proven by 02.a.String.vl:
-# two register slots, no heap, static dispatch.
+# A String is a class: `{ ptr : UInt8*, size : UInt64, owned : Bool }` on the
+# heap, RAII-managed by the existing class lifecycle (`INIT`/`DROP`/
+# `DROP_SCOPE` -> `finalize`). `owned` distinguishes a string that owns
+# malloc'd bytes (concatenation results) from one that only borrows static
+# data (every literal, whose bytes live in the chunk's constant pool) —
+# `finalize` frees only the former, so a literal's `free` is a no-op.
 
-struct VString
-  ptr  : UInt8*
-  size : UInt64
+# `Void*`-returning (the real libc signature) : a user program is free to
+# also declare its own `malloc`/`free`/... (extern redeclarations shadow
+# process-wide — Volt has no private/internal linkage), so Core call sites
+# always bind the result into an explicitly `UInt8*`-annotated local rather
+# than relying on whichever declaration's return type currently "wins" —
+# `Void*` bridges to any concrete pointer type at that point regardless.
+@[External("libc")]
+def malloc( size : UInt64 ) -> Void*
 
-  def initialize( @ptr : UInt8* )
-    @size = strlen( @ptr )
+@[External("libc")]
+def free( ptr : Void* ) -> Void
+
+@[External("libc")]
+def memcpy( dest : Void*, src : Void*, size : UInt64 ) -> Void*
+
+@[External("libc")]
+def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
+
+
+class String
+  def initialize( @ptr : UInt8*, @size : UInt64, @owned : Bool )
+  end
+
+  def finalize -> Void
+    free( @ptr ) if @owned
   end
 
   def data -> UInt8*
     @ptr
   end
 
-  def bytesize -> UInt64
+  def size -> UInt64
     @size
+  end
+
+  def to_string -> String
+    self
+  end
+
+  def +( other : String ) -> String
+    total     = @size + other.size
+    buf : UInt8* = malloc( total + 1_u64 )
+    memcpy( buf, @ptr, @size )
+    memcpy( buf + @size, other.data, other.size )
+    *( buf + total ) = 0_u8
+    String.new( buf, total, true )
+  end
+
+  def ==( other : String ) -> Bool
+    return false if @size != other.size
+    memcmp( @ptr, other.data, @size ) == 0
   end
 end
