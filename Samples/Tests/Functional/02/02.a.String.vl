@@ -14,4 +14,3 @@ end
 
 
 a = FString.new "Hello!"
-a.finalize()
