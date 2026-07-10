@@ -458,11 +458,11 @@ module Volt::Frontend
 
     private def parse_space_call_args : Array( AExpr )
       args = [] of AExpr
-      args << parse_expr( Prec::Assignment )
+      args << parse_expr( Prec::Pipe )
       while @current.kind.comma?
         advance
         skip_newlines
-        args << parse_expr( Prec::Assignment )
+        args << parse_expr( Prec::Pipe )
       end
       args
     end
