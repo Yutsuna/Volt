@@ -71,9 +71,11 @@ Suite du plan stdlib Core (voir `SharedMemory/volt-core-stdlib.md`) : le mécani
 - Injection — Volt::Core.inject préfixe les nœuds Core dans les trois pipelines : run mono-fichier, mode circuit, check, et le REPL (1er tour seulement ; les tours suivants héritent via IncrementalState). Les sources Core sont fusionnées dans le DiagnosticRenderer : une erreur dans le Core rend un file:line:col propre.
 - Shadowing — une redéfinition utilisateur d'un nom Core n'est plus un doublon : j'ai réutilisé le mécanisme mark_redefinable du REPL, avec un registre Frontend.core_files (le Frontend reste sans dépendance vers Core). Le corps Core shadowé est écarté avant le typecheck et la compilation.
 - Samples nettoyés — les ~20 déclarations @[External] def puts redondantes des benchmarks/samples sont retirées ; le golden Spec/Samples/Data.cr (numéros de ligne en dur) mis à jour.
+- Phase 4 — Suppression complète de `Tag::Str`, `CONCAT_STR` et adaptation de `TO_STRING`. Tous les alignements ABI avec le Core C (Compare.inc, Dispatch.h) ont été corrigés. Les constructeurs et expressions littérales s'appuient désormais entièrement sur la classe nominale `String` en pur Volt. Les regex et affichages VM/REPL lisent la représentation `HeapObject` en extrayant ptr/size à chaud.
 
 ## Vérification
 
 - 330 specs, 0 échec ; tous les samples Functional/Circuits passent.
 - fib 35 : ~0.6s (cible ≤1.0s), primes : 0.073s — aucune régression.
 - Testés end-to-end : puts/print sans déclaration, struct Core, shadowing par extern utilisateur, override VOLT_CORE à chaud, diagnostic d'erreur dans le Core, REPL avec redéfinition en cours de session.
+- Intégration Phase 4 validée et 100 % verte (330 specs passées).
