@@ -1,0 +1,7 @@
+mixin Inspectable
+
+  def inspect -> String
+    "<#{typeof self}: #{to_string}>"
+  end
+
+end

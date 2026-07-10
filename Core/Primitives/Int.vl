@@ -1,13 +1,7 @@
-# Volt Core — Int
-#
-# Reopens the generic `Int` family (covers Int8/16/32/64 and the inferred
-# `Int` kind — see `Type#reopen_names`) to attach `to_string`. Two passes
-# over the digits: the first only counts them, so the second can `malloc`
-# the exactly-sized buffer up front and fill it forward from `buf` — the
-# pointer handed to `String` is then always the literal `malloc` return
-# value, which is what `String#finalize` must `free`.
+struct Int include Inspectable
 
-struct Int
+  #----------------------------------------------------------------------------
+
   def to_string -> String
     if self == 0
       return "0"
@@ -38,4 +32,7 @@ struct Int
 
     String.new( buf, total, true )
   end
+
+  #----------------------------------------------------------------------------
+
 end

@@ -15,7 +15,7 @@ def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
 # @class String
 # @brief A mutable string class that manages a buffer of bytes and provides common string operations.
 #}
-class String
+class String include Inspectable
 
   #----------------------------------------------------------------------------
 
