@@ -190,7 +190,7 @@ module Volt::Frontend
       end
 
       info.methods_ast.each_key do |name|
-        next if name == "initialize" || name == "finalize"
+        next if name == "initialize" || name == "finalize" || name.starts_with?( "initialize/" )
         next if layout.has_key?( name )
         layout[ name ] = next_idx
         next_idx += 1
@@ -315,8 +315,8 @@ module Volt::Frontend
       # Style-1 constructor shorthand (`def initialize( @x : T )`) implicitly
       # declares any field not already covered by an explicit `FieldDecl` or
       # inherited from the superclass.
-      init = body.find { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.as?( FuncDecl )
-      init.try do |fn|
+      inits = body.select { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.map( &.as( FuncDecl ) )
+      inits.each do |fn|
         fn.params.each do |p|
           next unless p.is_ivar
           next if seen.includes?( p.name )
@@ -366,15 +366,39 @@ module Volt::Frontend
     end
 
     private def collect_methods( body : Array( ANode ), info : TypeInfo ) : Nil
+      # `initialize` is the one name allowed to overload — resolved by arity.
+      # When several overloads exist, each is keyed `initialize/<arity>` so
+      # every overload compiles to its own chunk; a single `initialize` keeps
+      # the plain key (the shape every existing lookup expects).
+      init_count = body.count { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }
+
       body.each do |node|
         next unless node.is_a?( FuncDecl )
         sig = build_method_sig( node, info )
-        info.methods[ node.name ]     = sig
-        info.methods_ast[ node.name ] = node
+        key = node.name
         case node.name
-        when "initialize" then info.initializer = sig
-        when "finalize"   then info.finalizer   = sig
+        when "initialize"
+          arity = node.params.size
+          if first = info.initializers[ arity ]?
+            @bag << Catalog::Sema.duplicate_definition( "initialize", node.loc, first.decl_span )
+            next
+          end
+          info.initializers[ arity ] = sig
+          info.initializer ||= sig
+          key = "initialize/#{arity}" if init_count > 1
+        when "finalize"
+          unless node.params.empty?
+            @bag << Catalog::Sema.finalize_has_arguments( node.loc )
+            next
+          end
+          if first = info.finalizer
+            @bag << Catalog::Sema.duplicate_definition( "finalize", node.loc, first.decl_span )
+            next
+          end
+          info.finalizer = sig
         end
+        info.methods[ key ]     = sig
+        info.methods_ast[ key ] = node
         @methods << node
         @method_entries << { node, info.name, sig }
       end

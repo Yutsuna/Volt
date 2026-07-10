@@ -376,19 +376,47 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
-      m = find_super_target( sup, fn.name )
+      # A bare `super` forwards the enclosing params; materialise them first
+      # so an `initialize` super can resolve its parent overload by arity.
+      if expr.implicit_args
+        expr.args          = fn.params.map { |p| Ident.new( p.name, expr.loc ).as( AExpr ) }
+        expr.implicit_args = false
+      end
+
+      m =
+        if fn.name == "initialize"
+          find_super_initializer( sup, expr.args.size, expr.loc, scope )
+        else
+          find_super_target( sup, fn.name )
+        end
       if m.nil?
         @bag << Catalog::Sema.super_no_parent_method( owner.name, fn.name, expr.loc )
         expr.args.each { |a| infer( a, scope ) }
         return Type::UNKNOWN
       end
 
-      if expr.implicit_args
-        expr.args          = fn.params.map { |p| Ident.new( p.name, expr.loc ).as( AExpr ) }
-        expr.implicit_args = false
-      end
       check_call_args( "super", m.params, expr.args, expr.loc, scope )
       m.ret
+    end
+
+    # `super` inside `initialize` targets the nearest ancestor that declares
+    # any constructor, then picks its overload by arg count. A declaring
+    # ancestor with no matching arity is a hard arity error here (returning
+    # `nil` would misreport it as "no ancestor defines initialize").
+    private def find_super_initializer( type_name : String?, arity : Int32, loc : Span, scope : Scope ) : FuncSig?
+      cur = type_name
+      while cur && ( info = @types[ cur ]? )
+        unless info.initializers.empty?
+          if sig = info.initializers[ arity ]?
+            return sig
+          end
+          expected = info.initializer.try( &.params.size ) || 0
+          @bag << Catalog::Sema.arity_mismatch( "super", expected, arity, loc )
+          return FuncSig.new( "initialize", Array( Type ).new( arity, Type::UNKNOWN ), Type::NIL )
+        end
+        cur = info.superclass
+      end
+      nil
     end
 
     # Nearest ancestor (starting at `type_name`, walking up) that will actually
@@ -566,8 +594,14 @@ module Volt::Frontend
     private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope ) : Type
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
-      if init = find_initializer( info.name )
-        check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
+      if owner = find_initializer_owner_info( info.name )
+        if init = owner.initializers[ expr.args.size ]?
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
+        else
+          expected = owner.initializer.try( &.params.size ) || 0
+          @bag << Catalog::Sema.arity_mismatch( "#{info.name}.new", expected, expr.args.size, expr.loc )
+          expr.args.each { |a| infer( a, scope ) }
+        end
       elsif layout = info.layout
         check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope )
       else
@@ -630,10 +664,11 @@ module Volt::Frontend
     # (`NetworkPrinter < Device` : `NetworkPrinter.new("OfficeJet")` must
     # type-check against `Device#initialize`'s params, not fall through to
     # the struct-style "one arg per field" default).
-    private def find_initializer( type_name : String ) : FuncSig?
+    private def find_initializer_owner_info( type_name : String ) : TypeInfo?
       info = @types[ type_name ]?
       return nil unless info
-      info.initializer || info.superclass.try { |s| find_initializer( s ) }
+      return info unless info.initializers.empty?
+      info.superclass.try { |s| find_initializer_owner_info( s ) }
     end
 
     private def find_field( type_name : String, name : String ) : FieldSlot?
