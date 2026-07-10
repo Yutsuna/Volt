@@ -195,6 +195,8 @@ module Volt::Frontend
         kind.float? ? [ "Float" ] : [ to_s, "Float" ]
       when .bool?
         [ "Bool" ]
+      when .regex?
+        [ "Regex" ]
       else
         [] of String
       end

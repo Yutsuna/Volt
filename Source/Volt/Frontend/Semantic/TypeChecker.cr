@@ -442,7 +442,7 @@ module Volt::Frontend
           @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
           return sig.ret
         end
-        return Type::STR if expr.name == "to_string"
+        return string_type if expr.name == "to_string"
         @bag << Catalog::Sema.unsupported_expr( "member access `.#{expr.name}` on non-object type `#{recv_ty}`", expr.loc )
         return Type::UNKNOWN
       end
@@ -457,7 +457,7 @@ module Volt::Frontend
         return sig.ret
       end
 
-      return Type::STR if expr.name == "to_string"
+      return string_type if expr.name == "to_string"
 
       @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, expr.name, expr.loc )
       Type::UNKNOWN
@@ -498,7 +498,7 @@ module Volt::Frontend
       # Minimal builtin: `.to_string` is usable on any value (the samples rely
       # on it for string-concatenation logging) ahead of a fuller builtin table.
       if expr.name == "to_string" && expr.args.empty?
-        return Type::STR
+        return string_type
       end
 
       unless recv_ty.is_a?( NominalType )
