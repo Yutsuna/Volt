@@ -479,8 +479,7 @@ module Volt::Compiler
     # Core `String` class : a `Tag::Ptr` constant into the chunk-rooted,
     # null-terminated bytes plus the compile-time byte size — a *borrowed*
     # instance (`owned = false`), so its `finalize` never frees static memory.
-    # Without the Core (bare unit specs), falls back to the legacy Tag::Str
-    # constant.
+    # Without the Core (bare unit specs), raises a compiler error.
     private def compile_string_lit( value : String ) : Int32
       info = @types[ "String" ]?
       unless info && info.kind.class? && info.initializer
@@ -578,10 +577,7 @@ module Volt::Compiler
         return compile_primitive_call( info, "to_string", r, [] of Int32, [] of Frontend::Type )
       end
 
-      r    = compile_expr( receiver )
-      dest = alloc
-      emit_abc( IR::Opcode::TO_STRING, dest, r, 0 )
-      dest
+      raise "Compile error: type '#{recv_ty}' does not implement to_string"
     end
 
     private def compile_method_call( expr : Frontend::MethodCall ) : Int32
@@ -976,17 +972,28 @@ module Volt::Compiler
         return compile_virtual_call( nominal_of( info ), "+", lreg, [ rreg ], [ Frontend::Type::UNKNOWN ] )
       end
 
-      if ( lt = expr.left.resolved_type ).is_a?( Frontend::NominalType ) && ( lt.kind.struct? || lt.kind.object? ) &&
-         ( op_name = operator_method_name( expr.op ) ) && @types[ lt.name ]?.try( &.methods[ op_name ]? )
-        rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
-        result = lt.kind.struct? ? compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] ) :
-                                    compile_virtual_call( lt, op_name, lreg, [ rreg ], [ rt ] )
-        if expr.op.bang_eq?
-          neg = alloc
-          emit_abc( IR::Opcode::NOT, neg, result, 0 )
-          return neg
+      if ( op_name = operator_method_name( expr.op ) )
+        lt = expr.left.resolved_type
+        if lt.is_a?( Frontend::NominalType ) && ( lt.kind.struct? || lt.kind.object? ) && @types[ lt.name ]?.try( &.methods[ op_name ]? )
+          rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
+          result = lt.kind.struct? ? compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] ) :
+                                      compile_virtual_call( lt, op_name, lreg, [ rreg ], [ rt ] )
+          if expr.op.bang_eq? || expr.op.not_match_op?
+            neg = alloc
+            emit_abc( IR::Opcode::NOT, neg, result, 0 )
+            return neg
+          end
+          return result
+        elsif ( info = primitive_owner( lt, op_name ) )
+          rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
+          result = compile_primitive_call( info, op_name, lreg, [ rreg ], [ rt ] )
+          if expr.op.bang_eq? || expr.op.not_match_op?
+            neg = alloc
+            emit_abc( IR::Opcode::NOT, neg, result, 0 )
+            return neg
+          end
+          return result
         end
-        return result
       end
 
       is_f64 = numeric_float?( expr.left )
@@ -1272,6 +1279,9 @@ module Volt::Compiler
       when .slash?            then "/"
       when .percent?          then "%"
       when .eq_eq?, .bang_eq? then "=="
+      when .match_op?         then "=~"
+      when .not_match_op?     then "=~"
+      when .eq_eq_eq?         then "==="
       else                         nil
       end
     end
@@ -1298,10 +1308,7 @@ module Volt::Compiler
       when .gt?                         then f64 ? IR::Opcode::GT_F64 : IR::Opcode::GT_INT
       when .gt_eq?                      then f64 ? IR::Opcode::GE_F64 : IR::Opcode::GE_INT
       when .spaceship?                  then IR::Opcode::CMP_INT
-      when .eq_eq?                      then IR::Opcode::EQ
-      when .eq_eq_eq?                   then IR::Opcode::EQ_CASE
-      when .match_op?                   then IR::Opcode::MATCH_STR
-      when .not_match_op?               then IR::Opcode::NOT_MATCH_STR
+      when .eq_eq?, .eq_eq_eq?          then IR::Opcode::EQ
       when .bang_eq?                    then IR::Opcode::NE
       else
         raise "internal: unhandled binary opcode #{kind}"
