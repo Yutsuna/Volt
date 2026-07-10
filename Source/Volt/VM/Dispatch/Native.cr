@@ -35,9 +35,10 @@ module Volt::VM
       # passed as the raw two's-complement bit pattern in the pointer's address
       # bits, so a negative `Int64` must reinterpret rather than range-check.
       # (`to_u64` raises `OverflowError` on any negative value — the old bug.)
-      when IR::Value::Tag::Int then Pointer(Void).new(val.as_i.to_u64!)
-      when IR::Value::Tag::Ptr then val.as_ptr
-      else                          Pointer(Void).null
+      when IR::Value::Tag::Int                     then Pointer(Void).new(val.as_i.to_u64!)
+      when IR::Value::Tag::Ptr, IR::Value::Tag::Regex,
+           IR::Value::Tag::Object, IR::Value::Tag::Bool then val.as_ptr
+      else                                         Pointer(Void).null
       end
     end
 
@@ -108,4 +109,19 @@ module Volt::VM
     end
   end
 
+end
+
+# Runtime helper for Volt regex matching, resolved via FFI.
+fun volt_regex_match(regex : Void*, str : UInt8*, len : Int64) : Bool
+  rx = regex.unsafe_as(Regex)
+  slice = Slice.new(str, len)
+  s = String.new(slice)
+  rx.matches?(s)
+end
+
+# Runtime helper for Volt float formatting, resolved via FFI.
+fun volt_format_float(val : Float64, buf : UInt8*) : Int32
+  s = val.to_s
+  s.to_unsafe.copy_to(buf, s.bytesize + 1)
+  s.bytesize
 end

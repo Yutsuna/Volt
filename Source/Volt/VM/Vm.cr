@@ -60,44 +60,7 @@ module Volt::VM
       @string_type_id = -2
     end
 
-    # `TO_STRING` (the still-existing catch-all for a type with no `to_string`
-    # method of its own — currently only `Float`, since `Int`/`Bool`/`String`
-    # each define a real one via `Core/Int.vl`/`Bool.vl`/`String.vl`) must
-    # produce a real Core `String` instance (`Tag::Object`, not a bare
-    # scalar), so `String#+`/`#==` downstream can't tell the difference from
-    # a literal. Built directly (bypassing `String#initialize`'s `CALL` —
-    # this runs from inside opcode dispatch, not a call site) with a fresh
-    # malloc'd copy of the formatted bytes (`owned = true`, freed normally by
-    # `finalize`). Requires the Core's `String` class to be loaded — a bare
-    # `Vm`/`Unit` built by a unit spec with no Core classes can't reach
-    # `TO_STRING` at all (nothing in that world produces a `String`-typed
-    # expression to begin with).
-    private def to_string_value( v : IR::Value ) : IR::Value
-      str = v.to_display
-      if @string_type_id == -2
-        @string_type_id = @registry.find_by_name( "String" ).try( &.type_id ) || -1
-      end
-      raise VoltRuntimeError.new( "TO_STRING: no Core `String` class registered" ) if @string_type_id < 0
 
-      bytes = str.to_slice
-      # Raw libc `malloc` (NOT `Pointer.malloc`/`GC.malloc`) : `String#finalize`
-      # (Volt-level) frees this pointer through the libc `free` extern, which
-      # is undefined behavior on GC-backed memory.
-      buf = LibC.malloc( ( bytes.size + 1 ).to_u64 ).as( UInt8* )
-      bytes.each_with_index { |b, i| buf[ i ] = b }
-      buf[ bytes.size ] = 0_u8
-
-      rclass = @registry[ @string_type_id ]
-      obj    = IR::HeapObject.allocate( @string_type_id, rclass.slot_count )
-      if box = @class_boxes[ @string_type_id ]?
-        obj.class_ref = box.as( Void* )
-      end
-      fields    = obj.fields
-      fields[0] = IR::Value.ptr( buf.as( Void* ) )
-      fields[1] = IR::Value.int( bytes.size.to_i64 )
-      fields[2] = IR::Value.bool( true )
-      IR::Value.object( obj )
-    end
 
     # Human-readable rendering of any `Value`, `String`-class instances
     # included : `Value#to_display`'s generic `Tag::Object` arm only knows
@@ -457,12 +420,10 @@ module Volt::VM
         return handle_ret_dropmap( ctx, frames_buf )
       when .call_native?
         frame[ ins.a ] = call_native( ins.b, collect_args( frame, ins ) )
-      when .eq?, .ne?, .cmp_int?, .eq_case?, .match_str?, .not_match_str?
+      when .eq?, .ne?, .cmp_int?
         frame[ ins.a ] = eval_cmp( op, frame[ ins.b ], frame[ ins.c ] )
       when .shl_int?, .shr_int?, .pow_int?
         frame[ ins.a ] = eval_arith( op, frame[ ins.b ], frame[ ins.c ] )
-      when .to_string?
-        frame[ ins.a ] = to_string_value( frame[ ins.b ] )
       when .raise?
         raise VoltRuntimeError.new( display_value( frame[ ins.a ] ) )
       when .init?, .drop?, .drop_scope?
@@ -746,9 +707,6 @@ module Volt::VM
               end
               enter_callee( callee, cbase )
 
-            # ---- string builtins ----
-            when IR::Opcode::TO_STRING  then regs[ins.a] = to_string_value( regs[ins.b] )
-
             when IR::Opcode::RAISE
               raise VoltRuntimeError.new( display_value( regs[ins.a] ) )
 
@@ -759,7 +717,7 @@ module Volt::VM
             when IR::Opcode::CALL_NATIVE
               regs[ins.a] = call_native( ins.b, collect_args( frame, ins ) )
 
-            when IR::Opcode::CMP_INT, IR::Opcode::EQ_CASE, IR::Opcode::MATCH_STR, IR::Opcode::NOT_MATCH_STR
+            when IR::Opcode::CMP_INT
               regs[ins.a] = eval_cmp( op, regs[ins.b], regs[ins.c] )
 
             when IR::Opcode::INIT, IR::Opcode::DROP, IR::Opcode::DROP_SCOPE
