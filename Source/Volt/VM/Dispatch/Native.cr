@@ -112,7 +112,7 @@ module Volt::VM
 end
 
 # Runtime helper for Volt regex matching, resolved via FFI.
-fun volt_regex_match(regex : Void*, str : UInt8*, len : Int64) : Bool
+fun __volt_regex_match(regex : Void*, str : UInt8*, len : Int64) : Bool
   rx = regex.unsafe_as(Regex)
   slice = Slice.new(str, len)
   s = String.new(slice)
