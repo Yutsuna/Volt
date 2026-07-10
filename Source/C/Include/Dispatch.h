@@ -104,6 +104,8 @@ typedef struct
 	Int32           RaiiRegsCount;
 	UInt8           HasDropMap;    /** 1 => early-return RET must bounce to Crystal  */
 	FCallFeedback*  Feedback;      /** ip-keyed call-site feedback, null if no CALL_METHOD */
+	const UInt64*   ThreadedCode;  /** pre-threaded handler+operand pairs, null = use Code */
+	Int32           ThreadedSize;  /** number of instruction pairs (== CodeSize)            */
 } FChunkInfo;
 
 /**
@@ -185,7 +187,7 @@ _Static_assert( offsetof( FHeapObject, ClassRef ) == 8,     "FHeapObject.ClassRe
 _Static_assert( offsetof( FHeapObject, Fields ) == 16,      "FHeapObject.Fields must sit at offset 16 (HeapRef::HEADER_BYTES)" );
 _Static_assert( sizeof( FRClass ) == 24,                    "FRClass must mirror LibVoltDispatch::RClass (24 bytes)" );
 _Static_assert( sizeof( FCallFeedback ) == 8,               "FCallFeedback must stay 8 bytes (ip-indexed side array)" );
-_Static_assert( sizeof( FChunkInfo ) == 56,                 "FChunkInfo must mirror LibVoltDispatch::ChunkInfo (56 bytes)" );
+_Static_assert( sizeof( FChunkInfo ) == 72,                 "FChunkInfo must mirror LibVoltDispatch::ChunkInfo (72 bytes)" );
 _Static_assert( offsetof( FVmContext, ClassIndex ) == 88,   "FVmContext.ClassIndex must sit at offset 88" );
 _Static_assert( offsetof( FVmContext, AllocObject ) == 112, "FVmContext.AllocObject must sit at offset 112" );
 _Static_assert( sizeof( FVmContext ) == 120,                "FVmContext must mirror LibVoltDispatch::VmContext (120 bytes)" );
@@ -196,5 +198,11 @@ _Static_assert( sizeof( FVmContext ) == 120,                "FVmContext must mir
  * services Ctx->ColdOp (mutating the cursor) and calls again.
  */
 Int32 Volt_Dispatch( FVmContext* Ctx );
+
+/**
+ * Pre-thread a bytecode array into handler+operand pairs for direct-threaded
+ * dispatch.  OutThreaded must point to CodeSize*2 UInt64 slots.
+ */
+void Volt_ThreadChunk( const UInt32* Code, Int32 CodeSize, UInt64* OutThreaded );
 
 #endif /* VOLT_DISPATCH_H */
