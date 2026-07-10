@@ -23,8 +23,8 @@ struct FString
 end
 
 
-s1 = FString.new("Hello, World")
+s1 = FString.new("Hello, World".data)
 s1.print()
 
-s2 = FString.new("Zero-overhead strings!")
+s2 = FString.new("Zero-overhead strings!".data)
 s2.print()

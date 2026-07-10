@@ -3,11 +3,11 @@ class DatabaseConnection
 
   def initialize(id : Int64)
     @id = id
-    puts("CONNECTED DB " + @id.to_s)
+    puts("CONNECTED DB " + @id.to_string)
   end
 
   def finalize
-    puts("DISCONNECTED DB " + @id.to_s)
+    puts("DISCONNECTED DB " + @id.to_string)
   end
 end
 
