@@ -63,21 +63,21 @@ module Volt::VM
     # `TO_STRING` (the still-existing catch-all for a type with no `to_string`
     # method of its own — currently only `Float`, since `Int`/`Bool`/`String`
     # each define a real one via `Core/Int.vl`/`Bool.vl`/`String.vl`) must
-    # produce a value usable everywhere a real `String` is : a bare legacy
-    # `Value.str(...)` is a different runtime shape than the Core `String`
-    # class (2-field heap object) and would corrupt any `String#+`/`#==`
-    # dispatch downstream. When the Core is loaded, builds a real `String`
-    # instance directly (bypassing `String#initialize`'s `CALL` — this runs
-    # from inside opcode dispatch, not a call site) with a fresh malloc'd
-    # copy of the formatted bytes (`owned = true`, freed normally by
-    # `finalize`). Falls back to the legacy `Value.str` only for specs that
-    # construct a bare `Vm`/`Unit` with no Core classes at all.
+    # produce a real Core `String` instance (`Tag::Object`, not a bare
+    # scalar), so `String#+`/`#==` downstream can't tell the difference from
+    # a literal. Built directly (bypassing `String#initialize`'s `CALL` —
+    # this runs from inside opcode dispatch, not a call site) with a fresh
+    # malloc'd copy of the formatted bytes (`owned = true`, freed normally by
+    # `finalize`). Requires the Core's `String` class to be loaded — a bare
+    # `Vm`/`Unit` built by a unit spec with no Core classes can't reach
+    # `TO_STRING` at all (nothing in that world produces a `String`-typed
+    # expression to begin with).
     private def to_string_value( v : IR::Value ) : IR::Value
       str = v.to_display
       if @string_type_id == -2
         @string_type_id = @registry.find_by_name( "String" ).try( &.type_id ) || -1
       end
-      return IR::Value.str( str ) if @string_type_id < 0
+      raise VoltRuntimeError.new( "TO_STRING: no Core `String` class registered" ) if @string_type_id < 0
 
       bytes = str.to_slice
       # Raw libc `malloc` (NOT `Pointer.malloc`/`GC.malloc`) : `String#finalize`
@@ -110,15 +110,12 @@ module Volt::VM
       volt_string( v ) || v.to_display
     end
 
-    # Reads a `Value` as a Crystal `String` if it's string-shaped : either the
-    # legacy `Tag::Str` (bare-unit specs, or `Vm#to_string_value`'s no-Core
-    # fallback) or a real Core `String`-class instance (`Tag::Object` whose
-    # `type_id` matches the resolved "String" class — its bytes are read
-    # directly off the known field layout : `ptr`, `size`, `owned`, slots
-    # 0/1/2 per `Core/String.vl`'s declaration order). `nil` for anything
-    # else (an ordinary object, a Regex, ...).
+    # Reads a `Value` as a Crystal `String` if it's a real Core `String`-class
+    # instance (`Tag::Object` whose `type_id` matches the resolved "String"
+    # class) — its bytes are read directly off the known field layout :
+    # `ptr`, `size`, `owned`, slots 0/1/2 per `Core/String.vl`'s declaration
+    # order. `nil` for anything else (an ordinary object, a Regex, ...).
     def volt_string( v : IR::Value ) : String?
-      return v.as_s if v.tag.str?
       return nil unless v.tag.object?
       obj = v.as_object
       if @string_type_id == -2
@@ -466,8 +463,6 @@ module Volt::VM
         frame[ ins.a ] = eval_arith( op, frame[ ins.b ], frame[ ins.c ] )
       when .to_string?
         frame[ ins.a ] = to_string_value( frame[ ins.b ] )
-      when .concat_str?
-        frame[ ins.a ] = IR::Value.str( frame[ ins.b ].as_s + frame[ ins.c ].as_s )
       when .raise?
         raise VoltRuntimeError.new( display_value( frame[ ins.a ] ) )
       when .init?, .drop?, .drop_scope?
@@ -753,7 +748,6 @@ module Volt::VM
 
             # ---- string builtins ----
             when IR::Opcode::TO_STRING  then regs[ins.a] = to_string_value( regs[ins.b] )
-            when IR::Opcode::CONCAT_STR then regs[ins.a] = IR::Value.str( regs[ins.b].as_s + regs[ins.c].as_s )
 
             when IR::Opcode::RAISE
               raise VoltRuntimeError.new( display_value( regs[ins.a] ) )
