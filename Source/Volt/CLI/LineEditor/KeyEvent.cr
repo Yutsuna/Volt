@@ -9,11 +9,18 @@ module Volt::CLI
     CtrlLeft
     CtrlRight
     Backspace
+    Delete
+    Home
+    End
+    Tab
     CtrlA
     CtrlC
     CtrlD
+    CtrlE
     Enter
     Char
+    Text
+    Ignored
   end
 
 
