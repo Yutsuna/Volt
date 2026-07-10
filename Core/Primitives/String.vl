@@ -1,0 +1,70 @@
+@[External("libc")]
+def malloc( size : UInt64 ) -> Void*
+
+@[External("libc")]
+def free( ptr : Void* ) -> Void
+
+@[External("libc")]
+def memcpy( dest : Void*, src : Void*, size : UInt64 ) -> Void*
+
+@[External("libc")]
+def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
+
+
+#{
+# @class String
+# @brief A mutable string class that manages a buffer of bytes and provides common string operations.
+#}
+class String include Inspectable
+
+  #----------------------------------------------------------------------------
+
+  getter data : UInt8*
+  getter size : UInt64
+
+  #----------------------------------------------------------------------------
+
+  def initialize( str : String )
+    @size  = str.size
+    @data  = malloc( @size + 1_u64 )
+    memcpy( @data, str.data, @size )
+    *( @data + @size ) = 0_u8
+    @owned = true
+  end
+
+  def initialize( @data : UInt8*, @size : UInt64, @owned : Bool )
+  end
+
+  def finalize -> Void
+    free( @data ) if @owned
+  end
+
+  #----------------------------------------------------------------------------
+
+  def to_string -> String
+    self
+  end
+
+  #----------------------------------------------------------------------------
+
+  def +( other : String ) -> String
+    total         = @size + other.size
+    buf : UInt8*  = malloc( total + 1_u64 )
+    memcpy( buf, @data, @size )
+    memcpy( buf + @size, other.data, other.size )
+    *( buf + total ) = 0_u8
+    String.new( buf, total, true )
+  end
+
+  def ==( other : String ) -> Bool
+    return false if @size != other.size
+    memcmp( @data, other.data, @size ) == 0
+  end
+
+  def =~( other : Regex ) -> Bool
+    __volt_regex_match( other, @data, @size ) != 0
+  end
+
+  #----------------------------------------------------------------------------
+
+end
