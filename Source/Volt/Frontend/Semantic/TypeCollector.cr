@@ -203,6 +203,7 @@ module Volt::Frontend
     private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil
       return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name )
 
+      info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
       fields      = collect_fields( node.body, nil )
       byte_layout = TypeLayout.pack( fields )
       set_layout( info, byte_layout, build_reg_layout( byte_layout, nil ) )
@@ -213,6 +214,7 @@ module Volt::Frontend
     # is fixed (one register slot, no heap layout), so fields and the
     # construction/destruction lifecycle are meaningless on it.
     private def resolve_primitive_reopen( node : StructDecl, info : TypeInfo ) : Nil
+      info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
       node.body.each do |n|
         case n
         when FieldDecl
