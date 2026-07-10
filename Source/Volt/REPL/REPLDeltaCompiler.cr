@@ -204,7 +204,7 @@ module Volt::REPL
       emitter = Compiler::FunctionEmiter.new( fn.name, fn.params.size, @func_index, @typed.signatures, @natives, @typed.types, nil, @global_index )
       fn.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }
       emitter.enter_scope
-      result = emitter.compile_body( fn.body )
+      result = emitter.compile_body( fn.body, drop_tail_ctor: fn.return_type.nil? )
       emitter.exit_scope
       emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
       emitter.finish
@@ -219,7 +219,7 @@ module Volt::REPL
       decl.params.each { |p| emitter.store_ivar_param( owner, p.name ) if p.is_ivar }
 
       emitter.enter_scope
-      result = emitter.compile_body( decl.body )
+      result = emitter.compile_body( decl.body, drop_tail_ctor: decl.return_type.nil? )
       emitter.exit_scope
 
       if owner.kind.struct? && decl.name == "initialize"
