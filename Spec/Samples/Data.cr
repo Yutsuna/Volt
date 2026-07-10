@@ -65,6 +65,8 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "02.b.Hash.vl" => {exit_code: 0, stderr: "", stdout: "PASS GET A\nPASS GET B\nPASS UPDATE A\nPASS HAS B\nPASS NOT HAS C\n"},
       #------------------------------------------------------------------------------------
+      "02.c.PrimitiveReopen.vl" => {exit_code: 0, stderr: "", stdout: "double: 42\nliteral receiver: 10\nnegative: 0\nchained: 84\nyes\nno\n"},
+      #------------------------------------------------------------------------------------
     }
 
     def initialize( file_path : String )
