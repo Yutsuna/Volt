@@ -1,0 +1,10 @@
+# Volt Core — Bool
+#
+# Reopens the builtin `Bool` to attach `to_string`.
+
+struct Bool
+  def to_string -> String
+    return "true" if self
+    "false"
+  end
+end
