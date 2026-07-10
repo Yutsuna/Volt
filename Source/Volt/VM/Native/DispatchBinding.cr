@@ -65,7 +65,7 @@ lib LibVoltDispatch
 
   # Runs the threaded core; returns an EVmStatus (see Volt::VM::DispatchStatus).
   fun dispatch = Volt_Dispatch( ctx : VmContext* ) : Int32
-  fun thread_chunk = Volt_ThreadChunk(code : Void*, code_size : Int32, out_threaded : Void*) : Nil
+  fun thread_chunk = Volt_ThreadChunk(code : UInt32*, code_size : Int32, out_threaded : UInt64*) : Nil
 end
 
 
