@@ -156,11 +156,18 @@ module Volt::Frontend
       end
       # A bare identifier inside a method may be a parenthesis-less zero-arg
       # call on `self` (`boot_sequence`), including inherited/mixed-in methods.
-      if ( owner = @self_type ) && !scope.local?( expr.name ) && ( m = find_method( owner.name, expr.name ) )
-        is_caller_static = @current_method.try( &.is_static ) || false
-        if !is_caller_static || m.is_static
-          @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
-          return m.ret
+      if ( owner = @self_type ) && !scope.local?( expr.name )
+        if m = find_method( owner.name, expr.name )
+          is_caller_static = @current_method.try( &.is_static ) || false
+          if !is_caller_static || m.is_static
+            @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
+            return m.ret
+          end
+        elsif owner.kind.mixin?
+          # Same leniency as `infer_call` : a mixin body naming a method it
+          # doesn't define resolves against whichever class includes it,
+          # which isn't known here. Accept it duck-typed.
+          return Type::UNKNOWN
         end
       end
       if sig = @sigs[ expr.name ]?
