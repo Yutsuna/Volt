@@ -63,7 +63,7 @@ module Volt::Spec
       chunk = Volt::IR::Chunk.new( "test_unwind", 0 )
       chunk.num_registers = 2
 
-      chunk.constants << Volt::IR::Value.str( "test error" )
+      chunk.constants << Volt::IR::Value.int( 42_i64 )
 
       chunk.code << Volt::IR::Instruction.abx( Volt::IR::Opcode::INIT, 0, 99 )
       chunk.code << Volt::IR::Instruction.abx( Volt::IR::Opcode::LOAD_CONST, 1, 0 )
