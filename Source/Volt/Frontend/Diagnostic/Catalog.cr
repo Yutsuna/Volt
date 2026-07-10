@@ -288,6 +288,11 @@ module Volt::Frontend
           .with_primary( span )
       end
 
+      def invalid_pipeline_target( span : Span ) : Diagnostic
+        Diagnostic.error( "S0050", "invalid pipeline target: right-hand side of |> must be a function call, method call, or identifier" )
+          .with_primary( span )
+      end
+
       def unresolved_extern( name : String, span : Span, available : Enumerable( String ) ) : Diagnostic
         Diagnostic.error( "S0024", "extern function `#{name}` has no native implementation in the interpreter" )
           .with_primary( span, "called here" )
