@@ -13,6 +13,8 @@ module Volt::Core
     { "IO.vl", {{ read_file( "#{__DIR__}/../../../Core/IO.vl" ) }} },
     { "Int.vl", {{ read_file( "#{__DIR__}/../../../Core/Int.vl" ) }} },
     { "Bool.vl", {{ read_file( "#{__DIR__}/../../../Core/Bool.vl" ) }} },
+    { "Float.vl", {{ read_file( "#{__DIR__}/../../../Core/Float.vl" ) }} },
+    { "Regex.vl", {{ read_file( "#{__DIR__}/../../../Core/Regex.vl" ) }} },
   ]
 
 
