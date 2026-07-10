@@ -13,6 +13,8 @@ lib LibVoltDispatch
     raii_regs_count : Int32
     has_drop_map    : UInt8
     feedback        : Void*   # FCallFeedback*
+    threaded_code   : Void*   # UInt64* : pre-threaded handler+operand pairs
+    threaded_size   : Int32
   end
 
   # Mirror of C `FCallFrame` — one suspended caller on the shared frame stack.
@@ -63,6 +65,7 @@ lib LibVoltDispatch
 
   # Runs the threaded core; returns an EVmStatus (see Volt::VM::DispatchStatus).
   fun dispatch = Volt_Dispatch( ctx : VmContext* ) : Int32
+  fun thread_chunk = Volt_ThreadChunk(code : Void*, code_size : Int32, out_threaded : Void*) : Nil
 end
 
 
