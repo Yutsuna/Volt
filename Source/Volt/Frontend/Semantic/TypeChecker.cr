@@ -646,8 +646,14 @@ module Volt::Frontend
     # first (`Int32`), then the inferred family (`Int`).
     private def primitive_method( recv_ty : Type, name : String ) : FuncSig?
       recv_ty.reopen_names.each do |owner|
-        if sig = @types[ owner ]?.try( &.methods[ name ]? )
+        next unless info = @types[ owner ]?
+        if sig = info.methods[ name ]?
           return sig
+        end
+        info.mixins.each do |mixin_name|
+          if sig = find_method( mixin_name, name )
+            return sig
+          end
         end
       end
       nil
