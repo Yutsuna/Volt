@@ -90,6 +90,17 @@ typedef struct
 } FCallFeedback;
 
 /**
+ * One pre-threaded instruction: the GCC computed-goto handler address plus
+ * the original 32-bit operand word. 16 bytes so `Ip` indexes it directly.
+ */
+typedef struct
+{
+	Void*  Target;  /** handler label address (GDispatchTable[opcode]) */
+	UInt32 Ins;     /** original instruction word [op:8|A:8|B:8|C:8]   */
+	UInt32 _Pad;
+} FThreadedIns;
+
+/**
  * Chunk metadata, one per `@unit.chunks` entry. Built once by the Crystal
  * binding from immutable chunk fields, so the C core can resolve CALL targets
  * and enter callee frames without touching the Crystal object graph.
@@ -104,8 +115,8 @@ typedef struct
 	Int32           RaiiRegsCount;
 	UInt8           HasDropMap;    /** 1 => early-return RET must bounce to Crystal  */
 	FCallFeedback*  Feedback;      /** ip-keyed call-site feedback, null if no CALL_METHOD */
-	const UInt64*   ThreadedCode;  /** pre-threaded handler+operand pairs, null = use Code */
-	Int32           ThreadedSize;  /** number of instruction pairs (== CodeSize)            */
+	const FThreadedIns* ThreadedCode;  /** never null: CodeSize+1 entries, last = LFellOff sentinel */
+	Int32               ThreadedSize;  /** logical instruction count (== CodeSize, excl. sentinel)  */
 } FChunkInfo;
 
 /**
@@ -196,13 +207,18 @@ _Static_assert( sizeof( FVmContext ) == 120,                "FVmContext must mir
  * Runs the threaded core from Ctx->CurChunk/Base/Ip until it halts, hits a
  * cold opcode, or errors. Returns an EVmStatus; on VM_CALLBACK the caller
  * services Ctx->ColdOp (mutating the cursor) and calls again.
+ *
+ * Ctx == NULL is an init-only entry: the label-address tables are populated
+ * and VM_HALT is returned without executing anything (used by
+ * Volt_ThreadChunk before the first real dispatch).
  */
 Int32 Volt_Dispatch( FVmContext* Ctx );
 
 /**
- * Pre-thread a bytecode array into handler+operand pairs for direct-threaded
- * dispatch.  OutThreaded must point to CodeSize*2 UInt64 slots.
+ * Pre-thread a bytecode array for direct-threaded dispatch. OutThreaded must
+ * point to CodeSize+1 slots: the extra slot receives the LFellOff sentinel
+ * that replaces the per-instruction bounds check in the hot loop.
  */
-void Volt_ThreadChunk( const UInt32* Code, Int32 CodeSize, UInt64* OutThreaded );
+void Volt_ThreadChunk( const UInt32* Code, Int32 CodeSize, FThreadedIns* OutThreaded );
 
 #endif /* VOLT_DISPATCH_H */
