@@ -3,6 +3,13 @@ require "../../IR/Value"
 # FFI binding to the C direct-threaded dispatch core (Source/C).
 @[Link(ldflags: "#{__DIR__}/../../../C/libvoltvm.so")]
 lib LibVoltDispatch
+  # Mirror of C `FThreadedIns` — one pre-threaded instruction (16 bytes).
+  struct ThreadedIns
+    target : Void*   # handler label address
+    ins    : UInt32  # original instruction word
+    _pad   : UInt32
+  end
+
   # Mirror of C `FChunkInfo` (Dispatch.h) — one per Unit chunk.
   struct ChunkInfo
     code            : Void*   # UInt32*  : chunk.code buffer
@@ -13,6 +20,8 @@ lib LibVoltDispatch
     raii_regs_count : Int32
     has_drop_map    : UInt8
     feedback        : Void*   # FCallFeedback*
+    threaded_code   : Void*   # ThreadedIns* : code.size+1 entries, last = LFellOff sentinel
+    threaded_size   : Int32
   end
 
   # Mirror of C `FCallFrame` — one suspended caller on the shared frame stack.
@@ -63,6 +72,7 @@ lib LibVoltDispatch
 
   # Runs the threaded core; returns an EVmStatus (see Volt::VM::DispatchStatus).
   fun dispatch = Volt_Dispatch( ctx : VmContext* ) : Int32
+  fun thread_chunk = Volt_ThreadChunk(code : UInt32*, code_size : Int32, out_threaded : ThreadedIns*) : Nil
 end
 
 

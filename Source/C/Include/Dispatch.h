@@ -90,6 +90,17 @@ typedef struct
 } FCallFeedback;
 
 /**
+ * One pre-threaded instruction: the GCC computed-goto handler address plus
+ * the original 32-bit operand word. 16 bytes so `Ip` indexes it directly.
+ */
+typedef struct
+{
+	Void*  Target;  /** handler label address (GDispatchTable[opcode]) */
+	UInt32 Ins;     /** original instruction word [op:8|A:8|B:8|C:8]   */
+	UInt32 _Pad;
+} FThreadedIns;
+
+/**
  * Chunk metadata, one per `@unit.chunks` entry. Built once by the Crystal
  * binding from immutable chunk fields, so the C core can resolve CALL targets
  * and enter callee frames without touching the Crystal object graph.
@@ -104,6 +115,8 @@ typedef struct
 	Int32           RaiiRegsCount;
 	UInt8           HasDropMap;    /** 1 => early-return RET must bounce to Crystal  */
 	FCallFeedback*  Feedback;      /** ip-keyed call-site feedback, null if no CALL_METHOD */
+	const FThreadedIns* ThreadedCode;  /** never null: CodeSize+1 entries, last = LFellOff sentinel */
+	Int32               ThreadedSize;  /** logical instruction count (== CodeSize, excl. sentinel)  */
 } FChunkInfo;
 
 /**
@@ -185,7 +198,7 @@ _Static_assert( offsetof( FHeapObject, ClassRef ) == 8,     "FHeapObject.ClassRe
 _Static_assert( offsetof( FHeapObject, Fields ) == 16,      "FHeapObject.Fields must sit at offset 16 (HeapRef::HEADER_BYTES)" );
 _Static_assert( sizeof( FRClass ) == 24,                    "FRClass must mirror LibVoltDispatch::RClass (24 bytes)" );
 _Static_assert( sizeof( FCallFeedback ) == 8,               "FCallFeedback must stay 8 bytes (ip-indexed side array)" );
-_Static_assert( sizeof( FChunkInfo ) == 56,                 "FChunkInfo must mirror LibVoltDispatch::ChunkInfo (56 bytes)" );
+_Static_assert( sizeof( FChunkInfo ) == 72,                 "FChunkInfo must mirror LibVoltDispatch::ChunkInfo (72 bytes)" );
 _Static_assert( offsetof( FVmContext, ClassIndex ) == 88,   "FVmContext.ClassIndex must sit at offset 88" );
 _Static_assert( offsetof( FVmContext, AllocObject ) == 112, "FVmContext.AllocObject must sit at offset 112" );
 _Static_assert( sizeof( FVmContext ) == 120,                "FVmContext must mirror LibVoltDispatch::VmContext (120 bytes)" );
@@ -194,7 +207,18 @@ _Static_assert( sizeof( FVmContext ) == 120,                "FVmContext must mir
  * Runs the threaded core from Ctx->CurChunk/Base/Ip until it halts, hits a
  * cold opcode, or errors. Returns an EVmStatus; on VM_CALLBACK the caller
  * services Ctx->ColdOp (mutating the cursor) and calls again.
+ *
+ * Ctx == NULL is an init-only entry: the label-address tables are populated
+ * and VM_HALT is returned without executing anything (used by
+ * Volt_ThreadChunk before the first real dispatch).
  */
 Int32 Volt_Dispatch( FVmContext* Ctx );
+
+/**
+ * Pre-thread a bytecode array for direct-threaded dispatch. OutThreaded must
+ * point to CodeSize+1 slots: the extra slot receives the LFellOff sentinel
+ * that replaces the per-instruction bounds check in the hot loop.
+ */
+void Volt_ThreadChunk( const UInt32* Code, Int32 CodeSize, FThreadedIns* OutThreaded );
 
 #endif /* VOLT_DISPATCH_H */

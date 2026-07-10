@@ -115,7 +115,7 @@ LRet:
 		{
 			Ip -= 1;               /* rewind to point at the RET */
 			SAVE_CURSOR();
-			Ctx->ColdOp = (Int32)Op;
+			Ctx->ColdOp = (Int32)( Ins >> 24 );
 			return VM_CALLBACK;
 		}
 
