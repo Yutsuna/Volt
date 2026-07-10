@@ -16,7 +16,7 @@ class UsbDrive < Device
   end
 
   def write(data : String) -> Void
-    puts("WRITE TO USB [" + @name + "] (" + @capacity.to_s + "MB): " + data)
+    puts("WRITE TO USB [" + @name + "] (" + @capacity.to_string + "MB): " + data)
   end
 end
 

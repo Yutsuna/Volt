@@ -61,7 +61,7 @@ end
 
 m_ptr : Int64* = malloc(8_u64)
 *m_ptr = 0_i64
-puts("PASS MALLOC WRITE " + (*m_ptr).to_s)
+puts("PASS MALLOC WRITE " + (*m_ptr).to_string)
 
 *m_ptr = 1_i64
-puts("PASS MALLOC WRITE " + (*m_ptr).to_s)
+puts("PASS MALLOC WRITE " + (*m_ptr).to_string)
