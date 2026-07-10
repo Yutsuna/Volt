@@ -23,32 +23,31 @@ module Volt::Spec
       Volt::IR::Opcode::CALL_METHOD.value.should   eq 54
       Volt::IR::Opcode::LOAD_GLOBAL.value.should   eq 58
       Volt::IR::Opcode::STORE_GLOBAL.value.should  eq 59
-      Volt::IR::Opcode::NOP.value.should           eq 62
-      Volt::IR::Opcode::ADD_INT_IMM.value.should   eq 63
-      Volt::IR::Opcode::BR_LT_INT.value.should     eq 67
-      Volt::IR::Opcode::BR_NE_INT_IMM.value.should eq 78
-      Volt::IR::Opcode::LOAD_PTR.value.should      eq 79
-      Volt::IR::Opcode::STORE_PTR.value.should     eq 80
-      Volt::IR::Opcode::PTR_ADD.value.should       eq 81
-      Volt::IR::Opcode::PTR_SUB.value.should       eq 82
-      Volt::IR::Opcode::ADDR_LOCAL.value.should    eq 83
-      Volt::IR::Opcode::ADDR_FIELD.value.should    eq 84
+      Volt::IR::Opcode::NOP.value.should           eq 61
+      Volt::IR::Opcode::ADD_INT_IMM.value.should   eq 62
+      Volt::IR::Opcode::BR_LT_INT.value.should     eq 66
+      Volt::IR::Opcode::BR_NE_INT_IMM.value.should eq 77
+      Volt::IR::Opcode::LOAD_PTR.value.should      eq 78
+      Volt::IR::Opcode::STORE_PTR.value.should     eq 79
+      Volt::IR::Opcode::PTR_ADD.value.should       eq 80
+      Volt::IR::Opcode::PTR_SUB.value.should       eq 81
+      Volt::IR::Opcode::ADDR_LOCAL.value.should    eq 82
+      Volt::IR::Opcode::ADDR_FIELD.value.should    eq 83
     end
 
-    it "keeps the opcode count at what the DispatchTable covers (0..84)" do
+    it "keeps the opcode count at what the DispatchTable covers (0..83)" do
       # Bump this and the C DispatchTable together when adding opcodes.
-      Volt::IR::Opcode.values.size.should eq 85
+      Volt::IR::Opcode.values.size.should eq 84
     end
 
     it "keeps Value::Tag ordinals stable for the C EValueTag" do
       Volt::IR::Value::Tag::Int.value.should    eq 0
       Volt::IR::Value::Tag::Float.value.should  eq 1
       Volt::IR::Value::Tag::Bool.value.should   eq 2
-      Volt::IR::Value::Tag::Str.value.should    eq 3
-      Volt::IR::Value::Tag::Regex.value.should  eq 4
-      Volt::IR::Value::Tag::Nil.value.should    eq 5
-      Volt::IR::Value::Tag::Object.value.should eq 6
-      Volt::IR::Value::Tag::Ptr.value.should    eq 7
+      Volt::IR::Value::Tag::Regex.value.should  eq 3
+      Volt::IR::Value::Tag::Nil.value.should    eq 4
+      Volt::IR::Value::Tag::Object.value.should eq 5
+      Volt::IR::Value::Tag::Ptr.value.should    eq 6
     end
 
   end
