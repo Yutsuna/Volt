@@ -709,7 +709,7 @@ module Volt::Compiler
       return nil unless recv_ty
       recv_ty.reopen_names.each do |owner|
         info = @types[ owner ]?
-        return info if info && info.methods.has_key?( method_name )
+        return info if info && find_method( owner, method_name )
       end
       nil
     end
@@ -721,7 +721,7 @@ module Volt::Compiler
                                          arg_types : Array( Frontend::Type ) ) : Int32
       mangled   = "#{info.name}##{method_name}"
       idx       = @func_index[ mangled ]
-      msig      = info.methods[ method_name ]
+      msig      = find_method( info.name, method_name ).not_nil!
       arg_slots = arg_types.map { |t| slot_count( t ) }
       total     = 1 + arg_slots.sum
       ret_slots = slot_count( msig.ret )
