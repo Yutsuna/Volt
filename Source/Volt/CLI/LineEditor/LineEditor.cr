@@ -19,11 +19,29 @@ module Volt::CLI
       @cursor += 1
     end
 
+    def insert_text( text : String )
+      text.each_char { |char| insert( char ) }
+    end
+
     def backspace
       if @cursor > 0
         @cursor -= 1
         @buffer.delete_at( @cursor )
       end
+    end
+
+    def delete
+      @buffer.delete_at( @cursor ) if @cursor < @buffer.size
+    end
+
+    def replace_range( from : Int32, to : Int32, text : String )
+      return if from < 0 || to > @buffer.size || from > to
+      @buffer = @buffer[ 0, from ] + text.chars + @buffer[ to.. ]
+      @cursor = from + text.size
+    end
+
+    def text : String
+      @buffer.join
     end
 
     def move_left
@@ -36,6 +54,10 @@ module Volt::CLI
 
     def move_to_start
       @cursor = 0
+    end
+
+    def move_to_end
+      @cursor = @buffer.size
     end
 
     def move_word_left
