@@ -536,6 +536,16 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
+      # `find_method` excludes `initialize`/`finalize` since neither dispatches
+      # virtually — but an explicit `obj.finalize()` (early/manual teardown) is
+      # still a legitimate call, resolved statically to the receiver's own (or
+      # nearest ancestor's) `finalize`, the same walk `super` uses.
+      if expr.name == "finalize" && expr.args.empty?
+        if fsig = find_super_target( recv_ty.name, "finalize" )
+          return fsig.ret
+        end
+      end
+
       sig = find_method( recv_ty.name, expr.name )
       if sig.nil?
         @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, expr.name, expr.loc )
