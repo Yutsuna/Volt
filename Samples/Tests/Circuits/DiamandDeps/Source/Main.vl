@@ -2,7 +2,7 @@
 @[Link("Database")]
 @[Link("Core")]
 
-config = Core::AppConfig.new( 5432, "super-secret-key" )
+config = Core::AppConfig.new( 5432, "super-secret-key".data )
 db = Database::DbClient.new( config )
 auth = Auth::AuthService.new( config )
 
