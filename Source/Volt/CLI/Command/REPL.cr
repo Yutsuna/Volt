@@ -13,6 +13,7 @@ module Volt::CLI
 
     @no_history : Bool = false
     @input : String? = nil
+    @completion_engine : CompletionEngine? = nil
 
     include REPL::REPLBuiltins
     include REPL::REPLHistory
@@ -84,12 +85,22 @@ module Volt::CLI
     #------------------------------------------------------------------------------------
 
     private def session_should_continue? : Bool
-      line = read_next_line
-      if line.nil?
+      result = read_next_line
+
+      case result.status
+      when LineReadStatus::Eof
         puts
         return false
+      when LineReadStatus::Cancelled
+        if !@buffer.empty?
+          Logger.warn( "Multiline block discarded" )
+          Fiber.yield
+          @buffer.clear
+        end
+        return true
       end
 
+      line = result.line
       trimmed = line.strip
 
       if trimmed.starts_with?(':')
@@ -123,9 +134,14 @@ module Volt::CLI
       @buffer.empty? ? "volt> ".colorize( :cyan ).to_s : "volt* ".colorize( :dark_gray ).to_s
     end
 
-    private def read_next_line : String?
+    private def read_next_line : LineReadResult
       prompt = get_prompt
-      STDIN.tty? ? read_line_interactive( prompt, @cli_history ) : STDIN.gets
+      if STDIN.tty?
+        read_line_interactive( prompt, @cli_history )
+      else
+        line = STDIN.gets
+        line.nil? ? LineReadResult.new( LineReadStatus::Eof ) : LineReadResult.new( LineReadStatus::Submitted, line )
+      end
     end
 
     private def evaluate( current_input : String ) : Nil
@@ -158,57 +174,27 @@ module Volt::CLI
 
     #------------------------------------------------------------------------------------
 
-    private def read_line_interactive( prompt : String, history : Array(String) ) : String?
+    private def read_line_interactive( prompt : String, history : Array(String) ) : LineReadResult
       term = Terminal.new
       term.enable_raw_mode
 
       state = LineEditorState.new history
       renderer = LineRenderer.new prompt
-
-      renderer.render state
+      editor = LineEditorSession.new( state, renderer, completion_engine )
 
       begin
-        loop do
-          event = InputReader.read_char
-
-          case event.key
-          when KeyEvent::Enter
-            puts
-            return state.buffer.join
-          when KeyEvent::Char
-            state.insert( event.char.not_nil! )
-          when KeyEvent::Backspace
-            state.backspace
-          when KeyEvent::ArrowLeft
-            state.move_left
-          when KeyEvent::ArrowRight
-            state.move_right
-          when KeyEvent::CtrlLeft
-            state.move_word_left
-          when KeyEvent::CtrlRight
-            state.move_word_right
-          when KeyEvent::CtrlA
-            state.move_to_start
-          when KeyEvent::CtrlC
-            puts
-            return state.buffer.join
-          when KeyEvent::CtrlD
-            return nil
-          when KeyEvent::ArrowUp
-            if state.history_index > 0
-              state.load_history( state.history_index - 1 )
-            end
-          when KeyEvent::ArrowDown
-            if state.history_index < history.size
-              state.load_history( state.history_index + 1 )
-            end
-          end
-
-          renderer.render( state )
-        end
+        editor.run { InputReader.read_event }
       ensure
         term.restore
       end
+    end
+
+    private def completion_engine : CompletionEngine
+      @completion_engine ||= CompletionEngine.new( [
+        BuiltinCommandProvider.new,
+        SessionSymbolProvider.new( @session ),
+        KeywordProvider.new,
+      ] of ACompletionProvider )
     end
 
     #------------------------------------------------------------------------------------
