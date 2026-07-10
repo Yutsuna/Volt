@@ -427,8 +427,8 @@ module Volt::Frontend
       end
 
       def non_interpolable_type( actual_type : String, span : Span ) : Diagnostic
-        Diagnostic.error( "S0051", "cannot interpolate value of type #{actual_type} into a string" )
-          .with_primary( span, "only String, Char, and numeric types can be interpolated" )
+        Diagnostic.error( "S0051", "`#{actual_type}` does not define `to_string`" )
+          .with_primary( span, "define a `to_string -> String` method on this type to make it stringable/interpolable" )
       end
 
       def break_outside_loop( span : Span ) : Diagnostic
