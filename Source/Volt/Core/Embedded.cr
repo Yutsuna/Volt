@@ -6,16 +6,16 @@ module Volt::Core
   # this list at runtime and reads textual `.vl` sources instead (see
   # `Core.sources`), so the stdlib can be developed without rebuilding.
   #
-  # The list is explicit and ordered: declaration order is program order
-  # once the nodes are prepended to the user program.
-  EMBEDDED_SOURCES = [
-    { "String.vl", {{ read_file( "#{__DIR__}/../../../Core/String.vl" ) }} },
-    { "IO.vl", {{ read_file( "#{__DIR__}/../../../Core/IO.vl" ) }} },
-    { "Int.vl", {{ read_file( "#{__DIR__}/../../../Core/Int.vl" ) }} },
-    { "Bool.vl", {{ read_file( "#{__DIR__}/../../../Core/Bool.vl" ) }} },
-    { "Float.vl", {{ read_file( "#{__DIR__}/../../../Core/Float.vl" ) }} },
-    { "Regex.vl", {{ read_file( "#{__DIR__}/../../../Core/Regex.vl" ) }} },
-  ]
+  # The list is built at compile time by scanning `Core/**/*.vl` (sorted,
+  # so declaration order is stable and deterministic) — dropping a new
+  # file into `Core/` embeds it automatically, no manual registration.
+  {% begin %}
+    EMBEDDED_SOURCES = [
+      {% for path in `find #{__DIR__}/../../../Core -name "*.vl" | sort`.stringify.split( "\n" ).reject( &.empty? ) %}
+        { {{ path.split( "/Core/" ).last }}, {{ read_file( path ) }} },
+      {% end %}
+    ]
+  {% end %}
 
 
 end
