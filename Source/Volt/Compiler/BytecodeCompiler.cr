@@ -119,7 +119,6 @@ module Volt::Compiler
           jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
         end
 
-        next unless info.kind.class?
         info.mixins.each do |mixin_name|
           mixin_info = @typed.types[ mixin_name ]?
           next unless mixin_info
