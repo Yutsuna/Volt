@@ -210,10 +210,20 @@ module Volt::Frontend
         loc = @current.span
         advance   # consume `struct`
         name = expect( TokenKind::Ident ).value
+
+        mixins = [] of String
+        while @current.kind.include?
+          advance
+          mixins << expect( TokenKind::Ident ).value
+        end
+
         skip_separators
         body = parse_type_body
         expect_close( TokenKind::End, loc, "`struct`" )
-        StructDecl.new( name, body, annots, loc )
+
+        mixins.concat( body.select( IncludeDecl ).map( &.name ) )
+
+        StructDecl.new( name, mixins, body, annots, loc )
       end
 
       private def parse_mixin_decl : MixinDecl
