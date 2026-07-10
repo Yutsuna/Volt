@@ -78,7 +78,7 @@ module Volt::Frontend
           when .class?
             ClassDecl.new( name, [] of String, info.superclass, info.mixins, methods_nodes, [] of Annotation, info.is_abstract, loc )
           when .struct?
-            StructDecl.new( name, methods_nodes, [] of Annotation, loc )
+            StructDecl.new( name, info.mixins, methods_nodes, [] of Annotation, loc )
           when .mixin?
             MixinDecl.new( name, methods_nodes, loc )
           else # Module

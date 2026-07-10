@@ -190,7 +190,7 @@ module Volt::Frontend
       end
 
       info.methods_ast.each_key do |name|
-        next if name == "initialize" || name == "finalize"
+        next if name == "initialize" || name == "finalize" || name.starts_with?( "initialize/" )
         next if layout.has_key?( name )
         layout[ name ] = next_idx
         next_idx += 1
@@ -203,6 +203,7 @@ module Volt::Frontend
     private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil
       return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name )
 
+      info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
       fields      = collect_fields( node.body, nil )
       byte_layout = TypeLayout.pack( fields )
       set_layout( info, byte_layout, build_reg_layout( byte_layout, nil ) )
@@ -213,6 +214,7 @@ module Volt::Frontend
     # is fixed (one register slot, no heap layout), so fields and the
     # construction/destruction lifecycle are meaningless on it.
     private def resolve_primitive_reopen( node : StructDecl, info : TypeInfo ) : Nil
+      info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
       node.body.each do |n|
         case n
         when FieldDecl
@@ -315,8 +317,8 @@ module Volt::Frontend
       # Style-1 constructor shorthand (`def initialize( @x : T )`) implicitly
       # declares any field not already covered by an explicit `FieldDecl` or
       # inherited from the superclass.
-      init = body.find { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.as?( FuncDecl )
-      init.try do |fn|
+      inits = body.select { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.map( &.as( FuncDecl ) )
+      inits.each do |fn|
         fn.params.each do |p|
           next unless p.is_ivar
           next if seen.includes?( p.name )
@@ -366,15 +368,39 @@ module Volt::Frontend
     end
 
     private def collect_methods( body : Array( ANode ), info : TypeInfo ) : Nil
+      # `initialize` is the one name allowed to overload — resolved by arity.
+      # When several overloads exist, each is keyed `initialize/<arity>` so
+      # every overload compiles to its own chunk; a single `initialize` keeps
+      # the plain key (the shape every existing lookup expects).
+      init_count = body.count { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }
+
       body.each do |node|
         next unless node.is_a?( FuncDecl )
         sig = build_method_sig( node, info )
-        info.methods[ node.name ]     = sig
-        info.methods_ast[ node.name ] = node
+        key = node.name
         case node.name
-        when "initialize" then info.initializer = sig
-        when "finalize"   then info.finalizer   = sig
+        when "initialize"
+          arity = node.params.size
+          if first = info.initializers[ arity ]?
+            @bag << Catalog::Sema.duplicate_definition( "initialize", node.loc, first.decl_span )
+            next
+          end
+          info.initializers[ arity ] = sig
+          info.initializer ||= sig
+          key = "initialize/#{arity}" if init_count > 1
+        when "finalize"
+          unless node.params.empty?
+            @bag << Catalog::Sema.finalize_has_arguments( node.loc )
+            next
+          end
+          if first = info.finalizer
+            @bag << Catalog::Sema.duplicate_definition( "finalize", node.loc, first.decl_span )
+            next
+          end
+          info.finalizer = sig
         end
+        info.methods[ key ]     = sig
+        info.methods_ast[ key ] = node
         @methods << node
         @method_entries << { node, info.name, sig }
       end
