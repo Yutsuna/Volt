@@ -179,7 +179,7 @@ module Volt::Compiler
       emitter = FunctionEmiter.new( fn.name, fn.params.size, @func_index, @typed.signatures, @natives, @typed.types, nil, @global_index )
       fn.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }
       emitter.enter_scope
-      result = emitter.compile_body( fn.body )
+      result = emitter.compile_body( fn.body, drop_tail_ctor: fn.return_type.nil? )
       emitter.exit_scope
       emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
       emitter.finish
@@ -196,12 +196,15 @@ module Volt::Compiler
       is_static = owner.kind.module?
       arity     = decl.params.size + ( is_static ? 0 : 1 )
       emitter   = FunctionEmiter.new( mangled, arity, @func_index, @typed.signatures, @natives, @typed.types, owner, @global_index, decl.name )
-      emitter.bind_param( "self", nominal_for( owner ) ) unless is_static
+      # A reopened primitive's `self` is the builtin itself (1 slot), not a
+      # nominal view — its `TypeInfo` carries no layout.
+      self_type = Frontend::Type.from_primitive_name( owner.name ) || nominal_for( owner )
+      emitter.bind_param( "self", self_type ) unless is_static
       decl.params.each_with_index { |p, i| emitter.bind_param( p.name, sig.params[ i ]? || Frontend::Type::UNKNOWN ) }
       decl.params.each { |p| emitter.store_ivar_param( owner, p.name ) if p.is_ivar }
 
       emitter.enter_scope
-      result = emitter.compile_body( decl.body )
+      result = emitter.compile_body( decl.body, drop_tail_ctor: decl.return_type.nil? )
       emitter.exit_scope
 
       # A struct has no heap indirection: `initialize` runs in its own callee
