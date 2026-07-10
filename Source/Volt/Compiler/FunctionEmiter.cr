@@ -483,7 +483,9 @@ module Volt::Compiler
     # constant.
     private def compile_string_lit( value : String ) : Int32
       info = @types[ "String" ]?
-      return const_reg( IR::Value.str( value ) ) unless info && info.kind.class? && info.initializer
+      unless info && info.kind.class? && info.initializer
+        raise "String class must be defined to use string literals"
+      end
 
       @chunk.strings << value
       ptr_reg   = const_reg( IR::Value.ptr( value.to_unsafe.as( Void* ) ) )
