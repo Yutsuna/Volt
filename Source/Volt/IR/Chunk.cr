@@ -13,6 +13,10 @@ module Volt::IR
     # Out-of-line operands for `CALL_MIXIN` (see `CallSite`) : indexed by the
     # instruction's `Bx`.
     property call_sites     : Array( CallSite )
+    # GC roots for string-literal bytes : a literal lowers to a `Tag::Ptr`
+    # constant pointing *into* one of these Crystal Strings, so the String
+    # object itself must stay reachable for as long as the chunk lives.
+    property strings        : Array( String )
 
     def initialize( @name : String, @arity : Int32 = 0 )
       @num_registers = 0
@@ -21,6 +25,7 @@ module Volt::IR
       @drop_map      = DropMap.new
       @scope_tables  = [] of Array( Int32 )
       @call_sites    = [] of CallSite
+      @strings       = [] of String
     end
 
     @raii_regs : Array( Int32 )? = nil
