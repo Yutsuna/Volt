@@ -211,6 +211,7 @@ module Volt::Frontend
   class PipeExpr < AExpr
     property left  : AExpr
     property right : AExpr
+    property desugared : AExpr? = nil
 
     def initialize( @left : AExpr, @right : AExpr, loc : Span )
       super( loc )

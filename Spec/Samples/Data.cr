@@ -67,6 +67,10 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "02.c.PrimitiveReopen.vl" => {exit_code: 0, stderr: "", stdout: "double: 42\nliteral receiver: 10\nnegative: 0\nchained: 84\nyes\nno\n"},
       #------------------------------------------------------------------------------------
+      "02.d.Pipeline.vl" => {exit_code: 0, stderr: "", stdout: "SUCCESS : [15]\n"},
+      #------------------------------------------------------------------------------------
+      "02.e.PipelineEdgeCases.vl" => {exit_code: 0, stderr: "", stdout: "PASS\n"*6},
+      #------------------------------------------------------------------------------------
     }
 
     def initialize( file_path : String )

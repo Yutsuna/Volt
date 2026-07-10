@@ -101,6 +101,7 @@ module Volt::Frontend
         infer( expr.to, scope )
         Type::UNKNOWN
       when MethodCall then infer_method_call( expr, scope )
+      when PipeExpr   then infer_pipe( expr, scope )
       when ReturnExpr
         if v = expr.value
           infer( v, scope )
@@ -941,6 +942,32 @@ module Volt::Frontend
       when .not_match_op? then "!~"
       else                kind.to_s
       end
+    end
+
+    private def infer_pipe( expr : PipeExpr, scope : Scope ) : Type
+      left = expr.left
+      right = expr.right
+      desugared : AExpr
+
+      case right
+      when Ident
+        desugared = Call.new( right, [ left.as( AExpr ) ] of AExpr, nil, right.loc )
+      when Call
+        desugared = Call.new( right.callee, Array( AExpr ){ left.as( AExpr ) } + right.args, right.block, right.loc )
+      when MemberAccess
+        desugared = MethodCall.new( right.receiver, right.name, [ left.as( AExpr ) ] of AExpr, nil, right.safe, right.loc )
+      when MethodCall
+        desugared = MethodCall.new( right.receiver, right.name, Array( AExpr ){ left.as( AExpr ) } + right.args, right.block, right.safe, right.loc )
+      else
+        @bag << Catalog::Sema.invalid_pipeline_target( right.loc )
+        return Type::UNKNOWN
+      end
+
+      resolved_ty = infer( desugared, scope )
+      expr.desugared = desugared
+      right.resolved_type = resolved_ty
+      expr.resolved_type = resolved_ty
+      resolved_ty
     end
 
     private def type_name( node : ANode ) : String
