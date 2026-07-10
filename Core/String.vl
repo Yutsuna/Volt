@@ -59,4 +59,8 @@ class String
     return false if @size != other.size
     memcmp( @ptr, other.data, @size ) == 0
   end
+
+  def =~( other : Regex ) -> Bool
+    volt_regex_match( other, @ptr, @size ) != 0
+  end
 end
