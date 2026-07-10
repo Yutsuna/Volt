@@ -138,8 +138,21 @@ module Volt::Compiler
         finalize_idx = @func_index[ "#{name}#finalize" ]? || -1
         drop_idx     = @func_index[ "#{name}#__drop_fields" ]? || -1
         dtor_idx     = @func_index[ "#{name}#__dtor" ]? || -1
-        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, dtor_idx, build_vtable( info ) )
+        vtable       = build_vtable( info )
+        mchunks      = build_method_chunks( info, vtable )
+        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, dtor_idx, vtable, mchunks )
       end
+    end
+
+    # Builds a name → chunk-index map from the class's vtable layout so the
+    # REPL can resolve a method (e.g. `inspect`) without emitting bytecode.
+    private def build_method_chunks( info : Frontend::TypeInfo, vtable : Array( Int32 ) ) : Hash( String, Int32 )
+      chunks = {} of String => Int32
+      info.vtable_layout.each do |method_name, slot_idx|
+        ci = vtable[ slot_idx ]?
+        chunks[ method_name ] = ci if ci && ci >= 0
+      end
+      chunks
     end
 
     # Resolves each vtable slot to the chunk that actually implements it for
