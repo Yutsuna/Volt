@@ -21,11 +21,10 @@ enum EValueTag
 	VAL_INT    = 0,
 	VAL_FLOAT  = 1,
 	VAL_BOOL   = 2,
-	VAL_STR    = 3,
-	VAL_REGEX  = 4,
-	VAL_NIL    = 5,
-	VAL_OBJECT = 6,
-	VAL_PTR    = 7
+	VAL_REGEX  = 3,
+	VAL_NIL    = 4,
+	VAL_OBJECT = 5,
+	VAL_PTR    = 6
 };
 
 enum EPtrWidth

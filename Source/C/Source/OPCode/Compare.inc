@@ -75,7 +75,6 @@ LEq:
 				case VAL_NIL:
 					Result = 1;
 					break;
-				case VAL_STR:
 				case VAL_REGEX:
 					goto LCold;
 				default:
@@ -131,7 +130,6 @@ LNe:
 				case VAL_NIL:
 					Result = 0;
 					break;
-				case VAL_STR:
 				case VAL_REGEX:
 					goto LCold;
 				default:
