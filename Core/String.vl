@@ -61,6 +61,6 @@ class String
   end
 
   def =~( other : Regex ) -> Bool
-    volt_regex_match( other, @ptr, @size ) != 0
+    __volt_regex_match( other, @ptr, @size ) != 0
   end
 end
