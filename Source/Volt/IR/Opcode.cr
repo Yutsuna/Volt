@@ -80,12 +80,7 @@ module Volt::IR
     # --- spaceship ---
     CMP_INT       # A,B,C : reg[A] = (reg[B] <=> reg[C])
 
-    # --- regex match ---
-    MATCH_STR     # A,B,C : reg[A] = reg[B] =~ reg[C]
-    NOT_MATCH_STR # A,B,C : reg[A] = !(reg[B] =~ reg[C])
 
-    # --- triple equal ---
-    EQ_CASE       # A,B,C : reg[A] = reg[B] === reg[C]
 
     # --- memory RAII ---
     INIT          # A, Bx : reg[A] = allocate(Bx)
@@ -137,16 +132,7 @@ module Volt::IR
     LOAD_GLOBAL   # A,Bx  : reg[A]      = globals[Bx]
     STORE_GLOBAL  # A,Bx  : globals[Bx] = reg[A]
 
-    # --- minimal string builtins ---
-    # `Int`/`Bool`/`String` each define a real `to_string` (`Core/Int.vl`,
-    # `Bool.vl`, `String.vl`) and dispatch through `CALL`/`CALL_METHOD`
-    # instead — this opcode is now only the `Float` fallback (no float->int
-    # cast exists yet to implement `Float#to_string` in pure Volt). Its VM
-    # handler (`Vm#to_string_value`) builds a real Core `String` instance,
-    # not a bare scalar : safe to feed into `String#+`/`#==` downstream.
-    # `CONCAT_STR` is gone : `String + String` now always dispatches through
-    # `String#+` (`compile_binary`'s nominal-operator path).
-    TO_STRING     # A,B   : reg[A] = String(reg[B].to_display)
+
 
     # --- peephole superinstructions (Compiler::Peephole, architecture #9) ---
     #
