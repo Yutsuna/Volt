@@ -153,7 +153,6 @@ module Volt::REPL
           jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
         end
 
-        next unless info.kind.class?
         info.mixins.each do |mixin_name|
           mixin_info = @typed.types[ mixin_name ]?
           next unless mixin_info
@@ -173,8 +172,21 @@ module Volt::REPL
         finalize_idx = @func_index[ "#{name}#finalize" ]? || -1
         drop_idx     = @func_index[ "#{name}#__drop_fields" ]? || -1
         dtor_idx     = @func_index[ "#{name}#__dtor" ]? || -1
-        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, dtor_idx, build_vtable( info ) )
+        vtable       = build_vtable( info )
+        mchunks      = build_method_chunks( info, vtable )
+        Runtime::ObjectModel::RClass.new( info.type_id, name, slots, finalize_idx, drop_idx, dtor_idx, vtable, mchunks )
       end
+    end
+
+    # Builds a name → chunk-index map from the class's vtable layout so the
+    # REPL can resolve a method (e.g. `inspect`) without emitting bytecode.
+    private def build_method_chunks( info : Frontend::TypeInfo, vtable : Array( Int32 ) ) : Hash( String, Int32 )
+      chunks = {} of String => Int32
+      info.vtable_layout.each do |method_name, slot_idx|
+        ci = vtable[ slot_idx ]?
+        chunks[ method_name ] = ci if ci && ci >= 0
+      end
+      chunks
     end
 
     private def build_vtable( info : Frontend::TypeInfo ) : Array( Int32 )
