@@ -138,8 +138,15 @@ module Volt::IR
     STORE_GLOBAL  # A,Bx  : globals[Bx] = reg[A]
 
     # --- minimal string builtins ---
-    TO_STRING     # A,B   : reg[A] = reg[B].to_display   (Int/Float/Bool/... -> String)
-    CONCAT_STR    # A,B,C : reg[A] = reg[B] + reg[C]      (String concatenation)
+    # `Int`/`Bool`/`String` each define a real `to_string` (`Core/Int.vl`,
+    # `Bool.vl`, `String.vl`) and dispatch through `CALL`/`CALL_METHOD`
+    # instead — this opcode is now only the `Float` fallback (no float->int
+    # cast exists yet to implement `Float#to_string` in pure Volt). Its VM
+    # handler (`Vm#to_string_value`) builds a real Core `String` instance,
+    # not a bare scalar : safe to feed into `String#+`/`#==` downstream.
+    # `CONCAT_STR` is gone : `String + String` now always dispatches through
+    # `String#+` (`compile_binary`'s nominal-operator path).
+    TO_STRING     # A,B   : reg[A] = String(reg[B].to_display)
 
     # --- peephole superinstructions (Compiler::Peephole, architecture #9) ---
     #
