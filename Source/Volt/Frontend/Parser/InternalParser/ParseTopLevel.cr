@@ -164,7 +164,8 @@ module Volt::Frontend
         when .ident?
           advance.value
         when .plus?, .minus?, .star?, .slash?, .percent?, .star_star?,
-             .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?
+             .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?,
+             .match_op?, .not_match_op?, .eq_eq_eq?
           advance.value
         else
           error!( Catalog::Parse.expected( TokenKind::Ident, @current ) )

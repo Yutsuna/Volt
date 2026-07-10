@@ -426,11 +426,6 @@ module Volt::Frontend
           .with_primary(span, "constructors must return an instance of the class")
       end
 
-      def non_interpolable_type( actual_type : String, span : Span ) : Diagnostic
-        Diagnostic.error( "S0051", "`#{actual_type}` does not define `to_string`" )
-          .with_primary( span, "define a `to_string -> String` method on this type to make it stringable/interpolable" )
-      end
-
       def break_outside_loop( span : Span ) : Diagnostic
         Diagnostic.error( "S0052", "`break` used outside of a loop" )
           .with_primary( span )
