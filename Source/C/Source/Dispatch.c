@@ -85,6 +85,7 @@ static inline Int64 FloorMod( Int64 A, Int64 B )
 /* File-scope copy of the function-local dispatch table, used by
    Volt_ThreadChunk to pre-thread bytecode outside Volt_Dispatch. */
 static Void* GDispatchTable[ 256 ];
+static Void* GFellOff    = 0;   /* &&LFellOff, used as end-of-chunk sentinel */
 static int   GTableReady = 0;
 
 Int32 Volt_Dispatch( FVmContext* Ctx )
@@ -183,9 +184,14 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 79 ] = &&LAddrField;
 		for ( int I = 0; I < 256; ++I )
 			GDispatchTable[ I ] = DispatchTable[ I ];
+		GFellOff    = &&LFellOff;
 		GTableReady = 1;
 		Inited = 1;
 	}
+
+	/* Init-only entry (Volt_ThreadChunk priming the label tables). */
+	if ( !Ctx )
+		return VM_HALT;
 
 	/* Hot locals. Rebound by REBIND on every CALL/RET/fall-through. */
 	const FChunkInfo* Chunks   = Ctx->Chunks;
@@ -196,14 +202,12 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 	Int32           FrameDepth = Ctx->FrameDepth;
 	Int32           StackTop = Ctx->StackTop;
 
-	const UInt32*   Code   = Chunks[ CurChunk ].Code;
-	Int32           Size   = Chunks[ CurChunk ].ThreadedCode ? Chunks[ CurChunk ].ThreadedSize : Chunks[ CurChunk ].CodeSize;
-	const FValue*     Consts = Chunks[ CurChunk ].Consts;
-	const UInt64*     ThreadedCode = Chunks[ CurChunk ].ThreadedCode;
-	FValue*           Regs   = Stack + Base;
+	Int32               Size   = Chunks[ CurChunk ].CodeSize;
+	const FValue*       Consts = Chunks[ CurChunk ].Consts;
+	const FThreadedIns* ThreadedCode = Chunks[ CurChunk ].ThreadedCode;
+	FValue*             Regs   = Stack + Base;
 
 	UInt32 Ins = 0;
-	UInt32 Op  = 0;
 
 #define SAVE_CURSOR()             \
 	Ctx->CurChunk   = CurChunk;   \
@@ -213,28 +217,19 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 	Ctx->StackTop   = StackTop
 
 #define REBIND()                                    \
-	Code         = Chunks[ CurChunk ].Code;         \
-	Size         = Chunks[ CurChunk ].ThreadedCode ? Chunks[ CurChunk ].ThreadedSize : Chunks[ CurChunk ].CodeSize; \
+	Size         = Chunks[ CurChunk ].CodeSize;     \
 	Consts       = Chunks[ CurChunk ].Consts;       \
 	ThreadedCode = Chunks[ CurChunk ].ThreadedCode; \
 	Regs         = Stack + Base
 
-#define DISPATCH()                                      \
-	do {                                                \
-		if ( Ip >= Size ) goto LFellOff;                \
-		if ( ThreadedCode )                             \
-		{                                               \
-			Ins = (UInt32)ThreadedCode[ Ip * 2 + 1 ];   \
-			Op  = Ins >> 24;                            \
-			{                                           \
-				Void* Target = (Void*)ThreadedCode[ Ip * 2 ]; \
-				Ip += 1;                                \
-				goto *Target;                           \
-			}                                           \
-		}                                               \
-		Ins = Code[ Ip++ ];                             \
-		Op  = Ins >> 24;                                \
-		goto *DispatchTable[ Op ];                      \
+/* Direct-threaded: one load pair + one indirect jump. No bounds check —
+   the sentinel entry at ThreadedCode[Size] jumps to LFellOff instead. */
+#define DISPATCH()                                  \
+	do {                                            \
+		Void* Target = ThreadedCode[ Ip ].Target;   \
+		Ins = ThreadedCode[ Ip ].Ins;               \
+		Ip += 1;                                    \
+		goto *Target;                               \
 	} while ( 0 )
 
 /* Operand accessors on the current instruction word. */
@@ -243,7 +238,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 #define OP_C  ( (Int32)( Ins & 0xFF ) )
 #define OP_BX ( (Int32)( Ins & 0xFFFF ) )
 #define PEEK_BX_AT_IP() \
-	( (Int32)( ( ( ThreadedCode ) ? (UInt32)ThreadedCode[ Ip * 2 + 1 ] : Code[ Ip ] ) & 0xFFFF ) )
+	( (Int32)( ThreadedCode[ Ip ].Ins & 0xFFFF ) )
 
 	DISPATCH();
 
@@ -270,60 +265,25 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 
 /* ---------------------------------------------------------------------------
  * Pre-thread a bytecode array so Volt_Dispatch can use direct-threaded goto.
- * OutThreaded must have room for CodeSize * 2 UInt64 entries.
- * Layout: [ handler_0, ins_0, handler_1, ins_1, ... ]
+ * OutThreaded must have room for CodeSize + 1 entries; the extra slot gets
+ * the LFellOff sentinel so the hot loop needs no bounds check.
  * ------------------------------------------------------------------------- */
-void Volt_ThreadChunk( const UInt32* Code, Int32 CodeSize, UInt64* OutThreaded )
+void Volt_ThreadChunk( const UInt32* Code, Int32 CodeSize, FThreadedIns* OutThreaded )
 {
-	/* If the dispatch table hasn't been initialised yet, force a single
-	   no-op dispatch pass to populate it.  This happens at most once. */
+	/* Populate the label-address tables on first use (init-only entry). */
 	if ( !GTableReady )
-	{
-		/* Build a minimal dummy context with a 1-instruction RET chunk. */
-		UInt32 DummyCode[1];
-		DummyCode[0] = ( (UInt32)33 /* RET */ ) << 24;  /* RET 0,0 */
-		FValue DummyStack[4];
-		for ( int I = 0; I < 4; ++I ) { DummyStack[I].Tag = VAL_NIL; DummyStack[I].Payload = (Void*)0; }
-		FChunkInfo DummyChunk;
-		DummyChunk.Code          = DummyCode;
-		DummyChunk.CodeSize      = 1;
-		DummyChunk.Consts        = NULL;
-		DummyChunk.NumRegisters  = 4;
-		DummyChunk.RaiiRegs      = NULL;
-		DummyChunk.RaiiRegsCount = 0;
-		DummyChunk.HasDropMap    = 0;
-		DummyChunk.Feedback      = NULL;
-		DummyChunk.ThreadedCode  = NULL;
-		DummyChunk.ThreadedSize  = 0;
-		FCallFrame DummyFrames[1];
-		FVmContext DummyCtx;
-		DummyCtx.Chunks        = &DummyChunk;
-		DummyCtx.ChunkCount    = 1;
-		DummyCtx.Stack         = DummyStack;
-		DummyCtx.StackCapacity = 4;
-		DummyCtx.Globals       = NULL;
-		DummyCtx.GlobalCount   = 0;
-		DummyCtx.Frames        = DummyFrames;
-		DummyCtx.FrameCap      = 1;
-		DummyCtx.CurChunk      = 0;
-		DummyCtx.Base          = 1;
-		DummyCtx.Ip            = 0;
-		DummyCtx.FrameDepth    = 0;
-		DummyCtx.StackTop      = 4;
-		DummyCtx.ColdOp        = 0;
-		DummyCtx.ResultSlots   = 0;
-		DummyCtx.ClassIndex    = NULL;
-		DummyCtx.ClassCount    = 0;
-		DummyCtx.UserData      = NULL;
-		DummyCtx.AllocObject   = NULL;
-		Volt_Dispatch( &DummyCtx );
-	}
+		Volt_Dispatch( NULL );
 
 	for ( Int32 I = 0; I < CodeSize; ++I )
 	{
 		UInt32 Ins = Code[ I ];
-		UInt32 Op  = Ins >> 24;
-		OutThreaded[ I * 2 ]     = (UInt64)(IntPtr)GDispatchTable[ Op ];
-		OutThreaded[ I * 2 + 1 ] = (UInt64)Ins;
+		OutThreaded[ I ].Target = GDispatchTable[ Ins >> 24 ];
+		OutThreaded[ I ].Ins    = Ins;
+		OutThreaded[ I ]._Pad   = 0;
 	}
+
+	/* Sentinel: falling off the end lands on LFellOff without any check. */
+	OutThreaded[ CodeSize ].Target = GFellOff;
+	OutThreaded[ CodeSize ].Ins    = 0;
+	OutThreaded[ CodeSize ]._Pad   = 0;
 }
