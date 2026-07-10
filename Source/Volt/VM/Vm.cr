@@ -55,6 +55,80 @@ module Volt::VM
       @class_index_size    = 0
       @class_vtable_keep   = [] of Array( Int32 )
       @class_needs_rebuild = true
+      # `-2` = not yet looked up, `-1` = looked up, no Core `String` class
+      # registered (bare-unit specs) — resolved once, lazily, on first use.
+      @string_type_id = -2
+    end
+
+    # `TO_STRING` (the still-existing catch-all for a type with no `to_string`
+    # method of its own — currently only `Float`, since `Int`/`Bool`/`String`
+    # each define a real one via `Core/Int.vl`/`Bool.vl`/`String.vl`) must
+    # produce a value usable everywhere a real `String` is : a bare legacy
+    # `Value.str(...)` is a different runtime shape than the Core `String`
+    # class (2-field heap object) and would corrupt any `String#+`/`#==`
+    # dispatch downstream. When the Core is loaded, builds a real `String`
+    # instance directly (bypassing `String#initialize`'s `CALL` — this runs
+    # from inside opcode dispatch, not a call site) with a fresh malloc'd
+    # copy of the formatted bytes (`owned = true`, freed normally by
+    # `finalize`). Falls back to the legacy `Value.str` only for specs that
+    # construct a bare `Vm`/`Unit` with no Core classes at all.
+    private def to_string_value( v : IR::Value ) : IR::Value
+      str = v.to_display
+      if @string_type_id == -2
+        @string_type_id = @registry.find_by_name( "String" ).try( &.type_id ) || -1
+      end
+      return IR::Value.str( str ) if @string_type_id < 0
+
+      bytes = str.to_slice
+      # Raw libc `malloc` (NOT `Pointer.malloc`/`GC.malloc`) : `String#finalize`
+      # (Volt-level) frees this pointer through the libc `free` extern, which
+      # is undefined behavior on GC-backed memory.
+      buf = LibC.malloc( ( bytes.size + 1 ).to_u64 ).as( UInt8* )
+      bytes.each_with_index { |b, i| buf[ i ] = b }
+      buf[ bytes.size ] = 0_u8
+
+      rclass = @registry[ @string_type_id ]
+      obj    = IR::HeapObject.allocate( @string_type_id, rclass.slot_count )
+      if box = @class_boxes[ @string_type_id ]?
+        obj.class_ref = box.as( Void* )
+      end
+      fields    = obj.fields
+      fields[0] = IR::Value.ptr( buf.as( Void* ) )
+      fields[1] = IR::Value.int( bytes.size.to_i64 )
+      fields[2] = IR::Value.bool( true )
+      IR::Value.object( obj )
+    end
+
+    # Human-readable rendering of any `Value`, `String`-class instances
+    # included : `Value#to_display`'s generic `Tag::Object` arm only knows
+    # `<object:id>` (it can't see method bodies), so a raised/REPL-printed
+    # `String` needs its bytes read directly off the known field layout
+    # (`ptr`, `size`, `owned` — slots 0/1/2, `Core/String.vl`'s declaration
+    # order) rather than calling back into `to_string` (this may run from
+    # inside `RAISE`/`unwind`, not a safe place to re-enter `execute`).
+    def display_value( v : IR::Value ) : String
+      volt_string( v ) || v.to_display
+    end
+
+    # Reads a `Value` as a Crystal `String` if it's string-shaped : either the
+    # legacy `Tag::Str` (bare-unit specs, or `Vm#to_string_value`'s no-Core
+    # fallback) or a real Core `String`-class instance (`Tag::Object` whose
+    # `type_id` matches the resolved "String" class — its bytes are read
+    # directly off the known field layout : `ptr`, `size`, `owned`, slots
+    # 0/1/2 per `Core/String.vl`'s declaration order). `nil` for anything
+    # else (an ordinary object, a Regex, ...).
+    def volt_string( v : IR::Value ) : String?
+      return v.as_s if v.tag.str?
+      return nil unless v.tag.object?
+      obj = v.as_object
+      if @string_type_id == -2
+        @string_type_id = @registry.find_by_name( "String" ).try( &.type_id ) || -1
+      end
+      return nil unless obj.type_id == @string_type_id
+      fields = obj.fields
+      ptr    = fields[0].as_ptr.as( UInt8* )
+      size   = fields[1].as_i.to_i32
+      String.new( ptr, size )
     end
 
     #--------------------------------------------------------------------------
@@ -391,11 +465,11 @@ module Volt::VM
       when .shl_int?, .shr_int?, .pow_int?
         frame[ ins.a ] = eval_arith( op, frame[ ins.b ], frame[ ins.c ] )
       when .to_string?
-        frame[ ins.a ] = IR::Value.str( frame[ ins.b ].to_display )
+        frame[ ins.a ] = to_string_value( frame[ ins.b ] )
       when .concat_str?
         frame[ ins.a ] = IR::Value.str( frame[ ins.b ].as_s + frame[ ins.c ].as_s )
       when .raise?
-        raise VoltRuntimeError.new( frame[ ins.a ].to_display )
+        raise VoltRuntimeError.new( display_value( frame[ ins.a ] ) )
       when .init?, .drop?, .drop_scope?
         exec_raii( frame, chunk, ins )
       when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
@@ -678,11 +752,11 @@ module Volt::VM
               enter_callee( callee, cbase )
 
             # ---- string builtins ----
-            when IR::Opcode::TO_STRING  then regs[ins.a] = IR::Value.str( regs[ins.b].to_display )
+            when IR::Opcode::TO_STRING  then regs[ins.a] = to_string_value( regs[ins.b] )
             when IR::Opcode::CONCAT_STR then regs[ins.a] = IR::Value.str( regs[ins.b].as_s + regs[ins.c].as_s )
 
             when IR::Opcode::RAISE
-              raise VoltRuntimeError.new( regs[ins.a].to_display )
+              raise VoltRuntimeError.new( display_value( regs[ins.a] ) )
 
             # ---- cold / rare : delegate to family handlers ----
             when IR::Opcode::CONV_INT
