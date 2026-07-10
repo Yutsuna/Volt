@@ -42,9 +42,9 @@ module Volt::CLI
       Logger.info( "Running semantic analysis", "check" )
 
       typed = begin
-        Frontend.analyse( source, file )
+        Frontend.analyse( Volt::Core.inject( Frontend.parse( source, file ) ) )
       rescue e : Frontend::CompilationError
-        DiagnosticRenderer.new( { file => source } ).render( e.bag )
+        DiagnosticRenderer.new( Volt::Core.merge_sources( { file => source } ) ).render( e.bag )
         raise SystemExit.new
       end
 
@@ -67,9 +67,9 @@ module Volt::CLI
 
       resolver = Volt::Circuit::Resolver.new( manifest )
       typed = begin
-        Frontend.analyse( resolver.resolve.program )
+        Frontend.analyse( Volt::Core.inject( resolver.resolve.program ) )
       rescue e : Frontend::CompilationError
-        DiagnosticRenderer.new( resolver.sources ).render( e.bag )
+        DiagnosticRenderer.new( Volt::Core.merge_sources( resolver.sources ) ).render( e.bag )
         raise SystemExit.new
       end
 

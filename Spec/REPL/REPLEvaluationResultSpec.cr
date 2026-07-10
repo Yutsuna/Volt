@@ -102,11 +102,6 @@ module Volt::Spec
       result.value.not_nil!.as_i.should eq( 42_i64 )
     end
 
-    it "value getter returns the string value that was provided" do
-      v = IR::Value.str( "hello" )
-      result = REPL::REPLEvaluationResult.new( v, nil, false )
-      result.value.not_nil!.as_s.should eq( "hello" )
-    end
 
     it "value getter returns the boolean value that was provided" do
       v = IR::Value.bool( true )

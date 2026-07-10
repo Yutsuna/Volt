@@ -7,12 +7,15 @@ end
 
 module Volt::VM
 
-  # Generic FFI signatures represented by machine pointers
-  alias CFunc0 = -> Void*
-  alias CFunc1 = Void* -> Void*
-  alias CFunc2 = Void*, Void* -> Void*
-  alias CFunc3 = Void*, Void*, Void* -> Void*
-  alias CFunc4 = Void*, Void*, Void*, Void* -> Void*
+  # Universal FFI signature. On the SysV (x86-64) and AAPCS64 ABIs the
+  # floating-point and integer argument registers are assigned independently
+  # (xmm0-3 / v0-v3 vs rdi-rcx / x0-x3), so ONE Proc type whose first four
+  # params are Float64 and next four are Void* can call any C function taking
+  # up to 4 float and 4 integer/pointer arguments : the callee reads each of
+  # its declared params from the register class its own prototype dictates,
+  # regardless of how the extra (garbage) registers were filled here.
+  # Variadic callees stay unsupported (the AL vector count is not set).
+  alias CFuncUni = Float64, Float64, Float64, Float64, Void*, Void*, Void*, Void* -> Void*
 
   # Exact mirror structure of the internal structure of a Crystal Proc (16 bytes)
   # Allows recreating the wrapper on the stack without touching the execution machine code.
@@ -32,10 +35,10 @@ module Volt::VM
       # passed as the raw two's-complement bit pattern in the pointer's address
       # bits, so a negative `Int64` must reinterpret rather than range-check.
       # (`to_u64` raises `OverflowError` on any negative value — the old bug.)
-      when IR::Value::Tag::Int then Pointer(Void).new(val.as_i.to_u64!)
-      when IR::Value::Tag::Str then val.as_s.to_unsafe.as(Void*)
-      when IR::Value::Tag::Ptr then val.as_ptr
-      else                          Pointer(Void).null
+      when IR::Value::Tag::Int                     then Pointer(Void).new(val.as_i.to_u64!)
+      when IR::Value::Tag::Ptr, IR::Value::Tag::Regex,
+           IR::Value::Tag::Object, IR::Value::Tag::Bool then val.as_ptr
+      else                                         Pointer(Void).null
       end
     end
 
@@ -77,36 +80,48 @@ module Volt::VM
     end
 
     def call_native(native_idx : Int32, args : Slice( IR::Value )) : IR::Value
-      ptr  = resolve_native(native_idx)
-      argc = args.size
-      if argc > 4
-        raise VoltRuntimeError.new("Native FFI error: Tier-0 interpreter supports max 4 arguments for `#{@unit.natives[native_idx].name}`")
+      ptr = resolve_native(native_idx)
+
+      # Split the Volt args by register class (see `CFuncUni`) : floats fill
+      # the xmm/v slots in order, everything else the integer slots in order.
+      f_args = StaticArray(Float64, 4).new(0.0)
+      i_args = StaticArray(Void*, 4).new(Pointer(Void).null)
+      fc = 0
+      ic = 0
+      args.each do |arg|
+        if arg.tag.float?
+          raise VoltRuntimeError.new("Native FFI error: Tier-0 interpreter supports max 4 float arguments for `#{@unit.natives[native_idx].name}`") if fc == 4
+          f_args[fc] = arg.as_f
+          fc += 1
+        else
+          raise VoltRuntimeError.new("Native FFI error: Tier-0 interpreter supports max 4 integer/pointer arguments for `#{@unit.natives[native_idx].name}`") if ic == 4
+          i_args[ic] = to_c_arg(arg)
+          ic += 1
+        end
       end
 
-      c_args = StaticArray(Void*, 4).new(Pointer(Void).null)
-      argc.times { |i| c_args[i] = to_c_arg(args[i]) }
       wrapper = CFuncWrapper.new(ptr, Pointer(Void).null)
-
-      res = case argc
-      when 0
-        c_func = pointerof(wrapper).as(CFunc0*).value
-        c_func.call()
-      when 1
-        c_func = pointerof(wrapper).as(CFunc1*).value
-        c_func.call(c_args[0])
-      when 2
-        c_func = pointerof(wrapper).as(CFunc2*).value
-        c_func.call(c_args[0], c_args[1])
-      when 3
-        c_func = pointerof(wrapper).as(CFunc3*).value
-        c_func.call(c_args[0], c_args[1], c_args[2])
-      else
-        c_func = pointerof(wrapper).as(CFunc4*).value
-        c_func.call(c_args[0], c_args[1], c_args[2], c_args[3])
-      end
+      c_func  = pointerof(wrapper).as(CFuncUni*).value
+      res = c_func.call(f_args[0], f_args[1], f_args[2], f_args[3],
+                        i_args[0], i_args[1], i_args[2], i_args[3])
 
       IR::Value.int(res.address.to_i64)
     end
   end
 
+end
+
+# Runtime helper for Volt regex matching, resolved via FFI.
+fun __volt_regex_match(regex : Void*, str : UInt8*, len : Int64) : Bool
+  rx = regex.unsafe_as(Regex)
+  slice = Slice.new(str, len)
+  s = String.new(slice)
+  rx.matches?(s)
+end
+
+# Runtime helper for Volt float formatting, resolved via FFI.
+fun volt_format_float(val : Float64, buf : UInt8*) : Int32
+  s = val.to_s
+  s.to_unsafe.copy_to(buf, s.bytesize + 1)
+  s.bytesize
 end

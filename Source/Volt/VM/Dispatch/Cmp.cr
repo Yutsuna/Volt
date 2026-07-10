@@ -21,15 +21,6 @@ module Volt::VM
       when IR::Opcode::GT_F64        then IR::Value.bool( b.as_f > c.as_f )
       when IR::Opcode::GE_F64        then IR::Value.bool( b.as_f >= c.as_f )
       when IR::Opcode::CMP_INT       then IR::Value.int( ( b.as_i <=> c.as_i ).to_i64 )
-      when IR::Opcode::EQ_CASE
-        res = if b.tag == IR::Value::Tag::Regex && c.tag == IR::Value::Tag::Str
-          b.as_regex.matches?( c.as_s )
-        else
-          b == c
-        end
-        IR::Value.bool( res )
-      when IR::Opcode::MATCH_STR     then IR::Value.bool( c.as_regex.matches?( b.as_s ) )
-      when IR::Opcode::NOT_MATCH_STR then IR::Value.bool( !c.as_regex.matches?( b.as_s ) )
       else
         raise VoltRuntimeError.new( "unhandled comparison opcode #{op}" )
       end

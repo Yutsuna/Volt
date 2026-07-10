@@ -97,9 +97,9 @@ module Volt::CLI
       end
 
       typed = begin
-        Frontend.analyse( resolution.program )
+        Frontend.analyse( Volt::Core.inject( resolution.program ) )
       rescue e : Frontend::CompilationError
-        DiagnosticRenderer.new( resolution.sources ).render( e.bag )
+        DiagnosticRenderer.new( Volt::Core.merge_sources( resolution.sources ) ).render( e.bag )
         raise SystemExit.new
       end
 
@@ -107,10 +107,10 @@ module Volt::CLI
     end
 
     private def interpret( source : String, filename : String )
-      typed = Frontend.analyse( source, filename )
+      typed = Frontend.analyse( Volt::Core.inject( Frontend.parse( source, filename ) ) )
       execute_vm( typed )
     rescue e : Frontend::CompilationError
-      DiagnosticRenderer.new( { filename => source } ).render( e.bag )
+      DiagnosticRenderer.new( Volt::Core.merge_sources( { filename => source } ) ).render( e.bag )
       raise SystemExit.new
     end
 

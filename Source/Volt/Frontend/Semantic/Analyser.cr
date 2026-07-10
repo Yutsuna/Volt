@@ -32,8 +32,10 @@ module Volt::Frontend
         case node
         when ExternDecl
           @sigs.collect_extern( node )
+          @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
         when FuncDecl
           @sigs.collect( node, @nominals )
+          @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
           @functions << node
         when AExpr
           @top_level << node
@@ -42,6 +44,15 @@ module Volt::Frontend
         else
           @bag << Catalog::Sema.unsupported_top_level( type_name( node ), node.loc )
         end
+      end
+
+      # A shadowed Core function must not keep its body around : the surviving
+      # signature is the user's, and `BytecodeCompiler` indexes chunks by name
+      # — the stale body would be checked against the wrong signature and
+      # compiled into a dead chunk.
+      @functions.select! do |fn|
+        sig = @sigs[ fn.name ]?
+        sig.nil? || sig.decl_span == fn.loc
       end
     end
 

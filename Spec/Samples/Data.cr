@@ -19,7 +19,7 @@ module Volt::Spec
       #------------------------------------------------------------------------------------
       "01.b.Arithmetic.vl"  =>  {exit_code: 0,  stderr: "", stdout: "PASS\n"*44},
       #------------------------------------------------------------------------------------
-      "01.c.Macro.vl"       =>  {exit_code: 0,  stderr: "", stdout: "[INFO] #{File.dirname(SAMPLES_01_DIR)}/01.c.Macro.vl (line 9) : expression is: foo\n[INFO] #{File.dirname(SAMPLES_01_DIR)}/01.c.Macro.vl (line 11) : expression is: bar\n"},
+      "01.c.Macro.vl"       =>  {exit_code: 0,  stderr: "", stdout: "[INFO] #{File.dirname(SAMPLES_01_DIR)}/01.c.Macro.vl (line 6) : expression is: foo\n[INFO] #{File.dirname(SAMPLES_01_DIR)}/01.c.Macro.vl (line 8) : expression is: bar\n"},
       #------------------------------------------------------------------------------------
       "01.d.MacroControl.vl" => {exit_code: 0,  stderr: "", stdout: "LOW\nHIGH\na fruit\na vegetable\nunknown\n"},
       #------------------------------------------------------------------------------------
@@ -64,6 +64,8 @@ module Volt::Spec
       "02.vl" => {exit_code: 0, stderr: "", stdout: ""},
       #------------------------------------------------------------------------------------
       "02.b.Hash.vl" => {exit_code: 0, stderr: "", stdout: "PASS GET A\nPASS GET B\nPASS UPDATE A\nPASS HAS B\nPASS NOT HAS C\n"},
+      #------------------------------------------------------------------------------------
+      "02.c.PrimitiveReopen.vl" => {exit_code: 0, stderr: "", stdout: "double: 42\nliteral receiver: 10\nnegative: 0\nchained: 84\nyes\nno\n"},
       #------------------------------------------------------------------------------------
     }
 

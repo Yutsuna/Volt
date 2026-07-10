@@ -1,17 +1,13 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-end
-
 class DatabaseConnection
   id : Int64
 
   def initialize(id : Int64)
     @id = id
-    puts("CONNECTED DB " + @id.to_s)
+    puts("CONNECTED DB " + @id.to_string)
   end
 
   def finalize
-    puts("DISCONNECTED DB " + @id.to_s)
+    puts("DISCONNECTED DB " + @id.to_string)
   end
 end
 

@@ -1,7 +1,3 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-
-
 class Vehicle
   name  : String
   speed : Int64
@@ -13,7 +9,7 @@ class Vehicle
   end
 
   def describe -> Void
-    puts("Vehicle " + @name + " @ " + @speed.to_s + "km/h")
+    puts("Vehicle " + @name + " @ " + @speed.to_string + "km/h")
   end
 
   def label(prefix : String) -> String
@@ -33,7 +29,7 @@ class Car < Vehicle
 
   def describe -> Void
     super
-    puts("Car with " + @wheels.to_s + " wheels")
+    puts("Car with " + @wheels.to_string + " wheels")
   end
 
   def label(prefix : String) -> String

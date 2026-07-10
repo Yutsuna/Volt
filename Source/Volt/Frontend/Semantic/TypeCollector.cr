@@ -56,6 +56,24 @@ module Volt::Frontend
         else                 return
         end
 
+      # Reopening a primitive (`struct Int … end` in the Core, possibly
+      # again in user code) attaches methods to a builtin : no `NominalType`
+      # is registered — the name keeps resolving to the primitive in
+      # annotations — only a `TypeInfo` carrying the method table. Unlike a
+      # real class/struct, a primitive reopening is additive "monkey
+      # patching": a second `struct Int … end` elsewhere merges its methods
+      # into the same `TypeInfo` rather than duplicate-erroring.
+      # `resolve` routes it to `resolve_primitive_reopen`.
+      if node.is_a?( StructDecl ) && Type.from_primitive_name( name )
+        if existing = @decls[ name ]?
+          existing.as( StructDecl ).body.concat( node.body )
+          return
+        end
+        @decls[ name ] = node
+        @types[ name ] = TypeInfo.new( NominalKind::Struct, name, @decls.size - 1 )
+        return
+      end
+
       if @decls.has_key?( name )
         @bag << Catalog::Sema.duplicate_definition( name, node.loc, @decls[ name ].loc )
         return
@@ -183,9 +201,28 @@ module Volt::Frontend
     end
 
     private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil
+      return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name )
+
       fields      = collect_fields( node.body, nil )
       byte_layout = TypeLayout.pack( fields )
       set_layout( info, byte_layout, build_reg_layout( byte_layout, nil ) )
+      collect_methods( node.body, info )
+    end
+
+    # A primitive reopening carries methods only : a builtin's representation
+    # is fixed (one register slot, no heap layout), so fields and the
+    # construction/destruction lifecycle are meaningless on it.
+    private def resolve_primitive_reopen( node : StructDecl, info : TypeInfo ) : Nil
+      node.body.each do |n|
+        case n
+        when FieldDecl
+          @bag << Catalog::Sema.unsupported_expr( "field declaration in primitive type `#{info.name}`", n.loc )
+        when FuncDecl
+          if n.name == "initialize" || n.name == "finalize"
+            @bag << Catalog::Sema.unsupported_expr( "`#{n.name}` in primitive type `#{info.name}`", n.loc )
+          end
+        end
+      end
       collect_methods( node.body, info )
     end
 
