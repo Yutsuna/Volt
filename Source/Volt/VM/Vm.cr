@@ -140,7 +140,7 @@ module Volt::VM
         # Direct-threaded dispatch: pre-thread the bytecode
         if c.code.size > 0
           threaded = Pointer(UInt64).malloc((c.code.size * 2).to_u64)
-          LibVoltDispatch.thread_chunk(c.code.to_unsafe.as(Void*), c.code.size, threaded.as(Void*))
+          LibVoltDispatch.thread_chunk(c.code.to_unsafe.as(UInt32*), c.code.size, threaded)
           info.threaded_code = threaded.as(Void*)
           info.threaded_size = c.code.size
           threaded_keep << threaded
