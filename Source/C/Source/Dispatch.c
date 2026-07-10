@@ -197,7 +197,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 	Int32           StackTop = Ctx->StackTop;
 
 	const UInt32*   Code   = Chunks[ CurChunk ].Code;
-	Int32           Size   = Chunks[ CurChunk ].CodeSize;
+	Int32           Size   = Chunks[ CurChunk ].ThreadedCode ? Chunks[ CurChunk ].ThreadedSize : Chunks[ CurChunk ].CodeSize;
 	const FValue*     Consts = Chunks[ CurChunk ].Consts;
 	const UInt64*     ThreadedCode = Chunks[ CurChunk ].ThreadedCode;
 	FValue*           Regs   = Stack + Base;
@@ -214,7 +214,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 
 #define REBIND()                                    \
 	Code         = Chunks[ CurChunk ].Code;         \
-	Size         = Chunks[ CurChunk ].CodeSize;     \
+	Size         = Chunks[ CurChunk ].ThreadedCode ? Chunks[ CurChunk ].ThreadedSize : Chunks[ CurChunk ].CodeSize; \
 	Consts       = Chunks[ CurChunk ].Consts;       \
 	ThreadedCode = Chunks[ CurChunk ].ThreadedCode; \
 	Regs         = Stack + Base
@@ -242,6 +242,8 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 #define OP_B  ( (Int32)( ( Ins >> 8 ) & 0xFF ) )
 #define OP_C  ( (Int32)( Ins & 0xFF ) )
 #define OP_BX ( (Int32)( Ins & 0xFFFF ) )
+#define PEEK_BX_AT_IP() \
+	( (Int32)( ( ( ThreadedCode ) ? (UInt32)ThreadedCode[ Ip * 2 + 1 ] : Code[ Ip ] ) & 0xFFFF ) )
 
 	DISPATCH();
 
@@ -263,6 +265,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 #undef OP_B
 #undef OP_C
 #undef OP_BX
+#undef PEEK_BX_AT_IP
 }
 
 /* ---------------------------------------------------------------------------
