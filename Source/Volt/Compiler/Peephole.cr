@@ -30,9 +30,9 @@ module Volt::Compiler
       IR::Opcode::NOT_INT, IR::Opcode::IDIV_INT, IR::Opcode::POW_INT, IR::Opcode::LT_INT,
       IR::Opcode::LE_INT, IR::Opcode::GT_INT, IR::Opcode::GE_INT, IR::Opcode::LT_F64,
       IR::Opcode::LE_F64, IR::Opcode::GT_F64, IR::Opcode::GE_F64, IR::Opcode::EQ, IR::Opcode::NE,
-      IR::Opcode::EQ_INT, IR::Opcode::NE_INT, IR::Opcode::CMP_INT, IR::Opcode::EQ_CASE,
-      IR::Opcode::MATCH_STR, IR::Opcode::NOT_MATCH_STR, IR::Opcode::NOT, IR::Opcode::TO_STRING,
-      IR::Opcode::CONCAT_STR, IR::Opcode::LOAD_GLOBAL, IR::Opcode::LOAD_FIELD, IR::Opcode::INIT_OBJ,
+      IR::Opcode::EQ_INT, IR::Opcode::NE_INT, IR::Opcode::CMP_INT,
+      IR::Opcode::NOT,
+      IR::Opcode::LOAD_GLOBAL, IR::Opcode::LOAD_FIELD, IR::Opcode::INIT_OBJ,
       IR::Opcode::ADD_INT_IMM, IR::Opcode::SUB_INT_IMM, IR::Opcode::EQ_INT_IMM, IR::Opcode::NE_INT_IMM,
     }
 
@@ -85,7 +85,7 @@ module Volt::Compiler
     private def self.reads_of( chunk : IR::Chunk, ins : IR::Instruction ) : Array( Int32 )
       case ins.op
       when IR::Opcode::MOVE, IR::Opcode::NOT, IR::Opcode::NEG_INT, IR::Opcode::NEG_F64,
-           IR::Opcode::NOT_INT, IR::Opcode::TO_STRING, IR::Opcode::LOAD_FIELD
+           IR::Opcode::NOT_INT, IR::Opcode::LOAD_FIELD
         [ ins.b ]
       when IR::Opcode::ADD_INT, IR::Opcode::SUB_INT, IR::Opcode::MUL_INT, IR::Opcode::DIV_INT,
            IR::Opcode::MOD_INT, IR::Opcode::ADD_F64, IR::Opcode::SUB_F64, IR::Opcode::MUL_F64,
@@ -94,8 +94,8 @@ module Volt::Compiler
            IR::Opcode::LT_INT, IR::Opcode::LE_INT, IR::Opcode::GT_INT, IR::Opcode::GE_INT,
            IR::Opcode::LT_F64, IR::Opcode::LE_F64, IR::Opcode::GT_F64, IR::Opcode::GE_F64,
            IR::Opcode::EQ, IR::Opcode::NE, IR::Opcode::EQ_INT, IR::Opcode::NE_INT,
-           IR::Opcode::CMP_INT, IR::Opcode::EQ_CASE, IR::Opcode::MATCH_STR, IR::Opcode::NOT_MATCH_STR,
-           IR::Opcode::CONCAT_STR, IR::Opcode::ADD_INT_IMM, IR::Opcode::SUB_INT_IMM,
+           IR::Opcode::CMP_INT,
+           IR::Opcode::ADD_INT_IMM, IR::Opcode::SUB_INT_IMM,
            IR::Opcode::EQ_INT_IMM, IR::Opcode::NE_INT_IMM,
            IR::Opcode::BR_LT_INT, IR::Opcode::BR_LE_INT, IR::Opcode::BR_GT_INT,
            IR::Opcode::BR_GE_INT, IR::Opcode::BR_EQ_INT, IR::Opcode::BR_NE_INT

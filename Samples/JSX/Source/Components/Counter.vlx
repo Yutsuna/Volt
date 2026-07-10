@@ -13,7 +13,7 @@
 #       ]),
 #       Volt::JSX.element("span", {}, [
 #         Volt::JSX.text("Count: "),
-#         Volt::JSX.text(@count.to_s)
+#         Volt::JSX.text(@count.to_string)
 #       ])
 #    ])
 #   end

@@ -180,6 +180,28 @@ module Volt::Frontend
       end
     end
 
+    # The type-table names a method call on a primitive receiver resolves
+    # through, in lookup order: the exact width first (`"Int32"`), then the
+    # inferred family (`"Int"`). These are the names a Core (or user)
+    # `struct Int … end` reopening may be declared under. Non-primitive and
+    # pointer types have no reopening — they resolve nominally.
+    def reopen_names : Array( String )
+      case kind
+      when .int?, .int8?, .int16?, .int32?, .int64?
+        kind.int? ? [ "Int" ] : [ to_s, "Int" ]
+      when .u_int?, .u_int8?, .u_int16?, .u_int32?, .u_int64?
+        kind.u_int? ? [ "UInt", "Int" ] : [ to_s, "UInt", "Int" ]
+      when .float?, .float32?, .float64?
+        kind.float? ? [ "Float" ] : [ to_s, "Float" ]
+      when .bool?
+        [ "Bool" ]
+      when .regex?
+        [ "Regex" ]
+      else
+        [] of String
+      end
+    end
+
     def self.from_primitive_name( name : String ) : Type?
       case name
       when "Int8"                          then INT8
@@ -196,7 +218,6 @@ module Volt::Frontend
       when "Float32"                       then FLOAT32
       when "Float64"                       then FLOAT64
       when "Bool"                          then BOOL
-      when "String"                        then STR
       when "Nil", "Void"                   then NIL
       when "Regex"                         then REGEX
       else                                 nil

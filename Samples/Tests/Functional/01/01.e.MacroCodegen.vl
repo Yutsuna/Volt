@@ -1,8 +1,3 @@
-@[External("libc")]
-def puts( str : String ) -> Int32
-end
-
-
 # Code generation and macro composition, mirroring Crystal.
 #
 #   * `def greet_{{who.id}}` pastes the interpolation directly onto the identifier

@@ -142,7 +142,11 @@ module Volt::CLI
 
     private def display_result( val : IR::Value? ) : Nil
       return if val.nil? || val.is_nil?
-      raw_display = val.to_display
+      raw_display = if (vm = @session.vm)
+        vm.display_value( val )
+      else
+        val.to_display
+      end
       puts "=> #{REPL::REPLSyntaxHighlighter.highlight(raw_display)}"
     end
 

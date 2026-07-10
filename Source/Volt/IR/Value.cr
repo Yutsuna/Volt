@@ -88,7 +88,6 @@ module Volt::IR
       Int
       Float
       Bool
-      Str
       Regex
       Nil
       Object
@@ -104,7 +103,6 @@ module Volt::IR
     def self.int( v : Int64 ) : Value           ; new( Tag::Int, v.unsafe_as( Pointer( Void ) ) )       ; end
     def self.float( v : Float64 ) : Value       ; new( Tag::Float, v.unsafe_as( Pointer( Void ) ) )     ; end
     def self.bool( v : Bool ) : Value           ; new( Tag::Bool, Pointer( Void ).new( v ? 1_u64 : 0_u64 ) ) ; end
-    def self.str( v : String ) : Value          ; new( Tag::Str, v.unsafe_as( Pointer( Void ) ) )       ; end
     def self.regex( v : ::Regex ) : Value       ; new( Tag::Regex, v.unsafe_as( Pointer( Void ) ) )     ; end
     def self.nil_value : Value                  ; new( Tag::Nil, Pointer( Void ).null )                 ; end
     def self.object( obj : HeapObject ) : Value ; new( Tag::Object, obj.to_unsafe )                     ; end
@@ -114,16 +112,9 @@ module Volt::IR
     def as_i : Int64                      ; @payload.unsafe_as( Int64 )               ; end
     def as_f : Float64                    ; @payload.unsafe_as( Float64 )             ; end
     def as_bool : Bool                    ; !@payload.null?                           ; end
-    def as_s : String                     ; @payload.unsafe_as( String )              ; end
     def as_regex : ::Regex                ; @payload.unsafe_as( ::Regex )             ; end
     def as_object : HeapObject            ; HeapObject.new( @payload )                ; end
-    def as_ptr : Pointer( Void )
-      if @tag.str?
-        as_s.to_unsafe.as( Pointer( Void ) )
-      else
-        @payload
-      end
-    end
+    def as_ptr : Pointer( Void )          ; @payload                                  ; end
 
     def as_ptr_u64 : UInt64
       as_ptr.address
@@ -143,7 +134,6 @@ module Volt::IR
       when Tag::Nil    then "nil"
       when Tag::Regex  then as_regex.source
       when Tag::Object then "<object:#{as_object.type_id}>"
-      when Tag::Str    then as_s
       when Tag::Bool   then as_bool.to_s
       when Tag::Float  then as_f.to_s
       when Tag::Ptr    then "<ptr:0x" + as_ptr_u64.to_s( 16 ) + ">"
@@ -167,7 +157,6 @@ module Volt::IR
       return false unless t1 == t2
       case t1
       when Tag::Bool   then as_bool   == other.as_bool
-      when Tag::Str    then as_s      == other.as_s
       when Tag::Regex  then as_regex  == other.as_regex
       when Tag::Object then as_object == other.as_object
       when Tag::Ptr    then as_ptr_u64 == other.as_ptr_u64

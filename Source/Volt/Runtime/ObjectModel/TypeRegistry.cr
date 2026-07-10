@@ -20,6 +20,13 @@ module Volt::Runtime::ObjectModel
     def []?( id : Int32 ) : RClass?
       @by_id[ id ]?
     end
+
+    # Linear scan, only ever used for a one-time, memoised lookup (`Vm` caches
+    # the resolved `type_id`) — never on a hot path.
+    def find_by_name( name : String ) : RClass?
+      @by_id.each_value { |c| return c if c.name == name }
+      nil
+    end
   end
 
 

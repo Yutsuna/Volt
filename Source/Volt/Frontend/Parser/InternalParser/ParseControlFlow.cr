@@ -138,10 +138,9 @@ module Volt::Frontend
     end
 
     # `"a #{expr} b"` desugars, at parse time, into a left-folded string
-    # concatenation `"a " + (expr).to_s + " b"`, reusing the existing `+`
-    # (CONCAT_STR) and `.to_s` machinery. A string with no `#{` interpolation
+    # concatenation `"a " + (expr).to_string + " b"`, reusing the existing `+`
+    # and `.to_string` machinery. A string with no `#{` interpolation
     # is returned as a plain `StringLit`, unchanged.
-    # `"a #{expr} b"` desugars, at parse time, into a left-folded string
     private def parse_string_literal( tok : Token ) : AExpr
       content = strip_quotes( tok )
 
@@ -153,7 +152,7 @@ module Volt::Frontend
         piece = case part
                 # On unescape également les segments littéraux au sein d'une interpolation
                 in String   then StringLit.new( unescape(part), tok.span ).as( AExpr )
-                in AExpr     then MemberAccess.new( part, "to_s", false, tok.span ).as( AExpr )
+                in AExpr     then MemberAccess.new( part, "to_string", false, tok.span ).as( AExpr )
                 end
         result = result.nil? ? piece : BinaryOp.new( result, TokenKind::Plus, piece, tok.span )
       end
