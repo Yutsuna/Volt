@@ -149,16 +149,23 @@ module Volt::Compiler
 
     #------------------------------------------------------------------------------------
 
-    def compile_body( nodes : Array( Frontend::ANode ) ) : Int32
+    # `drop_tail_ctor`: whether a bare `Type.new(...)` in TAIL position also
+    # gets tracked for `exit_scope` to DROP. A function/method body passes
+    # `false` when its signature carries an explicit `-> SomeClass`
+    # annotation — that's the API contract declaring the constructed value
+    # escapes to the caller, so `exit_scope` (which runs before `RET`) must
+    # not free it out from under the return. Every other body — a function
+    # with no return annotation (its bare tail ctor is fire-and-forget, e.g.
+    # `def f; Logger.new(...); end` — nothing ever reads the "return"), and
+    # every nested `if`/`while` block — keeps the default `true`.
+    def compile_body( nodes : Array( Frontend::ANode ), drop_tail_ctor : Bool = true ) : Int32
       last = -1
-      nodes.each do |node|
+      nodes.each_with_index do |node, i|
         expr = node.as( Frontend::AExpr )
         last = compile_expr( expr )
-        # A bare `Type.new(...)` in statement position creates an object
-        # nobody owns : track the temporary so `exit_scope` DROPs it. Only
-        # constructor calls qualify — an assignment or a field/variable read
-        # of object type is owned elsewhere and must not be dropped here.
-        if ctor_temp?( expr ) && ( t = expr.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
+        is_tail = i == nodes.size - 1
+        if ( !is_tail || drop_tail_ctor ) && ctor_temp?( expr ) &&
+           ( t = expr.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
           track_raii_resource( last, t.type_id )
         end
       end
@@ -182,7 +189,7 @@ module Volt::Compiler
       case expr
       when Frontend::IntLit     then const_reg( IR::Value.int( expr.value ) )
       when Frontend::FloatLit   then const_reg( IR::Value.float( expr.value ) )
-      when Frontend::StringLit  then const_reg( IR::Value.str( expr.value ) )
+      when Frontend::StringLit  then compile_string_lit( expr.value )
       when Frontend::RegexLit
         const_reg( IR::Value.regex( ::Regex.new( expr.value ) ) )
       when Frontend::BoolLit
@@ -215,7 +222,7 @@ module Volt::Compiler
         val_reg
       when Frontend::TypeofExpr
         t = expr.resolved_operand_type || Frontend::Type::UNKNOWN
-        const_reg( IR::Value.str( t.to_s ) )
+        compile_string_lit( t.to_s )
       else
         raise "internal: unlowerable node #{expr.class.name} (should be rejected by Semantic)"
       end
@@ -468,8 +475,35 @@ module Volt::Compiler
       dest
     end
 
+    # A string literal lowers to `String.new( <bytes>, <size>, false )` on the
+    # Core `String` class : a `Tag::Ptr` constant into the chunk-rooted,
+    # null-terminated bytes plus the compile-time byte size — a *borrowed*
+    # instance (`owned = false`), so its `finalize` never frees static memory.
+    # Without the Core (bare unit specs), falls back to the legacy Tag::Str
+    # constant.
+    private def compile_string_lit( value : String ) : Int32
+      info = @types[ "String" ]?
+      return const_reg( IR::Value.str( value ) ) unless info && info.kind.class? && info.initializer
+
+      @chunk.strings << value
+      ptr_reg   = const_reg( IR::Value.ptr( value.to_unsafe.as( Void* ) ) )
+      size_reg  = const_reg( IR::Value.int( value.bytesize.to_i64 ) )
+      owned_reg = alloc
+      emit_abc( IR::Opcode::LOAD_FALSE, owned_reg, 0, 0 )
+
+      obj = alloc
+      emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
+      window = alloc_block( 5 )
+      place_value( window + 1, obj, 1 )
+      place_value( window + 2, ptr_reg, 1 )
+      place_value( window + 3, size_reg, 1 )
+      place_value( window + 4, owned_reg, 1 )
+      emit_abc( IR::Opcode::CALL, window, @func_index[ "String#initialize" ], 4 )
+      obj
+    end
+
     private def compile_member_access( expr : Frontend::MemberAccess ) : Int32
-      return compile_to_s( expr.receiver ) if expr.name == "to_s"
+      return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
       # `Book.new` and `GeoCoordinate.new` : a parenthesis-less constructor call on a nominal type
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
@@ -488,7 +522,14 @@ module Volt::Compiler
       end
 
       recv_ty = expr.receiver.resolved_type
-      raise "internal: member access on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
+      unless recv_ty.is_a?( Frontend::NominalType )
+        # Parenthesis-less zero-arg method call on a primitive receiver.
+        if info = primitive_owner( recv_ty, expr.name )
+          r = compile_expr( expr.receiver )
+          return compile_primitive_call( info, expr.name, r, [] of Int32, [] of Frontend::Type )
+        end
+        raise "internal: member access on non-object type"
+      end
       recv_reg = compile_expr( expr.receiver )
 
       unless find_field( recv_ty.name, expr.name )
@@ -515,18 +556,24 @@ module Volt::Compiler
       end
     end
 
-    private def compile_to_s( receiver : Frontend::AExpr ) : Int32
-      # A user type that defines its own `to_s` wins over the builtin
-      # stringification : `@position.to_s` must run `GeoCoordinate#to_s`, not
-      # print `<object:..>`. Structs resolve directly, classes go virtual.
+    private def compile_to_string( receiver : Frontend::AExpr ) : Int32
+      # A user type that defines its own `to_string` wins over the builtin
+      # stringification : `@position.to_string` must run `GeoCoordinate#to_string`,
+      # not print `<object:..>`. Structs resolve directly, classes go virtual.
       recv_ty = receiver.resolved_type
-      if recv_ty.is_a?( Frontend::NominalType ) && find_method( recv_ty.name, "to_s" )
+      if recv_ty.is_a?( Frontend::NominalType ) && find_method( recv_ty.name, "to_string" )
         r = compile_expr( receiver )
         if recv_ty.kind.struct?
-          return compile_struct_call( recv_ty, "to_s", r, [] of Int32, [] of Frontend::Type )
+          return compile_struct_call( recv_ty, "to_string", r, [] of Int32, [] of Frontend::Type )
         else
-          return compile_virtual_call( recv_ty, "to_s", r, [] of Int32, [] of Frontend::Type )
+          return compile_virtual_call( recv_ty, "to_string", r, [] of Int32, [] of Frontend::Type )
         end
+      end
+
+      # A reopened primitive's `to_string` wins over the builtin fallback.
+      if info = primitive_owner( recv_ty, "to_string" )
+        r = compile_expr( receiver )
+        return compile_primitive_call( info, "to_string", r, [] of Int32, [] of Frontend::Type )
       end
 
       r    = compile_expr( receiver )
@@ -539,7 +586,7 @@ module Volt::Compiler
       if expr.name == "includes?" && expr.receiver.is_a?( Frontend::RangeExpr )
         return compile_range_includes( expr )
       end
-      return compile_to_s( expr.receiver ) if expr.name == "to_s"
+      return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
          ( info = @types[ recv.name ]? )
@@ -570,6 +617,15 @@ module Volt::Compiler
         end
       end
 
+      # A primitive receiver dispatches through its reopened builtin
+      # (`struct Int … end` in the Core) : direct `CALL`, `self` = 1 slot.
+      if info = primitive_owner( recv_ty, expr.name )
+        self_reg  = compile_expr( expr.receiver )
+        arg_regs  = expr.args.map { |a| compile_expr( a ) }
+        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        return compile_primitive_call( info, expr.name, self_reg, arg_regs, arg_types )
+      end
+
       raise "internal: instance method dispatch is not yet lowered (Phase 4) : ##{expr.name}"
     end
 
@@ -592,6 +648,42 @@ module Volt::Compiler
       base = alloc_block( Math.max( 1 + total, ret_slots ) )
       place_value( base + 1, self_reg, self_slots )
       offset = 1 + self_slots
+      arg_regs.each_with_index do |ar, i|
+        n = arg_slots[ i ]
+        place_value( base + offset, ar, n )
+        offset += n
+      end
+      emit_abc( IR::Opcode::CALL, base, idx, total )
+      base
+    end
+
+    # `TypeInfo` backing a method call on a primitive receiver : the reopened
+    # builtin is looked up under the exact width first (`Int32`), then the
+    # inferred family (`Int`). Nil when no reopening declares the method.
+    private def primitive_owner( recv_ty : Frontend::Type?, method_name : String ) : Frontend::TypeInfo?
+      return nil unless recv_ty
+      recv_ty.reopen_names.each do |owner|
+        info = @types[ owner ]?
+        return info if info && info.methods.has_key?( method_name )
+      end
+      nil
+    end
+
+    # Direct call to a reopened primitive's method — same windowed convention
+    # as `compile_struct_call`, with `self` always exactly 1 slot.
+    private def compile_primitive_call( info : Frontend::TypeInfo, method_name : String,
+                                         self_reg : Int32, arg_regs : Array( Int32 ),
+                                         arg_types : Array( Frontend::Type ) ) : Int32
+      mangled   = "#{info.name}##{method_name}"
+      idx       = @func_index[ mangled ]
+      msig      = info.methods[ method_name ]
+      arg_slots = arg_types.map { |t| slot_count( t ) }
+      total     = 1 + arg_slots.sum
+      ret_slots = slot_count( msig.ret )
+
+      base = alloc_block( Math.max( 1 + total, ret_slots ) )
+      place_value( base + 1, self_reg, 1 )
+      offset = 2
       arg_regs.each_with_index do |ar, i|
         n = arg_slots[ i ]
         place_value( base + offset, ar, n )
@@ -876,10 +968,11 @@ module Volt::Compiler
         return dest
       end
 
-      if ( lt = expr.left.resolved_type ).is_a?( Frontend::NominalType ) && lt.kind.struct? &&
+      if ( lt = expr.left.resolved_type ).is_a?( Frontend::NominalType ) && ( lt.kind.struct? || lt.kind.object? ) &&
          ( op_name = operator_method_name( expr.op ) ) && @types[ lt.name ]?.try( &.methods[ op_name ]? )
         rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
-        result = compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] )
+        result = lt.kind.struct? ? compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] ) :
+                                    compile_virtual_call( lt, op_name, lreg, [ rreg ], [ rt ] )
         if expr.op.bang_eq?
           neg = alloc
           emit_abc( IR::Opcode::NOT, neg, result, 0 )
