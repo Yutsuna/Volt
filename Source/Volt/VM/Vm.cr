@@ -48,6 +48,7 @@ module Volt::VM
       @chunk_index_of   = {} of UInt64 => Int32
       @chunk_raii_keep  = [] of Bytes   # keeps raii-reg buffers alive for the GC
       @chunk_feedback_keep = [] of Pointer( LibVoltDispatch::CallFeedback )
+      @chunk_threaded_keep = [] of Pointer(UInt64)
 
       # Stable FRClass heap boxes and flat class_index for FFI
       @class_boxes         = {} of Int32 => Pointer( LibVoltDispatch::RClass )
@@ -106,6 +107,7 @@ module Volt::VM
       tbl = Pointer( LibVoltDispatch::ChunkInfo ).malloc( n.to_u64 )
       keep     = Array( Bytes ).new( n )
       feedback_keep = Array( Pointer( LibVoltDispatch::CallFeedback ) ).new( n )
+      threaded_keep = Array(Pointer(UInt64)).new(n)
       index_of = {} of UInt64 => Int32
 
       @unit.chunks.each_with_index do |c, i|
@@ -134,6 +136,20 @@ module Volt::VM
         info.raii_regs_count  = raii.size
         info.has_drop_map    = c.drop_map.empty? ? 0_u8 : 1_u8
         info.feedback        = fb.as( Void* )
+
+        # Direct-threaded dispatch: pre-thread the bytecode
+        if c.code.size > 0
+          threaded = Pointer(UInt64).malloc((c.code.size * 2).to_u64)
+          LibVoltDispatch.thread_chunk(c.code.to_unsafe.as(Void*), c.code.size, threaded.as(Void*))
+          info.threaded_code = threaded.as(Void*)
+          info.threaded_size = c.code.size
+          threaded_keep << threaded
+        else
+          info.threaded_code = Pointer(Void).null
+          info.threaded_size = 0
+          threaded_keep << Pointer(UInt64).null
+        end
+
         tbl[ i ] = info
 
         index_of[ c.object_id ] = i
@@ -144,6 +160,7 @@ module Volt::VM
       @chunk_index_of      = index_of
       @chunk_raii_keep     = keep
       @chunk_feedback_keep = feedback_keep
+      @chunk_threaded_keep = threaded_keep
     end
 
     private def ensure_class_table : Nil
