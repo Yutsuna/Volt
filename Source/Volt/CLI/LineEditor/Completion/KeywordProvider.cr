@@ -7,6 +7,7 @@ module Volt::CLI
   class KeywordProvider < ACompletionProvider
 
     def complete( context : CompletionContext ) : Array(CompletionCandidate)
+      return [] of CompletionCandidate if context.receiver
       return [] of CompletionCandidate if context.word.starts_with?( ':' )
 
       Frontend::Lexer::KEYWORDS.keys
