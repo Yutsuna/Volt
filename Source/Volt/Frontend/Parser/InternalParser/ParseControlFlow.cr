@@ -110,7 +110,7 @@ module Volt::Frontend
 
     private def strip_quotes( tok : Token ) : String
       raw = tok.value
-      raw[ 1, raw.bytesize - 2 ]
+      raw.byte_slice( 1, raw.bytesize - 2 )
     end
 
     private def unescape( s : String ) : String
