@@ -66,6 +66,23 @@ module Volt::Spec
       state.cursor.should eq 3
     end
 
+    it "deletes the word left of the cursor on Ctrl+Backspace" do
+      session, state = make_session
+      "str.tod".each_char { |c| session.handle( char_event( c ) ) }
+      session.handle( key_event( Volt::CLI::KeyEvent::CtrlBackspace ) )
+      state.text.should eq ""
+      state.cursor.should eq 0
+    end
+
+    it "deletes the word right of the cursor on Ctrl+Delete" do
+      session, state = make_session
+      "foo bar".each_char { |c| session.handle( char_event( c ) ) }
+      session.handle( key_event( Volt::CLI::KeyEvent::Home ) )
+      session.handle( key_event( Volt::CLI::KeyEvent::CtrlDelete ) )
+      state.text.should eq " bar"
+      state.cursor.should eq 0
+    end
+
     it "treats Ignored events as no-ops" do
       session, state = make_session
       session.handle( char_event( 'a' ) )
