@@ -11,6 +11,7 @@ module Volt::CLI
 
     def complete( context : CompletionContext ) : Array(CompletionCandidate)
       candidates = [] of CompletionCandidate
+      return candidates if context.receiver
       return candidates if context.word.starts_with?( ':' )
 
       prefix = context.word
@@ -27,7 +28,9 @@ module Volt::CLI
 
       state.types.each do |name, type_info|
         candidates << CompletionCandidate.new( name, :type ) if name.starts_with?( prefix )
-        type_info.methods.each_key do |method_name|
+        type_info.methods.each_key do |raw_name|
+          method_name = suggestible_method_name( raw_name )
+          next if method_name.nil?
           candidates << CompletionCandidate.new( method_name, :method ) if method_name.starts_with?( prefix )
         end
       end
