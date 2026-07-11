@@ -38,8 +38,23 @@ module Volt::Spec
       event_for( "\e[15~" ).key.should eq Volt::CLI::KeyEvent::Ignored
     end
 
-    it "ignores a lone escape" do
-      event_for( "\e" ).key.should eq Volt::CLI::KeyEvent::Ignored
+    it "maps a lone escape to the Escape key" do
+      event_for( "\e" ).key.should eq Volt::CLI::KeyEvent::Escape
+    end
+
+    it "maps Shift-Tab (CSI Z)" do
+      event_for( "\e[Z" ).key.should eq Volt::CLI::KeyEvent::ShiftTab
+    end
+
+    it "maps Ctrl+Backspace (^H and ^W) and Ctrl+Delete" do
+      event_for( "\u{08}" ).key.should eq Volt::CLI::KeyEvent::CtrlBackspace
+      event_for( "\u{17}" ).key.should eq Volt::CLI::KeyEvent::CtrlBackspace
+      event_for( "\e[3;5~" ).key.should eq Volt::CLI::KeyEvent::CtrlDelete
+    end
+
+    it "ignores unmapped control bytes instead of inserting them as text" do
+      event_for( "\u{06}" ).key.should eq Volt::CLI::KeyEvent::Ignored   # ^F
+      event_for( "\u{0B}" ).key.should eq Volt::CLI::KeyEvent::Ignored   # ^K
     end
 
     it "maps arrows and Ctrl+arrows" do

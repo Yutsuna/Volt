@@ -72,6 +72,23 @@ module Volt::CLI
       while @cursor < @buffer.size && !@buffer[@cursor].whitespace?;  @cursor += 1; end
     end
 
+    # Same word boundaries as move_word_left/right, but removing the span.
+
+    def delete_word_left
+      return if @cursor == 0
+      word_end = @cursor
+      move_word_left
+      @buffer = @buffer[ 0, @cursor ] + @buffer[ word_end.. ]
+    end
+
+    def delete_word_right
+      return if @cursor == @buffer.size
+      word_start = @cursor
+      move_word_right
+      @buffer = @buffer[ 0, word_start ] + @buffer[ @cursor.. ]
+      @cursor = word_start
+    end
+
     def load_history( index : Int32 )
       return if index < 0 || index > @history.size
       @history_index = index

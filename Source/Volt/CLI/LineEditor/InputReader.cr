@@ -22,8 +22,10 @@ module Volt::CLI
       when 3      then InputEvent.new( KeyEvent::CtrlC )
       when 4      then InputEvent.new( KeyEvent::CtrlD )
       when 5      then InputEvent.new( KeyEvent::CtrlE )
+      when 8      then InputEvent.new( KeyEvent::CtrlBackspace )  # ^H — Ctrl+Backspace in most terminals
       when 9      then InputEvent.new( KeyEvent::Tab )
       when 10, 13 then InputEvent.new( KeyEvent::Enter )
+      when 23     then InputEvent.new( KeyEvent::CtrlBackspace )  # ^W — the readline word-erase binding
       when 127    then InputEvent.new( KeyEvent::Backspace )
       when 27     then handle_escape_sequence( io )
       else             decode_text( byte, io )
@@ -67,7 +69,8 @@ module Volt::CLI
 
     private def handle_escape_sequence( io : IO ) : InputEvent
       first = next_pending_byte?( io )
-      return InputEvent.new( KeyEvent::Ignored ) if first.nil?
+      # A lone ESC (no continuation within the timed read) is the Escape key itself.
+      return InputEvent.new( KeyEvent::Escape ) if first.nil?
 
       case first
       when '['.ord then parse_csi( io )
@@ -94,6 +97,8 @@ module Volt::CLI
       when "H", "1~", "7~" then InputEvent.new( KeyEvent::Home )
       when "F", "4~", "8~" then InputEvent.new( KeyEvent::End )
       when "3~"         then InputEvent.new( KeyEvent::Delete )
+      when "3;5~"       then InputEvent.new( KeyEvent::CtrlDelete )
+      when "Z"          then InputEvent.new( KeyEvent::ShiftTab )
       when "1;5D"       then InputEvent.new( KeyEvent::CtrlLeft )
       when "1;5C"       then InputEvent.new( KeyEvent::CtrlRight )
       else                   InputEvent.new( KeyEvent::Ignored )
@@ -118,6 +123,10 @@ module Volt::CLI
     #------------------------------------------------------------------------------------
 
     private def decode_text( byte : UInt8, io : IO ) : InputEvent
+      # Unmapped C0 control bytes must never reach the buffer as text — they
+      # render as nothing or garbage and corrupt the line display.
+      return InputEvent.new( KeyEvent::Ignored ) unless printable_lead?( byte )
+
       char = decode_utf8( byte, io )
       return InputEvent.new( KeyEvent::Ignored ) if char.nil?
 
