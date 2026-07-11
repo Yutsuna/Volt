@@ -179,7 +179,9 @@ module Volt::CLI
       term.enable_raw_mode
 
       state = LineEditorState.new history
-      renderer = LineRenderer.new prompt
+      renderer = LineRenderer.new( prompt, highlighter: ->( text : String ) {
+        REPL::REPLSyntaxHighlighter.highlight( text )
+      } )
       editor = LineEditorSession.new( state, renderer, completion_engine )
 
       begin
@@ -192,6 +194,7 @@ module Volt::CLI
     private def completion_engine : CompletionEngine
       @completion_engine ||= CompletionEngine.new( [
         BuiltinCommandProvider.new,
+        MemberCompletionProvider.new( @session ),
         SessionSymbolProvider.new( @session ),
         KeywordProvider.new,
       ] of ACompletionProvider )
