@@ -47,14 +47,14 @@ module Volt::Spec
     end
 
     it "maps Ctrl+Backspace (^H and ^W) and Ctrl+Delete" do
-      event_for( "\b" ).key.should eq Volt::CLI::KeyEvent::CtrlBackspace
-      event_for( "" ).key.should eq Volt::CLI::KeyEvent::CtrlBackspace
+      event_for( "\u{08}" ).key.should eq Volt::CLI::KeyEvent::CtrlBackspace
+      event_for( "\u{17}" ).key.should eq Volt::CLI::KeyEvent::CtrlBackspace
       event_for( "\e[3;5~" ).key.should eq Volt::CLI::KeyEvent::CtrlDelete
     end
 
     it "ignores unmapped control bytes instead of inserting them as text" do
-      event_for( "" ).key.should eq Volt::CLI::KeyEvent::Ignored   # ^F
-      event_for( "\v" ).key.should eq Volt::CLI::KeyEvent::Ignored      # ^K
+      event_for( "\u{06}" ).key.should eq Volt::CLI::KeyEvent::Ignored   # ^F
+      event_for( "\u{0B}" ).key.should eq Volt::CLI::KeyEvent::Ignored   # ^K
     end
 
     it "maps arrows and Ctrl+arrows" do
