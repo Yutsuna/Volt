@@ -10,9 +10,13 @@ module Volt::CLI
     CtrlRight
     Backspace
     Delete
+    CtrlBackspace   # delete the word left of the cursor
+    CtrlDelete      # delete the word right of the cursor
     Home
     End
     Tab
+    ShiftTab
+    Escape
     CtrlA
     CtrlC
     CtrlD
