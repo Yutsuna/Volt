@@ -68,6 +68,126 @@ module Volt::Spec
       result.not_nil!.candidates.map( &.label ).should contain "myfunc"
     end
 
+    it "stays silent when completing after a receiver dot" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( "myvar = 1" )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::SessionSymbolProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+      engine.complete( "myvar.", 6 ).should be_nil
+    end
+
+  end
+
+
+  describe "Volt::CLI::KeywordProvider" do
+
+    it "stays silent when completing after a receiver dot" do
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::KeywordProvider.new ] of Volt::CLI::ACompletionProvider )
+      engine.complete( "myvar.", 6 ).should be_nil
+    end
+
+  end
+
+
+  describe "Volt::CLI::MemberCompletionProvider" do
+
+    it "completes String methods after a string-valued receiver" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( %(str = "Léo") )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      result = engine.complete( "str.", 4 )
+      result.should_not be_nil
+      candidates = result.not_nil!.candidates
+      candidates.size.should be > 0
+      candidates.all? { |c| c.kind == :method }.should be_true
+    end
+
+    it "completes Int methods after an integer-valued receiver" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( "a = 10" )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      result = engine.complete( "a.", 2 )
+      result.should_not be_nil
+      result.not_nil!.candidates.size.should be > 0
+    end
+
+    it "filters member completions by the typed prefix" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( "a = 10" )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      result = engine.complete( "a.", 2 )
+      all_labels = result.not_nil!.candidates.map( &.label )
+      picked = all_labels.first
+
+      filtered = engine.complete( "a.#{picked[ 0, 1 ]}", 3 )
+      filtered.not_nil!.candidates.map( &.label ).should contain picked
+    end
+
+    it "resolves methods inherited through mixins, like inspect" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( "a = 10" )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      labels = engine.complete( "a.", 2 ).not_nil!.candidates.map( &.label )
+      labels.should contain "inspect"
+      labels.should contain "to_string"
+    end
+
+    it "never offers operator methods after a dot" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( %(str = "Léo") )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      labels = engine.complete( "str.", 4 ).not_nil!.candidates.map( &.label )
+      labels.should_not contain "+"
+      labels.should_not contain "=="
+      labels.should_not contain "=~"
+    end
+
+    it "never offers constructors or destructors" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( %(str = "Léo") )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      labels = engine.complete( "str.", 4 ).not_nil!.candidates.map( &.label )
+      labels.any?( &.starts_with?( "initialize" ) ).should be_false
+      labels.should_not contain "finalize"
+    end
+
+    it "offers overloads once, as the bare name without arity" do
+      session = Volt::REPL::REPLSession.new
+      session.evaluate( <<-VOLT )
+        struct A
+          def b -> Void
+          end
+          def b( a : Int32 ) -> Void
+          end
+        end
+        VOLT
+      session.evaluate( "x = A.new" )
+
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+
+      labels = engine.complete( "x.b", 3 ).not_nil!.candidates.map( &.label )
+      labels.count( "b" ).should eq 1
+      labels.any?( &.includes?( '/' ) ).should be_false
+    end
+
+    it "returns nothing for an unknown receiver" do
+      session = Volt::REPL::REPLSession.new
+      engine = Volt::CLI::CompletionEngine.new( [ Volt::CLI::MemberCompletionProvider.new( session ) ] of Volt::CLI::ACompletionProvider )
+      engine.complete( "nope.", 5 ).should be_nil
+    end
+
   end
 
 
