@@ -170,6 +170,19 @@ module Volt::Frontend
              .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?,
              .match_op?, .not_match_op?, .eq_eq_eq?
           advance.value
+        # `def []` / `def []=` : the indexing operator pair (`receiver[i]`,
+        # `receiver[i] = v`) desugars to these at call sites (`TypeChecker`
+        # #infer_index / #infer_assign_index) — any `class`/`struct` names
+        # them like this to become indexable.
+        when .l_bracket?
+          advance
+          expect( TokenKind::RBracket )
+          if @current.kind.eq?
+            advance
+            "[]="
+          else
+            "[]"
+          end
         else
           error!( Catalog::Parse.expected( TokenKind::Ident, @current ) )
         end
