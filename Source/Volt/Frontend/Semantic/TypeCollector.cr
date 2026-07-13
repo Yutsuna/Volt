@@ -458,10 +458,13 @@ module Volt::Frontend
     end
 
     private def collect_methods( body : Array( ANode ), info : TypeInfo ) : Nil
-      # `initialize` is the one name allowed to overload — resolved by arity.
-      # When several overloads exist, each is keyed `initialize/<arity>` so
-      # every overload compiles to its own chunk; a single `initialize` keeps
-      # the plain key (the shape every existing lookup expects).
+      # `initialize` is the one name allowed to overload : resolved by full
+      # parameter-type signature, not just arity, so `initialize(val : T)`
+      # and `initialize(ptr : Pointer[T])` coexist despite sharing arity 1.
+      # When several overloads exist, each is keyed `initialize/<param
+      # types>` (`overload_key`) so every overload compiles to its own
+      # chunk; a single `initialize` keeps the plain key (the shape every
+      # existing lookup expects).
       init_count = body.count { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }
 
       body.each do |node|
@@ -475,13 +478,14 @@ module Volt::Frontend
         case node.name
         when "initialize"
           arity = node.params.size
-          if first = info.initializers[ arity ]?
-            @bag << Catalog::Sema.duplicate_definition( "initialize", node.loc, first.decl_span )
+          group = ( info.initializers[ arity ] ||= [] of FuncSig )
+          if dup = group.find { |c| c.params.map( &.to_s ) == sig.params.map( &.to_s ) }
+            @bag << Catalog::Sema.duplicate_definition( "initialize", node.loc, dup.decl_span )
             next
           end
-          info.initializers[ arity ] = sig
+          group << sig
           info.initializer ||= sig
-          key = "initialize/#{arity}" if init_count > 1
+          key = Frontend.overload_key( "initialize", sig.params ) if init_count > 1
         when "finalize"
           unless node.params.empty?
             @bag << Catalog::Sema.finalize_has_arguments( node.loc )

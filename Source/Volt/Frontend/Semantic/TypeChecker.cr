@@ -351,6 +351,15 @@ module Volt::Frontend
 
       field = find_field( recv_ty.name, target.name )
       if field.nil?
+        # No plain field named `target.name` : fall back to a user-defined
+        # `name=` setter method (`def value=( val : T ) -> T`), mirroring
+        # `infer_assign_index`'s `[]=` dispatch below.
+        if sig = find_method( recv_ty.name, "#{target.name}=" )
+          check_visibility( sig, target.receiver, recv_ty.name, expr.loc )
+          check_call_args( "#{recv_ty}##{target.name}=", sig.params, [ expr.value ], expr.loc, scope, [ value_ty ] )
+          expr.is_setter_call = true
+          return sig.ret
+        end
         @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, target.name, expr.loc )
         return Type::UNKNOWN
       end
@@ -430,32 +439,34 @@ module Volt::Frontend
         expr.implicit_args = false
       end
 
+      arg_tys = expr.args.map { |a| infer( a, scope ) }
+
       m =
         if fn.name == "initialize"
-          find_super_initializer( sup, expr.args.size, expr.loc, scope )
+          find_super_initializer( sup, expr.args.size, arg_tys, expr.loc )
         else
           find_super_target( sup, fn.name )
         end
       if m.nil?
         @bag << Catalog::Sema.super_no_parent_method( owner.name, fn.name, expr.loc )
-        expr.args.each { |a| infer( a, scope ) }
         return Type::UNKNOWN
       end
 
-      check_call_args( "super", m.params, expr.args, expr.loc, scope )
+      check_call_args( "super", m.params, expr.args, expr.loc, scope, arg_tys )
       m.ret
     end
 
     # `super` inside `initialize` targets the nearest ancestor that declares
-    # any constructor, then picks its overload by arg count. A declaring
-    # ancestor with no matching arity is a hard arity error here (returning
-    # `nil` would misreport it as "no ancestor defines initialize").
-    private def find_super_initializer( type_name : String?, arity : Int32, loc : Span, scope : Scope ) : FuncSig?
+    # any constructor, then picks its overload by arg count and, when several
+    # overloads share that arity, by parameter type (`select_overload`). A
+    # declaring ancestor with no matching arity is a hard arity error here
+    # (returning `nil` would misreport it as "no ancestor defines initialize").
+    private def find_super_initializer( type_name : String?, arity : Int32, arg_tys : Array( Type ), loc : Span ) : FuncSig?
       cur = type_name
       while cur && ( info = @types[ cur ]? )
         unless info.initializers.empty?
-          if sig = info.initializers[ arity ]?
-            return sig
+          if group = info.initializers[ arity ]?
+            return Frontend.select_overload( group, arg_tys )
           end
           expected = info.initializer.try( &.params.size ) || 0
           @bag << Catalog::Sema.arity_mismatch( "super", expected, arity, loc )
@@ -786,12 +797,13 @@ module Volt::Frontend
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
       if owner = find_initializer_owner_info( info.name )
-        if init = owner.initializers[ expr.args.size ]?
-          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, arg_tys )
+        tys = arg_tys || expr.args.map { |a| infer( a, scope ) }
+        if group = owner.initializers[ expr.args.size ]?
+          init = Frontend.select_overload( group, tys )
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, tys )
         else
           expected = owner.initializer.try( &.params.size ) || 0
           @bag << Catalog::Sema.arity_mismatch( "#{info.name}.new", expected, expr.args.size, expr.loc )
-          expr.args.each { |a| infer( a, scope ) } unless arg_tys
         end
       elsif layout = info.layout
         check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope, arg_tys )
