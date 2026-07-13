@@ -22,27 +22,39 @@ module Volt::Frontend
     # round, so capping it bounds the expansion without tracking call chains.
     MAX_NESTING = 8
 
-    getter class_templates : Hash( String, ClassDecl )
-    getter func_templates  : Hash( String, FuncDecl )
-    getter fresh_classes   : Array( ClassDecl )
-    getter fresh_funcs     : Array( FuncDecl )
+    getter class_templates  : Hash( String, ClassDecl )
+    getter struct_templates : Hash( String, StructDecl )
+    getter func_templates   : Hash( String, FuncDecl )
+    getter fresh_classes    : Array( ClassDecl )
+    getter fresh_structs    : Array( StructDecl )
+    getter fresh_funcs      : Array( FuncDecl )
 
     def initialize( @bag : DiagnosticBag )
-      @class_templates = {} of String => ClassDecl
-      @func_templates  = {} of String => FuncDecl
-      @fresh_classes   = [] of ClassDecl
-      @fresh_funcs     = [] of FuncDecl
-      @instantiated    = Set( String ).new
+      @class_templates  = {} of String => ClassDecl
+      @struct_templates = {} of String => StructDecl
+      @func_templates   = {} of String => FuncDecl
+      @fresh_classes    = [] of ClassDecl
+      @fresh_structs    = [] of StructDecl
+      @fresh_funcs      = [] of FuncDecl
+      @instantiated     = Set( String ).new
     end
 
     # -----------------------------------------------------------------------------------
 
     def register_class_template( decl : ClassDecl ) : Nil
-      if first = @class_templates[ decl.name ]?
-        @bag << Catalog::Sema.duplicate_definition( decl.name, decl.loc, first.loc )
+      if first = @class_templates[ decl.name ]? || duplicate_name?( decl.name )
+        @bag << Catalog::Sema.duplicate_definition( decl.name, decl.loc, first.is_a?( ANode ) ? first.loc : nil )
         return
       end
       @class_templates[ decl.name ] = decl
+    end
+
+    def register_struct_template( decl : StructDecl ) : Nil
+      if first = @struct_templates[ decl.name ]? || duplicate_name?( decl.name )
+        @bag << Catalog::Sema.duplicate_definition( decl.name, decl.loc, first.is_a?( ANode ) ? first.loc : nil )
+        return
+      end
+      @struct_templates[ decl.name ] = decl
     end
 
     def register_func_template( decl : FuncDecl ) : Nil
@@ -53,8 +65,25 @@ module Volt::Frontend
       @func_templates[ decl.name ] = decl
     end
 
+    # True when `name` is already claimed by a *different kind* of template
+    # (a `class Pair[T]` and a `struct Pair[T]` sharing one name).
+    private def duplicate_name?( name : String ) : ANode?
+      @class_templates[ name ]? || @struct_templates[ name ]?
+    end
+
     def class_template?( name : String ) : Bool
       @class_templates.has_key?( name )
+    end
+
+    def struct_template?( name : String ) : Bool
+      @struct_templates.has_key?( name )
+    end
+
+    # True for either flavour of type template : the two surface forms
+    # (`Pair[..].new`, inferred `Pair.new(..)`) don't care whether the
+    # template behind the name is a `class` or a `struct`.
+    def type_template?( name : String ) : Bool
+      class_template?( name ) || struct_template?( name )
     end
 
     def func_template?( name : String ) : Bool
@@ -63,6 +92,23 @@ module Volt::Frontend
 
     def class_template( name : String ) : ClassDecl?
       @class_templates[ name ]?
+    end
+
+    def struct_template( name : String ) : StructDecl?
+      @struct_templates[ name ]?
+    end
+
+    # Type parameters of whichever template kind owns `name`, or nil if
+    # neither does.
+    def type_template_params( name : String ) : Array( String )?
+      @class_templates[ name ]?.try( &.type_params ) || @struct_templates[ name ]?.try( &.type_params )
+    end
+
+    # Body of whichever template kind owns `name` : used to locate the
+    # `initialize` overloads / fields for inference, independent of class vs.
+    # struct.
+    def type_template_body( name : String ) : Array( ANode )?
+      @class_templates[ name ]?.try( &.body ) || @struct_templates[ name ]?.try( &.body )
     end
 
     def func_template( name : String ) : FuncDecl?
@@ -117,6 +163,37 @@ module Volt::Frontend
       mangled
     end
 
+    # Instantiates `FPair[String, Int64]` from a `struct FPair[T, U]` template :
+    # same contract as `instantiate_class`, with the clone landing in
+    # `fresh_structs`.
+    def instantiate_struct( name : String, args : Array( Type ), loc : Span ) : String?
+      tmpl = @struct_templates[ name ]?
+      return nil unless tmpl
+      return nil unless validate_args( name, tmpl.type_params.size, args, loc )
+
+      mangled = mangle( name, args )
+      return nil unless check_nesting( mangled, loc )
+      return mangled if @instantiated.includes?( mangled )
+      @instantiated << mangled
+
+      subst = build_subst( tmpl.type_params, args )
+      body  = tmpl.body.map { |n| clone_node( n, subst ) }
+      clone = StructDecl.new( mangled, tmpl.mixins.dup, body, tmpl.annotations, tmpl.loc )
+      @fresh_structs << clone
+      mangled
+    end
+
+    # Instantiates whichever kind of type template owns `name` (class or
+    # struct) : the one entry point the type checker needs when it doesn't
+    # care which flavour produced the concrete type.
+    def instantiate_type( name : String, args : Array( Type ), loc : Span ) : String?
+      if class_template?( name )
+        instantiate_class( name, args, loc )
+      elsif struct_template?( name )
+        instantiate_struct( name, args, loc )
+      end
+    end
+
     # Instantiates `identity[Int64]` from the `identity` template : same
     # contract as `instantiate_class`, with the clone landing in `fresh_funcs`.
     def instantiate_func( name : String, args : Array( Type ), loc : Span ) : String?
@@ -167,31 +244,30 @@ module Volt::Frontend
     def type_to_node( t : Type, loc : Span ) : ATypeNode
       case t.kind
       when .pointer?
-        PointerType.new( type_to_node( t.pointee, loc ), loc )
+        PointerType.new( type_to_node( t.pointee, loc ), loc ).as( ATypeNode )
       when .func?
         params = t.params.map { |p| type_to_node( p, loc ).as( ATypeNode ) }
         ret    = type_to_node( t.ret || Type::NIL, loc )
-        FuncType.new( params, ret, loc )
+        FuncType.new( params, ret, loc ).as( ATypeNode )
       else
-        SimpleType.new( t.to_s, loc )
+        SimpleType.new( t.to_s, loc ).as( ATypeNode )
       end
     end
 
     private def clone_type( node : ATypeNode, subst : Hash( String, Type ) ) : ATypeNode
-      case node
-      when SimpleType
+      if node.is_a?( SimpleType )
         if replacement = subst[ node.name ]?
           type_to_node( replacement, node.loc )
         else
           SimpleType.new( node.name, node.loc )
         end
-      when GenericType
+      elsif node.is_a?( GenericType )
         GenericType.new( node.name, node.params.map { |p| clone_type( p, subst ) }, node.loc )
-      when PointerType
+      elsif node.is_a?( PointerType )
         PointerType.new( clone_type( node.inner, subst ), node.loc )
-      when NilableType
+      elsif node.is_a?( NilableType )
         NilableType.new( clone_type( node.inner, subst ), node.loc )
-      when FuncType
+      elsif node.is_a?( FuncType )
         FuncType.new( node.params.map { |p| clone_type( p, subst ) },
                       clone_type( node.return_type, subst ), node.loc )
       else
