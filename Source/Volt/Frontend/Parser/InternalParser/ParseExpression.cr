@@ -198,7 +198,7 @@ module Volt::Frontend
         if @current.kind.else?
           expect( TokenKind::Else )
           else_expr = parse_expr( Prec::Modifier )
-          IfExpr.new( left, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+          IfExpr.new( then_expr, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
         else
           IfExpr.new( then_expr, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
         end
@@ -207,8 +207,8 @@ module Volt::Frontend
         if @current.kind.else?
           expect( TokenKind::Else )
           else_expr = parse_expr( Prec::Modifier )
-          neg = UnaryOp.new( TokenKind::Bang, left, op.span )
-          IfExpr.new( neg, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+          neg = UnaryOp.new( TokenKind::Bang, then_expr, op.span )
+          IfExpr.new( neg, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
         else
           neg = UnaryOp.new( TokenKind::Bang, then_expr, op.span )
           IfExpr.new( neg, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
@@ -288,10 +288,21 @@ module Volt::Frontend
         rhs = parse_expr( Prec.new( Prec::Assignment.value - 1 ) )
         Assign.new( left, nil, rhs, left.loc )
       when .colon?
-        ty  = parse_type
-        expect( TokenKind::Eq )
-        rhs = parse_expr( Prec::None )
-        Assign.new( left, ty, rhs, left.loc )
+        ty = parse_type
+        # `name : Type` with no `= value` : a bare declaration (only
+        # meaningful for a type with a well-defined zero value to reserve,
+        # e.g. a fixed-size stack array — `buf : UInt8[ 20 ]`). Requires a
+        # plain identifier target ; `expect` surfaces the usual parse error
+        # for anything else (`obj.field : Type` has no bare-declare form).
+        if @current.kind.eq?
+          advance
+          rhs = parse_expr( Prec::None )
+          Assign.new( left, ty, rhs, left.loc )
+        elsif left.is_a?( Ident )
+          VarDecl.new( left.name, ty, left.loc )
+        else
+          error!( Catalog::Parse.expected( TokenKind::Eq, @current ) )
+        end
       else
         error!( Catalog::Parse.unexpected_infix( op ) )
       end
