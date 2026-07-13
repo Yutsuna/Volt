@@ -245,6 +245,8 @@ module Volt::Frontend
       case t.kind
       when .pointer?
         PointerType.new( type_to_node( t.pointee, loc ), loc ).as( ATypeNode )
+      when .array?
+        ArrayType.new( type_to_node( t.element, loc ), t.array_size, loc ).as( ATypeNode )
       when .func?
         params = t.params.map { |p| type_to_node( p, loc ).as( ATypeNode ) }
         ret    = type_to_node( t.ret || Type::NIL, loc )
@@ -265,6 +267,8 @@ module Volt::Frontend
         GenericType.new( node.name, node.params.map { |p| clone_type( p, subst ) }, node.loc )
       elsif node.is_a?( PointerType )
         PointerType.new( clone_type( node.inner, subst ), node.loc )
+      elsif node.is_a?( ArrayType )
+        ArrayType.new( clone_type( node.elem, subst ), node.size, node.loc )
       elsif node.is_a?( NilableType )
         NilableType.new( clone_type( node.inner, subst ), node.loc )
       elsif node.is_a?( FuncType )
@@ -422,6 +426,8 @@ module Volt::Frontend
         TypeofExpr.new( clone_expr( expr.operand, subst ), expr.loc )
       when SizeofExpr
         SizeofExpr.new( clone_type( expr.type_node, subst ), expr.loc )
+      when VarDecl
+        VarDecl.new( expr.name, clone_type( expr.type_ann, subst ), expr.loc )
       else
         @bag << Catalog::Sema.unsupported_in_template( expr.class.name.split( "::" ).last, expr.loc )
         expr
