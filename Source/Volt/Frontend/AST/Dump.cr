@@ -724,4 +724,12 @@ module Volt::Frontend
   end
 
 
+  class SizeofExpr
+      def dump(io : IO, prefix : String) : Nil
+        io << ASTDump.nd("SizeofExpr") << ASTDump.loc(@loc) << "\n"
+        field(io, "type", @type_node, prefix, true)
+      end
+    end
+
+
 end

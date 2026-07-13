@@ -194,6 +194,7 @@ module Volt::Frontend
     property name        : String
     property params      : Array( Param )
     property return_type : ATypeNode
+    property extern_name : String? = nil
 
     def initialize( @lib : String?, @name : String, @params : Array( Param ),
                     @return_type : ATypeNode, loc : Span )
