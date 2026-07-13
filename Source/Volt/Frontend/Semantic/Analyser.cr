@@ -5,6 +5,8 @@ module Volt::Frontend
     def initialize( @program : Program )
       @bag       = DiagnosticBag.new
       @sigs      = SignatureTable.new( @bag )
+      @mono      = Monomorphizer.new( @bag )
+      @collector = nil.as( TypeCollector? )
       @functions = [] of FuncDecl
       @top_level = [] of ANode
       @types     = {} of String => TypeInfo
@@ -21,7 +23,8 @@ module Volt::Frontend
     end
 
     private def partition : Nil
-      collector = TypeCollector.new( @bag )
+      collector  = TypeCollector.new( @bag, @mono )
+      @collector = collector
       collector.collect( @program.nodes )
       @types          = collector.types
       @nominals       = collector.nominals
@@ -34,9 +37,21 @@ module Volt::Frontend
           @sigs.collect_extern( node )
           @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
         when FuncDecl
-          @sigs.collect( node, @nominals )
-          @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
-          @functions << node
+          # A generic function (`def foo[T]` / `forall T`) is a template :
+          # signature collection would resolve `T` to nothing, so it only
+          # enters the table once instantiated with concrete types.
+          if node.type_params.empty?
+            # A concrete signature may still mention a generic reference
+            # (`def show( p : Pair[String, Int64] )`) : instantiate those
+            # before collection so the annotation resolves.
+            node.params.each { |p| p.type_ann.try { |a| collector.instantiate_generics_in( a ) } }
+            node.return_type.try { |a| collector.instantiate_generics_in( a ) }
+            @sigs.collect( node, @nominals )
+            @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
+            @functions << node
+          else
+            @mono.register_func_template( node )
+          end
         when AExpr
           @top_level << node
         when ClassDecl, StructDecl, MixinDecl, ModuleDecl, CircuitDecl
@@ -57,15 +72,35 @@ module Volt::Frontend
     end
 
     private def check : Nil
-      checker = TypeChecker.new( @sigs, @bag, @types, @nominals )
+      checker = TypeChecker.new( @sigs, @bag, @types, @nominals, @mono, @collector )
       @functions.each do |fn|
         if sig = @sigs[ fn.name ]?
           checker.check_function( fn, sig )
         end
       end
       checker.check_top_level( @top_level )
-      @method_entries.each do |fn, owner, sig|
-        checker.check_method( fn, sig, owner )
+
+      # Worklist to fixpoint : checking a body can instantiate generics, which
+      # appends method entries (fresh classes, already collected by the
+      # TypeCollector drain) and queues fresh function clones. Both kinds of
+      # new work can themselves instantiate further generics; the
+      # monomorphizer's per-name cache guarantees termination.
+      checked = 0
+      loop do
+        while checked < @method_entries.size
+          fn, owner, sig = @method_entries[ checked ]
+          checked += 1
+          checker.check_method( fn, sig, owner )
+        end
+        break if @mono.fresh_funcs.empty?
+        fn = @mono.fresh_funcs.shift
+        # The checker may have collected the signature already (it needs the
+        # return type at the instantiating call site).
+        @sigs.collect( fn, @nominals ) unless @sigs[ fn.name ]?
+        @functions << fn
+        if sig = @sigs[ fn.name ]?
+          checker.check_function( fn, sig )
+        end
       end
     end
 

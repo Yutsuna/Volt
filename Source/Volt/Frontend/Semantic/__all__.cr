@@ -1,4 +1,5 @@
 require "./Contract"
+require "./Monomorphizer"
 require "./Scope"
 require "./SignatureTable"
 require "./TypeCollector"
