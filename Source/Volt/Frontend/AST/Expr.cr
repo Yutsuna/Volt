@@ -196,10 +196,14 @@ module Volt::Frontend
   end
 
 
-  # receiver[ index ]
+  # receiver[ index ]  |  receiver[ index, extra... ]
+  # The multi-argument form only occurs as a generic type reference
+  # (`Pair[String, Int64]`) : the semantic pass interprets an `Index` whose
+  # receiver names a generic template as an explicit instantiation.
   class Index < AExpr
-    property receiver : AExpr
-    property index    : AExpr
+    property receiver   : AExpr
+    property index      : AExpr
+    property extra_args : Array( AExpr ) = [] of AExpr
 
     def initialize( @receiver : AExpr, @index : AExpr, loc : Span )
       super( loc )
