@@ -11,6 +11,7 @@ module Volt::REPL
     # Generic templates survive across inputs : a template defined in one
     # input must be instantiable from any later one.
     getter class_templates : Hash(String, Frontend::ClassDecl)
+    getter struct_templates : Hash(String, Frontend::StructDecl)
     getter func_templates : Hash(String, Frontend::FuncDecl)
 
     getter func_index : Hash(String, Int32)
@@ -25,6 +26,7 @@ module Volt::REPL
       @types = {} of String => Frontend::TypeInfo
       @nominals = {} of String => Frontend::NominalType
       @class_templates = {} of String => Frontend::ClassDecl
+      @struct_templates = {} of String => Frontend::StructDecl
       @func_templates = {} of String => Frontend::FuncDecl
 
       @func_index = {} of String => Int32
@@ -40,6 +42,7 @@ module Volt::REPL
       @types.clear
       @nominals.clear
       @class_templates.clear
+      @struct_templates.clear
       @func_templates.clear
       @func_index.clear
       @global_index.clear
