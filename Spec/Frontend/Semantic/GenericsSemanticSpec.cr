@@ -18,7 +18,7 @@ private PAIR_TEMPLATE = <<-VOLT
     VOLT
 
 private def analyse_generics( source : String ) : Volt::Frontend::TypedProgram
-    Volt::Frontend.analyse( Volt::Frontend.parse( source, "generics_sema.vl" ) )
+    Volt::Frontend.analyse( Volt::Frontend.parse( "class String; end\n#{source}", "generics_sema.vl" ) )
   rescue err : Volt::Frontend::CompilationError
     err.bag.diagnostics.each do |d|
       puts "SEMA DIAGNOSTIC: #{d.code} - #{d.message} at #{d.primary_span}"
@@ -156,11 +156,10 @@ private def error_codes( source : String ) : Array( String )
 
     it "reports an uninferrable type parameter (S0059)" do
       codes = error_codes( <<-VOLT )
-        class Empty[T]
-          def initialize
-          end
+        def produce() -> T forall T
+          uninitialized T
         end
-        e = Empty.new
+        produce()
         VOLT
       codes.should contain( "S0059" )
     end
