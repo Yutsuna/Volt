@@ -63,7 +63,9 @@ module Volt::Frontend
       end
 
       ret = resolve_return( decl.name, decl.return_type )
-      @table[ decl.name ] = FuncSig.new( decl.name, params, ret, extern: true, lib: decl.lib, decl_span: decl.loc )
+      sig = FuncSig.new( decl.name, params, ret, extern: true, lib: decl.lib, decl_span: decl.loc )
+      sig.extern_name = decl.extern_name
+      @table[ decl.name ] = sig
     end
 
     # -----------------------------------------------------------------------------------

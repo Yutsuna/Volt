@@ -145,6 +145,15 @@ module Volt::Frontend
         end
         expr.resolved_operand_type = opt
         string_type
+      when SizeofExpr
+        @collector.try(&.instantiate_generics_in( expr.type_node ))
+        ty = Type.from_annotation( expr.type_node, @nominals )
+        if ty
+          expr.byte_size = ty.byte_size
+        else
+          @bag << Catalog::Sema.unknown_type( "?", expr.loc )
+        end
+        return Type::INT
       else
         @bag << Catalog::Sema.unsupported_expr( type_name( expr ), expr.loc )
         Type::UNKNOWN
@@ -355,12 +364,22 @@ module Volt::Frontend
 
     private def infer_self( expr : SelfExpr, scope : Scope ) : Type
       if ( owner = @self_type ) && !@current_method.try( &.is_static )
-        # A reopened primitive has no `NominalType` : `self` is the builtin.
+        if owner.name.starts_with?("Pointer[")
+          return reconstruct_type(owner.name)
+        end
         @nominals[ owner.name ]? || Type.from_primitive_name( owner.name ) || Type::UNKNOWN
       else
         @bag << Catalog::Sema.self_outside_method( expr.loc )
         Type::UNKNOWN
       end
+    end
+
+    private def reconstruct_type(name : String) : Type
+      if name.starts_with?("Pointer[")
+        inner = reconstruct_type(name[8...-1])
+        return Type.pointer(inner)
+      end
+      Type.from_primitive_name(name) || @nominals[name]? || Type::UNKNOWN
     end
 
     # `super` resolves against the *enclosing method's* name on the superclass
@@ -528,14 +547,18 @@ module Volt::Frontend
       # `Pair[String, Int64].new( args )` : explicit generic instantiation. The
       # receiver rewrites to the mangled concrete name so the compiler lowers
       # an ordinary constructor call.
-      if ( recv = expr.receiver ).is_a?( Index ) && generic_template_index?( recv ) && expr.name == "new"
+      if ( recv = expr.receiver ).is_a?( Index ) && generic_template_index?( recv )
         info = resolve_generic_receiver( recv )
         unless info
           expr.args.each { |a| infer( a, scope ) }
           return Type::UNKNOWN
         end
         expr.receiver = ident_for( info, recv.loc )
-        return infer_constructor_call( info, expr, scope )
+        if expr.name == "new"
+          return infer_constructor_call( info, expr, scope )
+        else
+          return infer_static_member( info, expr.name, expr.args, expr.loc, scope )
+        end
       end
 
       # `Pair.new( "Volt", 2026 )` : type arguments inferred from the
@@ -911,6 +934,14 @@ module Volt::Frontend
     # builtin's `TypeInfo` (`struct Int … end` in the Core) : exact width
     # first (`Int32`), then the inferred family (`Int`).
     private def primitive_method( recv_ty : Type, name : String ) : FuncSig?
+      if recv_ty.pointer? && (mono = @mono) && mono.type_template?("Pointer")
+        mangled = mono.mangle("Pointer", [recv_ty.pointee])
+        unless @types.has_key?(mangled) || mono.instantiated?(mangled)
+          mono.instantiate_type("Pointer", [recv_ty.pointee], Span.new("<compiler>", 0_u32, 0_u32, 0_u32))
+          @collector.try(&.drain_instantiations)
+        end
+      end
+
       recv_ty.reopen_names.each do |owner|
         next unless info = @types[ owner ]?
         if sig = info.methods[ name ]?
