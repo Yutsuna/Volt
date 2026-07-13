@@ -260,9 +260,16 @@ module Volt::Frontend
           Call.new( left, [] of AExpr, blk, left.loc )
         end
       when .l_bracket?
-        idx = parse_expr( Prec::None )
+        idx  = parse_expr( Prec::None )
+        node = Index.new( left, idx, left.loc )
+        # `Pair[String, Int64]` : the comma-separated form is a generic type
+        # reference; extra elements land in `extra_args` for Semantic.
+        while @current.kind.comma?
+          advance; skip_newlines
+          node.extra_args << parse_expr( Prec::None )
+        end
         expect( TokenKind::RBracket )
-        Index.new( left, idx, left.loc )
+        node
       when .eq?
         rhs = parse_expr( Prec.new( Prec::Assignment.value - 1 ) )
         Assign.new( left, nil, rhs, left.loc )
