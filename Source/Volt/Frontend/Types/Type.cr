@@ -2,11 +2,17 @@ module Volt::Frontend
 
 
   class Type
-    property kind   : TypeKind
-    property params : Array( Type )
-    property ret    : Type?
+    property kind       : TypeKind
+    property params     : Array( Type )
+    property ret        : Type?
+    # Only meaningful when `kind.array?` : the compile-time-known element
+    # count of a fixed-size stack array (`Elem[N]`). Unlike `Pointer`, an
+    # array's size is part of its *type* (like C++'s `std::array<T, N>`),
+    # not a runtime field — two arrays of the same element type but
+    # different length are different, incompatible types.
+    property array_size : Int32
 
-    def initialize( @kind : TypeKind, @params = [] of Type, @ret : Type? = nil )
+    def initialize( @kind : TypeKind, @params = [] of Type, @ret : Type? = nil, @array_size = 0 )
     end
 
     INT8    = new TypeKind::Int8
@@ -36,12 +42,24 @@ module Volt::Frontend
       new( TypeKind::Pointer, [pointee] )
     end
 
+    def self.array( element : Type, size : Int32 ) : Type
+      new( TypeKind::Array, [element], array_size: size )
+    end
+
     def pointee : Type
+      params[0]
+    end
+
+    def element : Type
       params[0]
     end
 
     def pointer? : Bool
       kind.pointer?
+    end
+
+    def array? : Bool
+      kind.array?
     end
 
     def void_pointer? : Bool
@@ -113,6 +131,7 @@ module Volt::Frontend
       when .int8?, .u_int8?, .bool? then 1
       when .int16?, .u_int16?       then 2
       when .int32?, .u_int32?, .float32? then 4
+      when .array?                      then element.byte_size * array_size
       else                              8   # Int64, UInt64, Int, UInt, Float, Float64, Str, Object, Struct-ref, Func, Regex, Nil, Pointer, Unknown
       end
     end
@@ -141,6 +160,9 @@ module Volt::Frontend
       return false unless kind == other.kind
       if kind.pointer?
         return pointee == other.pointee
+      end
+      if kind.array?
+        return array_size == other.array_size && element == other.element
       end
       return true unless kind.func?
       return false unless ( r = ret ) && ( o = other.ret ) && r == o
@@ -174,6 +196,9 @@ module Volt::Frontend
       when .pointer?
         pointee.to_s( io )
         io << "*"
+      when .array?
+        element.to_s( io )
+        io << "[" << array_size << "]"
       when .unknown? then io << "?"
       when .func?
         io << "(" << params.map( &.to_s ).join( ", " ) << ") -> " << ret
@@ -199,6 +224,13 @@ module Volt::Frontend
         [ "Regex" ]
       when .pointer?
         [ "Pointer[#{pointee.to_s}]", "Pointer" ]
+      when .array?
+        # `[]`, `[]=`, `.size` are compiler intrinsics (`TypeChecker#infer_index`
+        # et al.) resolved directly from `array_size`/`element`, never through
+        # this table — a single reopened `struct Array … end` is shared across
+        # every element type and length, so it can only carry what's true of
+        # *any* array regardless of `T`/`N` (in practice: `include Inspectable`).
+        [ "Array" ]
       else
         [] of String
       end
@@ -246,6 +278,10 @@ module Volt::Frontend
       if node.is_a?( PointerType )
         inner = from_annotation( node.inner, nominals )
         return inner ? pointer( inner ) : nil
+      end
+      if node.is_a?( ArrayType )
+        elem = from_annotation( node.elem, nominals )
+        return elem ? array( elem, node.size ) : nil
       end
       # `Pair[String, Int64]` : a generic reference resolves to the nominal the
       # monomorphizer registered under its mangled name. Lookup-only : the
