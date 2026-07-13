@@ -481,7 +481,8 @@ module Volt::VM
         raise VoltRuntimeError.new( display_value( frame[ ins.a ] ) )
       when .init?, .drop?, .drop_scope?
         exec_raii( frame, chunk, ins )
-      when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
+      when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?,
+           .check_index?, .load_indexed?, .store_indexed?
         exec_object( frame, chunk, ins )
       else
         raise VoltRuntimeError.new( "opcode #{op} is not yet implemented" )
