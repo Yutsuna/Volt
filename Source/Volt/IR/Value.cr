@@ -154,6 +154,18 @@ module Volt::IR
         n2 = t2 == Tag::Int ? other.as_i.to_f64 : other.as_f
         return n1 == n2
       end
+      if t1 == Tag::Ptr && t2 == Tag::Nil
+        return as_ptr_u64 == 0_u64
+      end
+      if t1 == Tag::Nil && t2 == Tag::Ptr
+        return other.as_ptr_u64 == 0_u64
+      end
+      if t1 == Tag::Object && t2 == Tag::Nil
+        return as_ptr.null?
+      end
+      if t1 == Tag::Nil && t2 == Tag::Object
+        return other.as_ptr.null?
+      end
       return false unless t1 == t2
       case t1
       when Tag::Bool   then as_bool   == other.as_bool
