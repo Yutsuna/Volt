@@ -197,6 +197,8 @@ module Volt::Frontend
         [ "Bool" ]
       when .regex?
         [ "Regex" ]
+      when .pointer?
+        [ "Pointer[#{pointee.to_s}]", "Pointer" ]
       else
         [] of String
       end
@@ -257,6 +259,9 @@ module Volt::Frontend
           arg = from_annotation( p, nominals )
           return nil unless arg
           args << arg
+        end
+        if node.name == "Pointer" && args.size == 1
+          return pointer(args.first)
         end
         return nominals[ Monomorphizer.mangle( node.name, args ) ]?
       end
