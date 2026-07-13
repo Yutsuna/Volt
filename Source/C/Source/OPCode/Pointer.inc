@@ -109,3 +109,8 @@ LAddrField:
 		Regs[ OP_A ].Payload = &Obj->Fields[ OP_C ].Payload;
 	}
 	DISPATCH();
+
+LAddrGlobal:
+	Regs[ OP_A ].Tag = VAL_PTR;
+	Regs[ OP_A ].Payload = &Ctx->Globals[ OP_BX ].Payload;
+	DISPATCH();
