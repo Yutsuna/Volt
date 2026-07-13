@@ -32,7 +32,7 @@ module Volt::Core
   # Parse errors raise `Frontend::CompilationError`; callers already render
   # those, and `sources` is registered so the excerpt resolves.
   def program : Frontend::Program
-    @@program ||= build_program
+    build_program
   end
 
 
