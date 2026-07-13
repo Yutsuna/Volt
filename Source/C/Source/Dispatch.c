@@ -182,6 +182,7 @@ Int32 Volt_Dispatch( FVmContext* Ctx )
 		DispatchTable[ 77 ] = &&LPtrSub;
 		DispatchTable[ 78 ] = &&LAddrLocal;
 		DispatchTable[ 79 ] = &&LAddrField;
+		DispatchTable[ 80 ] = &&LAddrGlobal;  /* ADDR_GLOBAL   */
 		for ( int I = 0; I < 256; ++I )
 			GDispatchTable[ I ] = DispatchTable[ I ];
 		GFellOff    = &&LFellOff;
