@@ -33,11 +33,14 @@ module Volt::Spec
       Volt::IR::Opcode::PTR_SUB.value.should       eq 77
       Volt::IR::Opcode::ADDR_LOCAL.value.should    eq 78
       Volt::IR::Opcode::ADDR_FIELD.value.should    eq 79
+      Volt::IR::Opcode::ADDR_GLOBAL.value.should   eq 80
+      Volt::IR::Opcode::CHECK_INDEX.value.should   eq 81
+      Volt::IR::Opcode::LOAD_INDEXED.value.should  eq 82
+      Volt::IR::Opcode::STORE_INDEXED.value.should eq 83
     end
 
-    it "keeps the opcode count at what the DispatchTable covers (0..80)" do
-      # Bump this and the C DispatchTable together when adding opcodes.
-      Volt::IR::Opcode.values.size.should eq 81
+    it "keeps the opcode count at what the DispatchTable covers (0..83)" do
+      Volt::IR::Opcode.values.size.should eq 84
     end
 
     it "keeps Value::Tag ordinals stable for the C EValueTag" do
