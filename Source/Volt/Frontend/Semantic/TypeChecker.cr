@@ -102,6 +102,8 @@ module Volt::Frontend
         infer( expr.to, scope )
         Type::UNKNOWN
       when MethodCall then infer_method_call( expr, scope )
+      when Index      then infer_index( expr, scope )
+      when VarDecl    then infer_var_decl( expr, scope )
       when PipeExpr   then infer_pipe( expr, scope )
       when ReturnExpr
         if v = expr.value
@@ -190,12 +192,29 @@ module Volt::Frontend
       Type::UNKNOWN
     end
 
+    # `name : Type` (no initializer) : reserves a fresh local of the
+    # annotated type, zero-initialized (see `compile_var_decl` : reuses
+    # `NEW_STRUCT`'s existing nil-fill for the multi-slot case). Meaningful
+    # for any type, but in practice this is how a stack array is declared —
+    # there's no single element value to write `Int64[5] = ...` with.
+    private def infer_var_decl( expr : VarDecl, scope : Scope ) : Type
+      @collector.try( &.instantiate_generics_in( expr.type_ann ) )
+      ty = Type.from_annotation( expr.type_ann, @nominals )
+      if ty.nil?
+        @bag << Catalog::Sema.unsupported_annotation( expr.type_ann.loc )
+        return Type::UNKNOWN
+      end
+      scope.define( expr.name, ty )
+      ty
+    end
+
     private def infer_assign( expr : Assign, scope : Scope ) : Type
       case target = expr.target
       when Ident        then infer_assign_ident( expr, target, scope )
       when InstanceVar  then infer_assign_ivar( expr, target, scope )
       when ClassVar     then infer_assign_class_var( expr, target, scope )
       when MemberAccess then infer_assign_member( expr, target, scope )
+      when Index        then infer_assign_index( expr, target, scope )
       when UnaryOp
         if target.op.star?
           infer_assign_deref( expr, target, scope )
@@ -512,6 +531,10 @@ module Volt::Frontend
       # `.to_string` is the one builtin every value supports ahead of a fuller
       # builtin method table.
       unless recv_ty.is_a?( NominalType )
+        # `.size` on a fixed-size stack array is a compiler intrinsic (the
+        # length is baked into the *type*, `Type#array_size` — there is no
+        # per-instance field to read, so no method dispatch is involved).
+        return Type::UINT64 if recv_ty.array? && expr.name == "size"
         if sig = primitive_method( recv_ty, expr.name )
           @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
           return sig.ret
@@ -591,6 +614,12 @@ module Volt::Frontend
       recv_ty = infer( expr.receiver, scope )
       return Type::UNKNOWN if recv_ty.kind.unknown?
 
+      # `.size` on a fixed-size stack array (see the identical intercept in
+      # `infer_member_access`) — covers the explicit-call spelling `arr.size()`.
+      if recv_ty.array? && expr.name == "size" && expr.args.empty?
+        return Type::UINT64
+      end
+
       # A reopened primitive's own method wins over the builtin fallback :
       # `42.to_string` must run the Core `Int#to_string`, not `TO_STRING`.
       if sig = primitive_method( recv_ty, expr.name )
@@ -629,6 +658,83 @@ module Volt::Frontend
 
       check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
       check_call_args( expr.name, sig.params, expr.args, expr.loc, scope )
+      sig.ret
+    end
+
+    # `receiver[ index ]` desugars to a call on the receiver's own `[]` method
+    # (Crystal-style operator overload) : any `class`/`struct` declaring one
+    # (e.g. the Core's `Array[T]`) becomes indexable with no further compiler
+    # support. A generic-template reference (`Pair[String, Int64]`) never
+    # reaches here : `infer_method_call`/`infer_constructor_call` intercept
+    # that shape ahead of general expression inference.
+    private def infer_index( expr : Index, scope : Scope ) : Type
+      recv_ty  = infer( expr.receiver, scope )
+      index_ty = infer( expr.index, scope )
+      return Type::UNKNOWN if recv_ty.kind.unknown?
+
+      # `arr[i]` on a fixed-size stack array is a compiler intrinsic : length
+      # and element type are both known statically (`Type#array_size`/
+      # `#element`), so this never dispatches through a `[]` method — a
+      # literal out-of-range index is caught here at compile time ; a
+      # runtime-computed one is guarded by `CHECK_INDEX` in the compiler.
+      if recv_ty.array?
+        unless index_ty.integer?
+          @bag << Catalog::Sema.argument_type( 1, "[]", "Int", index_ty.to_s, expr.loc )
+        end
+        if ( lit = expr.index ).is_a?( IntLit ) && ( lit.value < 0 || lit.value >= recv_ty.array_size )
+          @bag << Catalog::Sema.unsupported_expr(
+            "array index #{lit.value} out of bounds for size #{recv_ty.array_size}", expr.loc )
+        end
+        return recv_ty.element
+      end
+
+      unless recv_ty.is_a?( NominalType )
+        @bag << Catalog::Sema.unsupported_expr( "indexing `[]` on non-object type `#{recv_ty}`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      sig = find_method( recv_ty.name, "[]" )
+      if sig.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, "[]", expr.loc )
+        return Type::UNKNOWN
+      end
+      check_call_args( "#{recv_ty}#[]", sig.params, [ expr.index ], expr.loc, scope, [ index_ty ] )
+      sig.ret
+    end
+
+    # `receiver[ index ] = value` desugars to a call on the receiver's own
+    # `[]=` method, mirroring `infer_index` above.
+    private def infer_assign_index( expr : Assign, target : Index, scope : Scope ) : Type
+      recv_ty  = infer( target.receiver, scope )
+      index_ty = infer( target.index, scope )
+      value_ty = infer( expr.value, scope )
+      return Type::UNKNOWN if recv_ty.kind.unknown?
+
+      if recv_ty.array?
+        unless index_ty.integer?
+          @bag << Catalog::Sema.argument_type( 1, "[]=", "Int", index_ty.to_s, expr.loc )
+        end
+        if ( lit = target.index ).is_a?( IntLit ) && ( lit.value < 0 || lit.value >= recv_ty.array_size )
+          @bag << Catalog::Sema.unsupported_expr(
+            "array index #{lit.value} out of bounds for size #{recv_ty.array_size}", expr.loc )
+        end
+        unless type_compatible?( recv_ty.element, value_ty )
+          @bag << Catalog::Sema.annotation_mismatch( "[]=", recv_ty.element.to_s, value_ty.to_s, expr.loc )
+        end
+        return recv_ty.element
+      end
+
+      unless recv_ty.is_a?( NominalType )
+        @bag << Catalog::Sema.unsupported_expr( "indexed assignment `[]=` on non-object type `#{recv_ty}`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      sig = find_method( recv_ty.name, "[]=" )
+      if sig.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, "[]=", expr.loc )
+        return Type::UNKNOWN
+      end
+      check_call_args( "#{recv_ty}#[]=", sig.params, [ target.index, expr.value ], expr.loc, scope, [ index_ty, value_ty ] )
       sig.ret
     end
 
