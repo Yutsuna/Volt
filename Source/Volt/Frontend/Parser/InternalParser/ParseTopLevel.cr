@@ -165,7 +165,16 @@ module Volt::Frontend
       private def parse_def_name : String
         case @current.kind
         when .ident?
-          advance.value
+          ident = advance
+          # `def name=( val : T )` : a setter. Only recognized when the `=` sits
+          # directly against the identifier (no space) so it can't be confused
+          # with `def name = default_value`-style syntax or a following `==`.
+          if @current.kind.eq? && @current.span.offset == ident.span.offset + ident.span.length
+            advance
+            "#{ident.value}="
+          else
+            ident.value
+          end
         when .plus?, .minus?, .star?, .slash?, .percent?, .star_star?,
              .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?,
              .match_op?, .not_match_op?, .eq_eq_eq?

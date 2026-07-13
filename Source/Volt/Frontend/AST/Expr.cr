@@ -151,6 +151,10 @@ module Volt::Frontend
     property target   : AExpr
     property type_ann : ATypeNode?
     property value    : AExpr
+    # Set by the semantic pass when `target` is a `MemberAccess` with no
+    # matching field : `obj.name = v` then dispatches to a `name=` setter
+    # method instead of a `STORE_FIELD` (see `TypeChecker#infer_assign_member`).
+    property is_setter_call : Bool = false
 
     def initialize( @target : AExpr, @type_ann : ATypeNode?, @value : AExpr, loc : Span )
       super( loc )
