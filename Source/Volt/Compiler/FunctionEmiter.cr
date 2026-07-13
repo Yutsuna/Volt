@@ -70,6 +70,13 @@ module Volt::Compiler
     def slot_count( type : Frontend::Type ) : Int32
       if type.is_a?( Frontend::NominalType ) && type.kind.struct?
         type.reg_layout.try( &.total_size ) || 1
+      elsif type.array?
+        # A fixed-size stack array is `N` contiguous slots, one per element —
+        # the exact same "struct value lives in a register run" model
+        # (architecture #1.B), just addressed by a runtime index instead of a
+        # named field. Recurses so `Elem[N]` where `Elem` is itself a
+        # multi-slot struct still sizes correctly.
+        type.array_size * slot_count( type.element )
       else
         1
       end
@@ -207,10 +214,12 @@ module Volt::Compiler
       when Frontend::SelfExpr     then @scope[ "self" ]
       when Frontend::SuperCall    then compile_super_call( expr )
       when Frontend::Assign       then compile_assign( expr )
+      when Frontend::VarDecl      then compile_var_decl( expr )
       when Frontend::BinaryOp     then compile_binary( expr )
       when Frontend::UnaryOp      then compile_unary( expr )
       when Frontend::Call         then compile_call( expr )
       when Frontend::MethodCall   then compile_method_call( expr )
+      when Frontend::Index        then compile_index( expr )
       when Frontend::PipeExpr     then compile_expr( expr.desugared.not_nil! )
       when Frontend::IfExpr     then compile_if( expr )
       when Frontend::WhileExpr  then compile_while( expr )
@@ -306,6 +315,7 @@ module Volt::Compiler
       when Frontend::InstanceVar  then compile_assign_ivar( expr, target )
       when Frontend::ClassVar     then compile_assign_class_var( expr, target )
       when Frontend::MemberAccess then compile_assign_member( expr, target )
+      when Frontend::Index        then compile_assign_index( expr, target )
       when Frontend::UnaryOp
         if target.op.star?
           compile_assign_deref( expr, target )
@@ -315,6 +325,18 @@ module Volt::Compiler
       else
         raise "internal: unlowerable assignment target #{expr.target.class}"
       end
+    end
+
+    # `name : Type` (no initializer) : reserves a fresh, zero/nil-initialized
+    # register block for `name` — `NEW_STRUCT` already does exactly this for
+    # any slot count, so a 1-slot local reuses it too rather than adding a
+    # separate single-register path.
+    private def compile_var_decl( expr : Frontend::VarDecl ) : Int32
+      n    = slot_count( expr.resolved_type || Frontend::Type::UNKNOWN )
+      home = n <= 1 ? alloc : alloc_block( n )
+      emit_abx( IR::Opcode::NEW_STRUCT, home, n )
+      @scope[ expr.name ] = home
+      home
     end
 
     private def compile_assign_deref( expr : Frontend::Assign, target : Frontend::UnaryOp ) : Int32
@@ -415,6 +437,77 @@ module Volt::Compiler
       n         = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
       n.times { |i| emit_abc( IR::Opcode::STORE_FIELD, recv_reg, slot + i, value_reg + i ) }
       value_reg
+    end
+
+    # `receiver[ index ]` : lowers to a direct call on `receiver`'s own `[]`
+    # method, same dispatch rule `compile_method_call` uses (struct : direct
+    # `CALL` ; class : vtable). Mirrors `infer_index` in the `TypeChecker`.
+    private def compile_index( expr : Frontend::Index ) : Int32
+      recv_ty = expr.receiver.resolved_type || Frontend::Type::UNKNOWN
+
+      if recv_ty.array?
+        base_reg  = compile_expr( expr.receiver )
+        index_reg = compile_expr( expr.index )
+        emit_abx( IR::Opcode::CHECK_INDEX, index_reg, recv_ty.array_size )
+        n      = slot_count( recv_ty.element )
+        offset = scaled_index_reg( index_reg, n )
+        dest   = n <= 1 ? alloc : alloc_block( n )
+        n.times { |i| emit_abc( IR::Opcode::LOAD_INDEXED, dest + i, base_reg + i, offset ) }
+        return dest
+      end
+
+      raise "internal: indexing on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
+
+      self_reg  = compile_expr( expr.receiver )
+      arg_regs  = [ compile_expr( expr.index ) ]
+      arg_types = [ expr.index.resolved_type || Frontend::Type::UNKNOWN ]
+      if recv_ty.kind.struct?
+        compile_struct_call( recv_ty, "[]", self_reg, arg_regs, arg_types )
+      else
+        compile_virtual_call( recv_ty, "[]", self_reg, arg_regs, arg_types )
+      end
+    end
+
+    # `receiver[ index ] = value` : lowers to a direct call on `receiver`'s
+    # own `[]=` method, mirroring `compile_index` above.
+    private def compile_assign_index( expr : Frontend::Assign, target : Frontend::Index ) : Int32
+      recv_ty = target.receiver.resolved_type || Frontend::Type::UNKNOWN
+
+      if recv_ty.array?
+        base_reg  = compile_expr( target.receiver )
+        index_reg = compile_expr( target.index )
+        emit_abx( IR::Opcode::CHECK_INDEX, index_reg, recv_ty.array_size )
+        value_reg = compile_expr( expr.value )
+        n         = slot_count( recv_ty.element )
+        offset    = scaled_index_reg( index_reg, n )
+        n.times { |i| emit_abc( IR::Opcode::STORE_INDEXED, base_reg + i, offset, value_reg + i ) }
+        return value_reg
+      end
+
+      raise "internal: indexed assignment on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
+
+      self_reg  = compile_expr( target.receiver )
+      index_reg = compile_expr( target.index )
+      value_reg = compile_expr( expr.value )
+      arg_regs  = [ index_reg, value_reg ]
+      arg_types = [ target.index.resolved_type || Frontend::Type::UNKNOWN, expr.value.resolved_type || Frontend::Type::UNKNOWN ]
+      if recv_ty.kind.struct?
+        compile_struct_call( recv_ty, "[]=", self_reg, arg_regs, arg_types )
+      else
+        compile_virtual_call( recv_ty, "[]=", self_reg, arg_regs, arg_types )
+      end
+    end
+
+    # `LOAD_INDEXED`/`STORE_INDEXED` add a *register* offset, not a scaled
+    # one, so a multi-slot element (`n > 1`) needs its index pre-multiplied
+    # by the element's own slot count before use — `base + i` (the constant
+    # part, folded at compile time) plus `idx * n` (the runtime part) is
+    # exactly `base + idx * n + i`, the element's true slot address.
+    private def scaled_index_reg( index_reg : Int32, n : Int32 ) : Int32
+      return index_reg if n <= 1
+      scaled = alloc
+      emit_abc( IR::Opcode::MUL_INT, scaled, index_reg, const_reg( IR::Value.int( n.to_i64 ) ) )
+      scaled
     end
 
     private def compile_ident( expr : Frontend::Ident ) : Int32
@@ -534,6 +627,11 @@ module Volt::Compiler
       end
 
       recv_ty = expr.receiver.resolved_type
+      # `.size` on a fixed-size stack array : a compile-time constant, same
+      # as `sizeof` — no receiver evaluation needed.
+      if recv_ty && recv_ty.array? && expr.name == "size"
+        return const_reg( IR::Value.int( recv_ty.array_size.to_i64 ) )
+      end
       unless recv_ty.is_a?( Frontend::NominalType )
         # Parenthesis-less zero-arg method call on a primitive receiver.
         if info = primitive_owner( recv_ty, expr.name )
@@ -626,6 +724,9 @@ module Volt::Compiler
       # the vtable instead (`compile_virtual_call`), since the receiver's
       # runtime type may be a subclass of its static type.
       recv_ty = expr.receiver.resolved_type
+      if recv_ty && recv_ty.array? && expr.name == "size" && expr.args.empty?
+        return const_reg( IR::Value.int( recv_ty.array_size.to_i64 ) )
+      end
       # An explicit `obj.finalize()` never dispatches virtually (no vtable
       # slot exists for it) — resolved statically to the receiver's own or
       # nearest ancestor's chunk, mirroring `compile_super_call`'s walk.
