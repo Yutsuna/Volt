@@ -6,8 +6,8 @@ module Volt::Core
   extend self
 
   # Pseudo-path prefix for embedded sources : diagnostics render it as-is,
-  # making Core provenance obvious (`<core>/IO.vl:3:5`).
-  EMBEDDED_PREFIX = "<core>/"
+  # making Core provenance obvious (`<std>/IO.vl:3:5`).
+  EMBEDDED_PREFIX = "<std>/"
 
   @@sources : Hash( String, String )?
   @@program : Frontend::Program?
@@ -76,7 +76,7 @@ module Volt::Core
 
   private def build_program : Frontend::Program
     nodes = [] of Frontend::ANode
-    loc   = Frontend::Span.new( "<core>", 1_u32, 1_u32, 0_u32 )
+    loc   = Frontend::Span.new( "<std>", 1_u32, 1_u32, 0_u32 )
 
     sources.each do |file, source|
       parsed = Frontend.parse( source, file )
@@ -84,7 +84,7 @@ module Volt::Core
       parsed.nodes.each { |node| nodes << node unless node.is_a?( Frontend::LinkDecl ) }
     end
 
-    Frontend::Program.new( nodes, "<core>", loc )
+    Frontend::Program.new( nodes, "<std>", loc )
   end
 
 
