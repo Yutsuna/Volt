@@ -131,14 +131,16 @@ module Volt::Frontend
         parse_forall_if_present( type_params )
 
         if annots.any? { |a| a.name == "External" }
-          lib_name = annots.find( &.name.==( "External" ) ).try &.args.first?.try { |e|
-            e.is_a?( StringLit ) ? e.value : nil
-          }
+          annot = annots.find( &.name.==( "External" ) ).not_nil!
+          lib_name = annot.args.first?.try { |e| e.is_a?( StringLit ) ? e.value : nil }
+          extern_name = annot.args[1]?.try { |e| e.is_a?( StringLit ) ? e.value : nil }
           skip_separators
           # Extern declarations have no body; an optional `end` is tolerated so both
           # `def puts(...) -> Void` and the `def puts(...) -> Void / end` forms parse.
           advance if @current.kind.end?
-          return ExternDecl.new( lib_name, name, params, return_type || SimpleType.new( "Void", loc ), loc )
+          decl = ExternDecl.new( lib_name, name, params, return_type || SimpleType.new( "Void", loc ), loc )
+          decl.extern_name = extern_name
+          return decl
         end
 
         if is_abstract
