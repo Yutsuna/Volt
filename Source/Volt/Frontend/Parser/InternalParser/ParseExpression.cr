@@ -76,6 +76,20 @@ module Volt::Frontend
       when TokenKind::Nil
         NilLit.new( tok.span )
       when .ident?
+        if tok.value == "sizeof"
+          loc = tok.span
+          if @current.kind.l_paren?
+            advance # consume (
+            @paren_depth += 1
+            ty = parse_type
+            @paren_depth -= 1
+            expect( TokenKind::RParen )
+            return SizeofExpr.new( ty, loc )
+          else
+            ty = parse_type
+            return SizeofExpr.new( ty, loc )
+          end
+        end
         Ident.new( tok.value, tok.span )
       when .self_?
         SelfExpr.new( tok.span )
