@@ -36,9 +36,9 @@ stdenv.mkDerivation {
   postInstall = ''
     wrapProgram $out/bin/volt \
       --prefix PATH : ${
-        pkgs.lib.makeBinPath [
-          pkgs.crystal
-          pkgs.mold
+        lib.makeBinPath [
+          crystal
+          mold
         ]
       }
   '';
