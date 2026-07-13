@@ -4,8 +4,7 @@ struct Bool include Inspectable
   #----------------------------------------------------------------------------
 
   def to_string -> String
-    return "true" if self
-    "false"
+    "true" if self else "false"
   end
 
   #----------------------------------------------------------------------------
