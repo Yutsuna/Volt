@@ -346,4 +346,14 @@ module Volt::Frontend
   end
 
 
+  class SizeofExpr < AExpr
+      property type_node : ATypeNode
+      property byte_size : Int32 = 0
+
+      def initialize( @type_node : ATypeNode, loc : Span )
+        super( loc )
+      end
+    end
+
+
 end
