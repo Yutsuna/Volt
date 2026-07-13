@@ -67,7 +67,7 @@ module Volt::VM
     # included : `Value#to_display`'s generic `Tag::Object` arm only knows
     # `<object:id>` (it can't see method bodies), so a raised/REPL-printed
     # `String` needs its bytes read directly off the known field layout
-    # (`ptr`, `size`, `owned` — slots 0/1/2, `Core/String.vl`'s declaration
+    # (`ptr`, `size`, `owned` — slots 0/1/2, `Std/String.vl`'s declaration
     # order) rather than calling back into `to_string` (this may run from
     # inside `RAISE`/`unwind`, not a safe place to re-enter `execute`).
     def display_value( v : IR::Value ) : String
@@ -118,7 +118,7 @@ module Volt::VM
     # Reads a `Value` as a Crystal `String` if it's a real Core `String`-class
     # instance (`Tag::Object` whose `type_id` matches the resolved "String"
     # class) — its bytes are read directly off the known field layout :
-    # `ptr`, `size`, `owned`, slots 0/1/2 per `Core/String.vl`'s declaration
+    # `ptr`, `size`, `owned`, slots 0/1/2 per `Std/String.vl`'s declaration
     # order. `nil` for anything else (an ordinary object, a Regex, ...).
     def volt_string( v : IR::Value ) : String?
       return nil unless v.tag.object?

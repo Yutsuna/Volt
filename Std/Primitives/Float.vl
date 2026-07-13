@@ -1,5 +1,5 @@
 @[External]
-def volt_format_float( val : Float64, buf : UInt8* ) -> Int32
+def __volt_format_float( val : Float64, buf : UInt8* ) -> Int32
 
 
 struct Float include Inspectable
@@ -8,7 +8,7 @@ struct Float include Inspectable
 
   def to_string -> String
     buf : UInt8* = malloc( 64 )
-    len = volt_format_float( self, buf )
+    len = __volt_format_float( self, buf )
     if len < 0
       free( buf )
       return "0.0"
