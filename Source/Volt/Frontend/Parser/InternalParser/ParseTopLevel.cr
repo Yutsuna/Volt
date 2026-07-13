@@ -128,6 +128,7 @@ module Volt::Frontend
         type_params = parse_type_params_if_present
         params      = parse_param_list
         return_type = parse_return_type_if_present
+        parse_forall_if_present( type_params )
 
         if annots.any? { |a| a.name == "External" }
           lib_name = annots.find( &.name.==( "External" ) ).try &.args.first?.try { |e|
