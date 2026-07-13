@@ -18,6 +18,7 @@ mkShell {
     hyperfine
     benchScript
     graphify
+    tree-sitter-grammars.tree-sitter-crystal
   ];
 
   buildInputs = [
