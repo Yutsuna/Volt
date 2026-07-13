@@ -35,9 +35,9 @@ module Volt::Spec
       Volt::IR::Opcode::ADDR_FIELD.value.should    eq 79
     end
 
-    it "keeps the opcode count at what the DispatchTable covers (0..79)" do
+    it "keeps the opcode count at what the DispatchTable covers (0..80)" do
       # Bump this and the C DispatchTable together when adding opcodes.
-      Volt::IR::Opcode.values.size.should eq 80
+      Volt::IR::Opcode.values.size.should eq 81
     end
 
     it "keeps Value::Tag ordinals stable for the C EValueTag" do
