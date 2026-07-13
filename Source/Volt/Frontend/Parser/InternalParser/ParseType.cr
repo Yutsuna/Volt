@@ -27,15 +27,26 @@ module Volt::Frontend
       ty : ATypeNode = if @current.kind.l_bracket?
         advance
         @paren_depth += 1
-        params = [] of ATypeNode
-        params << parse_type
-        while @current.kind.comma?
-          advance; skip_newlines
+        # `Elem[N]` : a fixed-size stack array (`Int64[5]`) reads as an
+        # integer literal inside the brackets, distinguishing it from the
+        # identifier-based generic-argument form (`Pair[String, Int64]`).
+        if @current.kind.int?
+          size_tok = advance
+          size     = size_tok.value.delete( '_' ).to_i32
+          @paren_depth -= 1
+          expect( TokenKind::RBracket )
+          ArrayType.new( SimpleType.new( name, loc ), size, loc )
+        else
+          params = [] of ATypeNode
           params << parse_type
+          while @current.kind.comma?
+            advance; skip_newlines
+            params << parse_type
+          end
+          @paren_depth -= 1
+          expect( TokenKind::RBracket )
+          GenericType.new( name, params, loc )
         end
-        @paren_depth -= 1
-        expect( TokenKind::RBracket )
-        GenericType.new( name, params, loc )
       else
         SimpleType.new( name, loc )
       end
