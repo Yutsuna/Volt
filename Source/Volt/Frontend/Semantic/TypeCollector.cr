@@ -85,7 +85,7 @@ module Volt::Frontend
       # patching": a second `struct Int … end` elsewhere merges its methods
       # into the same `TypeInfo` rather than duplicate-erroring.
       # `resolve` routes it to `resolve_primitive_reopen`.
-      if node.is_a?( StructDecl ) && Type.from_primitive_name( name )
+      if node.is_a?( StructDecl ) && ( Type.from_primitive_name( name ) || name == "Array" )
         if existing = @decls[ name ]?
           existing.as( StructDecl ).body.concat( node.body )
           return
@@ -222,7 +222,7 @@ module Volt::Frontend
     end
 
     private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil
-      return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name )
+      return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name ) || node.name == "Array"
 
       info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
       fields      = collect_fields( node.body, nil )
