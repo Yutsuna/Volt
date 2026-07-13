@@ -38,6 +38,7 @@ module Volt::Frontend
       @mono      = Monomorphizer.new( @bag )
       @collector = nil.as( TypeCollector? )
       @state.class_templates.each { |name, decl| @mono.class_templates[ name ] = decl }
+      @state.struct_templates.each { |name, decl| @mono.struct_templates[ name ] = decl }
       @state.func_templates.each { |name, decl| @mono.func_templates[ name ] = decl }
       @state.types.each_key { |name| @mono.mark_instantiated( name ) if name.includes?( '[' ) }
       @state.signatures.each_key { |name| @mono.mark_instantiated( name ) if name.includes?( '[' ) }
@@ -69,6 +70,9 @@ module Volt::Frontend
       end
       @mono.class_templates.each do |name, decl|
         @state.class_templates[ name ] = decl
+      end
+      @mono.struct_templates.each do |name, decl|
+        @state.struct_templates[ name ] = decl
       end
       @mono.func_templates.each do |name, decl|
         @state.func_templates[ name ] = decl
