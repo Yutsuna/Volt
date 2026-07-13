@@ -245,6 +245,21 @@ module Volt::Frontend
         inner = from_annotation( node.inner, nominals )
         return inner ? pointer( inner ) : nil
       end
+      # `Pair[String, Int64]` : a generic reference resolves to the nominal the
+      # monomorphizer registered under its mangled name. Lookup-only : the
+      # instantiation itself is triggered upstream (TypeCollector/TypeChecker),
+      # so an unresolved generic here means it was never (or can't be)
+      # instantiated and correctly reads as an unknown type.
+      if node.is_a?( GenericType )
+        return nil unless nominals
+        args = [] of Type
+        node.params.each do |p|
+          arg = from_annotation( p, nominals )
+          return nil unless arg
+          args << arg
+        end
+        return nominals[ Monomorphizer.mangle( node.name, args ) ]?
+      end
       return nil unless node.is_a?( SimpleType )
       from_primitive_name( node.name ) || nominals.try( &.[]?( node.name ) )
     end

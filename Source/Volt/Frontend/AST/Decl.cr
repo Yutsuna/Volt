@@ -126,15 +126,17 @@ module Volt::Frontend
   end
 
 
-  # struct Name \n body \n end : value type: fields + methods, no inheritance
+  # struct Name[T] \n body \n end : value type: fields + methods, no inheritance
   class StructDecl < ADecl
     property name        : String
+    property type_params : Array( String )
     property mixins      : Array( String )
     property body        : Array( ANode )
     property annotations : Array( Annotation )
 
     def initialize( @name : String, @mixins : Array( String ), @body : Array( ANode ),
-                    @annotations : Array( Annotation ), loc : Span )
+                    @annotations : Array( Annotation ), loc : Span,
+                    @type_params : Array( String ) = [] of String )
       super( loc )
     end
   end
