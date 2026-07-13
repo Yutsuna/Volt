@@ -496,6 +496,13 @@ module Volt::Frontend
     end
   end
 
+  class VarDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("VarDecl") << " " << ASTDump.val(@name) << ASTDump.loc(@loc) << "\n"
+      field(io, "type", @type_ann, prefix, true)
+    end
+  end
+
   class BlockExpr
     def dump(io : IO, prefix : String) : Nil
       params_s = @params.empty? ? "" : " #{ASTDump.val("|#{@params.join(", ")}|")}"
@@ -712,6 +719,14 @@ module Volt::Frontend
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("PointerType") << ASTDump.loc(@loc) << "\n"
       field(io, "inner", @inner, prefix, true)
+    end
+  end
+
+
+  class ArrayType
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("ArrayType") << " " << ASTDump.val("[#{@size}]") << ASTDump.loc(@loc) << "\n"
+      field(io, "elem", @elem, prefix, true)
     end
   end
 

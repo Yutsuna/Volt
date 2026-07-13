@@ -158,6 +158,21 @@ module Volt::Frontend
   end
 
 
+  # name : Type   (no initializer) : reserves a fresh, zero-initialized local
+  # of the annotated type — the one shape `Assign` can't express since it
+  # requires a value. In practice this is how a fixed-size stack array is
+  # declared (`buf : UInt8[ 20 ]`) : there is no single element value to
+  # initialize it *with*, only a size to reserve.
+  class VarDecl < AExpr
+    property name     : String
+    property type_ann : ATypeNode
+
+    def initialize( @name : String, @type_ann : ATypeNode, loc : Span )
+      super( loc )
+    end
+  end
+
+
   # forward declaration BlockExpr is referenced by Call / MethodCall
   class BlockExpr < AExpr
     property params : Array( String )
