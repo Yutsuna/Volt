@@ -45,11 +45,36 @@ module Volt::Frontend
       names << expect( TokenKind::Ident ).value
       while @current.kind.comma?
         advance; skip_newlines
-        names << expect( TokenKind::Ident ).value
+        tok = expect( TokenKind::Ident )
+        if names.includes?( tok.value )
+          error!( Catalog::Parse.duplicate_type_param( tok.value, tok ) )
+        end
+        names << tok.value
       end
       @paren_depth -= 1
       expect( TokenKind::RBracket )
       names
+    end
+
+    # Trailing `forall T, U` on a `def` : the Crystal-style spelling of a
+    # generic function. `forall` is contextual (an ordinary identifier
+    # elsewhere), so it only takes effect in this position. The names merge
+    # into the same `type_params` list the `def name[T]` form fills : both
+    # spellings declare the same thing, and mixing them may not redeclare a
+    # name.
+    private def parse_forall_if_present( type_params : Array( String ) ) : Nil
+      return unless @current.kind.ident? && @current.value_eq?( "forall" )
+      advance   # consume `forall`
+      loop do
+        tok  = expect( TokenKind::Ident )
+        name = tok.value
+        if type_params.includes?( name )
+          error!( Catalog::Parse.duplicate_type_param( name, tok ) )
+        end
+        type_params << name
+        break unless @current.kind.comma?
+        advance; skip_newlines
+      end
     end
 
     private def parse_return_type_if_present : ATypeNode?

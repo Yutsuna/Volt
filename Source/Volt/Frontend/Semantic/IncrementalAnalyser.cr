@@ -4,8 +4,9 @@ module Volt::Frontend
   class IncrementalTypeChecker < TypeChecker
     def initialize( sigs : SignatureTable, bag : DiagnosticBag,
                     types : Hash(String, TypeInfo), nominals : Hash(String, NominalType),
-                    @repl_scope : Scope )
-      super( sigs, bag, types, nominals )
+                    @repl_scope : Scope,
+                    mono : Monomorphizer? = nil, collector : TypeCollector? = nil )
+      super( sigs, bag, types, nominals, mono, collector )
     end
 
     def check_top_level( nodes : Array(ANode) ) : Nil
@@ -27,6 +28,20 @@ module Volt::Frontend
     def initialize( @program : Program, @state : Volt::REPL::IncrementalState )
       @bag       = DiagnosticBag.new
       @sigs      = SignatureTable.new_with_existing( @bag, @state.signatures )
+
+      # Fresh monomorphizer per input, seeded from the persisted state :
+      # templates from earlier inputs stay instantiable, and combinations
+      # already declared in a previous turn are pre-marked so they resolve
+      # against the carried-over type instead of re-declaring. (A combination
+      # from a *failed* input never reached the state, so it correctly isn't
+      # pre-marked and re-instantiates cleanly.)
+      @mono      = Monomorphizer.new( @bag )
+      @collector = nil.as( TypeCollector? )
+      @state.class_templates.each { |name, decl| @mono.class_templates[ name ] = decl }
+      @state.func_templates.each { |name, decl| @mono.func_templates[ name ] = decl }
+      @state.types.each_key { |name| @mono.mark_instantiated( name ) if name.includes?( '[' ) }
+      @state.signatures.each_key { |name| @mono.mark_instantiated( name ) if name.includes?( '[' ) }
+
       @functions = [] of FuncDecl
       @top_level = [] of ANode
       @types     = @state.types.dup
@@ -52,12 +67,19 @@ module Volt::Frontend
       @nominals.each do |name, nominal_type|
         @state.add_nominal( name, nominal_type )
       end
+      @mono.class_templates.each do |name, decl|
+        @state.class_templates[ name ] = decl
+      end
+      @mono.func_templates.each do |name, decl|
+        @state.func_templates[ name ] = decl
+      end
 
       TypedProgram.new( @program, @functions, @top_level, @sigs.table, @types, @methods )
     end
 
     private def partition : Nil
-      collector = TypeCollector.new( @bag )
+      collector  = TypeCollector.new( @bag, @mono )
+      @collector = collector
 
       # Pre-populate types and nominals from the state
       collector.types.merge!( @state.types )
@@ -100,9 +122,16 @@ module Volt::Frontend
           @sigs.collect_extern( node )
           @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
         when FuncDecl
-          @sigs.collect( node, @nominals )
-          @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
-          @functions << node
+          # Same template split as `Analyser#partition`.
+          if node.type_params.empty?
+            node.params.each { |p| p.type_ann.try { |a| collector.instantiate_generics_in( a ) } }
+            node.return_type.try { |a| collector.instantiate_generics_in( a ) }
+            @sigs.collect( node, @nominals )
+            @sigs.mark_redefinable( node.name ) if Frontend.core_file?( node.loc.file )
+            @functions << node
+          else
+            @mono.register_func_template( node )
+          end
         when AExpr
           @top_level << node
         when ClassDecl, StructDecl, MixinDecl, ModuleDecl, CircuitDecl
@@ -128,7 +157,7 @@ module Volt::Frontend
       end
 
       # We construct our IncrementalTypeChecker
-      checker = IncrementalTypeChecker.new( @sigs, @bag, @types, @nominals, repl_scope )
+      checker = IncrementalTypeChecker.new( @sigs, @bag, @types, @nominals, repl_scope, @mono, @collector )
 
       # We check functions
       @functions.each do |fn|
@@ -140,9 +169,22 @@ module Volt::Frontend
       # We check top-level expressions/statements
       checker.check_top_level( @top_level )
 
-      # We check methods
-      @method_entries.each do |fn, owner, sig|
-        checker.check_method( fn, sig, owner )
+      # We check methods, then drain generic instantiations to fixpoint :
+      # same worklist as `Analyser#check`.
+      checked = 0
+      loop do
+        while checked < @method_entries.size
+          fn, owner, sig = @method_entries[ checked ]
+          checked += 1
+          checker.check_method( fn, sig, owner )
+        end
+        break if @mono.fresh_funcs.empty?
+        fn = @mono.fresh_funcs.shift
+        @sigs.collect( fn, @nominals ) unless @sigs[ fn.name ]?
+        @functions << fn
+        if sig = @sigs[ fn.name ]?
+          checker.check_function( fn, sig )
+        end
       end
 
       # Keep a reference to the checked scope so we can promote the top level variables

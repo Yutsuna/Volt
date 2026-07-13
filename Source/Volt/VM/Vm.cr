@@ -298,8 +298,7 @@ module Volt::VM
       ensure_chunk_table
       idx = @chunk_index_of[ chunk.object_id ]?
       raise VoltRuntimeError.new( "chunk '#{chunk.name}' is not part of this unit" ) unless idx
-      base = @stack_top
-      base = 1 if base < 1
+      base = @stack_top + 1
       args.each_with_index { |a, i| @stack[ base + i ] = a }
       n = execute_index( idx, base )
       Array( IR::Value ).new( n ) { |i| @stack[ base - 1 + i ] }
@@ -782,7 +781,8 @@ module Volt::VM
               exec_object( frame, chunk, ins )
 
             when IR::Opcode::LOAD_PTR, IR::Opcode::STORE_PTR, IR::Opcode::PTR_ADD,
-                 IR::Opcode::PTR_SUB, IR::Opcode::ADDR_LOCAL, IR::Opcode::ADDR_FIELD
+                 IR::Opcode::PTR_SUB, IR::Opcode::ADDR_LOCAL, IR::Opcode::ADDR_FIELD,
+                 IR::Opcode::ADDR_GLOBAL
               exec_pointer( frame, chunk, ins )
 
             else

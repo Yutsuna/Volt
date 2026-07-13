@@ -4,7 +4,8 @@ module Volt::Frontend
   class TypeChecker
     def initialize( @sigs : SignatureTable, @bag : DiagnosticBag,
                     @types : Hash( String, TypeInfo ) = {} of String => TypeInfo,
-                    @nominals : Hash( String, NominalType ) = {} of String => NominalType )
+                    @nominals : Hash( String, NominalType ) = {} of String => NominalType,
+                    @mono : Monomorphizer? = nil, @collector : TypeCollector? = nil )
       @self_type      = nil.as( TypeInfo? )
       @current_method = nil.as( FuncDecl? )
       @loop_depth     = 0
@@ -255,6 +256,7 @@ module Volt::Frontend
       static_ty = value_ty
 
       if ann = expr.type_ann
+        @collector.try( &.instantiate_generics_in( ann ) )
         declared = Type.from_annotation( ann, @nominals )
         if declared.nil?
           @bag << Catalog::Sema.unsupported_annotation( ann.loc )
@@ -450,6 +452,23 @@ module Volt::Frontend
 
     private def infer_member_access( expr : MemberAccess, scope : Scope ) : Type
 
+      # `Pair[String, Int64].new` (bare, no parens) : explicit generic instantiation.
+      if ( recv = expr.receiver ).is_a?( Index ) && generic_template_index?( recv ) && expr.name == "new"
+        info = resolve_generic_receiver( recv )
+        return Type::UNKNOWN unless info
+        expr.receiver = ident_for( info, recv.loc )
+        dummy_call = MethodCall.new( expr.receiver, expr.name, [] of AExpr, nil, expr.safe, expr.loc )
+        return infer_constructor_call( info, dummy_call, scope )
+      end
+
+      # A bare template name has no concrete layout : without constructor
+      # arguments there is nothing to infer the type arguments from.
+      if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) &&
+         ( mono = @mono ) && mono.type_template?( recv.name )
+        @bag << Catalog::Sema.generic_needs_type_args( recv.name, expr.loc )
+        return Type::UNKNOWN
+      end
+
       # `Type.new` : the receiver names a declared class/struct rather than a value in
       if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) && ( info = @types[ recv.name ]? )
         recv.resolved_type = @nominals[ recv.name ]?
@@ -504,6 +523,31 @@ module Volt::Frontend
         infer( expr.receiver, scope )
         expr.args.each { |a| infer( a, scope ) }
         return Type::BOOL
+      end
+
+      # `Pair[String, Int64].new( args )` : explicit generic instantiation. The
+      # receiver rewrites to the mangled concrete name so the compiler lowers
+      # an ordinary constructor call.
+      if ( recv = expr.receiver ).is_a?( Index ) && generic_template_index?( recv ) && expr.name == "new"
+        info = resolve_generic_receiver( recv )
+        unless info
+          expr.args.each { |a| infer( a, scope ) }
+          return Type::UNKNOWN
+        end
+        expr.receiver = ident_for( info, recv.loc )
+        return infer_constructor_call( info, expr, scope )
+      end
+
+      # `Pair.new( "Volt", 2026 )` : type arguments inferred from the
+      # constructor arguments, Crystal-style.
+      if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) &&
+         ( mono = @mono ) && mono.type_template?( recv.name )
+        unless expr.name == "new"
+          @bag << Catalog::Sema.generic_needs_type_args( recv.name, expr.loc )
+          expr.args.each { |a| infer( a, scope ) }
+          return Type::UNKNOWN
+        end
+        return infer_inferred_constructor( recv.name, expr, scope )
       end
 
       # `Type.new( args )` : the receiver names a declared class/struct rather
@@ -608,37 +652,259 @@ module Volt::Frontend
       false
     end
 
-    private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope ) : Type
+    private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope,
+                                        arg_tys : Array( Type )? = nil ) : Type
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
       if owner = find_initializer_owner_info( info.name )
         if init = owner.initializers[ expr.args.size ]?
-          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope )
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, arg_tys )
         else
           expected = owner.initializer.try( &.params.size ) || 0
           @bag << Catalog::Sema.arity_mismatch( "#{info.name}.new", expected, expr.args.size, expr.loc )
-          expr.args.each { |a| infer( a, scope ) }
+          expr.args.each { |a| infer( a, scope ) } unless arg_tys
         end
       elsif layout = info.layout
-        check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope )
+        check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope, arg_tys )
       else
-        expr.args.each { |a| infer( a, scope ) }
+        expr.args.each { |a| infer( a, scope ) } unless arg_tys
       end
 
       @nominals[ info.name ]? || Type::UNKNOWN
     end
 
-    private def check_call_args( name : String, params : Array( Type ), args : Array( AExpr ), loc : Span, scope : Scope ) : Nil
+    # `arg_tys`, when given, carries the argument types a generic-inference
+    # path already inferred : reusing them avoids inferring (and diagnosing)
+    # each argument expression twice.
+    private def check_call_args( name : String, params : Array( Type ), args : Array( AExpr ), loc : Span,
+                                 scope : Scope, arg_tys : Array( Type )? = nil ) : Nil
       unless params.size == args.size
         @bag << Catalog::Sema.arity_mismatch( name, params.size, args.size, loc )
       end
       args.each_with_index do |arg, i|
-        at    = infer( arg, scope )
+        at    = arg_tys.try( &.[ i ]? ) || infer( arg, scope )
         param = params[ i ]?
         next if param.nil?
         next if type_compatible?( param, at )
         @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
       end
+    end
+
+    # -----------------------------------------------------------------------------------
+    # Generics : instantiation triggers
+    #
+    # All three surface forms land here : `Pair[String, Int64].new` (explicit
+    # class), `Pair.new( "Volt", 2026 )` (inferred class), and generic function
+    # calls (`identity( 42 )` inferred, `identity[Int64]( 42 )` explicit).
+    # Every path ends by rewriting the call site AST to the mangled concrete
+    # name, so the compiler only ever sees ordinary declarations.
+
+    private def generic_template_index?( recv : Index ) : Bool
+      base = recv.receiver
+      base.is_a?( Ident ) && ( @mono.try( &.type_template?( base.name ) ) || false )
+    end
+
+    # Instantiates whichever kind of type template (class or struct) owns
+    # `name` and drains the resulting declarations into the shared type
+    # tables : returns the mangled name, nil on failure (the monomorphizer
+    # diagnosed it).
+    private def instantiate_type!( name : String, args : Array( Type ), loc : Span ) : String?
+      mono      = @mono
+      collector = @collector
+      return nil unless mono && collector
+      mangled = mono.instantiate_type( name, args, loc )
+      return nil unless mangled
+      collector.drain_instantiations
+      mangled
+    end
+
+    # Resolves an expression in type-argument position. `Pair[String, Int64]`
+    # parses its arguments as ordinary expressions, so a type argument arrives
+    # as an `Ident` (a type name) or a nested `Index` (a nested generic).
+    private def type_arg_from_expr( e : AExpr ) : Type?
+      case e
+      when Ident
+        Type.from_primitive_name( e.name ) || @nominals[ e.name ]?
+      when Index
+        base = e.receiver
+        return nil unless base.is_a?( Ident )
+        args = [] of Type
+        ( [ e.index ] + e.extra_args ).each do |x|
+          t = type_arg_from_expr( x )
+          return nil unless t
+          args << t
+        end
+        mangled = instantiate_type!( base.name, args, e.loc )
+        return nil unless mangled
+        @nominals[ mangled ]?
+      else
+        nil
+      end
+    end
+
+    # `Pair[String, Int64]` as a constructor receiver : resolves the type
+    # arguments and instantiates. Returns the concrete `TypeInfo`, or nil
+    # after diagnosing.
+    private def resolve_generic_receiver( recv : Index ) : TypeInfo?
+      base = recv.receiver
+      return nil unless base.is_a?( Ident )
+      args = [] of Type
+      ( [ recv.index ] + recv.extra_args ).each do |e|
+        t = type_arg_from_expr( e )
+        if t.nil?
+          @bag << Catalog::Sema.unknown_type_argument( e.is_a?( Ident ) ? e.name : "?", e.loc )
+          return nil
+        end
+        args << t
+      end
+      mangled = instantiate_type!( base.name, args, recv.loc )
+      return nil unless mangled
+      @types[ mangled ]?
+    end
+
+    private def ident_for( info : TypeInfo, loc : Span ) : Ident
+      ident = Ident.new( info.name, loc )
+      ident.resolved_type = @nominals[ info.name ]?
+      ident
+    end
+
+    # Binds type parameters by structurally matching a declared annotation
+    # against an actual argument type : `T` binds directly, `T*` binds through
+    # one pointer level. First binding wins; a conflicting second argument is
+    # caught by the ordinary argument check after instantiation.
+    private def unify_type_param( ann : ATypeNode?, actual : Type, params : Array( String ),
+                                  bindings : Hash( String, Type ) ) : Nil
+      return if actual.kind.unknown?
+      if ann.is_a?( SimpleType )
+        if params.includes?( ann.name ) && !bindings.has_key?( ann.name )
+          bindings[ ann.name ] = actual
+        end
+      elsif ann.is_a?( PointerType )
+        unify_type_param( ann.inner, actual.pointee, params, bindings ) if actual.pointer?
+      elsif ann.is_a?( NilableType )
+        unify_type_param( ann.inner, actual, params, bindings )
+      end
+    end
+
+    # The annotations to unify constructor arguments against : the template's
+    # arity-matching `initialize`, or (constructor-less class/struct) its
+    # field declarations in order. Works from the raw body/name so it applies
+    # equally to a `ClassDecl` and a `StructDecl` template.
+    private def constructor_param_annotations( body : Array( ANode ), arity : Int32 ) : Array( ATypeNode? )?
+      inits = body.select { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.map( &.as( FuncDecl ) )
+      if init = inits.find { |fn| fn.params.size == arity }
+        return init.params.map( &.type_ann )
+      end
+      return nil unless inits.empty?
+      fields = body.select( FieldDecl )
+      return nil unless fields.size == arity
+      fields.map { |f| f.type_ann.as( ATypeNode? ) }
+    end
+
+    # `Pair.new( "Volt", 2026 )` : infers the type arguments from the
+    # constructor arguments, instantiates, and rewrites the receiver. Works
+    # for either a generic `class` or a generic `struct` template.
+    private def infer_inferred_constructor( name : String, expr : MethodCall, scope : Scope ) : Type
+      mono = @mono
+      return Type::UNKNOWN unless mono
+      type_params = mono.type_template_params( name )
+      body        = mono.type_template_body( name )
+      return Type::UNKNOWN unless type_params && body
+
+      arg_tys = expr.args.map { |a| infer( a, scope ) }
+
+      anns = constructor_param_annotations( body, expr.args.size )
+      if anns.nil?
+        @bag << Catalog::Sema.cannot_infer_type_param( type_params.first? || "T", name, expr.loc )
+        return Type::UNKNOWN
+      end
+
+      bindings = {} of String => Type
+      anns.each_with_index do |ann, i|
+        at = arg_tys[ i ]?
+        unify_type_param( ann, at, type_params, bindings ) if at
+      end
+
+      args = [] of Type
+      type_params.each do |tp|
+        bound = bindings[ tp ]?
+        if bound.nil? || bound.kind.unknown?
+          @bag << Catalog::Sema.cannot_infer_type_param( tp, name, expr.loc )
+          return Type::UNKNOWN
+        end
+        args << bound
+      end
+
+      mangled = instantiate_type!( name, args, expr.loc )
+      return Type::UNKNOWN unless mangled
+      info = @types[ mangled ]?
+      return Type::UNKNOWN unless info
+      expr.receiver = ident_for( info, expr.receiver.loc )
+      infer_constructor_call( info, expr, scope, arg_tys )
+    end
+
+    # `identity( 42 )` : type arguments inferred from the call's arguments.
+    private def infer_generic_call( tmpl : FuncDecl, expr : Call, scope : Scope ) : Type
+      arg_tys = expr.args.map { |a| infer( a, scope ) }
+      unless tmpl.params.size == expr.args.size
+        @bag << Catalog::Sema.arity_mismatch( tmpl.name, tmpl.params.size, expr.args.size, expr.loc )
+        return Type::UNKNOWN
+      end
+
+      bindings = {} of String => Type
+      tmpl.params.each_with_index do |p, i|
+        at = arg_tys[ i ]?
+        unify_type_param( p.type_ann, at, tmpl.type_params, bindings ) if at
+      end
+
+      args = [] of Type
+      tmpl.type_params.each do |tp|
+        bound = bindings[ tp ]?
+        if bound.nil? || bound.kind.unknown?
+          @bag << Catalog::Sema.cannot_infer_type_param( tp, tmpl.name, expr.loc )
+          return Type::UNKNOWN
+        end
+        args << bound
+      end
+
+      finish_generic_call( tmpl.name, args, expr, arg_tys, scope )
+    end
+
+    # `identity[Int64]( 42 )` : explicit type arguments on the callee.
+    private def infer_explicit_generic_call( callee : Index, name : String, expr : Call, scope : Scope ) : Type
+      arg_tys = expr.args.map { |a| infer( a, scope ) }
+      args = [] of Type
+      ( [ callee.index ] + callee.extra_args ).each do |e|
+        t = type_arg_from_expr( e )
+        if t.nil?
+          @bag << Catalog::Sema.unknown_type_argument( e.is_a?( Ident ) ? e.name : "?", e.loc )
+          return Type::UNKNOWN
+        end
+        args << t
+      end
+      finish_generic_call( name, args, expr, arg_tys, scope )
+    end
+
+    private def finish_generic_call( name : String, args : Array( Type ), expr : Call,
+                                     arg_tys : Array( Type ), scope : Scope ) : Type
+      mono = @mono
+      return Type::UNKNOWN unless mono
+      mangled = mono.instantiate_func( name, args, expr.loc )
+      return Type::UNKNOWN unless mangled
+
+      # The analyser checks the clone's body later (worklist), but this call
+      # site needs its signature now for the return type and argument check.
+      unless @sigs[ mangled ]?
+        if fn = mono.fresh_funcs.find { |f| f.name == mangled }
+          @sigs.collect( fn, @nominals )
+        end
+      end
+      sig = @sigs[ mangled ]?
+      return Type::UNKNOWN unless sig
+
+      expr.callee = Ident.new( mangled, expr.callee.loc )
+      check_call_args( name, sig.params, expr.args, expr.loc, scope, arg_tys )
+      sig.ret
     end
 
     # A method call on a primitive receiver resolves through the reopened
@@ -900,6 +1166,13 @@ module Volt::Frontend
 
     private def infer_call( expr : Call, scope : Scope ) : Type
       callee = expr.callee
+
+      # `identity[Int64]( 42 )` : explicit generic function instantiation.
+      if callee.is_a?( Index ) && ( base = callee.receiver ).is_a?( Ident ) &&
+         ( mono = @mono ) && mono.func_template?( base.name )
+        return infer_explicit_generic_call( callee, base.name, expr, scope )
+      end
+
       unless callee.is_a?( Ident )
         @bag << Catalog::Sema.non_direct_call( expr.loc )
         expr.args.each { |a| infer( a, scope ) }
@@ -930,6 +1203,14 @@ module Volt::Frontend
       end
 
       sig  = @sigs[ name ]?
+
+      # `identity( 42 )` : the callee names a generic function template; the
+      # type arguments are inferred by unifying the declared parameter
+      # annotations against the actual argument types.
+      if sig.nil? && ( mono = @mono ) && ( tmpl = mono.func_template( name ) )
+        return infer_generic_call( tmpl, expr, scope )
+      end
+
       if sig.nil?
         @bag << Catalog::Sema.undefined_function( name, expr.loc, Suggest.closest( name, @sigs.names ) )
         expr.args.each { |a| infer( a, scope ) }

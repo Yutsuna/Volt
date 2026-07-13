@@ -35,7 +35,7 @@ LDrop:
 					Ctx->Frames[ FrameDepth ].Ip         = Ip;
 					FrameDepth += 1;
 
-					Int32 DtorBase = StackTop;
+					Int32 DtorBase = StackTop + 1;
 					if ( DtorBase + Dtor->NumRegisters > Ctx->StackCapacity )
 					{
 						SAVE_CURSOR();
