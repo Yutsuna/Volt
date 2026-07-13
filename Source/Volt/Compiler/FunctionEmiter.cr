@@ -229,6 +229,8 @@ module Volt::Compiler
           t = nominal_of( owner )
         end
         compile_string_lit( t.to_s )
+      when Frontend::SizeofExpr
+        const_reg( IR::Value.int( expr.byte_size.to_i64 ) )
       else
         raise "internal: unlowerable node #{expr.class.name} (should be rejected by Semantic)"
       end
@@ -444,7 +446,7 @@ module Volt::Compiler
       if sig = @signatures[ expr.name ]?
         base = alloc_block( Math.max( 1, slot_count( sig.ret ) ) )
         if sig.extern
-          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, expr.name ), 0 )
+          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || expr.name ), 0 )
         else
           emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
         end
@@ -512,12 +514,15 @@ module Volt::Compiler
     private def compile_member_access( expr : Frontend::MemberAccess ) : Int32
       return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
-      # `Book.new` and `GeoCoordinate.new` : a parenthesis-less constructor call on a nominal type
+      # `Type.new` and static member access
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
-         ( info = @types[ recv.name ]? )
+          ( info = @types[ recv.name ]? )
         recv.resolved_type = nominal_of( info )
         if expr.name == "new"
           return compile_constructor_call( info, [] of Frontend::AExpr )
+        end
+        if info.methods[expr.name]?.try(&.is_static) || info.kind.module?
+          return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
         end
       end
 
@@ -604,11 +609,11 @@ module Volt::Compiler
       return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
-         ( info = @types[ recv.name ]? )
+          ( info = @types[ recv.name ]? )
         if expr.name == "new"
           return compile_constructor_call( info, expr.args )
         end
-        if info.kind.module?
+        if info.methods[expr.name]?.try(&.is_static) || info.kind.module?
           arg_regs  = expr.args.map { |a| compile_expr( a ) }
           arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
           return compile_static_call( info.name, expr.name, arg_regs, arg_types )
@@ -1226,7 +1231,7 @@ module Volt::Compiler
       end
 
       if sig.extern
-        emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, name ), total_args )
+        emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || name ), total_args )
       else
         emit_abc( IR::Opcode::CALL, base, @func_index[ name ], total_args )
       end

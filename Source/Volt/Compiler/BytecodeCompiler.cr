@@ -102,12 +102,13 @@ module Volt::Compiler
     private def collect_method_jobs : Array( { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig } )
       jobs = [] of { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig }
       @typed.types.each_value do |info|
-        # A module's methods are static (no `self`) but still compile to
-        # ordinary chunks, keyed `Module#method`, called directly.
+
         if info.kind.module?
           info.methods_ast.each do |mname, decl|
             next if decl.is_abstract
-            jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
+            mangled = "#{info.name}##{mname}"
+            next if @func_index.has_key?(mangled)
+            jobs << { mangled, info, decl, info.methods[ mname ] }
           end
           next
         end
@@ -116,7 +117,9 @@ module Volt::Compiler
 
         info.methods_ast.each do |mname, decl|
           next if decl.is_abstract
-          jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
+          mangled = "#{info.name}##{mname}"
+          next if @func_index.has_key?(mangled)
+          jobs << { mangled, info, decl, info.methods[ mname ] }
         end
 
         info.mixins.each do |mixin_name|
@@ -124,9 +127,12 @@ module Volt::Compiler
           next unless mixin_info
           mixin_info.methods_ast.each do |mname, mdecl|
             next if info.methods_ast.has_key?( mname )
-            jobs << { "#{info.name}##{mname}", info, mdecl, mixin_info.methods[ mname ] }
+            mangled = "#{info.name}##{mname}"
+            next if @func_index.has_key?(mangled)
+            jobs << { mangled, info, mdecl, mixin_info.methods[ mname ] }
           end
         end
+
       end
       jobs
     end
@@ -243,7 +249,7 @@ module Volt::Compiler
 
     private def compile_dtor( class_name : String, finalize_idx : Int32, drop_idx : Int32 ) : IR::Chunk
       code = [] of IR::Instruction
-      
+
       if finalize_idx >= 0
         code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
         code << IR::Instruction.abc( IR::Opcode::CALL, 1, finalize_idx, 1 )
