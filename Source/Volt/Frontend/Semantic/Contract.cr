@@ -8,6 +8,7 @@ module Volt::Frontend
     property extern    : Bool
     property lib       : String?
     property decl_span : Span?
+    property extern_name : String? = nil
     # Nominal owner (class/struct/mixin/module) of a method, or nil for a free
     # function. `is_static` marks methods resolved at compile time with no
     # receiver (module functions), as opposed to instance methods.

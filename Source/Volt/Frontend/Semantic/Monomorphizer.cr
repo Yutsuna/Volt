@@ -420,6 +420,8 @@ module Volt::Frontend
         WhileExpr.new( clone_expr( expr.cond, subst ), clone_body( expr.body, subst ), expr.loc )
       when TypeofExpr
         TypeofExpr.new( clone_expr( expr.operand, subst ), expr.loc )
+      when SizeofExpr
+        SizeofExpr.new( clone_type( expr.type_node, subst ), expr.loc )
       else
         @bag << Catalog::Sema.unsupported_in_template( expr.class.name.split( "::" ).last, expr.loc )
         expr
