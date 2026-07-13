@@ -56,5 +56,18 @@ module Volt::Frontend
   end
 
 
+  # Elem[N] : a fixed-size stack array of `N` `Elem`s (`Int64[5]`, `UInt8[20]`),
+  # e.g. C++'s `std::array<Elem, N>`. `size` is the compile-time integer
+  # literal parsed straight out of the brackets — never a runtime value.
+  class ArrayType < ATypeNode
+    property elem : ATypeNode
+    property size : Int32
+
+    def initialize( @elem : ATypeNode, @size : Int32, loc : Span )
+      super( loc )
+    end
+  end
+
+
 end
 
