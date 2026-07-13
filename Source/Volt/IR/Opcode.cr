@@ -177,6 +177,7 @@ module Volt::IR
     PTR_SUB       # A,B,C : reg[A] = reg[B].ptr - reg[C].offset
     ADDR_LOCAL    # A,B   : reg[A] = &Stack[Base+B].Payload
     ADDR_FIELD    # A,B,C : reg[A] = &obj(reg[B]).Fields[C].Payload
+    ADDR_GLOBAL   # A,Bx  : reg[A] = &globals[Bx].Payload
   end
 
 

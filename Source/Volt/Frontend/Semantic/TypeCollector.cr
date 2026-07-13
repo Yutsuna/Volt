@@ -22,7 +22,7 @@ module Volt::Frontend
     getter decls         : Hash( String, ANode )
     getter resolved      : Set( String )
 
-    def initialize( @bag : DiagnosticBag )
+    def initialize( @bag : DiagnosticBag, @mono : Monomorphizer? = nil )
       @decls     = {} of String => ANode
       @types     = {} of String => TypeInfo
       @nominals  = {} of String => NominalType
@@ -47,6 +47,27 @@ module Volt::Frontend
     # keys point at the same `TypeInfo`/`NominalType` instance — an MVP flatten
     # that assumes no bare-name collisions across modules.
     private def declare( node : ANode, prefix : String? = nil ) : Nil
+      # A generic class/struct is a template : registered with the
+      # monomorphizer and excluded from normal collection (its type
+      # parameters resolve to nothing). Each concrete instantiation re-enters
+      # `declare` later as an ordinary class/struct under its mangled name.
+      if node.is_a?( ClassDecl ) && !node.type_params.empty?
+        if mono = @mono
+          mono.register_class_template( node )
+        else
+          @bag << Catalog::Sema.unsupported_expr( "generic class `#{node.name}` without a monomorphizer", node.loc )
+        end
+        return
+      end
+      if node.is_a?( StructDecl ) && !node.type_params.empty?
+        if mono = @mono
+          mono.register_struct_template( node )
+        else
+          @bag << Catalog::Sema.unsupported_expr( "generic struct `#{node.name}` without a monomorphizer", node.loc )
+        end
+        return
+      end
+
       name =
         case node
         when ClassDecl  then node.name
@@ -351,6 +372,7 @@ module Volt::Frontend
       if ann.is_a?( SimpleType ) && @decls[ ann.name ]?.is_a?( StructDecl )
         resolve( ann.name )
       end
+      instantiate_generics_in( ann )
       Type.from_annotation( ann, @nominals ) || begin
         @bag << Catalog::Sema.unsupported_annotation( ann.loc )
         Type::UNKNOWN
@@ -361,9 +383,77 @@ module Volt::Frontend
     # type gets resolved by the end of `collect` regardless, and forcing here
     # would misfire the cycle guard on ordinary self-referencing signatures.
     private def resolve_method_type( ann : ATypeNode ) : Type
+      instantiate_generics_in( ann )
       Type.from_annotation( ann, @nominals ) || begin
         @bag << Catalog::Sema.unsupported_annotation( ann.loc )
         Type::UNKNOWN
+      end
+    end
+
+    # -----------------------------------------------------------------------------------
+    # Generic instantiation
+    #
+    # `Type.from_annotation` is lookup-only, so before an annotation that
+    # mentions a generic reference (`Pair[String, Int64]`, possibly nested
+    # under a pointer/nilable wrapper) can resolve, each such reference must
+    # have been instantiated and declared. This walks the annotation tree and
+    # instantiates bottom-up.
+    def instantiate_generics_in( ann : ATypeNode ) : Nil
+      if ann.is_a?( GenericType )
+        ann.params.each { |p| instantiate_generics_in( p ) }
+        instantiate_generic( ann )
+      elsif ann.is_a?( PointerType )
+        instantiate_generics_in( ann.inner )
+      elsif ann.is_a?( NilableType )
+        instantiate_generics_in( ann.inner )
+      elsif ann.is_a?( FuncType )
+        ann.params.each { |p| instantiate_generics_in( p ) }
+        instantiate_generics_in( ann.return_type )
+      end
+    end
+
+    # Instantiates one `Pair[String, Int64]` reference : resolves its argument
+    # annotations, asks the monomorphizer for the concrete clone, and declares
+    # any freshly produced instantiation so the mangled name resolves
+    # nominally from here on.
+    private def instantiate_generic( ann : GenericType ) : Nil
+      mono = @mono
+      return unless mono && mono.type_template?( ann.name )
+
+      args = [] of Type
+      ann.params.each do |p|
+        arg = Type.from_annotation( p, @nominals )
+        if arg.nil?
+          @bag << Catalog::Sema.unknown_type_argument( p.is_a?( SimpleType ) ? p.name : "?", p.loc )
+          return
+        end
+        args << arg
+      end
+
+      mono.instantiate_type( ann.name, args, ann.loc )
+      drain_instantiations
+    end
+
+    # Declares and resolves every concrete class/struct the monomorphizer has
+    # queued. Resolving one instantiation may instantiate further generics (a
+    # field typed `Box[T]` inside `Pair` re-enters `instantiate_generic`), so
+    # this loops until both queues are empty. Public : the type checker
+    # triggers instantiations mid-check (`Pair[..].new`, inferred
+    # constructors) and drains them through the same path.
+    def drain_instantiations : Nil
+      mono = @mono
+      return unless mono
+      until mono.fresh_classes.empty? && mono.fresh_structs.empty?
+        until mono.fresh_classes.empty?
+          decl = mono.fresh_classes.shift
+          declare( decl )
+          resolve( decl.name )
+        end
+        until mono.fresh_structs.empty?
+          decl = mono.fresh_structs.shift
+          declare( decl )
+          resolve( decl.name )
+        end
       end
     end
 
@@ -376,6 +466,10 @@ module Volt::Frontend
 
       body.each do |node|
         next unless node.is_a?( FuncDecl )
+        unless node.type_params.empty?
+          @bag << Catalog::Sema.generic_method_unsupported( node.name, node.loc )
+          next
+        end
         sig = build_method_sig( node, info )
         key = node.name
         case node.name

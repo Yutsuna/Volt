@@ -128,6 +128,7 @@ module Volt::Frontend
         type_params = parse_type_params_if_present
         params      = parse_param_list
         return_type = parse_return_type_if_present
+        parse_forall_if_present( type_params )
 
         if annots.any? { |a| a.name == "External" }
           lib_name = annots.find( &.name.==( "External" ) ).try &.args.first?.try { |e|
@@ -209,7 +210,8 @@ module Volt::Frontend
       private def parse_struct_decl( annots : Array( Annotation ) ) : StructDecl
         loc = @current.span
         advance   # consume `struct`
-        name = expect( TokenKind::Ident ).value
+        name        = expect( TokenKind::Ident ).value
+        type_params = parse_type_params_if_present
 
         mixins = [] of String
         while @current.kind.include?
@@ -223,7 +225,7 @@ module Volt::Frontend
 
         mixins.concat( body.select( IncludeDecl ).map( &.name ) )
 
-        StructDecl.new( name, mixins, body, annots, loc )
+        StructDecl.new( name, mixins, body, annots, loc, type_params )
       end
 
       private def parse_mixin_decl : MixinDecl

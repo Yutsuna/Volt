@@ -1,0 +1,41 @@
+macro assert( condition )
+  if {{ condition }}
+    puts "PASS"
+  else
+    raise "FAIL"
+  end
+end
+
+
+def identity( val : T ) -> T forall T
+  val
+end
+
+
+def select_first( a : T, b : U ) -> T forall T, U
+  a
+end
+
+
+def swap_values( ptr_a : T*, ptr_b : T* ) -> Void forall T
+  temp = *ptr_a
+  *ptr_a = *ptr_b
+  *ptr_b = temp
+end
+
+
+
+assert( identity( 42 ) == 42 )
+assert( identity( "Hello" ) == "Hello" )
+
+assert( select_first( 99, "ignored" ) == 99 )
+assert( select_first( "keep", 123 ) == "keep" )
+
+x = 10
+y = 20
+ptr_x : Int32* = &x
+ptr_y : Int32* = &y
+
+swap_values( ptr_x, ptr_y )
+assert( *ptr_x == 20 )
+assert( *ptr_y == 10 )
