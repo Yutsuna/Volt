@@ -81,6 +81,11 @@ module Volt::Frontend
         Diagnostic.error( "P0010", "`@[Link]` expects exactly one plain string argument" )
           .with_primary( span, %(use `@[Link("ModuleName")]`) )
       end
+
+      def duplicate_type_param( name : String, got : Token ) : Diagnostic
+        Diagnostic.error( "P0011", "duplicate type parameter `#{name}`" )
+          .with_primary( got.span, "`#{name}` is already declared on this `def`" )
+      end
     end
 
 
@@ -454,6 +459,41 @@ module Volt::Frontend
       def super_no_parent_method( owner : String, name : String, span : Span ) : Diagnostic
         Diagnostic.error( "S0056", "no ancestor of `#{owner}` defines a method named `#{name}`" )
           .with_primary( span, "`super` called here" )
+      end
+
+      def generic_arity_mismatch( name : String, expected : Int32, got : Int32, span : Span ) : Diagnostic
+        Diagnostic.error( "S0057", "`#{name}` expects #{expected} type argument#{expected == 1 ? "" : "s"}, got #{got}" )
+          .with_primary( span )
+      end
+
+      def generic_needs_type_args( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0058", "generic `#{name}` used without type arguments" )
+          .with_primary( span, "write `#{name}[...]` or let the arguments be inferred from a constructor call" )
+      end
+
+      def cannot_infer_type_param( param : String, name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0059", "cannot infer type parameter `#{param}` of `#{name}` from this call" )
+          .with_primary( span, "annotate the type arguments explicitly: `#{name}[...]`" )
+      end
+
+      def unknown_type_argument( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0060", "unknown type `#{name}` used as a type argument" )
+          .with_primary( span )
+      end
+
+      def instantiation_too_deep( mangled : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0061", "generic instantiation `#{mangled}` nests deeper than #{Monomorphizer::MAX_NESTING} levels" )
+          .with_primary( span, "likely an infinitely recursive generic type" )
+      end
+
+      def unsupported_in_template( what : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0062", "`#{what}` is not supported inside a generic declaration" )
+          .with_primary( span )
+      end
+
+      def generic_method_unsupported( name : String, span : Span ) : Diagnostic
+        Diagnostic.error( "S0063", "generic method `#{name}` is not supported inside a type in #{VERSION}" )
+          .with_primary( span, "only top-level generic functions and generic classes are supported" )
       end
     end
 
