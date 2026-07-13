@@ -119,8 +119,12 @@ fun __volt_regex_match(regex : Void*, str : UInt8*, len : Int64) : Bool
   rx.matches?(s)
 end
 
+fun __volt_ptr_address( ptr : Void* ) : UInt64
+  ptr.address
+end
+
 # Runtime helper for Volt float formatting, resolved via FFI.
-fun volt_format_float(val : Float64, buf : UInt8*) : Int32
+fun __volt_format_float(val : Float64, buf : UInt8*) : Int32
   s = val.to_s
   s.to_unsafe.copy_to(buf, s.bytesize + 1)
   s.bytesize
