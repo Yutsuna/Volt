@@ -1138,6 +1138,8 @@ module Volt::Compiler
           name = target.name
           if slot = @scope[ name ]?
             emit_abc( IR::Opcode::ADDR_LOCAL, dest, slot, 0 )
+          elsif global_idx = @global_index[ name ]?
+            emit_abx( IR::Opcode::ADDR_GLOBAL, dest, global_idx )
           else
             raise "internal: address of undefined variable #{name}"
           end
