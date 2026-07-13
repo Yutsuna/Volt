@@ -464,7 +464,7 @@ module Volt::Frontend
       # A bare template name has no concrete layout : without constructor
       # arguments there is nothing to infer the type arguments from.
       if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) &&
-         ( mono = @mono ) && mono.class_template?( recv.name )
+         ( mono = @mono ) && mono.type_template?( recv.name )
         @bag << Catalog::Sema.generic_needs_type_args( recv.name, expr.loc )
         return Type::UNKNOWN
       end
@@ -541,7 +541,7 @@ module Volt::Frontend
       # `Pair.new( "Volt", 2026 )` : type arguments inferred from the
       # constructor arguments, Crystal-style.
       if ( recv = expr.receiver ).is_a?( Ident ) && !scope.local?( recv.name ) &&
-         ( mono = @mono ) && mono.class_template?( recv.name )
+         ( mono = @mono ) && mono.type_template?( recv.name )
         unless expr.name == "new"
           @bag << Catalog::Sema.generic_needs_type_args( recv.name, expr.loc )
           expr.args.each { |a| infer( a, scope ) }
@@ -701,17 +701,18 @@ module Volt::Frontend
 
     private def generic_template_index?( recv : Index ) : Bool
       base = recv.receiver
-      base.is_a?( Ident ) && ( @mono.try( &.class_template?( base.name ) ) || false )
+      base.is_a?( Ident ) && ( @mono.try( &.type_template?( base.name ) ) || false )
     end
 
-    # Instantiates a class template and drains the resulting declarations into
-    # the shared type tables : returns the mangled name, nil on failure (the
-    # monomorphizer diagnosed it).
-    private def instantiate_class!( name : String, args : Array( Type ), loc : Span ) : String?
+    # Instantiates whichever kind of type template (class or struct) owns
+    # `name` and drains the resulting declarations into the shared type
+    # tables : returns the mangled name, nil on failure (the monomorphizer
+    # diagnosed it).
+    private def instantiate_type!( name : String, args : Array( Type ), loc : Span ) : String?
       mono      = @mono
       collector = @collector
       return nil unless mono && collector
-      mangled = mono.instantiate_class( name, args, loc )
+      mangled = mono.instantiate_type( name, args, loc )
       return nil unless mangled
       collector.drain_instantiations
       mangled
@@ -733,7 +734,7 @@ module Volt::Frontend
           return nil unless t
           args << t
         end
-        mangled = instantiate_class!( base.name, args, e.loc )
+        mangled = instantiate_type!( base.name, args, e.loc )
         return nil unless mangled
         @nominals[ mangled ]?
       else
@@ -756,7 +757,7 @@ module Volt::Frontend
         end
         args << t
       end
-      mangled = instantiate_class!( base.name, args, recv.loc )
+      mangled = instantiate_type!( base.name, args, recv.loc )
       return nil unless mangled
       @types[ mangled ]?
     end
@@ -774,55 +775,58 @@ module Volt::Frontend
     private def unify_type_param( ann : ATypeNode?, actual : Type, params : Array( String ),
                                   bindings : Hash( String, Type ) ) : Nil
       return if actual.kind.unknown?
-      case ann
-      when SimpleType
+      if ann.is_a?( SimpleType )
         if params.includes?( ann.name ) && !bindings.has_key?( ann.name )
           bindings[ ann.name ] = actual
         end
-      when PointerType
+      elsif ann.is_a?( PointerType )
         unify_type_param( ann.inner, actual.pointee, params, bindings ) if actual.pointer?
-      when NilableType
+      elsif ann.is_a?( NilableType )
         unify_type_param( ann.inner, actual, params, bindings )
       end
     end
 
     # The annotations to unify constructor arguments against : the template's
-    # arity-matching `initialize`, or (constructor-less class) its field
-    # declarations in order.
-    private def constructor_param_annotations( tmpl : ClassDecl, arity : Int32 ) : Array( ATypeNode? )?
-      inits = tmpl.body.select { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.map( &.as( FuncDecl ) )
+    # arity-matching `initialize`, or (constructor-less class/struct) its
+    # field declarations in order. Works from the raw body/name so it applies
+    # equally to a `ClassDecl` and a `StructDecl` template.
+    private def constructor_param_annotations( body : Array( ANode ), arity : Int32 ) : Array( ATypeNode? )?
+      inits = body.select { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }.map( &.as( FuncDecl ) )
       if init = inits.find { |fn| fn.params.size == arity }
         return init.params.map( &.type_ann )
       end
       return nil unless inits.empty?
-      fields = tmpl.body.select( FieldDecl )
+      fields = body.select( FieldDecl )
       return nil unless fields.size == arity
       fields.map { |f| f.type_ann.as( ATypeNode? ) }
     end
 
     # `Pair.new( "Volt", 2026 )` : infers the type arguments from the
-    # constructor arguments, instantiates, and rewrites the receiver.
+    # constructor arguments, instantiates, and rewrites the receiver. Works
+    # for either a generic `class` or a generic `struct` template.
     private def infer_inferred_constructor( name : String, expr : MethodCall, scope : Scope ) : Type
       mono = @mono
-      tmpl = mono.try( &.class_template( name ) )
-      return Type::UNKNOWN unless tmpl
+      return Type::UNKNOWN unless mono
+      type_params = mono.type_template_params( name )
+      body        = mono.type_template_body( name )
+      return Type::UNKNOWN unless type_params && body
 
       arg_tys = expr.args.map { |a| infer( a, scope ) }
 
-      anns = constructor_param_annotations( tmpl, expr.args.size )
+      anns = constructor_param_annotations( body, expr.args.size )
       if anns.nil?
-        @bag << Catalog::Sema.cannot_infer_type_param( tmpl.type_params.first? || "T", name, expr.loc )
+        @bag << Catalog::Sema.cannot_infer_type_param( type_params.first? || "T", name, expr.loc )
         return Type::UNKNOWN
       end
 
       bindings = {} of String => Type
       anns.each_with_index do |ann, i|
         at = arg_tys[ i ]?
-        unify_type_param( ann, at, tmpl.type_params, bindings ) if at
+        unify_type_param( ann, at, type_params, bindings ) if at
       end
 
       args = [] of Type
-      tmpl.type_params.each do |tp|
+      type_params.each do |tp|
         bound = bindings[ tp ]?
         if bound.nil? || bound.kind.unknown?
           @bag << Catalog::Sema.cannot_infer_type_param( tp, name, expr.loc )
@@ -831,7 +835,7 @@ module Volt::Frontend
         args << bound
       end
 
-      mangled = instantiate_class!( name, args, expr.loc )
+      mangled = instantiate_type!( name, args, expr.loc )
       return Type::UNKNOWN unless mangled
       info = @types[ mangled ]?
       return Type::UNKNOWN unless info
