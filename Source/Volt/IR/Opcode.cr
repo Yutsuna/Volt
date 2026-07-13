@@ -178,6 +178,20 @@ module Volt::IR
     ADDR_LOCAL    # A,B   : reg[A] = &Stack[Base+B].Payload
     ADDR_FIELD    # A,B,C : reg[A] = &obj(reg[B]).Fields[C].Payload
     ADDR_GLOBAL   # A,Bx  : reg[A] = &globals[Bx].Payload
+
+    # --- fixed-size stack array (`Elem[N]`) ---
+    #
+    # A static array lives directly in a contiguous run of Frame registers —
+    # no allocation, same "struct value" model as architecture #1.B — indexed
+    # by a *runtime* register offset instead of a compile-time constant slot
+    # (which is all `LOAD_FIELD`/`STORE_FIELD` can address). `CHECK_INDEX` is
+    # always emitted immediately ahead of the indexed op : the compiler bakes
+    # in the array's compile-time-known length as `Bx`, so an out-of-range
+    # runtime index raises before it can read/write past the array's slots
+    # into whatever register happens to follow it in the frame.
+    CHECK_INDEX    # A, Bx : raise IndexError unless 0 <= reg[A].as_i < Bx
+    LOAD_INDEXED   # A,B,C : reg[A] = reg[ B + reg[C].as_i ]
+    STORE_INDEXED  # A,B,C : reg[ A + reg[B].as_i ] = reg[C]
   end
 
 
