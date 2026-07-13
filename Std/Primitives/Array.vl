@@ -1,0 +1,18 @@
+#{
+# @struct Array
+# @brief Reopens the fixed-size stack array primitive (`Elem[N]`, e.g.
+#        `Int64[5]`, `UInt8[20]` — C++'s `std::array<Elem, N>`). The element
+#        type and length are baked into the *type itself*, not into an
+#        instance field, so `[]`, `[]=` and `.size` are compiler intrinsics
+#        (`TypeChecker#infer_index`/`#infer_member_access`, resolved
+#        straight from `Type#element`/`#array_size`) rather than methods
+#        looked up here.
+#
+#        Deliberately does *not* `include Inspectable` : that mixin's
+#        `inspect` calls `self.to_string`, but a reopened primitive body is
+#        shared across every `Elem`/`N` combination — there is no single
+#        concrete `self` type to resolve that call against (unlike
+#        `Pointer[T]`, which is monomorphized per `T` and so has one).
+#}
+struct Array
+end
