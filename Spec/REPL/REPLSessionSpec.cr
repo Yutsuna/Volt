@@ -17,6 +17,9 @@ module Volt::Spec
     it "Simple expressions: evaluate(\"2 + 3\") returns value 5" do
       session = REPL::REPLSession.new
       result = session.evaluate( "2 + 3" )
+      if diags = result.diagnostics
+        diags.each { |d| STDERR.puts d.to_s }
+      end
       result.ok?.should be_true
       result.value.should_not be_nil
       result.value.not_nil!.as_i.should eq( 5 )
