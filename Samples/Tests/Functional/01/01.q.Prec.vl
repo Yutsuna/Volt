@@ -46,7 +46,7 @@ def test_ternary(x : Int32) -> Int32
 end
 
 def test_ternary_if_else(x : Int32) -> Int32
-  x * 2 > 10 if x * 3 else x + 5
+  x * 3 if x * 2 > 10 else x + 5
 end
 
 def run_all_tests -> Void
