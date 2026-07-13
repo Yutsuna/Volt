@@ -14,7 +14,22 @@ module Volt::VM
       when .store_field? then frame[ ins.a ].as_object.fields[ ins.b ] = frame[ ins.c ]
       when .copy_block?  then exec_copy_block( frame, ins )
       when .new_struct?  then exec_new_struct( frame, ins )
+      when .check_index? then exec_check_index( frame, ins )
+      when .load_indexed?  then frame[ ins.a ] = frame[ ins.b + frame[ ins.c ].as_i.to_i32 ]
+      when .store_indexed? then frame[ ins.a + frame[ ins.b ].as_i.to_i32 ] = frame[ ins.c ]
       else               end
+    end
+
+    # `Bx` = the array's compile-time-known length. Guards every dynamic
+    # index (`LOAD_INDEXED`/`STORE_INDEXED`) against reading or writing past
+    # the array's own register slots into whatever local happens to follow it
+    # in the frame — the one thing the VM itself must enforce, since a
+    # runtime-computed index can't be range-checked at compile time.
+    private def exec_check_index( frame : Frame, ins : IR::Instruction )
+      idx = frame[ ins.a ].as_i
+      if idx < 0 || idx >= ins.bx
+        raise VoltRuntimeError.new( "index out of bounds: index #{idx}, size #{ins.bx}" )
+      end
     end
 
     private def exec_init_obj( frame : Frame, ins : IR::Instruction )
