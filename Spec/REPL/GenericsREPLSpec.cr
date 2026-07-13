@@ -95,7 +95,7 @@ module Volt::Spec
 
     it "executes a generic pointer swap (`T*` unification)" do
       session = REPL::REPLSession.new
-      session.evaluate( <<-VOLT ).value.not_nil!.as_i.should eq( 21 )
+      result = session.evaluate( <<-VOLT )
         def swap( ptr_a : T*, ptr_b : T* ) -> Nil forall T
           temp = *ptr_a
           *ptr_a = *ptr_b
@@ -107,6 +107,8 @@ module Volt::Spec
         swap( &x, &y )
         x * 10 + y
         VOLT
+      p! result unless result.ok?
+      result.value.not_nil!.as_i.should eq( 21 )
     end
 
     it "runs RAII finalize on an instantiated generic class" do
