@@ -47,15 +47,23 @@ module Volt::Frontend
     # keys point at the same `TypeInfo`/`NominalType` instance — an MVP flatten
     # that assumes no bare-name collisions across modules.
     private def declare( node : ANode, prefix : String? = nil ) : Nil
-      # A generic class is a template : registered with the monomorphizer and
-      # excluded from normal collection (its type parameters resolve to
-      # nothing). Each concrete instantiation re-enters `declare` later as an
-      # ordinary class under its mangled name.
+      # A generic class/struct is a template : registered with the
+      # monomorphizer and excluded from normal collection (its type
+      # parameters resolve to nothing). Each concrete instantiation re-enters
+      # `declare` later as an ordinary class/struct under its mangled name.
       if node.is_a?( ClassDecl ) && !node.type_params.empty?
         if mono = @mono
           mono.register_class_template( node )
         else
           @bag << Catalog::Sema.unsupported_expr( "generic class `#{node.name}` without a monomorphizer", node.loc )
+        end
+        return
+      end
+      if node.is_a?( StructDecl ) && !node.type_params.empty?
+        if mono = @mono
+          mono.register_struct_template( node )
+        else
+          @bag << Catalog::Sema.unsupported_expr( "generic struct `#{node.name}` without a monomorphizer", node.loc )
         end
         return
       end
@@ -391,13 +399,14 @@ module Volt::Frontend
     # have been instantiated and declared. This walks the annotation tree and
     # instantiates bottom-up.
     def instantiate_generics_in( ann : ATypeNode ) : Nil
-      case ann
-      when GenericType
+      if ann.is_a?( GenericType )
         ann.params.each { |p| instantiate_generics_in( p ) }
         instantiate_generic( ann )
-      when PointerType then instantiate_generics_in( ann.inner )
-      when NilableType then instantiate_generics_in( ann.inner )
-      when FuncType
+      elsif ann.is_a?( PointerType )
+        instantiate_generics_in( ann.inner )
+      elsif ann.is_a?( NilableType )
+        instantiate_generics_in( ann.inner )
+      elsif ann.is_a?( FuncType )
         ann.params.each { |p| instantiate_generics_in( p ) }
         instantiate_generics_in( ann.return_type )
       end
@@ -409,7 +418,7 @@ module Volt::Frontend
     # nominally from here on.
     private def instantiate_generic( ann : GenericType ) : Nil
       mono = @mono
-      return unless mono && mono.class_template?( ann.name )
+      return unless mono && mono.type_template?( ann.name )
 
       args = [] of Type
       ann.params.each do |p|
@@ -421,23 +430,30 @@ module Volt::Frontend
         args << arg
       end
 
-      mono.instantiate_class( ann.name, args, ann.loc )
+      mono.instantiate_type( ann.name, args, ann.loc )
       drain_instantiations
     end
 
-    # Declares and resolves every concrete class the monomorphizer has queued.
-    # Resolving one instantiation may instantiate further generics (a field
-    # typed `Box[T]` inside `Pair` re-enters `instantiate_generic`), so this
-    # loops until the queue is empty. Public : the type checker triggers
-    # instantiations mid-check (`Pair[..].new`, inferred constructors) and
-    # drains them through the same path.
+    # Declares and resolves every concrete class/struct the monomorphizer has
+    # queued. Resolving one instantiation may instantiate further generics (a
+    # field typed `Box[T]` inside `Pair` re-enters `instantiate_generic`), so
+    # this loops until both queues are empty. Public : the type checker
+    # triggers instantiations mid-check (`Pair[..].new`, inferred
+    # constructors) and drains them through the same path.
     def drain_instantiations : Nil
       mono = @mono
       return unless mono
-      until mono.fresh_classes.empty?
-        decl = mono.fresh_classes.shift
-        declare( decl )
-        resolve( decl.name )
+      until mono.fresh_classes.empty? && mono.fresh_structs.empty?
+        until mono.fresh_classes.empty?
+          decl = mono.fresh_classes.shift
+          declare( decl )
+          resolve( decl.name )
+        end
+        until mono.fresh_structs.empty?
+          decl = mono.fresh_structs.shift
+          declare( decl )
+          resolve( decl.name )
+        end
       end
     end
 
