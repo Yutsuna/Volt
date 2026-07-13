@@ -431,6 +431,18 @@ module Volt::Compiler
     private def compile_assign_member( expr : Frontend::Assign, target : Frontend::MemberAccess ) : Int32
       recv_ty = target.receiver.resolved_type
       raise "internal: member assignment on non-object receiver" unless recv_ty.is_a?( Frontend::NominalType )
+
+      # `obj.name = v` with no matching field : dispatch to the `name=`
+      # setter method the semantic pass resolved (mirrors `compile_assign_index`'s
+      # `[]=` dispatch).
+      if expr.is_setter_call
+        self_reg  = compile_expr( target.receiver )
+        value_reg = compile_expr( expr.value )
+        arg_types = [ expr.value.resolved_type || Frontend::Type::UNKNOWN ]
+        return( recv_ty.kind.struct? ? compile_struct_call( recv_ty, "#{target.name}=", self_reg, [ value_reg ], arg_types )
+                                      : compile_virtual_call( recv_ty, "#{target.name}=", self_reg, [ value_reg ], arg_types ) )
+      end
+
       recv_reg  = compile_expr( target.receiver )
       slot      = field_slot_index( recv_ty.name, target.name )
       value_reg = compile_expr( expr.value )
@@ -600,7 +612,8 @@ module Volt::Compiler
       place_value( window + 2, ptr_reg, 1 )
       place_value( window + 3, size_reg, 1 )
       place_value( window + 4, owned_reg, 1 )
-      emit_abc( IR::Opcode::CALL, window, @func_index[ init_chunk_name( info, 3 ) ], 4 )
+      init = info.initializers[ 3 ]?.try( &.first ) || info.initializer.not_nil!
+      emit_abc( IR::Opcode::CALL, window, @func_index[ init_chunk_name( info, init.params ) ], 4 )
       obj
     end
 
@@ -950,8 +963,8 @@ module Volt::Compiler
       cur  = owner.superclass
       while cur && ( info = @types[ cur ]? )
         if method == "initialize"
-          if sig = info.initializers[ expr.args.size ]? || info.initializer
-            if i = @func_index[ init_chunk_name( info, expr.args.size ) ]?
+          if sig = resolve_initializer( info, expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN } )
+            if i = @func_index[ init_chunk_name( info, sig.params ) ]?
               idx  = i
               msig = sig
               break
@@ -1004,8 +1017,9 @@ module Volt::Compiler
     # should live — the same `base`-is-both-return-and-arg-window convention
     # `compile_class_new`/`compile_call` already use.
     private def compile_struct_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
-      if init = ( info.initializers[ args.size ]? || info.initializer )
-        idx      = @func_index[ init_chunk_name( info, args.size ) ]
+      arg_tys = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+      if init = resolve_initializer( info, arg_tys )
+        idx      = @func_index[ init_chunk_name( info, init.params ) ]
         self_slots = info.reg_layout.try( &.total_size ) || 1
         arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total    = self_slots + arg_slot_counts.sum
@@ -1040,8 +1054,9 @@ module Volt::Compiler
       emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
 
       if provider = find_initializer_owner( info )
-        init    = provider.initializers[ args.size ]? || provider.initializer.not_nil!
-        idx     = @func_index[ init_chunk_name( provider, args.size ) ]
+        arg_tys = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        init    = resolve_initializer( provider, arg_tys ).not_nil!
+        idx     = @func_index[ init_chunk_name( provider, init.params ) ]
         arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total   = 1 + arg_slot_counts.sum
         # `window` (== A) is the CALL's return-value landing spot : args
@@ -1070,10 +1085,22 @@ module Volt::Compiler
     # sharing, architecture #1.A.3).
     # Chunk key for a type's `initialize` overload : a lone constructor keeps
     # the historical plain `Type#initialize` name, multiple overloads are
-    # arity-mangled `Type#initialize/<arity>` (see `TypeCollector`).
-    private def init_chunk_name( info : Frontend::TypeInfo, arity : Int32 ) : String
-      key = info.initializers.size > 1 ? "initialize/#{arity}" : "initialize"
+    # mangled by parameter type via `Frontend.overload_key` (see
+    # `TypeCollector`) since two overloads may share an arity.
+    private def init_chunk_name( info : Frontend::TypeInfo, params : Array( Frontend::Type ) ) : String
+      total = info.initializers.values.sum( &.size )
+      key   = total > 1 ? Frontend.overload_key( "initialize", params ) : "initialize"
       "#{info.name}##{key}"
+    end
+
+    # Picks the overload whose declared parameters match `arg_tys` from the
+    # arity-grouped candidates, falling back to the type's lone/default
+    # initializer when the type declares none of its own (struct-style
+    # implicit field constructor) or none of that arity are found.
+    private def resolve_initializer( info : Frontend::TypeInfo, arg_tys : Array( Frontend::Type ) ) : Frontend::FuncSig?
+      group = info.initializers[ arg_tys.size ]?
+      return Frontend.select_overload( group, arg_tys ) if group
+      info.initializer
     end
 
     private def find_initializer_owner( info : Frontend::TypeInfo ) : Frontend::TypeInfo?
