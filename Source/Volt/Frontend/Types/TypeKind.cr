@@ -23,6 +23,7 @@ module Volt::Frontend
     UInt64
     UInt
     Pointer
+    Array     # fixed-size stack array (`Elem[N]`, e.g. `Int64[5]`)
     Unknown
   end
 
