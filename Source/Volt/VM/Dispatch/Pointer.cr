@@ -77,6 +77,10 @@ module Volt::VM
         payload_ptr = ( ( obj.fields + ins.c ).as( UInt8* ) + 8 ).as( Pointer( Void ) )
         frame[ ins.a ] = IR::Value.ptr( payload_ptr )
 
+      when .addr_global?
+        payload_ptr = ( ( @globals.to_unsafe + ins.bx ).as( UInt8* ) + 8 ).as( Pointer( Void ) )
+        frame[ ins.a ] = IR::Value.ptr( payload_ptr )
+
       else
         raise VoltRuntimeError.new( "unhandled pointer opcode #{ins.op}" )
       end
