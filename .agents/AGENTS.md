@@ -97,7 +97,9 @@ The end-to-end execution path is live: **`volt run` interprets a program**
 - Primitives: `Int64`, `Float64`, `Bool`, `String`, `Nil`
 - Variables: local (inferred + annotated types) + top-level global variables with lazy evaluation
 - Arithmetic: `+`, `-`, `*`, `/`, `%` (int and float variants)
-- Comparison: `<`, `<=`, `>`, `>=`, `==`, `!=`
+- Comparison: `<`, `<=`, `>`, `>=`, `==`, `!=`, `<=>` (numeric operands always use the native comparison; nominal types dispatch to their own operator method, e.g. the stdlib `Comparable` mixin)
+- Compile-time reflection: `typeof(expr)` (type name as `String`), `.is_a?(Type | typeof(expr))`, `.has?(:name)` (method/field presence) — all fold to a constant during Semantic, no runtime type tag involved
+- Symbol literals: `:name`, valid only as the argument to `.has?`
 - Logical: `and`, `or`, `not`
 - Unary: `-` (negation), `!` (not)
 - Control flow: `if`/`elsif`/`else`, `while`, `until`
@@ -123,7 +125,7 @@ The end-to-end execution path is live: **`volt run` interprets a program**
     *   `CodeCache.cr` : JIT-compiled function cache
     *   `Trampoline.cr` : VM↔native calling convention bridge
     *   `Cranelift/` : FFI bindings to libcranelift
-*   **Object Model** : Mixins, components, generics (Classes and Structs Phase 1 compilation/execution are implemented)
+*   **Object Model** : components, generics (Classes, Structs, and Mixins are implemented — see `CALL_MIXIN`/ITable above and the `Comparable`/`Inspectable` stdlib mixins; every class implicitly derives from a universal `Object` root when it declares no superclass)
 *   **Advanced Types** : Generic types, union types, Any type
 *   **Async/Await** : Fiber-based concurrency
 *   **Pattern Matching** : `match`/`when` expressions
