@@ -48,7 +48,8 @@ module Volt::Frontend
         ret = resolve_return( decl.name, rt, nominals )
       end
 
-      @table[ decl.name ] = FuncSig.new( decl.name, params, ret, decl_span: decl.loc )
+      @table[ decl.name ] = FuncSig.new( decl.name, params, ret, decl_span: decl.loc,
+                                          defaults: decl.params.map( &.default ) )
     end
 
     def collect_extern( decl : ExternDecl ) : Nil
