@@ -1,0 +1,48 @@
+macro assert( condition )
+  if {{ condition }}
+    puts "PASS"
+  else
+    raise "FAIL"
+  end
+end
+
+
+ptr_int = SmartPtr[Int32].new(42)
+assert(!ptr_int.null?)
+assert(ptr_int.deref == 42)
+assert(ptr_int.value == 42)
+assert(ptr_int.to_string == "SmartPtr(42)")
+
+
+ptr_int.value = 100
+assert(ptr_int.deref == 100)
+assert(ptr_int.value == 100)
+assert(ptr_int.to_string == "SmartPtr(100)")
+
+
+raw_ptr = Pointer[Int32].malloc(1_u64)
+*raw_ptr = 999
+ptr_from_raw = SmartPtr[Int32].new(raw_ptr)
+assert(!ptr_from_raw.null?)
+assert(ptr_from_raw.value == 999)
+
+null_raw = Pointer[Int32].new(0_u64)
+ptr_null = SmartPtr[Int32].new(null_raw)
+assert(ptr_null.null?)
+assert(ptr_null.to_string == "SmartPtr(null)")
+
+
+ptr_float = SmartPtr[Float64].new(3.14159)
+assert(!ptr_float.null?)
+assert(ptr_float.value == 3.14159)
+assert(ptr_float.to_string == "SmartPtr(3.14159)")
+
+ptr_float.value = 2.71828
+assert(ptr_float.value == 2.71828)
+assert(ptr_float.to_string == "SmartPtr(2.71828)")
+
+
+ptr_raw_test = SmartPtr[Int32].new(7)
+raw = ptr_raw_test.ptr
+assert(!raw.null?)
+assert(*raw == 7)
