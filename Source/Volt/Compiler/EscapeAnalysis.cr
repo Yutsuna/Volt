@@ -12,25 +12,26 @@ module Volt::Compiler
     private def self.run_chunk( chunk : IR::Chunk ) : Nil
       escaped = Set(Int32).new
 
-      # 1. Identify direct escape sources.
+      # Identify direct escape sources (only outgoing stores and returns).
       chunk.code.each do |ins|
         case ins.op
         when IR::Opcode::RET
-          n = ins.bx > 0 ? ins.bx : 1
-          (0...n).each { |i| escaped << ins.a + i }
+          # We only escape the returned value if the chunk's static return type is an Object.
+          # If the return type is Void/Nil, we must keep dropping the last statement's registers.
+          if chunk.returns_object
+            n = ins.bx > 0 ? ins.bx : 1
+            (0...n).each { |i| escaped << ins.a + i }
+          end
         when IR::Opcode::STORE_FIELD, IR::Opcode::STORE_INDEXED
           escaped << ins.c
         when IR::Opcode::STORE_GLOBAL
           escaped << ins.a
         when IR::Opcode::STORE_PTR
           escaped << ins.b
-        when IR::Opcode::LOAD_FIELD, IR::Opcode::LOAD_INDEXED, IR::Opcode::LOAD_GLOBAL, IR::Opcode::LOAD_PTR
-          # Values loaded from heap/globals are owned by them and shouldn't be dropped locally.
-          escaped << ins.a
         end
       end
 
-      # 2. Transitive closure: propagate escapes through moves and copies.
+      # Transitive closure: propagate escapes through moves and copies.
       changed = true
       while changed
         changed = false
@@ -63,17 +64,17 @@ module Volt::Compiler
 
       return if escaped.empty?
 
-      # 3. NOP out explicit DROP instructions for escaped registers.
+      # NOP out explicit DROP instructions for escaped registers.
       chunk.code.each_with_index do |ins, i|
         if ins.op == IR::Opcode::DROP && escaped.includes?(ins.a)
           chunk.code[i] = IR::Instruction.abc(IR::Opcode::NOP, 0, 0, 0)
         end
       end
 
-      # 4. Remove escaped registers from DropMap to prevent exception unwind drops.
+      # Remove escaped registers from DropMap to prevent exception unwind drops.
       chunk.drop_map.entries.reject! { |e| escaped.includes?(e.register.to_i32) }
 
-      # 5. Remove escaped registers from scope tables to prevent DROP_SCOPE drops.
+      # Remove escaped registers from scope tables to prevent DROP_SCOPE drops.
       chunk.scope_tables.each do |table|
         table.reject! { |r| escaped.includes?(r) }
       end
