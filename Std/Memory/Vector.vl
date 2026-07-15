@@ -41,7 +41,7 @@ class Vector[T] include Inspectable
     @capacity   = capacity < 1 ? 1 : capacity
     @size       = 0
     @alignement = alignement
-    @data       = AlignedAllocator.alloc( @capacity, sizeof T, @alignement )
+    @data       = AlignedAllocator.alloc[ T ]( @capacity, @alignement )
   end
 
   #---------------------------------------------------------------------------
@@ -159,7 +159,7 @@ class Vector[T] include Inspectable
 
     if @size == @capacity
       new_capacity = @capacity * 2
-      new_data     = AlignedAllocator.alloc( new_capacity, sizeof T, @alignement )
+      new_data     = AlignedAllocator.alloc[T]( new_capacity, @alignement )
 
       i = 0
       while i < index
@@ -375,7 +375,7 @@ class Vector[T] include Inspectable
   #}
   private def reallocate( new_capacity : Int ) -> Void
     new_capacity = 1 if new_capacity < 1
-    new_data     = AlignedAllocator.alloc( new_capacity, sizeof T, @alignement )
+    new_data     = AlignedAllocator.alloc[ T ]( new_capacity, @alignement )
 
     limit = @size < new_capacity ? @size : new_capacity
     i = 0
