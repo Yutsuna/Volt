@@ -125,6 +125,7 @@ module Volt::Frontend
             when 't'  then io << '\t'; i += 2
             when 'r'  then io << '\r'; i += 2
             when '"'  then io << '"';  i += 2
+            when '\'' then io << '\''; i += 2
             when '\\' then io << '\\'; i += 2
             else
               io << '\\'
@@ -136,6 +137,19 @@ module Volt::Frontend
           end
         end
       end
+    end
+
+    # `'C'` desugars, at parse time, into a `UInt8` literal (`67_u8`) — Volt
+    # has no distinct `Char` type, so a character literal is just sugar for
+    # its single byte value.
+    private def parse_char_literal( tok : Token ) : AExpr
+      content = unescape( strip_quotes( tok ) )
+      unless content.bytesize == 1
+        error!( Catalog::Parse.invalid_char_literal( content, tok.span ) )
+      end
+      node = IntLit.new( content.byte_at( 0 ).to_i64, tok.span )
+      node.resolved_type = Type::UINT8
+      node
     end
 
     # `"a #{expr} b"` desugars, at parse time, into a left-folded string
