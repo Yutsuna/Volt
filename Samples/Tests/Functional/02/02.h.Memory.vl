@@ -46,3 +46,181 @@ ptr_raw_test = SmartPtr[Int32].new(7)
 raw = ptr_raw_test.ptr
 assert(!raw.null?)
 assert(*raw == 7)
+
+
+v_default = Vector[Int32].new()
+assert(v_default.size == 0)
+assert(v_default.capacity == 4)
+assert(v_default.empty?)
+
+v_capacity = Vector[Int32].new(10)
+assert(v_capacity.size == 0)
+assert(v_capacity.capacity == 10)
+assert(v_capacity.empty?)
+
+v_small_capacity = Vector[Int32].new(0)
+assert(v_small_capacity.capacity == 1)
+
+
+v = Vector[Int32].new()
+v.push(10)
+v.push(20)
+v.push(30)
+
+assert(v.size == 3)
+assert(!v.empty?)
+assert(v[0] == 10)
+assert(v[1] == 20)
+assert(v[2] == 30)
+assert(v.at(0) == 10)
+assert(v.first == 10)
+assert(v.last == 30)
+
+v[1] = 99
+assert(v[1] == 99)
+assert(v.size == 3)
+
+popped = v.pop()
+assert(popped == 30)
+assert(v.size == 2)
+assert(v.last == 99)
+
+
+v_cap = Vector[Int32].new(2)
+v_cap.push(1)
+v_cap.push(2)
+assert(v_cap.capacity == 2)
+
+v_cap.reserve(8)
+assert(v_cap.capacity == 8)
+assert(v_cap.size == 2)
+assert(v_cap[0] == 1)
+assert(v_cap[1] == 2)
+
+v_cap.shrink_to_fit()
+assert(v_cap.capacity == 2)
+assert(v_cap.size == 2)
+
+v_cap.resize(5, 42)
+assert(v_cap.size == 5)
+assert(v_cap[2] == 42)
+assert(v_cap[3] == 42)
+assert(v_cap[4] == 42)
+
+# Resize (rétrécissement)
+v_cap.resize(2, 42)
+assert(v_cap.size == 2)
+assert(v_cap.last == 2)
+
+
+v_mod = Vector[Int32].new()
+v_mod.push(100)
+v_mod.push(300)
+
+v_mod.insert(1, 200)
+assert(v_mod.size == 3)
+assert(v_mod[0] == 100)
+assert(v_mod[1] == 200)
+assert(v_mod[2] == 300)
+
+v_mod.insert(0, 50)
+assert(v_mod.size == 4)
+assert(v_mod[0] == 50)
+assert(v_mod[1] == 100)
+
+v_mod.insert(4, 400)
+assert(v_mod.size == 5)
+assert(v_mod.last == 400)
+
+removed_mid = v_mod.remove_at(2)
+assert(removed_mid == 200)
+assert(v_mod.size == 4)
+assert(v_mod[0] == 50)
+assert(v_mod[1] == 100)
+assert(v_mod[2] == 300)
+assert(v_mod[3] == 400)
+
+removed_head = v_mod.remove_at(0)
+assert(removed_head == 50)
+assert(v_mod.size == 3)
+assert(v_mod[0] == 100)
+
+
+v_algo = Vector[Int32].new()
+v_algo.push(1)
+v_algo.push(2)
+v_algo.push(3)
+
+v_algo.swap(0, 2)
+assert(v_algo[0] == 3)
+assert(v_algo[2] == 1)
+
+v_algo.reverse!()
+assert(v_algo[0] == 1)
+assert(v_algo[1] == 2)
+assert(v_algo[2] == 3)
+
+v_algo.fill(7)
+assert(v_algo[0] == 7)
+assert(v_algo[1] == 7)
+assert(v_algo[2] == 7)
+
+v_algo.clear()
+assert(v_algo.empty?)
+assert(v_algo.size == 0)
+
+
+v_look = Vector[Int32].new()
+v_look.push(10)
+v_look.push(20)
+v_look.push(30)
+
+assert(v_look.contains?(20))
+assert(!v_look.contains?(99))
+assert(v_look.index_of(20) == 1)
+assert(v_look.index_of(99) == -1)
+
+
+v_orig = Vector[Int32].new()
+v_orig.push(5)
+v_orig.push(10)
+
+v_copy = v_orig.copy()
+assert(v_orig == v_copy)
+assert(v_copy.size == v_orig.size)
+assert(v_copy[0] == 5)
+assert(v_copy[1] == 10)
+
+v_copy[0] = 999
+assert(v_orig[0] == 5)
+assert(v_copy[0] == 999)
+assert(v_orig != v_copy)
+
+assert(v_orig.to_string == "[5, 10]")
+
+
+v_a = Vector[Int32].new()
+v_a.push(1)
+v_a.push(2)
+
+v_b = Vector[Int32].new()
+v_b.push(3)
+v_b.push(4)
+
+v_a.concat(v_b)
+assert(v_a.size == 4)
+assert(v_a[0] == 1)
+assert(v_a[1] == 2)
+assert(v_a[2] == 3)
+assert(v_a[3] == 4)
+
+v_self = Vector[Int32].new()
+v_self.push(10)
+v_self.push(20)
+
+v_self.concat(v_self)
+assert(v_self.size == 4)
+assert(v_self[0] == 10)
+assert(v_self[1] == 20)
+assert(v_self[2] == 10)
+assert(v_self[3] == 20)
