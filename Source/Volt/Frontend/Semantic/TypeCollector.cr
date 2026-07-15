@@ -533,7 +533,8 @@ module Volt::Frontend
       is_static = info.kind.module? ? ( decl.is_static || info.extend_self ) : decl.is_static
 
       FuncSig.new( decl.name, params, ret, decl_span: decl.loc, owner: info.name,
-                    is_static: is_static, visibility: decl.visibility )
+                    is_static: is_static, visibility: decl.visibility,
+                    defaults: decl.params.map( &.default ) )
     end
 
     # A concrete class must provide a non-abstract override for every abstract

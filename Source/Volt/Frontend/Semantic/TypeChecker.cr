@@ -16,8 +16,25 @@ module Volt::Frontend
       fn.params.each_with_index do |p, i|
         scope.define( p.name, sig.params[ i ]? || Type::UNKNOWN )
       end
+      check_param_defaults( fn, sig )
       body_ty = check_body( fn.body, scope )
       sig.ret = body_ty if sig.ret.kind.unknown?
+    end
+
+    # A default-value expression is evaluated at the *call site*, with no
+    # access to the function's own parameters or locals — so it type-checks
+    # once here, in an empty scope, rather than at every call that omits it.
+    private def check_param_defaults( fn : FuncDecl, sig : FuncSig ) : Nil
+      empty_scope = Scope.new
+      fn.params.each_with_index do |p, i|
+        default = p.default
+        next unless default
+        param_ty = sig.params[ i ]?
+        default_ty = infer( default, empty_scope )
+        next if param_ty.nil? || param_ty.kind.unknown?
+        next if type_compatible?( param_ty, default_ty )
+        @bag << Catalog::Sema.argument_type( i + 1, fn.name, param_ty.to_s, default_ty.to_s, default.loc )
+      end
     end
 
     def check_top_level( nodes : Array( ANode ) ) : Nil
@@ -45,6 +62,7 @@ module Volt::Frontend
       fn.params.each_with_index do |p, i|
         scope.define( p.name, sig.params[ i ]? || Type::UNKNOWN )
       end
+      check_param_defaults( fn, sig )
 
       previous        = @self_type
       previous_method = @current_method
@@ -172,7 +190,7 @@ module Volt::Frontend
         if m = find_method( owner.name, expr.name )
           is_caller_static = @current_method.try( &.is_static ) || false
           if !is_caller_static || m.is_static
-            @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
+            check_call_args( expr.name, m.params, [] of AExpr, expr.loc, scope, defaults: m.defaults )
             return m.ret
           end
         elsif owner.kind.mixin?
@@ -183,9 +201,7 @@ module Volt::Frontend
         end
       end
       if sig = @sigs[ expr.name ]?
-        if sig.params.size != 0
-          @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc )
-        end
+        check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
         return sig.ret
       end
       @bag << Catalog::Sema.undefined_variable( expr.name, expr.loc, Suggest.closest( expr.name, scope.visible_names ) )
@@ -547,7 +563,7 @@ module Volt::Frontend
         # per-instance field to read, so no method dispatch is involved).
         return Type::UINT64 if recv_ty.array? && expr.name == "size"
         if sig = primitive_method( recv_ty, expr.name )
-          @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+          check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
           return sig.ret
         end
         return string_type if expr.name == "to_string"
@@ -560,7 +576,7 @@ module Volt::Frontend
       end
 
       if sig = find_method( recv_ty.name, expr.name )
-        @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+        check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
         check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
         return sig.ret
       end
@@ -634,7 +650,7 @@ module Volt::Frontend
       # A reopened primitive's own method wins over the builtin fallback :
       # `42.to_string` must run the Core `Int#to_string`, not `TO_STRING`.
       if sig = primitive_method( recv_ty, expr.name )
-        check_call_args( "#{recv_ty}##{expr.name}", sig.params, expr.args, expr.loc, scope )
+        check_call_args( "#{recv_ty}##{expr.name}", sig.params, expr.args, expr.loc, scope, defaults: sig.defaults )
         return sig.ret
       end
 
@@ -668,7 +684,7 @@ module Volt::Frontend
       end
 
       check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
-      check_call_args( expr.name, sig.params, expr.args, expr.loc, scope )
+      check_call_args( expr.name, sig.params, expr.args, expr.loc, scope, defaults: sig.defaults )
       sig.ret
     end
 
@@ -762,7 +778,7 @@ module Volt::Frontend
       if sig.visibility.private? && @self_type.try( &.name ) != info.name
         @bag << Catalog::Sema.private_method_call( info.name, name, loc )
       end
-      check_call_args( "#{info.name}.#{name}", sig.params, args, loc, scope )
+      check_call_args( "#{info.name}.#{name}", sig.params, args, loc, scope, defaults: sig.defaults )
       sig.ret
     end
 
@@ -813,7 +829,11 @@ module Volt::Frontend
         tys = arg_tys || expr.args.map { |a| infer( a, scope ) }
         if group = owner.initializers[ expr.args.size ]?
           init = Frontend.select_overload( group, tys )
-          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, tys )
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, tys, defaults: init.defaults )
+        elsif init = owner.initializers.values.flatten.find { |cand| arity_in_range?( cand, expr.args.size ) }
+          # No overload declares exactly this many parameters, but one accepts
+          # this arg count once its trailing defaulted parameters are filled in.
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, tys, defaults: init.defaults )
         else
           expected = owner.initializer.try( &.params.size ) || 0
           @bag << Catalog::Sema.arity_mismatch( "#{info.name}.new", expected, expr.args.size, expr.loc )
@@ -830,9 +850,17 @@ module Volt::Frontend
     # `arg_tys`, when given, carries the argument types a generic-inference
     # path already inferred : reusing them avoids inferring (and diagnosing)
     # each argument expression twice.
+    #
+    # `defaults`, when given, is `FuncSig#defaults` — parallel to `params`,
+    # `nil` for a parameter with no default. Only *trailing* parameters may
+    # have one, so the minimum accepted arg count is `params.size` minus the
+    # run of defaulted parameters at the end; a caller may omit any suffix of
+    # those and still fall inside the accepted range.
     private def check_call_args( name : String, params : Array( Type ), args : Array( AExpr ), loc : Span,
-                                 scope : Scope, arg_tys : Array( Type )? = nil ) : Nil
-      unless params.size == args.size
+                                 scope : Scope, arg_tys : Array( Type )? = nil,
+                                 defaults : Array( AExpr? )? = nil ) : Nil
+      min_required = min_required_args( params.size, defaults )
+      unless args.size >= min_required && args.size <= params.size
         @bag << Catalog::Sema.arity_mismatch( name, params.size, args.size, loc )
       end
       args.each_with_index do |arg, i|
@@ -842,6 +870,29 @@ module Volt::Frontend
         next if type_compatible?( param, at )
         @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
       end
+    end
+
+    # The smallest arg count `sig` accepts, once its trailing defaulted
+    # parameters (if any) are allowed to be omitted.
+    private def min_required_args( param_count : Int32, defaults : Array( AExpr? )? ) : Int32
+      return param_count unless defaults
+      min_required = param_count
+      param_count.times do |i|
+        idx = param_count - 1 - i
+        break unless defaults[ idx ]?
+        min_required = idx
+      end
+      min_required
+    end
+
+    # Whether an `initialize` overload accepts `arg_count`, i.e. `arg_count`
+    # falls between its defaults-adjusted minimum and its full parameter
+    # count. Used to find an overload for a constructor call whose arg count
+    # doesn't exactly match any overload's declared arity (`Vector.new()`
+    # matching `initialize(capacity = 4, alignment = 16)`).
+    private def arity_in_range?( sig : FuncSig, arg_count : Int32 ) : Bool
+      min_required = min_required_args( sig.params.size, sig.defaults )
+      arg_count >= min_required && arg_count <= sig.params.size
     end
 
     # -----------------------------------------------------------------------------------
@@ -1057,7 +1108,7 @@ module Volt::Frontend
       return Type::UNKNOWN unless sig
 
       expr.callee = Ident.new( mangled, expr.callee.loc )
-      check_call_args( name, sig.params, expr.args, expr.loc, scope, arg_tys )
+      check_call_args( name, sig.params, expr.args, expr.loc, scope, arg_tys, defaults: sig.defaults )
       sig.ret
     end
 
@@ -1352,7 +1403,7 @@ module Volt::Frontend
         if m = find_method( owner.name, name )
           is_caller_static = @current_method.try( &.is_static ) || false
           if !is_caller_static || m.is_static
-            check_call_args( name, m.params, expr.args, expr.loc, scope )
+            check_call_args( name, m.params, expr.args, expr.loc, scope, defaults: m.defaults )
               return m.ret
           end
         elsif owner.kind.mixin?
@@ -1379,17 +1430,7 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
-      unless sig.params.size == expr.args.size
-        @bag << Catalog::Sema.arity_mismatch( name, sig.params.size, expr.args.size, expr.loc )
-      end
-
-      expr.args.each_with_index do |arg, i|
-        at    = infer( arg, scope )
-        param = sig.params[ i ]?
-        next if param.nil?
-        next if type_compatible?( param, at )
-        @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
-      end
+      check_call_args( name, sig.params, expr.args, expr.loc, scope, defaults: sig.defaults )
 
       sig.ret
     end
