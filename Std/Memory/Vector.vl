@@ -347,8 +347,8 @@ class Vector[T] include Inspectable
     s = "["
     i = 0
     while i < @size
-      s = s + ( *( @data + i ) ).to_string
-      s = s + ", " if i < @size - 1
+      s += ( *( @data + i ) ).to_string
+      s += ", " if i < @size - 1
       i += 1
     end
     s + "]"
@@ -360,7 +360,7 @@ class Vector[T] include Inspectable
   # @brief Moves the elements into a fresh allocation of `new_capacity`.
   #        malloc + copy + free. Protected against potential shrink overflow.
   #}
-  def reallocate( new_capacity : Int ) -> Void
+  private def reallocate( new_capacity : Int ) -> Void
     new_capacity = 1 if new_capacity < 1
     new_data     = Pointer[T].malloc new_capacity
 
