@@ -65,13 +65,10 @@ Arithmetic is strongly typed. Mixing incompatible types (like adding `Int64` and
 *   `%`: Modulo
 
 ### Comparison Operators
-All comparison operators evaluate to a `Bool` value:
-*   `<`: Less than
-*   `<=`: Less than or equal to
-*   `>`: Greater than
-*   `>=`: Greater than or equal to
-*   `==`: Equal to
-*   `!=`: Not equal to
+*   `<`, `<=`, `>`, `>=`, `==`, `!=`: evaluate to `Bool`.
+*   `<=>` ("spaceship"): evaluates to `Int` — negative, zero, or positive depending on whether the left operand is less than, equal to, or greater than the right one.
+
+Between two numeric operands (`Int`/`Float` variants), every comparison operator resolves to the native hardware comparison. Between two values of the same class/struct, an operator resolves to that type's own method of the same name if it defines one — this is how the standard library's `Comparable` mixin (see [Modules, Mixins, and Member Visibility](06_modules_and_mixins.md)) lets a type opt into `<`, `<=`, `>`, `>=`, `==` by implementing `<=>` alone.
 
 ### Logical Operators
 Volt supports English logical operators for improved readability. Traditional symbols are also parsed, but English keywords are preferred in idiomatic Volt:
