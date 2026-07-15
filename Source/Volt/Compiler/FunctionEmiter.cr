@@ -269,6 +269,16 @@ module Volt::Compiler
       @chunk.code << IR::Instruction.abx( op, a, bx )
     end
 
+    # Direct `CALL` : the callee chunk index rides the 16-bit `Bx` field (an
+    # 8-bit `B` silently wrapped past 255 chunks — the REPL recompiles every
+    # known method each turn, so it crossed that limit within a few lines).
+    # No argument-count operand : args are contiguous at `A+1..` and the
+    # callee's own arity/num_registers describe the window.
+    private def emit_call( base : Int32, chunk_index : Int32 )
+      raise "internal: chunk index #{chunk_index} exceeds the 16-bit CALL operand" if chunk_index > 0xFFFF
+      emit_abx( IR::Opcode::CALL, base, chunk_index )
+    end
+
     private def here : Int32
       @chunk.code.size
     end
@@ -553,7 +563,7 @@ module Volt::Compiler
         if sig.extern
           emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || expr.name ), 0 )
         else
-          emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
+          emit_call( base, @func_index[ expr.name ] )
         end
         return base
       end
@@ -613,7 +623,7 @@ module Volt::Compiler
       place_value( window + 3, size_reg, 1 )
       place_value( window + 4, owned_reg, 1 )
       init = info.initializers[ 3 ]?.try( &.first ) || info.initializer.not_nil!
-      emit_abc( IR::Opcode::CALL, window, @func_index[ init_chunk_name( info, init.params ) ], 4 )
+      emit_call( window, @func_index[ init_chunk_name( info, init.params ) ] )
       obj
     end
 
@@ -781,6 +791,7 @@ module Volt::Compiler
                                       arg_types : Array( Frontend::Type ) ) : Int32
       mangled    = "#{recv_ty.name}##{method_name}"
       idx        = @func_index[ mangled ]
+      STDERR.puts "[emit] struct_call #{@chunk.name}: #{mangled} -> #{idx}" if ENV[ "VOLT_REPL_DEBUG" ]?
       msig       = @types[ recv_ty.name ].methods[ method_name ]
       self_slots = slot_count( recv_ty )
       arg_slots  = arg_types.map { |t| slot_count( t ) }
@@ -795,7 +806,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -817,7 +828,7 @@ module Volt::Compiler
 
       base = alloc_block( 2 )
       place_value( base + 1, self_reg, 1 )
-      emit_abc( IR::Opcode::CALL, base, idx, 1 )
+      emit_call( base, idx )
       base
     end
 
@@ -840,6 +851,7 @@ module Volt::Compiler
                                          arg_types : Array( Frontend::Type ) ) : Int32
       mangled   = "#{info.name}##{method_name}"
       idx       = @func_index[ mangled ]
+      STDERR.puts "[emit] primitive_call #{@chunk.name}: #{mangled} -> #{idx}" if ENV[ "VOLT_REPL_DEBUG" ]?
       msig      = find_method( info.name, method_name ).not_nil!
       arg_slots = arg_types.map { |t| slot_count( t ) }
       total     = 1 + arg_slots.sum
@@ -853,7 +865,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -877,7 +889,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -995,7 +1007,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -1031,7 +1043,7 @@ module Volt::Compiler
           place_value( base + offset, ar, n )
           offset += n
         end
-        emit_abc( IR::Opcode::CALL, base, idx, total )
+        emit_call( base, idx )
         return base
       end
 
@@ -1071,7 +1083,7 @@ module Volt::Compiler
           place_value( window + offset, ar, n )
           offset += n
         end
-        emit_abc( IR::Opcode::CALL, window, idx, total )
+        emit_call( window, idx )
       end
 
       obj
@@ -1361,7 +1373,7 @@ module Volt::Compiler
       if sig.extern
         emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || name ), total_args )
       else
-        emit_abc( IR::Opcode::CALL, base, @func_index[ name ], total_args )
+        emit_call( base, @func_index[ name ] )
       end
 
       base
