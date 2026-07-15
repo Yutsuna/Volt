@@ -1,16 +1,66 @@
-class FString < String
-
-  def initialize( str : String )
-    super str
-    puts "CTOR"
+macro assert( condition )
+  if {{ condition }}
+    puts "PASS"
+  else
+    puts "FAIL"
   end
-
-  def finalize
-    super
-    puts "DTOR"
-  end
-
 end
 
 
-a = FString.new "Hello!"
+s1 = String.new("Volt")
+assert(s1.size == 4_u64)
+
+s2 = String.new(s1)
+assert(s2.size == 4_u64)
+assert(s2.data != s1.data)
+assert(s2 <=> s1 == 0_i32)
+
+# ptr = malloc(5_u64)
+# memcpy(ptr, "Test".data, 4_u64)
+# *(ptr + 4_u64) = 0_u8
+
+# s_direct = String.new(ptr, 4_u64, true)
+# assert(s_direct.size == 4_u64)
+# assert(s_direct <=> "Test" == 0_i32)
+
+
+s_to_str = s1.to_string
+assert(s_to_str.size == s1.size)
+assert(s_to_str.data == s1.data)
+
+
+assert(("abc" <=> "abc") == 0_i32)
+
+assert(("abc" <=> "abcd") < 0_i32)
+assert(("abcd" <=> "abc") > 0_i32)
+
+assert(("abc" <=> "abd") < 0_i32)
+assert(("abd" <=> "abc") > 0_i32)
+
+assert(("abc" <=> "ABC") > 0_i32)
+assert(("ABC" <=> "abc") < 0_i32)
+
+s_concat_1 = String.new("Salut")
+s_concat_2 = String.new(" ça va?")
+s_concat_result = s_concat_1 + s_concat_2
+
+assert(s_concat_result.size == 13_u64)
+assert(s_concat_result <=> "Salut ça va?" == 0_i32)
+
+assert(s1[0_u64] == 86_u8)
+assert(s1[1_u64] == 111_u8)
+assert(s1[2_u64] == 108_u8)
+assert(s1[3_u64] == 116_u8)
+
+s_mut = String.new("Volt")
+s_mut[0_u64] = 66_u8
+
+assert(s_mut[0_u64] == 66_u8)
+assert(s_mut <=> "Bolt" == 0_i32)
+
+s_mut[ 0 ] = 'C'
+s_mut == "Colt"
+
+regex_pattern = /Vol./
+assert(s1 =~ regex_pattern)
+assert(!(s1 =~ /NonExistant/))
