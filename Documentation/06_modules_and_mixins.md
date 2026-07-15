@@ -82,6 +82,47 @@ Mixins can access instance variables of their host classes (e.g., `@session_id`)
 
 ---
 
+## 2b. Standard Library Mixins: `Comparable` and `Inspectable`
+
+`Lib/Mixins/` ships two mixins used throughout the standard library:
+
+*   **`Inspectable`** provides `inspect -> String`, formatted as `"<TypeName: to_string-output>"`, built on whatever `to_string` the including type already defines.
+*   **`Comparable`** provides `<`, `<=`, `>`, `>=`, and `==`, all implemented in terms of a single `abstract def <=>(other : Object) -> Int` that the including type must supply:
+
+```volt
+mixin Comparable
+  def <( other : Object ) -> Bool
+    comp = self <=> other
+    comp ? comp < 0 : false
+  end
+  # ... <=, >, >=, == follow the same pattern
+
+  abstract def <=>( other : Object ) -> Int
+end
+
+class Version
+  include Comparable
+  major : Int
+  minor : Int
+
+  def initialize(@major : Int, @minor : Int)
+  end
+
+  def <=>( other : Version ) -> Int
+    return @major - other.major unless @major == other.major
+    @minor - other.minor
+  end
+end
+
+Version.new(1, 2) < Version.new(1, 5)   # => true, via Comparable#<
+```
+
+`other : Object` is what lets `<=>` be declared once per type yet still satisfy every comparison method the mixin generates — see [The implicit `Object` root](05_oop_basics.md#the-implicit-object-root).
+
+**Numeric types are the one exception**: `Int`/`Float` also `include Comparable` (so they get `==`), but their `<`, `>`, `<=`, `>=` always resolve to the native hardware comparison instead of the mixin's version — never the other way around. This matters because `Int#<=>` is itself written in terms of `<`/`>` (`self < other ? -1 : ...`); if those went back through `Comparable`'s `<` (which calls `<=>`), it would recurse forever. The compiler special-cases this: **a comparison between two numeric operands always takes the native path**, regardless of what mixins are included.
+
+---
+
 ## 3. Under the Hood: VTables vs. ITables
 
 To resolve method offsets without multiple inheritance layout collisions, Volt implements two levels of method dispatch tables in the Virtual Machine:
