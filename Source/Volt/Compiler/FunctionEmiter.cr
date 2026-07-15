@@ -26,6 +26,11 @@ module Volt::Compiler
       @scope    = {} of String => Int32
       @next_reg = 0
       @max_reg  = 0
+      # Registers below this line are pinned (params, named locals, RAII
+      # temps) : `compile_body` recycles everything above it between
+      # statements, so a long body's per-statement temporaries reuse the
+      # same registers instead of exhausting the 8-bit operand space.
+      @reg_floor = 0
       @scopes_resource_registers = [ [] of Tuple( Int32, Int32 ) ]
       @loop_stack = [] of LoopCtx
     end
@@ -53,9 +58,18 @@ module Volt::Compiler
     #------------------------------------------------------------------------------------
 
     def bind_param( name : String, type : Frontend::Type ) : Int32
-      base = alloc_block( slot_count( type ) )
+      n    = slot_count( type )
+      base = alloc_block( n )
       @scope[ name ] = base
+      protect_regs( base, n )
       base
+    end
+
+    # Pins `[reg, reg + n)` below the temp-recycling floor so a named local,
+    # parameter or RAII-tracked register is never handed out again as a
+    # statement temporary.
+    private def protect_regs( reg : Int32, n : Int32 = 1 ) : Nil
+      @reg_floor = reg + n if reg + n > @reg_floor
     end
 
     # The register `self` is bound to — used by `BytecodeCompiler` to return
@@ -119,6 +133,7 @@ module Volt::Compiler
     def track_raii_resource( reg : Int32, type_id : Int32 )
       @scopes_resource_registers.last << { reg, type_id }
       @chunk.drop_map.entries << IR::DropEntry.new( here.to_u32, UInt32::MAX, reg.to_u8, type_id )
+      protect_regs( reg )
     end
 
     # Style-1 constructor shorthand (`def initialize( @x : T )`) has no
@@ -175,6 +190,11 @@ module Volt::Compiler
            ( t = expr.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
           track_raii_resource( last, t.type_id )
         end
+        # A finished statement's temporaries are dead : recycle everything
+        # above the pinned floor so a long body can't exhaust the 8-bit
+        # register operand space. The tail keeps its result register live
+        # for the caller (RET / branch-result placement).
+        @next_reg = @reg_floor if !is_tail && @next_reg > @reg_floor
       end
       if last < 0
         last = alloc
@@ -346,6 +366,7 @@ module Volt::Compiler
       home = n <= 1 ? alloc : alloc_block( n )
       emit_abx( IR::Opcode::NEW_STRUCT, home, n )
       @scope[ expr.name ] = home
+      protect_regs( home, n )
       home
     end
 
@@ -406,6 +427,7 @@ module Volt::Compiler
           value_reg = home
         end
         @scope[ name ] = value_reg
+        protect_regs( value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
         if ( t = expr.value.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
           track_raii_resource( value_reg, t.type_id )
         end
@@ -1014,6 +1036,12 @@ module Volt::Compiler
     # why structs need no allocation at all).
 
     private def compile_constructor_call( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
+      # `Pointer[T].new( address )` : free reinterpret of the integer address
+      # (same payload bits, no allocation, no initializer chunk — the sema
+      # intrinsic in `TypeChecker#infer_constructor_call` typed it already).
+      if info.name.starts_with?( "Pointer[" ) && args.size == 1
+        return compile_expr( args[ 0 ] )
+      end
       info.kind.struct? ? compile_struct_new( info, args ) : compile_class_new( info, args )
     end
 
