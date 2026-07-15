@@ -12,8 +12,9 @@ class Object
 
 end
 
-def func
+def func -> Void
   Object.new( "func" )
+  return
   # func finalize
 end
 
