@@ -84,6 +84,36 @@ end
 
 ---
 
+## Compile-Time Reflection
+
+Volt has no runtime type tag to inspect — `.is_a?`, `.has?`, and `typeof` are all resolved *during compilation* and fold straight into a constant (`true`/`false`, or a `String`) before the program ever runs.
+
+### `typeof`
+Returns the compile-time-known type name of an expression, as a `String`:
+```volt
+typeof(42)        # => "Int"
+typeof("hello")    # => "String"
+```
+
+### `.is_a?`
+Checks whether a value's static type is (or subclasses) a given type. The argument is a bare type name, or `typeof(...)`:
+```volt
+device.is_a?(Device)        # => true if `device`'s type is Device or a subclass
+device.is_a?(typeof(other))  # => true if `device` and `other` share the same static type
+```
+
+### `.has?`
+Checks whether a type declares a given method or field, named with a symbol literal (`:name`):
+```volt
+value.has?(:to_string)   # => true — every type gets a `to_string`
+value.has?(:nonexistent) # => false
+```
+
+### Symbol literals
+`:name` is a compile-time-only token — it exists solely to name a method/field for `.has?` and carries no runtime value of its own; it cannot be assigned to a variable or passed anywhere else.
+
+---
+
 ## Control Flow
 
 Control flow structures in Volt do not use parentheses around conditions, and their bodies are closed with the `end` keyword.
