@@ -275,7 +275,7 @@ class Vector[T] include Inspectable
   #}
   def concat( other : Vector[T] ) -> Void
     other_size = other.size
-    return if other_size == 0
+    return other_size == 0
 
     reserve( @size + other_size )
 
