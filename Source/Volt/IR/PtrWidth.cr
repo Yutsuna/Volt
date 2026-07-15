@@ -11,6 +11,8 @@ module Volt::IR
     U32 = 6
     U64 = 7
     PTR = 8
+    F32 = 9
+    F64 = 10
 
     def self.for( type : Frontend::Type ) : PtrWidth
       case type.kind
@@ -23,6 +25,8 @@ module Volt::IR
       when .u_int32?         then U32
       when .u_int64?, .u_int? then U64
       when .pointer?         then PTR
+      when .float32?         then F32
+      when .float64?, .float? then F64
       else
         raise "internal: unsupported type for pointer load/store: #{type}"
       end
