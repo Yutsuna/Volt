@@ -459,12 +459,56 @@ module Volt::Frontend
           step
         elsif cur == '#'.ord.to_u8 && peek_next == '{'.ord.to_u8
           step; step
+          skip_interpolation
         else
           step
         end
       end
       step unless at_end?
       make( TokenKind::String )
+    end
+
+    # Skips a `#{ ... }` interpolation body up to (and including) its matching
+    # `}`. Braces nest, and the expression may itself contain string literals —
+    # whose quotes must not terminate the enclosing string and whose own
+    # `#{ ... }` bodies recurse through here.
+    private def skip_interpolation : Nil
+      depth = 1
+      while !at_end? && depth > 0
+        c = cur
+        if c == '\\'.ord.to_u8
+          step
+          step
+        elsif c == '{'.ord.to_u8
+          depth += 1
+          step
+        elsif c == '}'.ord.to_u8
+          depth -= 1
+          step
+        elsif c == '"'.ord.to_u8 || c == '\''.ord.to_u8
+          skip_nested_string( c )
+        else
+          step
+        end
+      end
+    end
+
+    # Skips a string literal nested inside an interpolation body, including
+    # any interpolations of its own.
+    private def skip_nested_string( quote : UInt8 ) : Nil
+      step   # opening quote
+      while !at_end? && cur != quote
+        if cur == '\\'.ord.to_u8
+          step
+          step
+        elsif cur == '#'.ord.to_u8 && peek_next == '{'.ord.to_u8
+          step; step
+          skip_interpolation
+        else
+          step
+        end
+      end
+      step unless at_end?   # closing quote
     end
 
     private def scan_regex : Token
