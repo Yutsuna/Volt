@@ -429,6 +429,12 @@ module Volt::Frontend
     end
   end
 
+  class SymbolLit
+    def dump( io : IO, prefix : String ) : Nil
+      io << ASTDump.nd( "SymbolLit" ) << " " << ASTDump.val( ":" + @value ) << ASTDump.loc( @loc ) << "\n"
+    end
+  end
+
   class Ident
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("Ident") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
