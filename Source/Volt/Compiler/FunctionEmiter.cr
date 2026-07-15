@@ -598,6 +598,15 @@ module Volt::Compiler
 
         if sig.extern
           emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || expr.name ), total_args )
+          # The FFI trampoline always returns the callee's result register
+          # verbatim (as a 64-bit value) : a native `int` (e.g. libc's
+          # `memcmp`) leaves its true value in the low 32 bits with the sign
+          # only meaningful at that width, so a signed narrow return type
+          # must be re-sign-extended here or a negative result silently
+          # reads back as a huge positive Int64.
+          if sig.ret.integer? && sig.ret.int_bit_width < 64
+            emit_abx( IR::Opcode::CONV_INT, base, sig.ret.int_bit_width )
+          end
         else
           emit_call( base, @func_index[ expr.name ] )
         end
@@ -1517,6 +1526,9 @@ module Volt::Compiler
 
       if sig.extern
         emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || name ), total_args )
+        if sig.ret.integer? && sig.ret.int_bit_width < 64
+          emit_abx( IR::Opcode::CONV_INT, base, sig.ret.int_bit_width )
+        end
       else
         emit_call( base, @func_index[ name ] )
       end
