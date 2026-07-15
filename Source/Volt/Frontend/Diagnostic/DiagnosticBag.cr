@@ -9,7 +9,7 @@ module Volt::Frontend
     end
 
     def <<( diagnostic : Diagnostic ) : DiagnosticBag
-      if (span = diagnostic.primary_span) && span.file == "<std>"
+      if (span = diagnostic.primary_span) && span.file == "<lib>"
         STDERR.puts "[DEBUG] STD LIB SEMANTIC ERROR: #{diagnostic.code} - #{diagnostic.message} at #{span.file}:#{span.line}:#{span.column}"
       end
       @diagnostics << diagnostic
