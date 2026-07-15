@@ -23,27 +23,25 @@ class Vector[T] include Inspectable
   #}
   getter data : Pointer[T]
 
+  #{
+  # @brief Private attribute to track Memory Alignement
+  #}
+  alignement : UInt64
+
 
   #----------------------------------------------------------------------------
 
   #{
-  # @brief Constructs an empty vector with a small default capacity.
-  #}
-  def initialize()
-    @capacity = 4
-    @size     = 0
-    @data     = Pointer[T].malloc 4
-  end
-
-  #{
   # @brief Constructs an empty vector pre-allocated for `capacity` elements.
-  # @param capacity The number of elements to reserve storage for.
+  # @param capacity The number of elements to reserve storage for. (default: 4)
+  # @param memory alignement (default: 16)
   #}
-  def initialize( capacity : Int )
+  def initialize( capacity : Int = 4, alignement : UInt64 = 16_u64 )
     raise "Vector: negative capacity" if capacity < 0
-    @capacity = capacity < 1 ? 1 : capacity
-    @size     = 0
-    @data     = Pointer[T].malloc @capacity
+    @capacity   = capacity < 1 ? 1 : capacity
+    @size       = 0
+    @alignement = alignement
+    @data       = AlignedAllocator.alloc( @capacity, sizeof T, @alignement )
   end
 
   #---------------------------------------------------------------------------
@@ -53,7 +51,7 @@ class Vector[T] include Inspectable
   #        goes out of scope.
   #}
   def finalize -> Void
-    @data.free unless @data.null?
+    AlignedAllocator.free( @data ) unless @data.null?
     @data = nil
   end
 
@@ -65,7 +63,7 @@ class Vector[T] include Inspectable
   # @return The element stored at `index`.
   #}
   def []( index : Int ) -> T
-    raise "Vector: index out of bounds" if index < 0 || index >= @size
+    raise "Vector: index out of bounds" if index < 0 or index >= @size
     *( @data + index )
   end
 
@@ -76,7 +74,7 @@ class Vector[T] include Inspectable
   # @return The stored value.
   #}
   def []=( index : Int, val : T ) -> T
-    raise "Vector: index out of bounds" if index < 0 || index >= @size
+    raise "Vector: index out of bounds" if index < 0 or index >= @size
     *( @data + index ) = val
   end
 
@@ -157,11 +155,11 @@ class Vector[T] include Inspectable
   # @param val The value to insert.
   #}
   def insert( index : Int, val : T ) -> Void
-    raise "Vector: insert index out of bounds" if index < 0 || index > @size
+    raise "Vector: insert index out of bounds" if index < 0 or index > @size
 
     if @size == @capacity
       new_capacity = @capacity * 2
-      new_data     = Pointer[T].malloc new_capacity
+      new_data     = AlignedAllocator.alloc( new_capacity, sizeof T, @alignement )
 
       i = 0
       while i < index
@@ -176,7 +174,7 @@ class Vector[T] include Inspectable
         i += 1
       end
 
-      @data.free unless @data.null?
+      AlignedAllocator.free( @data ) unless @data.null?
       @data     = new_data
       @capacity = new_capacity
       @size    += 1
@@ -197,7 +195,7 @@ class Vector[T] include Inspectable
   # @return The removed element.
   #}
   def remove_at( index : Int ) -> T
-    raise "Vector: remove_at index out of bounds" if index < 0 || index >= @size
+    raise "Vector: remove_at index out of bounds" if index < 0 or index >= @size
     removed = *( @data + index )
     i = index
     while i < @size - 1
@@ -248,7 +246,7 @@ class Vector[T] include Inspectable
   # @brief Exchanges the elements at positions `a` and `b`.
   #}
   def swap( a : Int, b : Int ) -> Void
-    raise "Vector: swap index out of bounds" if a < 0 || a >= @size || b < 0 || b >= @size
+    raise "Vector: swap index out of bounds" if a < 0 or a >= @size or b < 0 or b >= @size
     tmp = *( @data + a )
     *( @data + a ) = *( @data + b )
     *( @data + b ) = tmp
@@ -314,7 +312,7 @@ class Vector[T] include Inspectable
   # @brief Deep copy: a new vector owning its own buffer with the same elements.
   #}
   def copy -> Vector[T]
-    result = Vector[T].new( @size < 1 ? 1 : @size )
+    result = Vector[T].new( @size < 1 ? 1 : @size, @alignement )
     i = 0
     while i < @size
       result.push( *( @data + i ) )
@@ -354,6 +352,21 @@ class Vector[T] include Inspectable
     s + "]"
   end
 
+  #{
+  # @brief Create a slice view of the full Vector
+  #}
+  def to_slice -> Slice[ T ]
+    Slice[ T ].new( @data, @size )
+  end
+
+  #{
+  # @brief Create a slice view of a specific portion of the Vector
+  #}
+  def slice( start : Int, length : Int ) -> Slice[ T ]
+    raise "Vector: slice out of bounds" if start < 0 or length < 0 or start + length > @size
+    Slice[ T ].new( @data + start, length )
+  end
+
   #---------------------------------------------------------------------------
 
   #{
@@ -362,7 +375,7 @@ class Vector[T] include Inspectable
   #}
   private def reallocate( new_capacity : Int ) -> Void
     new_capacity = 1 if new_capacity < 1
-    new_data     = Pointer[T].malloc new_capacity
+    new_data     = AlignedAllocator.alloc( new_capacity, sizeof T, @alignement )
 
     limit = @size < new_capacity ? @size : new_capacity
     i = 0
@@ -371,7 +384,7 @@ class Vector[T] include Inspectable
       i += 1
     end
 
-    @data.free unless @data.null?
+    AlignedAllocator.free( @data ) unless @data.null?
     @data     = new_data
     @capacity = new_capacity
     @size     = limit
