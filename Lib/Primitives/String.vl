@@ -53,7 +53,6 @@ class String
      min_size = @size < other.size ? @size : other.size
      cmp      = memcmp( @data, other.data, min_size )
      return cmp unless cmp == 0
-     return 1
       if @size < other.size
         -1_i32
       elsif @size > other.size
