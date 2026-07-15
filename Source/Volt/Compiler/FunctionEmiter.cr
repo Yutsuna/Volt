@@ -570,19 +570,34 @@ module Volt::Compiler
 
       # Parenthesis-less zero-arg call on `self` (mirrors `compile_call`'s
       # self-dispatch and `TypeChecker#infer_ident`) : `boot_sequence`.
-      if ( owner = @self_owner ) && !@scope.has_key?( expr.name ) && find_method( owner.name, expr.name )
-        self_reg = @scope[ "self" ]
+      if ( owner = @self_owner ) && !@scope.has_key?( expr.name ) && ( msig = find_method( owner.name, expr.name ) )
+        self_reg  = @scope[ "self" ]
+        call_args = pad_args( [] of Frontend::AExpr, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         if owner.kind.struct?
-          return compile_struct_call( nominal_of( owner ), expr.name, self_reg, [] of Int32, [] of Frontend::Type )
+          return compile_struct_call( nominal_of( owner ), expr.name, self_reg, arg_regs, arg_types )
         else
-          return compile_virtual_call( nominal_of( owner ), expr.name, self_reg, [] of Int32, [] of Frontend::Type )
+          return compile_virtual_call( nominal_of( owner ), expr.name, self_reg, arg_regs, arg_types )
         end
       end
 
       if sig = @signatures[ expr.name ]?
-        base = alloc_block( Math.max( 1, slot_count( sig.ret ) ) )
+        call_args  = pad_args( [] of Frontend::AExpr, sig )
+        arg_regs   = call_args.map { |a| compile_expr( a ) }
+        arg_slots  = call_args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
+        total_args = arg_slots.sum
+
+        base = alloc_block( Math.max( 1 + total_args, slot_count( sig.ret ) ) )
+        offset = 1
+        arg_regs.each_with_index do |ar, i|
+          n = arg_slots[ i ]
+          place_value( base + offset, ar, n )
+          offset += n
+        end
+
         if sig.extern
-          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || expr.name ), 0 )
+          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || expr.name ), total_args )
         else
           emit_call( base, @func_index[ expr.name ] )
         end
@@ -658,7 +673,14 @@ module Volt::Compiler
         if expr.name == "new"
           return compile_constructor_call( info, [] of Frontend::AExpr )
         end
-        if info.methods[expr.name]?.try(&.is_static) || info.kind.module?
+        if msig = info.methods[expr.name]?
+          if msig.is_static || info.kind.module?
+            call_args = pad_args( [] of Frontend::AExpr, msig )
+            arg_regs  = call_args.map { |a| compile_expr( a ) }
+            arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+            return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+          end
+        elsif info.kind.module?
           return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
         end
       end
@@ -667,6 +689,12 @@ module Volt::Compiler
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
          ( info = @types[ recv.name ]? ) && info.kind.module?
         recv.resolved_type = nominal_of( info )
+        if msig = info.methods[expr.name]?
+          call_args = pad_args( [] of Frontend::AExpr, msig )
+          arg_regs  = call_args.map { |a| compile_expr( a ) }
+          arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+          return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+        end
         return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
       end
 
@@ -680,7 +708,11 @@ module Volt::Compiler
         # Parenthesis-less zero-arg method call on a primitive receiver.
         if info = primitive_owner( recv_ty, expr.name )
           r = compile_expr( expr.receiver )
-          return compile_primitive_call( info, expr.name, r, [] of Int32, [] of Frontend::Type )
+          msig      = find_method( info.name, expr.name ).not_nil!
+          call_args = pad_args( [] of Frontend::AExpr, msig )
+          arg_regs  = call_args.map { |a| compile_expr( a ) }
+          arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+          return compile_primitive_call( info, expr.name, r, arg_regs, arg_types )
         end
         raise "internal: member access on non-object type"
       end
@@ -691,11 +723,14 @@ module Volt::Compiler
         # field access by the parser/Semantic) : a struct resolves straight
         # to a direct call (no polymorphism possible) ; a class goes through
         # the vtable, same as the parenthesised case in `compile_method_call`.
-        if find_method( recv_ty.name, expr.name )
+        if msig = find_method( recv_ty.name, expr.name )
+          call_args = pad_args( [] of Frontend::AExpr, msig )
+          arg_regs  = call_args.map { |a| compile_expr( a ) }
+          arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
           if recv_ty.kind.struct?
-            return compile_struct_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+            return compile_struct_call( recv_ty, expr.name, recv_reg, arg_regs, arg_types )
           else
-            return compile_virtual_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+            return compile_virtual_call( recv_ty, expr.name, recv_reg, arg_regs, arg_types )
           end
         end
         raise "internal: zero-arg method calls are not yet lowered (Phase 4) : #{recv_ty.name}##{expr.name}"
@@ -755,7 +790,14 @@ module Volt::Compiler
         if expr.name == "new"
           return compile_constructor_call( info, expr.args )
         end
-        if info.methods[expr.name]?.try(&.is_static) || info.kind.module?
+        if msig = info.methods[expr.name]?
+          if msig.is_static || info.kind.module?
+            call_args = pad_args( expr.args, msig )
+            arg_regs  = call_args.map { |a| compile_expr( a ) }
+            arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+            return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+          end
+        elsif info.kind.module?
           arg_regs  = expr.args.map { |a| compile_expr( a ) }
           arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
           return compile_static_call( info.name, expr.name, arg_regs, arg_types )
@@ -781,8 +823,10 @@ module Volt::Compiler
 
       if recv_ty.is_a?( Frontend::NominalType ) && ( recv_ty.kind.struct? || recv_ty.kind.object? )
         self_reg  = compile_expr( expr.receiver )
-        arg_regs  = expr.args.map { |a| compile_expr( a ) }
-        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        msig      = find_method( recv_ty.name, expr.name ).not_nil!
+        call_args = pad_args( expr.args, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         if recv_ty.kind.struct?
           return compile_struct_call( recv_ty, expr.name, self_reg, arg_regs, arg_types )
         else
@@ -794,8 +838,10 @@ module Volt::Compiler
       # (`struct Int … end` in the Core) : direct `CALL`, `self` = 1 slot.
       if info = primitive_owner( recv_ty, expr.name )
         self_reg  = compile_expr( expr.receiver )
-        arg_regs  = expr.args.map { |a| compile_expr( a ) }
-        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        msig      = find_method( info.name, expr.name ).not_nil!
+        call_args = pad_args( expr.args, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         return compile_primitive_call( info, expr.name, self_reg, arg_regs, arg_types )
       end
 
@@ -1056,13 +1102,14 @@ module Volt::Compiler
     private def compile_struct_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
       arg_tys = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
       if init = resolve_initializer( info, arg_tys )
+        call_args = pad_args( args, init )
         idx      = @func_index[ init_chunk_name( info, init.params ) ]
         self_slots = info.reg_layout.try( &.total_size ) || 1
-        arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
+        arg_slot_counts = call_args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total    = self_slots + arg_slot_counts.sum
         base     = alloc_block( 1 + total )
         offset   = 1 + self_slots
-        args.each_with_index do |a, i|
+        call_args.each_with_index do |a, i|
           ar = compile_expr( a )
           n  = arg_slot_counts[ i ]
           place_value( base + offset, ar, n )
@@ -1091,10 +1138,11 @@ module Volt::Compiler
       emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
 
       if provider = find_initializer_owner( info )
-        arg_tys = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
-        init    = resolve_initializer( provider, arg_tys ).not_nil!
+        arg_tys   = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        init      = resolve_initializer( provider, arg_tys ).not_nil!
+        call_args = pad_args( args, init )
         idx     = @func_index[ init_chunk_name( provider, init.params ) ]
-        arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
+        arg_slot_counts = call_args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total   = 1 + arg_slot_counts.sum
         # `window` (== A) is the CALL's return-value landing spot : args
         # (self first, then declared params) start at `window + 1`, same
@@ -1102,7 +1150,7 @@ module Volt::Compiler
         window  = alloc_block( 1 + total )
         place_value( window + 1, obj, 1 )
         offset = 2
-        args.each_with_index do |a, i|
+        call_args.each_with_index do |a, i|
           ar = compile_expr( a )
           n  = arg_slot_counts[ i ]
           place_value( window + offset, ar, n )
@@ -1137,7 +1185,20 @@ module Volt::Compiler
     private def resolve_initializer( info : Frontend::TypeInfo, arg_tys : Array( Frontend::Type ) ) : Frontend::FuncSig?
       group = info.initializers[ arg_tys.size ]?
       return Frontend.select_overload( group, arg_tys ) if group
-      info.initializer
+      # No overload declares exactly this many parameters — one may still
+      # accept this arg count once its trailing defaulted parameters are
+      # filled in (mirrors `TypeChecker#infer_constructor_call`).
+      info.initializers.values.flatten.find { |cand| arity_in_range?( cand, arg_tys.size ) } || info.initializer
+    end
+
+    private def arity_in_range?( sig : Frontend::FuncSig, arg_count : Int32 ) : Bool
+      min_required = sig.params.size
+      sig.params.size.times do |i|
+        idx = sig.params.size - 1 - i
+        break unless sig.defaults[ idx ]?
+        min_required = idx
+      end
+      arg_count >= min_required && arg_count <= sig.params.size
     end
 
     private def find_initializer_owner( info : Frontend::TypeInfo ) : Frontend::TypeInfo?
@@ -1356,6 +1417,23 @@ module Volt::Compiler
       dest
     end
 
+    # A call site may omit any suffix of the callee's defaulted trailing
+    # parameters ; pads `args` back out to `sig.params.size` by splicing in
+    # the declaration's default-value expressions (already type-checked once
+    # against an empty scope, so `resolved_type` is set — see
+    # `TypeChecker#check_param_defaults`) so every other call-compiling path
+    # can keep treating `args.size == sig.params.size` as an invariant.
+    private def pad_args( args : Array( Frontend::AExpr ), sig : Frontend::FuncSig ) : Array( Frontend::AExpr )
+      return args if args.size >= sig.params.size
+      padded = args.dup
+      ( args.size...sig.params.size ).each do |i|
+        default = sig.defaults[ i ]?
+        raise "internal: missing default for parameter #{i} of `#{sig.name}`" unless default
+        padded << default
+      end
+      padded
+    end
+
     private def compile_call( expr : Frontend::Call ) : Int32
       name = expr.callee.as( Frontend::Ident ).name
 
@@ -1366,9 +1444,10 @@ module Volt::Compiler
       # virtual for a class (so an inherited method calling another
       # overridable method still late-binds to the actual subclass), direct
       # for a struct.
-      if ( owner = @self_owner ) && !@scope.has_key?( name ) && find_method( owner.name, name )
-        arg_regs  = expr.args.map { |a| compile_expr( a ) }
-        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+      if ( owner = @self_owner ) && !@scope.has_key?( name ) && ( msig = find_method( owner.name, name ) )
+        call_args = pad_args( expr.args, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         if owner.kind.module?
           return compile_static_call( owner.name, name, arg_regs, arg_types )
         end
@@ -1381,9 +1460,10 @@ module Volt::Compiler
       end
 
       sig  = @signatures[ name ]
+      call_args  = pad_args( expr.args, sig )
 
-      arg_regs   = expr.args.map { |a| compile_expr( a ) }
-      arg_slots  = expr.args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
+      arg_regs   = call_args.map { |a| compile_expr( a ) }
+      arg_slots  = call_args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
       total_args = arg_slots.sum
       ret_slots  = slot_count( sig.ret )
 
