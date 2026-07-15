@@ -791,7 +791,6 @@ module Volt::Compiler
                                       arg_types : Array( Frontend::Type ) ) : Int32
       mangled    = "#{recv_ty.name}##{method_name}"
       idx        = @func_index[ mangled ]
-      STDERR.puts "[emit] struct_call #{@chunk.name}: #{mangled} -> #{idx}" if ENV[ "VOLT_REPL_DEBUG" ]?
       msig       = @types[ recv_ty.name ].methods[ method_name ]
       self_slots = slot_count( recv_ty )
       arg_slots  = arg_types.map { |t| slot_count( t ) }
@@ -851,7 +850,6 @@ module Volt::Compiler
                                          arg_types : Array( Frontend::Type ) ) : Int32
       mangled   = "#{info.name}##{method_name}"
       idx       = @func_index[ mangled ]
-      STDERR.puts "[emit] primitive_call #{@chunk.name}: #{mangled} -> #{idx}" if ENV[ "VOLT_REPL_DEBUG" ]?
       msig      = find_method( info.name, method_name ).not_nil!
       arg_slots = arg_types.map { |t| slot_count( t ) }
       total     = 1 + arg_slots.sum
