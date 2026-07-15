@@ -108,7 +108,12 @@ module Volt::Compiler
         [ ins.a ]
       when IR::Opcode::STORE_FIELD
         [ ins.a, ins.c ]
-      when IR::Opcode::CALL, IR::Opcode::CALL_NATIVE, IR::Opcode::CALL_METHOD
+      when IR::Opcode::CALL
+        # `CALL` is A/Bx (chunk index) and carries no arg count : without the
+        # callee's arity, conservatively treat every register above the call
+        # base as read (over-counting only inhibits fusion, never breaks it).
+        ( ins.a + 1 ... chunk.num_registers ).map { |k| k }
+      when IR::Opcode::CALL_NATIVE, IR::Opcode::CALL_METHOD
         ( 1 .. ins.c ).map { |k| ins.a + k }
       when IR::Opcode::RET
         n = ins.bx > 0 ? ins.bx : 1
