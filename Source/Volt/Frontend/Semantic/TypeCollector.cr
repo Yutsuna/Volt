@@ -15,6 +15,10 @@ module Volt::Frontend
   # end up correctly populated regardless of visitation order (nominals are
   # shared, mutable instances).
   class TypeCollector
+    # The name of the implicit universal root every class derives from when
+    # it declares no superclass of its own (see `resolve_class`).
+    OBJECT_ROOT = "Object"
+
     getter types         : Hash( String, TypeInfo )
     getter nominals      : Hash( String, NominalType )
     getter methods       : Array( FuncDecl )
@@ -30,6 +34,18 @@ module Volt::Frontend
       @method_entries = [] of { FuncDecl, String, FuncSig }
       @resolving = Set( String ).new
       @resolved  = Set( String ).new
+
+      # Seed the `Object` root itself : absent any real declaration, it needs
+      # no entry in `@decls` — just enough of a `NominalType`/`TypeInfo` pair
+      # for annotation lookup (`other : Object`) and the superclass-chain
+      # walk to terminate on by name. Deliberately *not* marked `@resolved` :
+      # user code is free to declare its own `class Object` (shadowing this
+      # seed — `declare` overwrites both maps for it), and it must still go
+      # through `resolve_class` like any other type. Pre-marking it resolved
+      # would make `resolve("Object")` short-circuit on the stale seed and
+      # skip that class's `initialize`/`finalize`/methods entirely.
+      @nominals[ OBJECT_ROOT ] = NominalType.object( OBJECT_ROOT, -1 )
+      @types[ OBJECT_ROOT ]    = TypeInfo.new( NominalKind::Class, OBJECT_ROOT, -1 )
     end
 
     def collect( nodes : Array( ANode ) ) : Nil
@@ -172,6 +188,14 @@ module Volt::Frontend
         else
           @bag << Catalog::Sema.unknown_superclass( info.name, sup, node.loc )
         end
+      elsif info.name != OBJECT_ROOT
+        # Every class implicitly derives from the universal `Object` root
+        # unless it names a superclass of its own — this is what lets
+        # `other : Object` (see `Comparable`) accept a value of any class :
+        # the superclass-chain walk in `TypeChecker#type_compatible?` finds
+        # `Object` at the end of every chain. `Object` itself carries no
+        # layout, so `base_layout` stays nil here.
+        info.superclass = OBJECT_ROOT
       end
 
       mixin_names = resolve_mixins( info.name, node.mixins, node.loc )

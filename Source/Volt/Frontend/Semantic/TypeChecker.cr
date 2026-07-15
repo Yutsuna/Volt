@@ -594,6 +594,51 @@ module Volt::Frontend
         return Type::BOOL
       end
 
+      # `.is_a?( Type )` / `.is_a?( typeof(x) )` and `.has?( :name )` : pure
+      # compile-time reflection, folded straight to a `true`/`false` constant
+      # here (see `resolved_bool`) — Volt has no runtime type tag to check
+      # against, so both are static queries over the types already resolved
+      # by this pass, not real dispatched calls.
+      if expr.name == "is_a?"
+        recv_ty = infer( expr.receiver, scope )
+        if expr.args.size != 1
+          @bag << Catalog::Sema.arity_mismatch( "is_a?", 1, expr.args.size, expr.loc )
+          expr.args.each { |a| infer( a, scope ) }
+          expr.resolved_bool = false
+          return Type::BOOL
+        end
+        target_ty = resolve_is_a_target( expr.args[ 0 ], scope )
+        if target_ty.nil?
+          arg = expr.args[ 0 ]
+          name = arg.is_a?( Ident ) ? arg.name : type_name( arg )
+          @bag << Catalog::Sema.unknown_type( name, arg.loc )
+          expr.resolved_bool = false
+          return Type::BOOL
+        end
+        expr.resolved_bool = static_is_a?( recv_ty, target_ty )
+        return Type::BOOL
+      end
+
+      if expr.name == "has?"
+        recv_ty = infer( expr.receiver, scope )
+        arg = expr.args[ 0 ]?
+        unless expr.args.size == 1 && arg.is_a?( SymbolLit )
+          @bag << Catalog::Sema.unsupported_expr( "`.has?` expects a single symbol argument, e.g. `.has?(:name)`", expr.loc )
+          expr.resolved_bool = false
+          return Type::BOOL
+        end
+        # `recv_ty.to_s` also resolves reopened primitives (`Int`, `Float`,
+        # `Bool`, …) : those live in `@types` as a plain method table keyed
+        # by their primitive name, same as any nominal class, even though
+        # the *value*'s `Type` is a bare singleton rather than a
+        # `NominalType` (see `TypeCollector#declare`'s primitive-reopening
+        # branch).
+        recv_name = recv_ty.to_s
+        expr.resolved_bool = !recv_ty.kind.unknown? &&
+          ( !find_method( recv_name, arg.value ).nil? || !find_field( recv_name, arg.value ).nil? )
+        return Type::BOOL
+      end
+
       # `Pair[String, Int64].new( args )` : explicit generic instantiation. The
       # receiver rewrites to the mangled concrete name so the compiler lowers
       # an ordinary constructor call.
@@ -1220,6 +1265,43 @@ module Volt::Frontend
       false
     end
 
+    # The `.is_a?` argument : either a bare type name (`String`, `Device` —
+    # resolved the same way an annotation's `SimpleType` would be, but
+    # against a raw `Ident` since there is no annotation grammar in call-arg
+    # position) or `typeof(x)` (already a first-class compile-time type
+    # query). Anything else has no meaning as a type reference.
+    private def resolve_is_a_target( arg : AExpr, scope : Scope ) : Type?
+      case arg
+      when TypeofExpr
+        infer( arg, scope )
+        arg.resolved_operand_type
+      when Ident
+        return nil if scope.local?( arg.name )
+        Type.from_primitive_name( arg.name ) || @nominals[ arg.name ]?
+      else
+        nil
+      end
+    end
+
+    # Static subtype check for `.is_a?` : identity, or `recv`'s superclass
+    # chain reaching `target` by name. Deliberately narrower than
+    # `type_compatible?` (no nil-for-Object, no Void* bridging, no legacy
+    # `Type::STR`/`String` blending) — `is_a?` answers "is this exactly (or
+    # a subclass of) that type", not "would this be accepted where that type
+    # is declared".
+    private def static_is_a?( recv : Type, target : Type ) : Bool
+      return false if recv.kind.unknown? || target.kind.unknown?
+      return true if recv == target
+      if recv.is_a?( NominalType ) && target.is_a?( NominalType )
+        cur = recv.name
+        while cur
+          return true if cur == target.name
+          cur = @types[ cur ]?.try( &.superclass )
+        end
+      end
+      false
+    end
+
     private def infer_binary( expr : BinaryOp, scope : Scope ) : Type
       lt = infer( expr.left, scope )
       rt = infer( expr.right, scope )
@@ -1270,6 +1352,12 @@ module Volt::Frontend
         lt
 
       when .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?
+        if ( m = operator_method( lt, op_text( expr.op ) ) )
+          unless m.params.size == 1 && type_compatible?( m.params[ 0 ], rt )
+            @bag << Catalog::Sema.argument_type( 1, "#{lt}##{op_text( expr.op )}", m.params[ 0 ]?.try( &.to_s ) || "?", rt.to_s, expr.loc )
+          end
+          return m.ret
+        end
         return Type::BOOL if unknown
         unless lt.numeric? && lt == rt
           @bag << Catalog::Sema.comparison_numeric( lt.to_s, rt.to_s, expr.loc )
@@ -1490,6 +1578,10 @@ module Volt::Frontend
       when .tilde?       then "~"
       when .lt_lt?       then "<<"
       when .gt_gt?       then ">>"
+      when .lt?          then "<"
+      when .gt?          then ">"
+      when .lt_eq?       then "<="
+      when .gt_eq?       then ">="
       when .spaceship?   then "<=>"
       when .eq_eq_eq?    then "==="
       when .match_op?    then "=~"

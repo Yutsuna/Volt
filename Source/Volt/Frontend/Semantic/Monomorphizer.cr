@@ -358,6 +358,7 @@ module Volt::Frontend
       when BoolLit   then BoolLit.new( expr.value, expr.loc )
       when NilLit    then NilLit.new( expr.loc )
       when RegexLit  then RegexLit.new( expr.value, expr.loc )
+      when SymbolLit then SymbolLit.new( expr.value, expr.loc )
       when Ident
         # A bare type-parameter reference in expression position (`T.new`)
         # rewrites to the substituted type's name so the constructor path
