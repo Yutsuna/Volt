@@ -470,7 +470,20 @@ module Volt::Frontend
       body.each do |node|
         next unless node.is_a?( FuncDecl )
         unless node.type_params.empty?
-          @bag << Catalog::Sema.generic_method_unsupported( node.name, node.loc )
+          # A generic *static* method (`def self.alloc[T]`) has no `self` to
+          # bind, so it behaves exactly like a top-level generic function :
+          # it's registered under a qualified name (`Owner.method`) and
+          # monomorphized through the same template machinery, one concrete
+          # clone per call-site type argument. Instance-bound generic methods
+          # still need `self` typed against the (non-generic) owner, which
+          # this template path doesn't model, so those remain unsupported.
+          is_static = info.kind.module? ? ( node.is_static || info.extend_self ) : node.is_static
+          if is_static && ( mono = @mono )
+            node.name = "#{info.name}.#{node.name}"
+            mono.register_func_template( node )
+          else
+            @bag << Catalog::Sema.generic_method_unsupported( node.name, node.loc )
+          end
           next
         end
         sig = build_method_sig( node, info )
