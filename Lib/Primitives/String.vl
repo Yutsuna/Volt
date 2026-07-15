@@ -15,7 +15,9 @@ def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
 # @class String
 # @brief A mutable string class that manages a buffer of bytes and provides common string operations.
 #}
-class String include Inspectable
+class String
+  include Inspectable
+  include Comparable
 
   #----------------------------------------------------------------------------
 
@@ -47,6 +49,22 @@ class String include Inspectable
 
   #----------------------------------------------------------------------------
 
+  def <=>( other : String ) -> Int32
+     min_size = @size < other.size ? @size : other.size
+     cmp      = memcmp( @data, other.data, min_size )
+     return cmp unless cmp == 0
+     return 1
+      if @size < other.size
+        -1_i32
+      elsif @size > other.size
+        1_i32
+      else
+        0_i32
+      end
+   end
+
+  #----------------------------------------------------------------------------
+
   def +( other : String ) -> String
     total         = @size + other.size
     buf : UInt8*  = malloc( total + 1_u64 )
@@ -54,11 +72,6 @@ class String include Inspectable
     memcpy( buf + @size, other.data, other.size )
     *( buf + total ) = 0_u8
     String.new( buf, total, true )
-  end
-
-  def ==( other : String ) -> Bool
-    return false if @size != other.size
-    memcmp( @data, other.data, @size ) == 0
   end
 
   def =~( other : Regex ) -> Bool
