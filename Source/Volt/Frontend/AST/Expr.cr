@@ -207,6 +207,11 @@ module Volt::Frontend
     property args     : Array( AExpr )
     property block    : BlockExpr?
     property safe     : Bool           # true for ?.  navigation
+    # Set by `TypeChecker` for `.is_a?`/`.has?` : both are pure compile-time
+    # reflection, resolved to a constant `true`/`false` during typecheck
+    # (never dispatched as a real method) — `FunctionEmiter` reads this
+    # instead of compiling a call when it's non-nil.
+    property resolved_bool : Bool?
 
     def initialize( @receiver : AExpr, @name : String, @args : Array( AExpr ),
                     @block : BlockExpr?, @safe : Bool, loc : Span )
@@ -347,6 +352,18 @@ module Volt::Frontend
 
 
   class RegexLit < AExpr
+    property value : String
+
+    def initialize( @value : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # `:name` — compile-time-only, legal solely as the argument of `.has?`
+  # (`TypeChecker#infer_method_call` rejects it anywhere else). Carries no
+  # runtime type of its own : it never reaches codegen.
+  class SymbolLit < AExpr
     property value : String
 
     def initialize( @value : String, loc : Span )
