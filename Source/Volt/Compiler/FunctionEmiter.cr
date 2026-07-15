@@ -413,25 +413,24 @@ module Volt::Compiler
         place_value( home, value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
         home
       else
-        # First binding. A bare `x = y` / `x = self` RHS compiles to the
-        # *existing* name's home register — binding `x` to it directly would
-        # alias the two names (rebinding either then clobbers the other), and
-        # `track_raii_resource` below would put that shared register into
-        # `raii_regs`, which `execute` nil-inits at frame entry — for a
-        # parameter that wipes the argument before the body ever reads it.
-        # Copy into a fresh home register instead.
-        if expr.value.is_a?( Frontend::Ident ) || expr.value.is_a?( Frontend::SelfExpr )
-          n    = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
-          home = n <= 1 ? alloc : alloc_block( n )
-          place_value( home, value_reg, n )
-          value_reg = home
-        end
-        @scope[ name ] = value_reg
-        protect_regs( value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
+        # First binding : compact the local into a fresh home register just
+        # above the pinned floor, so the temporaries its value computation
+        # used are recycled by the next statement instead of being pinned
+        # under a high watermark. Copying (never aliasing `value_reg`) also
+        # keeps `x = y` / `x = self` from sharing the RHS name's register
+        # (rebinding either would clobber the other), and keeps `raii_regs`
+        # nil-init from wiping a parameter at frame entry. The copy is safe
+        # against overlap : `home ≤ value_reg` (or fully disjoint below).
+        n = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+        @next_reg = @reg_floor if @next_reg > @reg_floor
+        home = n <= 1 ? alloc : alloc_block( n )
+        place_value( home, value_reg, n ) unless home == value_reg
+        @scope[ name ] = home
+        protect_regs( home, n )
         if ( t = expr.value.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
-          track_raii_resource( value_reg, t.type_id )
+          track_raii_resource( home, t.type_id )
         end
-        value_reg
+        home
       end
     end
 
