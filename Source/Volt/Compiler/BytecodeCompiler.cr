@@ -252,12 +252,12 @@ module Volt::Compiler
 
       if finalize_idx >= 0
         code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
-        code << IR::Instruction.abc( IR::Opcode::CALL, 1, finalize_idx, 1 )
+        code << IR::Instruction.abx( IR::Opcode::CALL, 1, finalize_idx )
       end
 
       if drop_idx >= 0
         code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
-        code << IR::Instruction.abc( IR::Opcode::CALL, 1, drop_idx, 1 )
+        code << IR::Instruction.abx( IR::Opcode::CALL, 1, drop_idx )
       end
 
       code << IR::Instruction.abx( IR::Opcode::RET, 0, 0 )
