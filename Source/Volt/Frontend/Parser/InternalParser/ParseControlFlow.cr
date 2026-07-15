@@ -181,6 +181,14 @@ module Volt::Frontend
             case bytes[ i ]
             when '{' then depth += 1
             when '}' then depth -= 1
+            when '"', '\''
+              # A string literal nested in the interpolation: its quotes,
+              # braces and escapes must not affect the `}` matching.
+              q  = bytes[ i ]
+              i += 1
+              while i < bytes.size && bytes[ i ] != q
+                i += bytes[ i ] == '\\' ? 2 : 1
+              end
             end
             i += 1 if depth > 0
           end
