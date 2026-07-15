@@ -78,7 +78,7 @@ module Volt::REPL
       case tok.kind
       when .int?, .float?
         val.colorize( :magenta ).to_s
-      when .string?, .regex?
+      when .string?, .char?, .regex?
         val.colorize( :green ).to_s
       # Enum constant, not `.nil?` — that predicate resolves to `Object#nil?`
       # (always false), which would make this arm dead.
