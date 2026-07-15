@@ -785,6 +785,18 @@ module Volt::Compiler
       end
       return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
+      # `.is_a?`/`.has?` : `TypeChecker` already folded these to a constant
+      # (`resolved_bool`) — their args (a bare type name / a `:symbol`) are
+      # compile-time-only tokens with no runtime representation, so only the
+      # receiver is compiled here, purely for its side effects.
+      resolved_bool = expr.resolved_bool
+      unless resolved_bool.nil?
+        compile_expr( expr.receiver )
+        r = alloc
+        emit_abc( resolved_bool ? IR::Opcode::LOAD_TRUE : IR::Opcode::LOAD_FALSE, r, 0, 0 )
+        return r
+      end
+
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
           ( info = @types[ recv.name ]? )
         if expr.name == "new"
@@ -1264,12 +1276,40 @@ module Volt::Compiler
         return compile_virtual_call( nominal_of( info ), "+", lreg, [ rreg ], [ Frontend::Type::UNKNOWN ] )
       end
 
-      if ( op_name = operator_method_name( expr.op ) )
-        lt = expr.left.resolved_type
-        if lt.is_a?( Frontend::NominalType ) && ( lt.kind.struct? || lt.kind.object? ) && @types[ lt.name ]?.try( &.methods[ op_name ]? )
-          rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
-          result = lt.kind.struct? ? compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] ) :
-                                      compile_virtual_call( lt, op_name, lreg, [ rreg ], [ rt ] )
+      # A mixin body (`Comparable#<`, `#==`, ...) type-checks once with `self`
+      # bound to the mixin itself (see `compile_instance_var`'s field
+      # refresh) : refresh the cached type from `@self_owner` so `self <=>
+      # other` inside an adopted copy dispatches against the real includer's
+      # own `<=>` (`String#<=>`, `Int#<=>`), not the mixin's placeholder type.
+      if ( owner = @self_owner )
+        expr.left.resolved_type  = nominal_of( owner ) if expr.left.is_a?( Frontend::SelfExpr )
+        expr.right.resolved_type = nominal_of( owner ) if expr.right.is_a?( Frontend::SelfExpr )
+      end
+
+      lt = expr.left.resolved_type
+      rt = expr.right.resolved_type
+
+      # A comparison between two numeric operands always takes the native
+      # path, even when the type includes `Comparable` : a primitive's own
+      # `<=>` is defined in terms of native `<`/`>` (`Int#<=>`), so routing
+      # `==`/`<`/... back through the mixin's adopted method here would
+      # recurse forever (`Int#==` -> `<=>` -> `comp == 0` -> `Int#==` -> ...).
+      is_comparison = expr.op.eq_eq? || expr.op.bang_eq? || expr.op.lt? ||
+                      expr.op.gt? || expr.op.lt_eq? || expr.op.gt_eq? || expr.op.spaceship?
+      numeric_cmp = is_comparison && lt && rt && lt.numeric? && rt.numeric?
+
+      if !numeric_cmp && ( op_name = operator_method_name( expr.op ) )
+        struct_owner = lt.is_a?( Frontend::NominalType ) && lt.kind.struct? && @types[ lt.name ]?.try( &.methods[ op_name ]? )
+        # `find_method` (unlike a raw `.methods[op_name]?`) walks the mixin
+        # chain, so a class-kind receiver whose operator is only adopted
+        # from a mixin (`String#<` from `Comparable`, never overridden) is
+        # still found — `compile_virtual_call` resolves it through the
+        # includer's own vtable slot regardless of which ancestor declared it.
+        class_owner = lt.is_a?( Frontend::NominalType ) && lt.kind.object? && find_method( lt.name, op_name )
+        if struct_owner || class_owner
+          rarg   = rt || Frontend::Type::UNKNOWN
+          result = struct_owner ? compile_struct_call( lt.as( Frontend::NominalType ), op_name, lreg, [ rreg ], [ rarg ] ) :
+                                    compile_virtual_call( lt.as( Frontend::NominalType ), op_name, lreg, [ rreg ], [ rarg ] )
           if expr.op.bang_eq? || expr.op.not_match_op?
             neg = alloc
             emit_abc( IR::Opcode::NOT, neg, result, 0 )
@@ -1277,8 +1317,8 @@ module Volt::Compiler
           end
           return result
         elsif ( info = primitive_owner( lt, op_name ) )
-          rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
-          result = compile_primitive_call( info, op_name, lreg, [ rreg ], [ rt ] )
+          rarg   = rt || Frontend::Type::UNKNOWN
+          result = compile_primitive_call( info, op_name, lreg, [ rreg ], [ rarg ] )
           if expr.op.bang_eq? || expr.op.not_match_op?
             neg = alloc
             emit_abc( IR::Opcode::NOT, neg, result, 0 )
@@ -1595,6 +1635,11 @@ module Volt::Compiler
       when .match_op?         then "=~"
       when .not_match_op?     then "=~"
       when .eq_eq_eq?         then "==="
+      when .lt?               then "<"
+      when .gt?               then ">"
+      when .lt_eq?            then "<="
+      when .gt_eq?            then ">="
+      when .spaceship?        then "<=>"
       else                         nil
       end
     end
