@@ -1386,6 +1386,17 @@ module Volt::Frontend
         return infer_explicit_generic_call( callee, base.name, expr, scope )
       end
 
+      # `Owner.method[T]( args )` : explicit instantiation of a generic
+      # *static* method, registered by the collector under its qualified
+      # name (`Owner.method`) and monomorphized exactly like a top-level
+      # generic function — there's no `self` to bind, so the mangled clone
+      # compiles as an ordinary free function.
+      if callee.is_a?( Index ) && ( base = callee.receiver ).is_a?( MemberAccess ) &&
+         ( owner_recv = base.receiver ).is_a?( Ident ) && !scope.local?( owner_recv.name ) &&
+         ( mono = @mono ) && mono.func_template?( "#{owner_recv.name}.#{base.name}" )
+        return infer_explicit_generic_call( callee, "#{owner_recv.name}.#{base.name}", expr, scope )
+      end
+
       unless callee.is_a?( Ident )
         @bag << Catalog::Sema.non_direct_call( expr.loc )
         expr.args.each { |a| infer( a, scope ) }
