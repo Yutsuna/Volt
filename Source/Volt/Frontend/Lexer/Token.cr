@@ -25,6 +25,7 @@ module Volt::Frontend
     Int
     Float
     String
+    Char
     True
     False
     Nil

@@ -86,6 +86,11 @@ module Volt::Frontend
         Diagnostic.error( "P0011", "duplicate type parameter `#{name}`" )
           .with_primary( got.span, "`#{name}` is already declared on this `def`" )
       end
+
+      def invalid_char_literal( content : String, span : Span ) : Diagnostic
+        Diagnostic.error( "P0012", "invalid character literal `'#{content}'`: must contain exactly one byte" )
+          .with_primary( span, "character literals denote a single UInt8 byte" )
+      end
     end
 
 
