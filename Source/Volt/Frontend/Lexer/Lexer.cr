@@ -304,6 +304,11 @@ module Volt::Frontend
       when ':'
         if !at_end? && cur == ':'.ord.to_u8
           step; make( TokenKind::ColonColon )
+        elsif !at_end? && ( cur.unsafe_chr.alphanumeric? || cur == '_'.ord )
+          # `:name` — a symbol literal, never a type annotation/ternary colon
+          # (those are always followed by whitespace or `::`).
+          scan_ident_chars
+          make( TokenKind::SymbolLit )
         else
           make( TokenKind::Colon )
         end
