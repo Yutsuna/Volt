@@ -1,0 +1,24 @@
+@[External("libc", "aligned_alloc")]
+def __volt_aligned_alloc( alignment : UInt64, size : UInt64 ) -> Void*
+
+
+module AlignedAllocator
+
+
+  def self.alloc( count : Int, size_of_element : UInt64, alignment : UInt64 ) -> Void*
+    bytes     = count * size_of_element
+    remainder = bytes % alignment
+
+    if remainder != 0_u64
+      bytes += ( alignment - remainder )
+    end
+
+    __volt_aligned_alloc( alignment, bytes )
+  end
+
+  def self.free( ptr : Void* ) -> Void
+    __volt_free( ptr )
+  end
+
+
+end
