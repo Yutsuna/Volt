@@ -15,9 +15,16 @@ module Volt::Frontend
     property owner     : String?
     property is_static : Bool
     property visibility : Visibility
+    # Parallel to `params` : the parsed default-value expression for each
+    # parameter, or `nil` for parameters with none. Only trailing parameters
+    # may have a default (enforced by `check_call_args`); a shorter array
+    # (or one made entirely of `nil`s) means "no defaults known" and the
+    # call site must supply every argument.
+    property defaults : Array( AExpr? )
 
     def initialize( @name, @params, @ret, @extern = false, @lib = nil, @decl_span = nil,
-                    @owner = nil, @is_static = false, @visibility = Visibility::Public )
+                    @owner = nil, @is_static = false, @visibility = Visibility::Public,
+                    @defaults = [] of AExpr? )
     end
   end
 
