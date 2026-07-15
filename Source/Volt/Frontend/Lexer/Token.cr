@@ -162,6 +162,10 @@ module Volt::Frontend
     # regex literal
     Regex
 
+    # symbol literal : `:name` — compile-time-only, used to name a
+    # method/attribute for `.has?` (see `HasExpr`)
+    SymbolLit
+
     # whitespace / meta
     Newline
     Eof
