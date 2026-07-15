@@ -368,6 +368,9 @@ module Volt::VM
     private def execute_index( chunk_index : Int32, base : Int32 ) : Int32
       ensure_chunk_table
       ensure_class_table
+      if ENV[ "VOLT_VM_REFERENCE" ]?
+        return execute_reference( @unit.chunks[ chunk_index ], base )
+      end
       chunk     = @unit.chunks[ chunk_index ]
       saved_top = @stack_top
       @stack_top = base + chunk.num_registers
@@ -717,7 +720,7 @@ module Volt::VM
 
             # ---- calls ----
             when IR::Opcode::CALL
-              callee = @unit.chunks[ins.b]
+              callee = @unit.chunks[ins.bx]
               cbase  = base + ins.a + 1
               if cbase + callee.num_registers > STACK_CAPACITY
                 raise VoltRuntimeError.new( "stack overflow" )
