@@ -332,8 +332,10 @@ module Volt::Frontend
         else
           make( TokenKind::RBrace )
         end
-      when '"', '\''
+      when '"'
         scan_string( c.unsafe_chr )
+      when '\''
+        scan_char
       when '0'..'9'
         scan_number
       when 'a'..'z', 'A'..'Z', '_'
@@ -473,6 +475,19 @@ module Volt::Frontend
       make( TokenKind::String )
     end
 
+    private def scan_char : Token
+      while !at_end? && cur.unsafe_chr != '\''
+        if cur == '\\'.ord.to_u8
+          step
+          step
+        else
+          step
+        end
+      end
+      step unless at_end?
+      make( TokenKind::Char )
+    end
+
     # Skips a `#{ ... }` interpolation body up to (and including) its matching
     # `}`. Braces nest, and the expression may itself contain string literals —
     # whose quotes must not terminate the enclosing string and whose own
@@ -537,7 +552,7 @@ module Volt::Frontend
       case @last_kind
       # `TokenKind::Nil` spelled as a constant: `.nil?` would call
       # `Object#nil?` (always false), silently dropping `nil` from the set.
-      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
+      when .int?, .float?, .string?, .char?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
         true
       when .def?   # `def /` declares the division operator, never a regex
         true

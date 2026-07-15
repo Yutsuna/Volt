@@ -69,6 +69,8 @@ module Volt::Frontend
         node
       when .string?
         parse_string_literal( tok )
+      when .char?
+        parse_char_literal( tok )
       when .true?
         BoolLit.new( true, tok.span )
       when .false?
@@ -479,7 +481,7 @@ module Volt::Frontend
       case kind
       # `TokenKind::Nil` spelled as a constant: `.nil?` here would call
       # `Object#nil?` (always false), silently dropping `nil` from the set.
-      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
+      when .int?, .float?, .string?, .char?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
             .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?, .star?, .amp?,
             .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
             .if?, .unless?, .match?, .while?, .until?, .await?,
