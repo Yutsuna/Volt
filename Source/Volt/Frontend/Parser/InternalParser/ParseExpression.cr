@@ -122,6 +122,8 @@ module Volt::Frontend
         raw = tok.value
         pattern = raw[ 1, raw.bytesize - 2 ]
         RegexLit.new( pattern, tok.span )
+      when .symbol_lit?
+        SymbolLit.new( tok.value.lchop( ":" ), tok.span )
       when .bang?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )
