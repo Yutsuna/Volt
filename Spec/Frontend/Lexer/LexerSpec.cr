@@ -55,10 +55,10 @@ module Volt::Spec
       tokens[ 0 ].value.should eq( "\"hello\"" )
     end
 
-    it "tokenizes string literals with single quotes" do
-      tokens = Volt::Frontend::Lexer.tokenize( "'world'", "<test>" )
-      tokens[ 0 ].kind.should eq( Volt::Frontend::TokenKind::String )
-      tokens[ 0 ].value.should eq( "'world'" )
+    it "tokenizes single-quoted literals as char tokens" do
+      tokens = Volt::Frontend::Lexer.tokenize( "'w'", "<test>" )
+      tokens[ 0 ].kind.should eq( Volt::Frontend::TokenKind::Char )
+      tokens[ 0 ].value.should eq( "'w'" )
     end
 
     it "tokenizes boolean literals" do
