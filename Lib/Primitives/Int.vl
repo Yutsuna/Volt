@@ -1,4 +1,6 @@
-struct Int include Inspectable
+struct Int
+  include Inspectable
+  include Comparable
 
   # alias Signed = Int8 | Int16 | Int32 | Int64
   # alias Unsigned = UInt8 | UInt16 | UInt32 | UInt64
@@ -6,6 +8,18 @@ struct Int include Inspectable
   # NOTE: unsafe should be macro'd aand dynamic depending on the target of Int
   # MIN_64 : Int = -9223372036854775808
   # MAX_32 : Int = 9223372036854775807
+
+  #----------------------------------------------------------------------------
+
+  def <=>( other : Int ) -> Int
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
 
   #----------------------------------------------------------------------------
 
