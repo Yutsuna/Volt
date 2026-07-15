@@ -794,6 +794,19 @@ module Volt::Frontend
 
     private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope,
                                         arg_tys : Array( Type )? = nil ) : Type
+      # `Pointer[T].new( address )` : compiler intrinsic. A raw pointer is a
+      # single tagged word, so constructing one from an integer address is a
+      # free reinterpret (mirrors Crystal's `Pointer(T).new(UInt64)`) — there
+      # is no field layout or initializer chunk to dispatch to.
+      if info.name.starts_with?( "Pointer[" ) && expr.args.size == 1
+        tys = arg_tys || expr.args.map { |a| infer( a, scope ) }
+        unless tys[ 0 ].integer?
+          @bag << Catalog::Sema.argument_type( 1, "#{info.name}.new", "UInt64", tys[ 0 ].to_s, expr.loc )
+        end
+        pointee = find_method( info.name, "value" ).try( &.ret ) || Type::UNKNOWN
+        return Type.pointer( pointee )
+      end
+
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
       if owner = find_initializer_owner_info( info.name )
