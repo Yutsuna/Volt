@@ -1,10 +1,4 @@
 @[External("libc")]
-def malloc( size : UInt64 ) -> Void*
-
-@[External("libc")]
-def free( ptr : Void* ) -> Void
-
-@[External("libc")]
 def memcpy( dest : Void*, src : Void*, size : UInt64 ) -> Void*
 
 @[External("libc")]
