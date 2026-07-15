@@ -2,6 +2,10 @@ require "./Unit"
 require "./NativeTable"
 require "./FunctionEmiter"
 
+class Volt::IR::Chunk
+  property returns_object : Bool = false
+end
+
 module Volt::Compiler
 
 
@@ -200,7 +204,11 @@ module Volt::Compiler
       result = emitter.compile_body( fn.body, drop_tail_ctor: fn.return_type.nil? )
       emitter.exit_scope
       emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
-      emitter.finish
+
+      chunk = emitter.finish
+      ret_ty = sig.ret
+      chunk.returns_object = ret_ty.is_a?( Frontend::NominalType ) && ret_ty.kind.object?
+      chunk
     end
 
     # A method chunk's calling convention is `self` (1 slot for a class
@@ -233,7 +241,11 @@ module Volt::Compiler
       else
         emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
       end
-      emitter.finish
+
+      chunk = emitter.finish
+      ret_ty = sig.ret
+      chunk.returns_object = ret_ty.is_a?( Frontend::NominalType ) && ret_ty.kind.object?
+      chunk
     end
 
     # Auto-generated deep-drop: DROPs every reference field so a class's RAII
