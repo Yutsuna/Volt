@@ -1,0 +1,104 @@
+macro assert( condition )
+  if {{ condition }}
+    puts "PASS"
+  else
+    puts "FAIL"
+  end
+end
+
+
+# --- array literal : Array[T], every method pure Volt ---------------------------
+
+arr = [ 1, 2, 3, 4 ]
+assert( arr.size == 4 )
+assert( arr[0] == 1 )
+assert( arr[3] == 4 )
+assert( arr.first == 1 )
+assert( arr.last == 4 )
+assert( !arr.empty? )
+assert( arr.at( 2 ) == 3 )
+
+# --- element write -------------------------------------------------------------
+
+arr[1] = 42
+assert( arr[1] == 42 )
+assert( arr.to_string == "[1, 42, 3, 4]" )
+
+# --- runtime-index iteration ---------------------------------------------------
+
+i = 0
+total = 0
+while i < arr.size
+  total += arr[i]
+  i += 1
+end
+assert( total == 50 )
+
+# --- search --------------------------------------------------------------------
+
+assert( arr.index_of( 42 ) == 1 )
+assert( arr.index_of( 1000 ) == -1 )
+assert( arr.contains?( 3 ) )
+assert( !arr.contains?( 1000 ) )
+
+# --- in-place mutation ---------------------------------------------------------
+
+pair = [ 10, 20 ]
+pair.swap( 0, 1 )
+assert( pair[0] == 20 && pair[1] == 10 )
+pair.reverse!
+assert( pair[0] == 10 && pair[1] == 20 )
+pair.fill( 7 )
+assert( pair.to_string == "[7, 7]" )
+
+# --- copy / equality -----------------------------------------------------------
+
+orig = [ 1, 2, 3 ]
+dup  = orig.copy
+assert( orig == dup )
+dup[0] = 99
+assert( !( orig == dup ) )
+assert( orig[0] == 1 )
+
+# --- String elements (object references in the buffer) --------------------------
+
+strs = [ "salut", "ça", "va" ]
+assert( strs.size == 3 )
+assert( strs[1] == "ça" )
+assert( strs.first == "salut" )
+assert( strs.to_string == "[salut, ça, va]" )
+
+strs[2] = "bien"
+assert( strs[2] == "bien" )
+
+# --- `of` : element type annotation --------------------------------------------
+
+raw = [ 1, 2, 3 ] of UInt8
+assert( raw.size == 3 )
+assert( raw[0] + raw[2] == 4 )
+
+# --- empty, explicitly typed ----------------------------------------------------
+
+none = [] of Int32
+assert( none.size == 0 )
+assert( none.empty? )
+assert( none.to_string == "[]" )
+
+# --- fixed-size *stack* array (`T[N]`) still its own thing ----------------------
+
+buf : UInt8[ 4 ]
+assert( buf.size == 4 )
+buf[0] = 250
+assert( buf[0] == 250 )
+
+# --- Float elements ------------------------------------------------------------
+
+floats = [ 1.5, 2.5 ]
+assert( floats.size == 2 )
+assert( floats[0] + floats[1] == 4.0 )
+
+# --- single element ------------------------------------------------------------
+
+single = [ 99 ]
+assert( single.first == single.last )
+assert( single.to_string == "[99]" )
