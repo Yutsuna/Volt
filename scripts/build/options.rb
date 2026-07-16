@@ -18,6 +18,37 @@ module Volt::Build
       options
     end
 
+    def self.show_usage
+      puts <<~USAGE
+        Volt Build Tool
+
+        Usage: volt-build [options] [-- [run_args]]
+
+        Commands:
+          clean         Clean the build directory and cache.
+          help, -h      Show this help message.
+
+        Build Types:
+          debug         Build in Debug mode (default, executable: Volt_d).
+          release       Build in Release mode (executable: Volt).
+
+        Sanitizers & Features:
+          asan          Enable AddressSanitizer (VOLT_ENABLE_ASAN=ON).
+          ubsan         Enable UndefinedBehaviorSanitizer (VOLT_ENABLE_UBSAN=ON).
+          tsan          Enable ThreadSanitizer (VOLT_ENABLE_TSAN=ON).
+          testing       Enable Testing (VOLT_ENABLE_TESTING=ON).
+
+        Execution:
+          run           Run the built binary after a successful build.
+          --            Pass all subsequent arguments directly to the Volt binary.
+
+        Examples:
+          volt-build clean
+          volt-build release run
+          volt-build debug asan run -- --verbose
+      USAGE
+    end
+
     private
 
     def self.default_options
@@ -26,7 +57,8 @@ module Volt::Build
         run: false,
         clean: false,
         cmake_flags: FLAGS_MAP.values.each_with_object({}) { |var, h| h[var] = 'OFF' },
-        run_args: []
+        run_args: [],
+        help: false
       }
     end
 
@@ -36,6 +68,8 @@ module Volt::Build
         arg = args.shift.downcase
 
         case arg
+        when 'help', '-h', '--help'
+          options[:help] = true
         when 'debug'
           options[:build_type] = 'Debug'
         when 'release'

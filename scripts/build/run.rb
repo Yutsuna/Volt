@@ -14,6 +14,10 @@ module Volt
 
   def self.run!
     options   = Options.parse
+    if options[ :help ]
+      Options.show_usage
+      return
+    end
     pipeline  = Pipeline.new options
     pipeline.execute!
   end
