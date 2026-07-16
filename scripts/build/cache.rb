@@ -9,7 +9,7 @@ module Volt::Build
   class Cache
 
     PATH          = 'build/.volt_build_cache.json'
-    GLOB_PATTERN  = '{CMakeLists.txt,VERSION.md,flake.nix,cmake/**/*,nix/**/*,volt/Source/**/*}'
+    GLOB_PATTERN  = '{CMakeLists.txt,VERSION.md,flake.nix,cmake/**/*,nix/**/*,source/Volt/**/*}'
 
     def initialize( build_type, cmake_flags, binary_path )
       @build_type   = build_type

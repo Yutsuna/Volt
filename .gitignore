@@ -5,3 +5,5 @@ build/
 .cache/
 .ruby-lsp/
 .volt_history
+graphify-out
+.claude
