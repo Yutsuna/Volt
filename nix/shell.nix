@@ -18,6 +18,7 @@ pkgs.mkShell {
     gdb
     gtest
     clang-tools
+    cmake-lint
     mold
   ];
 
