@@ -1,6 +1,7 @@
 struct Int
   include Inspectable
   include Comparable
+  include Hashable
 
   # alias Signed = Int8 | Int16 | Int32 | Int64
   # alias Unsigned = UInt8 | UInt16 | UInt32 | UInt64
@@ -53,8 +54,20 @@ struct Int
 
   #----------------------------------------------------------------------------
 
-  # Digits are peeled off into a fixed-size *stack* array (`Elem[N]`, no
-  # allocation — see architecture #4.4) : the only heap allocation left is
+  #{
+  # @brief xorshift64 mix of the value, used by `Hash` to spread consecutive
+  #        integer keys across buckets.
+  #}
+  def hash -> UInt64
+    h = self
+    h ^= ( h << 13 )
+    h ^= ( h >> 7 )
+    h ^ ( h << 17 )
+  end
+
+  #----------------------------------------------------------------------------
+
+  # Digits are peeled off into a fixed-size stack array : the only heap allocation left is
   # the final `String`'s own backing buffer, which every `String` owns by
   # construction (`String#+` allocates one the same way).
   def to_string -> String
