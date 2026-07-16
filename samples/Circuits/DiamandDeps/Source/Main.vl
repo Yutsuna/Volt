@@ -1,0 +1,10 @@
+@[Link("Auth")]
+@[Link("Database")]
+@[Link("Core")]
+
+config = Core::AppConfig.new( 5432, "super-secret-key".data )
+db = Database::DbClient.new( config )
+auth = Auth::AuthService.new( config )
+
+db.connect
+auth.verify_token

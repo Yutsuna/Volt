@@ -1,0 +1,18 @@
+@[Link("Core")]
+
+
+module Database
+
+
+  class DbClient
+    config : Core::AppConfig
+
+    def initialize( @config : Core::AppConfig )
+    end
+
+    def connect -> Void
+    end
+  end
+
+
+end
