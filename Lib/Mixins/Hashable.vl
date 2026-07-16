@@ -1,0 +1,19 @@
+#{
+# @mixin Hashable
+# @brief The contract a type must satisfy to be usable as a `Hash` key.
+#}
+mixin Hashable
+
+  #{
+  # @brief The value's hash. Equal values must hash equally.
+  #}
+  abstract def hash -> UInt64
+
+  #{
+  # @brief Folds another field's hash into `seed`
+  #}
+  private def hash_combine( seed : UInt64, other : UInt64 ) -> UInt64
+    seed ^ ( other ^ ( seed << 6 ) ^ ( seed >> 2 ) )
+  end
+
+end
