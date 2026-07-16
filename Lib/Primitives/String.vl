@@ -12,6 +12,7 @@ def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
 class String
   include Inspectable
   include Comparable
+  include Hashable
 
   #----------------------------------------------------------------------------
 
@@ -69,6 +70,21 @@ class String
 
   def =~( other : Regex ) -> Bool
     __volt_regex_match( other, @data, @size ) != 0
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief djb2 hash over the raw bytes, folded to 56 bits each round.
+  #}
+  def hash -> UInt64
+    h = 5381
+    i = 0_u64
+    while i < @size
+      h = ( ( h << 5 ) + h + *( @data + i ) ) & 72057594037927935
+      i += 1
+    end
+    h
   end
 
   #----------------------------------------------------------------------------
