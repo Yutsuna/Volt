@@ -35,6 +35,8 @@ module Volt::VM
                 IR::Value.float( ptr.as( Float64* ).value )
               when 11 # WIDTH_OBJ
                 IR::Value.object( IR::HeapObject.new( ptr.as( Pointer( Void )* ).value ) )
+              when 12 # WIDTH_BOOL
+                IR::Value.bool( ptr.as( UInt8* ).value != 0 )
               else
                 raise VoltRuntimeError.new( "unknown pointer width code #{ins.c}" )
               end
@@ -49,6 +51,8 @@ module Volt::VM
         case ins.c
         when 0, 4 # WIDTH_I8 / WIDTH_U8
           ptr.as( UInt8* ).value = val.as_i.to_u8
+        when 12 # WIDTH_BOOL
+          ptr.as( UInt8* ).value = val.as_bool ? 1_u8 : 0_u8
         when 1, 5 # WIDTH_I16 / WIDTH_U16
           ptr.as( UInt16* ).value = val.as_i.to_u16
         when 2, 6 # WIDTH_I32 / WIDTH_U32
