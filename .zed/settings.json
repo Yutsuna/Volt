@@ -4,4 +4,25 @@
     "C": ["c", "h", "inc"],
   },
   "load_direnv": "shell_hook",
+  "languages": {
+    "Ruby": {
+      "language_servers": [
+        "ruby-lsp",
+        "!solargraph",
+        "!rubocop"
+      ]
+    },
+    "Nix": {
+      "language_servers": [
+        "nil"
+      ]
+    }
+  },
+  "lsp": {
+    "ruby-lsp": {
+      "settings": {
+        "use_bundler": false
+      }
+    }
+  }
 }

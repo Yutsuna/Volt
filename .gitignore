@@ -1,5 +1,7 @@
 bin/
 build/
+!scripts/build
 .direnv/
 .cache/
+.ruby-lsp/
 .volt_history
