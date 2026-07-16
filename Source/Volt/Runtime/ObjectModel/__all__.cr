@@ -1,2 +1,0 @@
-require "./RClass"
-require "./TypeRegistry"
