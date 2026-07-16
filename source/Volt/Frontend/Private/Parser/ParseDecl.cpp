@@ -1,0 +1,403 @@
+#include "Volt/Frontend/AST/Decl.hpp"
+#include "Volt/Frontend/AST/Expr.hpp"
+#include "Volt/Frontend/Parser/Parser.hpp"
+
+#include <cstdint>
+#include <string_view>
+#include <utility>
+
+namespace Volt
+{
+
+    namespace Frontend
+    {
+
+        namespace
+        {
+
+            [[nodiscard]] bool IsOperatorMethodStart( TokenKind Kind )
+            {
+                switch ( Kind )
+                {
+                    case TokenKind::LBracket:
+                    case TokenKind::Spaceship:
+                    case TokenKind::Plus:
+                    case TokenKind::Minus:
+                    case TokenKind::Star:
+                    case TokenKind::Slash:
+                    case TokenKind::Percent:
+                    case TokenKind::EqEq:
+                    case TokenKind::NotEq:
+                    case TokenKind::Lt:
+                    case TokenKind::Gt:
+                    case TokenKind::Le:
+                    case TokenKind::Ge:
+                    case TokenKind::Shl:
+                    case TokenKind::Shr:
+                        return true;
+                    default:
+                        return false;
+                }
+            }
+
+        }
+
+        bool Parser::AtDeclaration() const
+        {
+            switch ( PeekKind() )
+            {
+                case TokenKind::KwModule:
+                case TokenKind::KwClass:
+                case TokenKind::KwStruct:
+                case TokenKind::KwMixin:
+                case TokenKind::KwDef:
+                case TokenKind::KwAbstract:
+                case TokenKind::KwInclude:
+                case TokenKind::KwComponent:
+                case TokenKind::KwCircuit:
+                    return true;
+                case TokenKind::At:
+                    return PeekKind( 1 ) == TokenKind::LBracket;
+                default:
+                    return false;
+            }
+        }
+
+        DeclId Parser::ParseDeclaration()
+        {
+            switch ( PeekKind() )
+            {
+                case TokenKind::KwModule:
+                    return ParseModule();
+                case TokenKind::KwClass:
+                    return ParseClass();
+                case TokenKind::KwStruct:
+                    return ParseStruct();
+                case TokenKind::KwMixin:
+                    return ParseMixin();
+                case TokenKind::KwDef:
+                    return ParseMethod( false );
+                case TokenKind::KwAbstract:
+                    Advance();
+                    return ParseMethod( true );
+                case TokenKind::KwInclude:
+                    return ParseInclude();
+                case TokenKind::KwComponent:
+                    return ParseComponent();
+                case TokenKind::KwCircuit:
+                    return ParseCircuit();
+                case TokenKind::At:
+                    return ParseAnnotation();
+                default:
+                    ReportHere( "expected a declaration" );
+                    Advance();
+                    return DeclId{};
+            }
+        }
+
+        SymbolList Parser::ParseGenericParams()
+        {
+            SymbolList Generics;
+            if ( Accept( TokenKind::LBracket ) )
+            {
+                do
+                {
+                    Generics.PushBack( InternText( Expect( TokenKind::Constant, "as a generic parameter" ) ) );
+                } while ( Accept( TokenKind::Comma ) );
+                Expect( TokenKind::RBracket, "to close generic parameters" );
+            }
+            return Generics;
+        }
+
+        void Parser::ParseDeclBlock( DeclList& Out )
+        {
+            SkipTerminators();
+            while ( !AtEnd() && !Check( TokenKind::KwEnd ) )
+            {
+                const std::size_t Before = Pos;
+
+                DeclId Decl;
+                if ( AtDeclaration() )
+                {
+                    Decl = ParseDeclaration();
+                }
+                else if ( Check( TokenKind::Identifier ) )
+                {
+                    Decl = ParseFieldOrMember();
+                }
+                else
+                {
+                    ReportHere( "expected a member declaration" );
+                }
+
+                if ( Decl.IsValid() )
+                {
+                    Out.PushBack( Decl );
+                }
+                if ( Pos == Before )
+                {
+                    Advance();
+                }
+                SkipTerminators();
+            }
+        }
+
+        DeclId Parser::ParseModule()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwModule, "to begin a module" );
+
+            Module Node;
+            Node.Name = InternText( Expect( TokenKind::Constant, "as a module name" ) );
+            SkipTerminators();
+            ParseDeclBlock( Node.Body );
+            Expect( TokenKind::KwEnd, "to close module" );
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseClass()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwClass, "to begin a class" );
+
+            Class Node;
+            Node.Name     = InternText( Expect( TokenKind::Constant, "as a class name" ) );
+            Node.Generics = ParseGenericParams();
+            if ( Accept( TokenKind::Lt ) )
+            {
+                Node.Super = ParseType();
+            }
+            SkipTerminators();
+            ParseDeclBlock( Node.Body );
+            Expect( TokenKind::KwEnd, "to close class" );
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseStruct()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwStruct, "to begin a struct" );
+
+            Struct Node;
+            Node.Name     = InternText( Expect( TokenKind::Constant, "as a struct name" ) );
+            Node.Generics = ParseGenericParams();
+            SkipTerminators();
+            ParseDeclBlock( Node.Body );
+            Expect( TokenKind::KwEnd, "to close struct" );
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseMixin()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwMixin, "to begin a mixin" );
+
+            Mixin Node;
+            Node.Name     = InternText( Expect( TokenKind::Constant, "as a mixin name" ) );
+            Node.Generics = ParseGenericParams();
+            SkipTerminators();
+            ParseDeclBlock( Node.Body );
+            Expect( TokenKind::KwEnd, "to close mixin" );
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        void Parser::ParseParameterList( ParamList& Out )
+        {
+            SkipNewlines();
+            if ( Check( TokenKind::RParen ) )
+            {
+                return;
+            }
+
+            do
+            {
+                SkipNewlines();
+                Param Node;
+                if ( Check( TokenKind::InstanceVar ) )
+                {
+                    Node.bInstanceVar        = true;
+                    const std::string_view V = Interner.Resolve( Advance().Lexeme );
+                    Node.Name                = Interner.Intern( V.substr( 1 ) ); // strip '@'
+                }
+                else
+                {
+                    Node.Name = InternText( Expect( TokenKind::Identifier, "as a parameter name" ) );
+                }
+
+                if ( Accept( TokenKind::Colon ) )
+                {
+                    Node.DeclType = ParseType();
+                }
+                if ( Accept( TokenKind::Assign ) )
+                {
+                    Node.Default = ParseExpr( 0 );
+                }
+                Out.PushBack( Context.Add( std::move( Node ) ) );
+                SkipNewlines();
+            } while ( Accept( TokenKind::Comma ) );
+            SkipNewlines();
+        }
+
+        DeclId Parser::ParseMethod( bool bAbstract )
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwDef, "to begin a method" );
+
+            Method Node;
+            Node.bAbstract = bAbstract;
+
+            if ( Accept( TokenKind::KwSelf ) )
+            {
+                Node.bSelf = true;
+                Expect( TokenKind::Dot, "after 'self' in a method name" );
+            }
+
+            // Method name: identifier, or an operator method like `[]`, `[]=`,
+            // `<=>`, `+`, ...
+            if ( Check( TokenKind::Identifier ) || Check( TokenKind::Constant ) )
+            {
+                Node.Name = InternText( Advance() );
+            }
+            else if ( Accept( TokenKind::LBracket ) )
+            {
+                Expect( TokenKind::RBracket, "in '[]' method name" );
+                Node.Name = Interner.Intern( Accept( TokenKind::Assign ) ? "[]=" : "[]" );
+            }
+            else if ( IsOperatorMethodStart( PeekKind() ) )
+            {
+                Node.Name = Interner.Intern( TokenSpelling( Advance().Kind ) );
+            }
+            else
+            {
+                ReportHere( "expected a method name" );
+            }
+
+            if ( Accept( TokenKind::LParen ) )
+            {
+                ParseParameterList( Node.Params );
+                Expect( TokenKind::RParen, "to close parameters" );
+            }
+
+            if ( Accept( TokenKind::Arrow ) )
+            {
+                Node.ReturnType = ParseType();
+            }
+
+            if ( !bAbstract )
+            {
+                SkipTerminators();
+                ParseStatementBlock( Node.Body );
+                Expect( TokenKind::KwEnd, "to close method" );
+            }
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseFieldOrMember()
+        {
+            const std::uint32_t Begin = Here();
+
+            EAccessor Accessor = EAccessor::None;
+            if ( Check( TokenKind::Identifier ) && PeekKind( 1 ) == TokenKind::Identifier )
+            {
+                const std::string_view Word = Spelling( Peek() );
+                if ( Word == "getter" )
+                {
+                    Accessor = EAccessor::Getter;
+                    Advance();
+                }
+                else if ( Word == "property" )
+                {
+                    Accessor = EAccessor::Property;
+                    Advance();
+                }
+            }
+
+            Field Node;
+            Node.Accessor = Accessor;
+            Node.Name     = InternText( Expect( TokenKind::Identifier, "as a field name" ) );
+            if ( Accept( TokenKind::Colon ) )
+            {
+                Node.DeclType = ParseType();
+            }
+            if ( Accept( TokenKind::Assign ) )
+            {
+                Node.Default = ParseExpr( 0 );
+            }
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseInclude()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwInclude, "to begin an include" );
+
+            Include Node;
+            Node.Target = ParseType();
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseAnnotation()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::At, "to begin an annotation" );
+            Expect( TokenKind::LBracket, "to open an annotation" );
+
+            Annotation Node;
+            if ( Check( TokenKind::Constant ) || Check( TokenKind::Identifier ) )
+            {
+                Node.Name = InternText( Advance() );
+            }
+            else
+            {
+                ReportHere( "expected an annotation name" );
+            }
+
+            if ( Accept( TokenKind::LParen ) )
+            {
+                SymbolList Ignored;
+                ParseCallArguments( Node.Args, Ignored, TokenKind::RParen );
+                Expect( TokenKind::RParen, "to close annotation arguments" );
+            }
+            Expect( TokenKind::RBracket, "to close annotation" );
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+        DeclId Parser::ParseCircuit()
+        {
+            const std::uint32_t Begin = Here();
+            Expect( TokenKind::KwCircuit, "to begin a circuit" );
+
+            Circuit Node;
+            Node.Name = InternText( Expect( TokenKind::StringLiteral, "as a circuit name" ) );
+            SkipNewlines();
+            Expect( TokenKind::LBrace, "to open a circuit body" );
+            SkipTerminators();
+
+            while ( !AtEnd() && !Check( TokenKind::RBrace ) )
+            {
+                const std::size_t Before = Pos;
+                const StmtId      Stmt   = ParseStatement();
+                if ( Stmt.IsValid() )
+                {
+                    Node.Body.PushBack( Stmt );
+                }
+                if ( Pos == Before )
+                {
+                    Advance();
+                }
+                SkipTerminators();
+            }
+            Expect( TokenKind::RBrace, "to close a circuit body" );
+
+            return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+        }
+
+    }
+
+}
