@@ -1,0 +1,13 @@
+module Core
+
+
+  struct AppConfig
+    port : Int32
+    secret : UInt8*
+
+    def initialize( @port : Int32, @ecret : UInt8*)
+    end
+  end
+
+
+end

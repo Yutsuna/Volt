@@ -1,0 +1,10 @@
+circuit "TwoDepsApp"
+{
+  runtime "0.1.0"
+  entrypoint "Source/Main.vl"
+
+  modules(
+    "Models"      => "Source/Models",
+    "Components"  => "Source/Components",
+  )
+}
