@@ -26,11 +26,11 @@ llvmAttrs.stdenv.mkDerivation {
   ];
 
   cmakeFlags = [
-      "-DCMAKE_BUILD_TYPE=Release"
-      "-DVOLT_USE_CCACHE=ON"
-      "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold"
-      "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=mold"
-    ];
+    "-DCMAKE_BUILD_TYPE=Release"
+    "-DVOLT_USE_CCACHE=ON"
+    "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold"
+    "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=mold"
+  ];
 
   meta = with pkgs.lib; {
     description = "Volt is a compiled and interpreted programming language";

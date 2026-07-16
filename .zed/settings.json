@@ -5,18 +5,32 @@
   },
   "load_direnv": "shell_hook",
   "languages": {
+    "C++": {
+      "language_servers": [
+        "clangd"
+      ],
+      "format_on_save": "on",
+    },
+    "C": {
+      "language_servers": [
+        "clangd"
+      ],
+      "format_on_save": "on",
+    },
     "Ruby": {
       "language_servers": [
         "ruby-lsp",
         "!solargraph",
         "!rubocop"
-      ]
+      ],
+      "format_on_save": "off",
     },
     "Nix": {
       "language_servers": [
         "nil"
-      ]
-    }
+      ],
+      "format_on_save":"on"
+    },
   },
   "lsp": {
     "ruby-lsp": {
