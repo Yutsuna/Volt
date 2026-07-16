@@ -108,3 +108,18 @@ while i < 500
   i += 1
 end
 assert( ok )
+
+# --- Float / Bool / Pointer keys (Hashable primitives) --------------------------
+
+fh = { 1.5 => "un", 2.5 => "deux" }
+assert( fh[1.5] == "un" )
+assert( fh[2.5] == "deux" )
+assert( 0.0.hash == -0.0.hash )
+
+bh = { true => "oui", false => "non" }
+assert( bh[true] == "oui" )
+assert( bh[false] == "non" )
+
+p = Pointer[ UInt8 ].malloc( 4_u64 )
+assert( p.hash == p.hash )
+p.free
