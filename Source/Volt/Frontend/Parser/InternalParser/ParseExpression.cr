@@ -107,7 +107,11 @@ module Volt::Frontend
       when .l_bracket?
         parse_array_lit( tok )
       when .l_brace?
-        parse_brace_block( tok )
+        # `{` in expression position : a parameterised block (`{ |x| ... }`)
+        # keeps its historical meaning ; anything else is a hash literal
+        # (blocks attached to calls never reach `nud` — see `led` /
+        # `parse_space_call_args`).
+        @current.kind.pipe? ? parse_brace_block( tok ) : parse_hash_literal( tok )
       when .minus?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Minus, operand, tok.span )
@@ -125,7 +129,9 @@ module Volt::Frontend
         pattern = raw[ 1, raw.bytesize - 2 ]
         RegexLit.new( pattern, tok.span )
       when .symbol_lit?
-        SymbolLit.new( tok.value.lchop( ":" ), tok.span )
+        name = tok.value.lchop( ":" )
+        Symbols.intern( name )
+        SymbolLit.new( name, tok.span )
       when .bang?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )

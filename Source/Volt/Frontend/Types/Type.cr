@@ -33,6 +33,7 @@ module Volt::Frontend
     UINT32  = new TypeKind::UInt32
     UINT64  = new TypeKind::UInt64
     UINT    = new TypeKind::UInt
+    SYMBOL  = new TypeKind::Symbol
 
     def self.func( params : Array( Type ), ret : Type ) : Type
       new( TypeKind::Func, params, ret )
@@ -60,6 +61,10 @@ module Volt::Frontend
 
     def array? : Bool
       kind.array?
+    end
+
+    def symbol? : Bool
+      kind.symbol?
     end
 
     def void_pointer? : Bool
@@ -188,6 +193,7 @@ module Volt::Frontend
       when .bool?    then io << "Bool"
       when .str?     then io << "String"
       when .regex?   then io << "Regex"
+      when .symbol?  then io << "Symbol"
       # Enum constant, not `.nil?` — that predicate resolves to `Object#nil?`
       # (always false), which made this arm dead and `Nil` print as nothing.
       when TypeKind::Nil then io << "Nil"
@@ -222,6 +228,8 @@ module Volt::Frontend
         [ "Bool" ]
       when .regex?
         [ "Regex" ]
+      when .symbol?
+        [ "Symbol" ]
       when .pointer?
         [ "Pointer[#{pointee.to_s}]", "Pointer" ]
       when .array?
@@ -254,6 +262,7 @@ module Volt::Frontend
       when "Bool"                          then BOOL
       when "Nil", "Void"                   then NIL
       when "Regex"                         then REGEX
+      when "Symbol"                        then SYMBOL
       else                                 nil
       end
     end
