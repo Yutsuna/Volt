@@ -204,8 +204,11 @@ module Volt::Compiler
     end
 
     # True for a bare constructor call (`Type.new` / `Type.new(...)`) — the
-    # only statement-position expression that *creates* an unowned object.
+    # only statement-position expressions that *create* an unowned object
+    # (array/hash literals construct `Array[T]` / `Hash[K, V]` instances the
+    # same way).
     private def ctor_temp?( expr : Frontend::AExpr ) : Bool
+      return true if expr.is_a?( Frontend::HashLiteralExpr ) || expr.is_a?( Frontend::ArrayLit )
       return false unless expr.is_a?( Frontend::MethodCall ) || expr.is_a?( Frontend::MemberAccess )
       return false unless expr.name == "new"
       recv = expr.receiver
@@ -227,6 +230,10 @@ module Volt::Compiler
         r = alloc
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
         r
+      when Frontend::ArrayLit     then compile_array_lit( expr )
+      when Frontend::HashLiteralExpr then compile_hash_literal( expr )
+      # A symbol is its interned id — an ordinary integer constant at runtime.
+      when Frontend::SymbolLit    then const_reg( IR::Value.int( Frontend::Symbols.intern( expr.value ) ) )
       when Frontend::Ident        then compile_ident( expr )
       when Frontend::InstanceVar  then compile_instance_var( expr )
       when Frontend::ClassVar     then compile_class_var( expr )
@@ -368,6 +375,50 @@ module Volt::Compiler
       @scope[ expr.name ] = home
       protect_regs( home, n )
       home
+    end
+
+    # `{ k => v, ... }` : constructs the `Hash[K, V]` instance the checker
+    # instantiated (`resolved_type`), then dispatches one `[]=` per pair —
+    # exactly the code `h = Hash[K, V].new ; h[k] = v ; ...` would emit.
+    private def compile_hash_literal( expr : Frontend::HashLiteralExpr ) : Int32
+      ty = expr.resolved_type
+      raise "internal: unlowerable hash literal (untyped)" unless ty.is_a?( Frontend::NominalType )
+      info = @types[ ty.name ]?
+      raise "internal: hash literal type `#{ty.name}` was never collected" unless info
+
+      obj = compile_constructor_call( info, [] of Frontend::AExpr )
+      expr.pairs.each do |( k, v )|
+        kreg = compile_expr( k )
+        vreg = compile_expr( v )
+        compile_virtual_call( ty, "[]=", obj, [ kreg, vreg ],
+                              [ k.resolved_type || Frontend::Type::UNKNOWN,
+                                v.resolved_type || Frontend::Type::UNKNOWN ] )
+      end
+      obj
+    end
+
+    # `[ a, b, c ]` : constructs the `Array[T]` instance the checker
+    # instantiated (`resolved_type`) sized for its elements, then dispatches
+    # one `[]=` per element — exactly the code
+    # `a = Array[T].new( n ) ; a[ 0 ] = e0 ; ...` would emit. Every method
+    # lives in the Core (`Lib/Primitives/Array.vl`) ; the literal is syntax
+    # only.
+    private def compile_array_lit( expr : Frontend::ArrayLit ) : Int32
+      ty = expr.resolved_type
+      raise "internal: unlowerable array literal (untyped)" unless ty.is_a?( Frontend::NominalType )
+      info = @types[ ty.name ]?
+      raise "internal: array literal type `#{ty.name}` was never collected" unless info
+
+      size_arg = Frontend::IntLit.new( expr.elements.size.to_i64, expr.loc )
+      obj = compile_constructor_call( info, [ size_arg ] of Frontend::AExpr )
+      expr.elements.each_with_index do |e, i|
+        ireg = const_reg( IR::Value.int( i.to_i64 ) )
+        vreg = compile_expr( e )
+        compile_virtual_call( ty, "[]=", obj, [ ireg, vreg ],
+                              [ Frontend::Type::INT,
+                                e.resolved_type || Frontend::Type::UNKNOWN ] )
+      end
+      obj
     end
 
     private def compile_assign_deref( expr : Frontend::Assign, target : Frontend::UnaryOp ) : Int32
@@ -713,6 +764,10 @@ module Volt::Compiler
       if recv_ty && recv_ty.array? && expr.name == "size"
         return const_reg( IR::Value.int( recv_ty.array_size.to_i64 ) )
       end
+      # `sym.to_int` : a Symbol already is its Int64 id — a no-op reinterpret.
+      if recv_ty && recv_ty.symbol? && expr.name == "to_int"
+        return compile_expr( expr.receiver )
+      end
       unless recv_ty.is_a?( Frontend::NominalType )
         # Parenthesis-less zero-arg method call on a primitive receiver.
         if info = primitive_owner( recv_ty, expr.name )
@@ -833,6 +888,10 @@ module Volt::Compiler
       recv_ty = expr.receiver.resolved_type
       if recv_ty && recv_ty.array? && expr.name == "size" && expr.args.empty?
         return const_reg( IR::Value.int( recv_ty.array_size.to_i64 ) )
+      end
+      # `sym.to_int()` : a Symbol already is its Int64 id — a no-op reinterpret.
+      if recv_ty && recv_ty.symbol? && expr.name == "to_int" && expr.args.empty?
+        return compile_expr( expr.receiver )
       end
       # An explicit `obj.finalize()` never dispatches virtually (no vtable
       # slot exists for it) — resolved statically to the receiver's own or
