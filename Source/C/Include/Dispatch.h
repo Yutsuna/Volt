@@ -40,7 +40,8 @@ enum EPtrWidth
 	WIDTH_PTR = 8,
 	WIDTH_F32 = 9,
 	WIDTH_F64 = 10,
-	WIDTH_OBJ = 11
+	WIDTH_OBJ = 11,
+	WIDTH_BOOL = 12
 };
 
 /**

@@ -48,6 +48,9 @@ LLoadPtr:
 			Regs[ OP_A ].Tag = VAL_OBJECT;
 			Regs[ OP_A ].Payload = *(Void**)Ptr;
 			break;
+		case WIDTH_BOOL:
+			Regs[ OP_A ] = MakeBool( *(uint8_t*)Ptr != 0 );
+			break;
 		default:
 			SAVE_CURSOR();
 			return VM_ERR_BADOP;
@@ -69,6 +72,9 @@ LStorePtr:
 		case WIDTH_I8:
 		case WIDTH_U8:
 			*(uint8_t*)Ptr = (uint8_t)AsInt( Val );
+			break;
+		case WIDTH_BOOL:
+			*(uint8_t*)Ptr = (uint8_t)( AsInt( Val ) != 0 );
 			break;
 		case WIDTH_I16:
 		case WIDTH_U16:
