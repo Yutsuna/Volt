@@ -1,7 +1,8 @@
-{ lib
-, stdenv
-, ruby
-, makeWrapper
+{
+  lib,
+  stdenv,
+  ruby,
+  makeWrapper,
 }:
 
 stdenv.mkDerivation {

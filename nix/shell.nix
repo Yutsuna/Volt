@@ -6,9 +6,9 @@
 
 let
   llvmAttrs = pkgs.llvmPackages_latest;
-  voltProj  = pkgs.callPackage ./package.nix { inherit inputs; };
-  voltBuild = pkgs.callPackage ./volt-build.nix {};
-  claudeEnv = pkgs.callPackage ./claude.nix {};
+  voltProj = pkgs.callPackage ./package.nix { inherit inputs; };
+  voltBuild = pkgs.callPackage ./volt-build.nix { };
+  claudeEnv = pkgs.callPackage ./claude.nix { };
 in
 pkgs.mkShell {
   inputsFrom = [ voltProj ];

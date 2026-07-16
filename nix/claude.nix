@@ -28,43 +28,43 @@ let
     - After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
   '';
   claudeSettings = {
-      hooks = {
-        PreToolUse = [
-          {
-            matcher = "Glob|Grep";
-            hooks = [
-              {
-                type = "command";
-                command = "[ -f graphify-out/graph.json ] && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"graphify: Knowledge graph exists. Read graphify-out/GRAPH_REPORT.md for god nodes and community structure before searching raw files.\"}}' || true";
-              }
-            ];
-          }
-        ];
-      };
-      enabledPlugins = {
-        "clangd-lsp" = true;
-      };
+    hooks = {
+      PreToolUse = [
+        {
+          matcher = "Glob|Grep";
+          hooks = [
+            {
+              type = "command";
+              command = "[ -f graphify-out/graph.json ] && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"graphify: Knowledge graph exists. Read graphify-out/GRAPH_REPORT.md for god nodes and community structure before searching raw files.\"}}' || true";
+            }
+          ];
+        }
+      ];
     };
-    settingsJson = builtins.toJSON claudeSettings;
+    enabledPlugins = {
+      "clangd-lsp" = true;
+    };
+  };
+  settingsJson = builtins.toJSON claudeSettings;
 in
 {
   inherit clangd-lsp-plugin;
 
   shellHook = ''
-    export ENABLE_LSP_TOOL="1"
-    export CLAUDE_CODE_PLUGIN_SEED_DIR="${clangd-lsp-plugin}"
+        export ENABLE_LSP_TOOL="1"
+        export CLAUDE_CODE_PLUGIN_SEED_DIR="${clangd-lsp-plugin}"
 
-    (
-       mkdir -p .claude
+        (
+           mkdir -p .claude
 
-       cat << 'EOF' > .claude/settings.local.json
-${settingsJson}
-EOF
+           cat << 'EOF' > .claude/settings.local.json
+    ${settingsJson}
+    EOF
 
-       cat << 'EOF' > CLAUDE.md
-${claudeConf}
-EOF
-     ) >/dev/null 2>&1 </dev/null &
+           cat << 'EOF' > CLAUDE.md
+    ${claudeConf}
+    EOF
+         ) >/dev/null 2>&1 </dev/null &
   '';
 
 }
