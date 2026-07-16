@@ -122,6 +122,9 @@ module Volt::Frontend
       when MethodCall then infer_method_call( expr, scope )
       when Index      then infer_index( expr, scope )
       when VarDecl    then infer_var_decl( expr, scope )
+      when ArrayLit   then infer_array_lit( expr, scope )
+      when SymbolLit  then Type::SYMBOL
+      when HashLiteralExpr then infer_hash_literal( expr, scope )
       when PipeExpr   then infer_pipe( expr, scope )
       when ReturnExpr
         if v = expr.value
@@ -221,6 +224,96 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
       scope.define( expr.name, ty )
+      ty
+    end
+
+    # `[ 1, 2, 3 ]` (+ optional `of Elem`) : lowers to the Core's generic
+    # `Array[T]` — the element type comes from the `of` annotation when
+    # given, otherwise from the first element, and every element must be
+    # compatible with it (Volt has no union types). The instantiation is
+    # triggered exactly like an explicit `Array[T].new`, and the compiler
+    # then emits one `[]=` dispatch per element (`compile_array_lit`) — the
+    # class itself is 100 % Volt (`Lib/Primitives/Array.vl`), the literal is
+    # pure syntax. An empty literal needs `[] of T` to name the type.
+    private def infer_array_lit( expr : ArrayLit, scope : Scope ) : Type
+      elem : Type? = nil
+      if ann = expr.elem_ann
+        @collector.try( &.instantiate_generics_in( ann ) )
+        elem = Type.from_annotation( ann, @nominals )
+        if elem.nil?
+          @bag << Catalog::Sema.unsupported_annotation( ann.loc )
+          return Type::UNKNOWN
+        end
+      end
+
+      expr.elements.each_with_index do |e, i|
+        ty = infer( e, scope )
+        if elem.nil?
+          elem = ty unless ty.kind.unknown?
+          next
+        end
+        unless type_compatible?( elem, ty )
+          @bag << Catalog::Sema.argument_type( i + 1, "array literal of #{elem}", elem.to_s, ty.to_s, e.loc )
+        end
+      end
+
+      base = elem
+      if base.nil?
+        @bag << Catalog::Sema.unsupported_expr(
+          "empty array literal without a type — spell it `[] of T`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      mangled = instantiate_type!( "Array", [ base ], expr.loc )
+      return Type::UNKNOWN unless mangled
+      @nominals[ mangled ]? || Type::UNKNOWN
+    end
+
+    # `{ k => v, ... }` / `{ name: v, ... }` / `{} of K => V` : lowers to the
+    # Core's generic `Hash[K, V]` — `K`/`V` come from the `of` annotation when
+    # given, otherwise from the first pair, and every pair must be compatible
+    # with them (Volt has no union types : a hash mixing `Int` and `String`
+    # values is rejected here). The concrete instantiation is triggered
+    # exactly like an explicit `Hash[K, V].new`, and the compiler then emits
+    # one `[]=` dispatch per pair (`compile_hash_literal`).
+    private def infer_hash_literal( expr : HashLiteralExpr, scope : Scope ) : Type
+      key_ty = hash_literal_ann( expr.key_ann )
+      val_ty = hash_literal_ann( expr.val_ann )
+      return Type::UNKNOWN if ( expr.key_ann && key_ty.nil? ) || ( expr.val_ann && val_ty.nil? )
+
+      expr.pairs.each do |( k, v )|
+        kt = infer( k, scope )
+        vt = infer( v, scope )
+        if key_ty.nil?
+          key_ty = kt unless kt.kind.unknown?
+        elsif !type_compatible?( key_ty.not_nil!, kt )
+          @bag << Catalog::Sema.argument_type( 1, "hash literal key", key_ty.to_s, kt.to_s, k.loc )
+        end
+        if val_ty.nil?
+          val_ty = vt unless vt.kind.unknown?
+        elsif !type_compatible?( val_ty.not_nil!, vt )
+          @bag << Catalog::Sema.argument_type( 2, "hash literal value", val_ty.to_s, vt.to_s, v.loc )
+        end
+      end
+
+      kt = key_ty
+      vt = val_ty
+      if kt.nil? || vt.nil?
+        @bag << Catalog::Sema.unsupported_expr(
+          "empty hash literal without types — spell it `{} of K => V`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      mangled = instantiate_type!( "Hash", [ kt, vt ], expr.loc )
+      return Type::UNKNOWN unless mangled
+      @nominals[ mangled ]? || Type::UNKNOWN
+    end
+
+    private def hash_literal_ann( ann : ATypeNode? ) : Type?
+      return nil unless ann
+      @collector.try( &.instantiate_generics_in( ann ) )
+      ty = Type.from_annotation( ann, @nominals )
+      @bag << Catalog::Sema.unsupported_annotation( ann.loc ) if ty.nil?
       ty
     end
 
@@ -562,6 +655,10 @@ module Volt::Frontend
         # length is baked into the *type*, `Type#array_size` — there is no
         # per-instance field to read, so no method dispatch is involved).
         return Type::UINT64 if recv_ty.array? && expr.name == "size"
+        # `sym.to_int` — a Symbol *is* its interned Int64 id at runtime, so
+        # this is a free reinterpret (`Symbol.vl` builds `hash`/`to_string`
+        # on top of it).
+        return Type::INT if recv_ty.symbol? && expr.name == "to_int"
         if sig = primitive_method( recv_ty, expr.name )
           check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
           return sig.ret
@@ -690,6 +787,10 @@ module Volt::Frontend
       # `infer_member_access`) — covers the explicit-call spelling `arr.size()`.
       if recv_ty.array? && expr.name == "size" && expr.args.empty?
         return Type::UINT64
+      end
+      # `sym.to_int()` — see the identical intercept in `infer_member_access`.
+      if recv_ty.symbol? && expr.name == "to_int" && expr.args.empty?
+        return Type::INT
       end
 
       # A reopened primitive's own method wins over the builtin fallback :
