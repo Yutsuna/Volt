@@ -7,6 +7,7 @@
 let
   llvmAttrs = pkgs.llvmPackages_latest;
   voltProj = pkgs.callPackage ./package.nix { inherit inputs; };
+  voltBuild = pkgs.callPackage ./volt-build.nix {};
 in
 pkgs.mkShell {
   inputsFrom = [ voltProj ];
@@ -20,6 +21,8 @@ pkgs.mkShell {
     clang-tools
     cmake-lint
     mold
+    ruby-lsp
+    voltBuild
   ];
 
   shellHook = ''
