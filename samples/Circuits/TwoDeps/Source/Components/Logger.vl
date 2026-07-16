@@ -1,0 +1,22 @@
+@[Link("Models")]
+
+
+module Components
+
+
+  class UserLogger
+
+    prefix : String
+
+    def initialize( @prefix : String )
+    end
+
+    def log_user( user : Models::User ) -> Void
+      puts( @prefix )
+      puts( user.name )
+    end
+
+  end
+
+
+end

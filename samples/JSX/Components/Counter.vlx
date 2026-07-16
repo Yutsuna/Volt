@@ -1,0 +1,28 @@
+# IDEA: maybe translate the component JSX to:
+#
+# class Counter < Volt::JSX::Component
+#   property count        : Int32
+#   property on_increment : -> Void
+#
+#   def initialize( @count, @on_increment ); end
+#
+#   def render : Volt::JSX::HtmlNode
+#     Volt::JSX.element("div", { "class" => "counter" }, [
+#       Volt::JSX.element("button", { "on:click" => @on_increment }, [
+#         Volt::JSX.text("+1")
+#       ]),
+#       Volt::JSX.element("span", {}, [
+#         Volt::JSX.text("Count: "),
+#         Volt::JSX.text(@count.to_string)
+#       ])
+#    ])
+#   end
+
+component Counter( count : Int, on_increment : -> Void )
+
+  <div class="counter">
+    <button on:click={on_increment}>+1</button>
+    <span>Count: {count}</span>
+  </div>
+
+end
