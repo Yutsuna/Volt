@@ -53,6 +53,7 @@ module Volt::Frontend
     end
 
     def analyse : TypedProgram
+      inject_symbol_names
       partition
       check
       promote_top_level_vars
@@ -79,6 +80,23 @@ module Volt::Frontend
       end
 
       TypedProgram.new( @program, @functions, @top_level, @sigs.table, @types, @methods )
+    end
+
+    # Same synthesis as `Analyser#inject_symbol_names`, re-done every turn :
+    # the Core's `Symbol.vl` (injected on the first turn, carried by the
+    # state afterwards) references `__symbol_name` unconditionally, and any
+    # turn may intern new symbols — the marked-redefinable core provenance
+    # makes each turn's regenerated table shadow the previous one.
+    private def inject_symbol_names : Nil
+      # Only when the Core is around (first turn : its `struct Symbol` rides
+      # the program ; later turns : the state carries it) — a bare Core-less
+      # session (unit specs) has no `Symbol.vl` consumer and can't compile
+      # the table's string literals.
+      return unless @state.types.has_key?( "Symbol" ) ||
+                    @program.nodes.any? { |n| n.is_a?( StructDecl ) && n.name == "Symbol" }
+      parsed = Frontend.parse( Symbols.function_source, "<symbols>" )
+      Frontend.core_files << "<symbols>"
+      @program.nodes.concat( parsed.nodes )
     end
 
     private def partition : Nil

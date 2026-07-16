@@ -44,20 +44,29 @@ module Volt::Frontend
   end
 
 
+  # [ a, b, c ]  |  [ a, b, c ] of Elem — a fixed-size *stack* array literal
+  # (`Elem[N]`, same register-run representation as `buf : UInt8[ 20 ]`).
+  # `elem_ann` carries the optional `of` element-type annotation.
   class ArrayLit < AExpr
     property elements : Array( AExpr )
+    property elem_ann : ATypeNode?
 
-    def initialize( @elements : Array( AExpr ), loc : Span )
+    def initialize( @elements : Array( AExpr ), loc : Span, @elem_ann : ATypeNode? = nil )
       super( loc )
     end
   end
 
 
-  # { key => value, ... }
+  # { key => value, ... }  |  { name: value, ... }  |  {} of K => V
+  # `key_ann`/`val_ann` carry the optional `of K => V` annotation (the only
+  # way an *empty* literal can name its types).
   class HashLiteralExpr < AExpr
     property pairs : Array( { AExpr, AExpr } )
+    property key_ann : ATypeNode?
+    property val_ann : ATypeNode?
 
-    def initialize( @pairs : Array( { AExpr, AExpr } ), loc : Span )
+    def initialize( @pairs : Array( { AExpr, AExpr } ), loc : Span,
+                    @key_ann : ATypeNode? = nil, @val_ann : ATypeNode? = nil )
       super( loc )
     end
   end
@@ -360,9 +369,11 @@ module Volt::Frontend
   end
 
 
-  # `:name` — compile-time-only, legal solely as the argument of `.has?`
-  # (`TypeChecker#infer_method_call` rejects it anywhere else). Carries no
-  # runtime type of its own : it never reaches codegen.
+  # `:name` — an interned identifier. As the argument of `.has?` it stays a
+  # compile-time-only token (folded by `TypeChecker`) ; everywhere else it is
+  # a first-class runtime value of type `Symbol` : its interned `Int64` id
+  # (`Frontend::Symbols`), which makes symbol comparison and hashing integer
+  # operations.
   class SymbolLit < AExpr
     property value : String
 

@@ -372,10 +372,12 @@ module Volt::Frontend
       when InstanceVar then InstanceVar.new( expr.name, expr.loc )
       when ClassVar    then ClassVar.new( expr.name, expr.loc )
       when ArrayLit
-        ArrayLit.new( expr.elements.map { |e| clone_expr( e, subst ) }, expr.loc )
+        ArrayLit.new( expr.elements.map { |e| clone_expr( e, subst ) }, expr.loc,
+                      clone_type?( expr.elem_ann, subst ) )
       when HashLiteralExpr
         pairs = expr.pairs.map { |k, v| { clone_expr( k, subst ).as( AExpr ), clone_expr( v, subst ).as( AExpr ) } }
-        HashLiteralExpr.new( pairs, expr.loc )
+        HashLiteralExpr.new( pairs, expr.loc,
+                             clone_type?( expr.key_ann, subst ), clone_type?( expr.val_ann, subst ) )
       when SuperCall
         SuperCall.new( expr.args.map { |a| clone_expr( a, subst ) }, expr.implicit_args, expr.loc )
       when MemberAccess
