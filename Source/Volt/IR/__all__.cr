@@ -1,7 +1,0 @@
-require "./Value"
-require "./Opcode"
-require "./Instruction"
-require "./DropMap"
-require "./CallSite"
-require "./Chunk"
-require "./PtrWidth"
