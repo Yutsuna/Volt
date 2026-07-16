@@ -6,7 +6,8 @@ endfunction()
 
 
 VoltAddModules(
-  ${CMAKE_CURRENT_SOURCE_DIR}/volt/Source/
+  ${CMAKE_CURRENT_SOURCE_DIR}/source/Volt/
   Core
+  Frontend
   Volt
 )
