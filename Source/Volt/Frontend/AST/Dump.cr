@@ -429,6 +429,12 @@ module Volt::Frontend
     end
   end
 
+  class SymbolLit
+    def dump( io : IO, prefix : String ) : Nil
+      io << ASTDump.nd( "SymbolLit" ) << " " << ASTDump.val( ":" + @value ) << ASTDump.loc( @loc ) << "\n"
+    end
+  end
+
   class Ident
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("Ident") << " " << ASTDump.val("'#{@name}'") << ASTDump.loc(@loc) << "\n"
@@ -493,6 +499,13 @@ module Volt::Frontend
         field(io, "type", ta, prefix, false)
       end
       field(io, "value", @value, prefix, true)
+    end
+  end
+
+  class VarDecl
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("VarDecl") << " " << ASTDump.val(@name) << ASTDump.loc(@loc) << "\n"
+      field(io, "type", @type_ann, prefix, true)
     end
   end
 
@@ -716,12 +729,28 @@ module Volt::Frontend
   end
 
 
+  class ArrayType
+    def dump(io : IO, prefix : String) : Nil
+      io << ASTDump.nd("ArrayType") << " " << ASTDump.val("[#{@size}]") << ASTDump.loc(@loc) << "\n"
+      field(io, "elem", @elem, prefix, true)
+    end
+  end
+
+
   class TypeofExpr
     def dump(io : IO, prefix : String) : Nil
       io << ASTDump.nd("TypeofExpr") << ASTDump.loc(@loc) << "\n"
       field(io, "operand", @operand, prefix, true)
     end
   end
+
+
+  class SizeofExpr
+      def dump(io : IO, prefix : String) : Nil
+        io << ASTDump.nd("SizeofExpr") << ASTDump.loc(@loc) << "\n"
+        field(io, "type", @type_node, prefix, true)
+      end
+    end
 
 
 end

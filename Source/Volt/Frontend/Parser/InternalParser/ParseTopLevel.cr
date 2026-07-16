@@ -131,14 +131,16 @@ module Volt::Frontend
         parse_forall_if_present( type_params )
 
         if annots.any? { |a| a.name == "External" }
-          lib_name = annots.find( &.name.==( "External" ) ).try &.args.first?.try { |e|
-            e.is_a?( StringLit ) ? e.value : nil
-          }
+          annot = annots.find( &.name.==( "External" ) ).not_nil!
+          lib_name = annot.args.first?.try { |e| e.is_a?( StringLit ) ? e.value : nil }
+          extern_name = annot.args[1]?.try { |e| e.is_a?( StringLit ) ? e.value : nil }
           skip_separators
           # Extern declarations have no body; an optional `end` is tolerated so both
           # `def puts(...) -> Void` and the `def puts(...) -> Void / end` forms parse.
           advance if @current.kind.end?
-          return ExternDecl.new( lib_name, name, params, return_type || SimpleType.new( "Void", loc ), loc )
+          decl = ExternDecl.new( lib_name, name, params, return_type || SimpleType.new( "Void", loc ), loc )
+          decl.extern_name = extern_name
+          return decl
         end
 
         if is_abstract
@@ -163,11 +165,33 @@ module Volt::Frontend
       private def parse_def_name : String
         case @current.kind
         when .ident?
-          advance.value
+          ident = advance
+          # `def name=( val : T )` : a setter. Only recognized when the `=` sits
+          # directly against the identifier (no space) so it can't be confused
+          # with `def name = default_value`-style syntax or a following `==`.
+          if @current.kind.eq? && @current.span.offset == ident.span.offset + ident.span.length
+            advance
+            "#{ident.value}="
+          else
+            ident.value
+          end
         when .plus?, .minus?, .star?, .slash?, .percent?, .star_star?,
              .eq_eq?, .bang_eq?, .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?,
              .match_op?, .not_match_op?, .eq_eq_eq?
           advance.value
+        # `def []` / `def []=` : the indexing operator pair (`receiver[i]`,
+        # `receiver[i] = v`) desugars to these at call sites (`TypeChecker`
+        # #infer_index / #infer_assign_index) — any `class`/`struct` names
+        # them like this to become indexable.
+        when .l_bracket?
+          advance
+          expect( TokenKind::RBracket )
+          if @current.kind.eq?
+            advance
+            "[]="
+          else
+            "[]"
+          end
         else
           error!( Catalog::Parse.expected( TokenKind::Ident, @current ) )
         end

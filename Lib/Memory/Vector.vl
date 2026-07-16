@@ -1,0 +1,395 @@
+#{
+# @class Vector
+# @brief A dynamically-sized, heap-allocated growable array
+#}
+class Vector[T] include Inspectable
+
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Number of elements currently stored.
+  #}
+  getter size : Int
+
+  #{
+  # @brief Number of elements the current allocation can hold before growing.
+  #}
+  getter capacity : Int
+
+  #{
+  # @brief The underlying contiguous buffer. Exposed for zero-copy
+  #        interoperability with low-level FFI C functions.
+  #}
+  getter data : Pointer[T]
+
+  #{
+  # @brief Private attribute to track Memory Alignement
+  #}
+  alignement : UInt64
+
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Constructs an empty vector pre-allocated for `capacity` elements.
+  # @param capacity The number of elements to reserve storage for. (default: 4)
+  # @param memory alignement (default: 16)
+  #}
+  def initialize( capacity : Int = 4, alignement : UInt64 = 16_u64 )
+    raise "Vector: negative capacity" if capacity < 0
+    @capacity   = capacity < 1 ? 1 : capacity
+    @size       = 0
+    @alignement = alignement
+    @data       = AlignedAllocator.alloc[ T ]( @capacity, @alignement )
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief RAII destructor: releases the backing buffer when the vector
+  #        goes out of scope.
+  #}
+  def finalize -> Void
+    AlignedAllocator.free( @data ) unless @data.null?
+    @data = nil
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief Bounds-checked element read: `v[i]`.
+  # @param index Position of the element, 0-based.
+  # @return The element stored at `index`.
+  #}
+  def []( index : Int ) -> T
+    raise "Vector: index out of bounds" if index < 0 or index >= @size
+    *( @data + index )
+  end
+
+  #{
+  # @brief Bounds-checked element write: `v[i] = val`.
+  # @param index Position of the element, 0-based.
+  # @param val The new value to store.
+  # @return The stored value.
+  #}
+  def []=( index : Int, val : T ) -> T
+    raise "Vector: index out of bounds" if index < 0 or index >= @size
+    *( @data + index ) = val
+  end
+
+  #{
+  # @brief Bounds-checked element read (alias of `[]`, std::vector::at).
+  #}
+  def at( index : Int ) -> T
+    self[ index ]
+  end
+
+  #{
+  # @brief The first element (std::vector::front).
+  #}
+  def first -> T
+    raise "Vector: first on empty vector" if @size == 0
+    *@data
+  end
+
+  #{
+  # @brief The last element (std::vector::back).
+  #}
+  def last -> T
+    raise "Vector: last on empty vector" if @size == 0
+    *( @data + ( @size - 1 ) )
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief true when the vector holds no elements.
+  #}
+  def empty? -> Bool
+    @size == 0
+  end
+
+  #{
+  # @brief Pre-allocates storage for at least `new_capacity` elements.
+  #        Never shrinks; existing elements are preserved.
+  # @param new_capacity The minimum capacity to guarantee.
+  #}
+  def reserve( new_capacity : Int ) -> Void
+    reallocate new_capacity if new_capacity > @capacity
+  end
+
+  #{
+  # @brief Shrinks the allocation to fit exactly the current size
+  #}
+  def shrink_to_fit -> Void
+    reallocate( @size < 1 ? 1 : @size ) if @capacity > @size
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief Appends an element, growing the buffer geometrically (x2) when full
+  # @param val The value to append.
+  #}
+  def push( val : T ) -> Void
+    reallocate( @capacity * 2 ) if @size == @capacity
+    *( @data + @size ) = val
+    @size += 1
+  end
+
+  #{
+  # @brief Removes and returns the last element
+  # @return The removed element.
+  #}
+  def pop -> T
+    raise "Vector: pop on empty vector" if @size == 0
+    @size -= 1
+    val = *( @data + @size )
+    val
+  end
+
+  #{
+  # @brief Inserts `val` before position `index`, shifting the tail right.
+  # @param index Position the new element will occupy.
+  # @param val The value to insert.
+  #}
+  def insert( index : Int, val : T ) -> Void
+    raise "Vector: insert index out of bounds" if index < 0 or index > @size
+
+    if @size == @capacity
+      new_capacity = @capacity * 2
+      new_data     = AlignedAllocator.alloc[T]( new_capacity, @alignement )
+
+      i = 0
+      while i < index
+        *( new_data + i ) = *( @data + i )
+        i += 1
+      end
+
+      *( new_data + index ) = val
+
+      while i < @size
+        *( new_data + i + 1 ) = *( @data + i )
+        i += 1
+      end
+
+      AlignedAllocator.free( @data ) unless @data.null?
+      @data     = new_data
+      @capacity = new_capacity
+      @size    += 1
+    else
+      i = @size
+      while i > index
+        *( @data + i ) = *( @data + ( i - 1 ) )
+        i -= 1
+      end
+      *( @data + index ) = val
+      @size += 1
+    end
+  end
+
+  #{
+  # @brief Removes the element at `index`, shifting the tail left
+  # @param index Position of the element to remove.
+  # @return The removed element.
+  #}
+  def remove_at( index : Int ) -> T
+    raise "Vector: remove_at index out of bounds" if index < 0 or index >= @size
+    removed = *( @data + index )
+    i = index
+    while i < @size - 1
+      *( @data + i ) = *( @data + ( i + 1 ) )
+      i += 1
+    end
+    @size -= 1
+    removed
+  end
+
+  #{
+  # @brief Resizes to exactly `new_size` elements: shrinking truncates,
+  #        growing appends copies of `fill`.
+  # @param new_size The target element count.
+  # @param fill The value new slots are initialized with when growing.
+  #}
+  def resize( new_size : Int, fill : T ) -> Void
+    raise "Vector: negative size" if new_size < 0
+    reserve new_size
+    i = @size
+    while i < new_size
+      *( @data + i ) = fill
+      i += 1
+    end
+    @size = new_size
+  end
+
+  #{
+  # @brief Removes every element. Capacity is left untouched.
+  #}
+  def clear -> Void
+    @size = 0
+  end
+
+  #{
+  # @brief Overwrites every element with `val`.
+  # @param val The value assigned to each existing slot.
+  #}
+  def fill( val : T ) -> Void
+    i = 0
+    while i < @size
+      *( @data + i ) = val
+      i += 1
+    end
+  end
+
+  #{
+  # @brief Exchanges the elements at positions `a` and `b`.
+  #}
+  def swap( a : Int, b : Int ) -> Void
+    raise "Vector: swap index out of bounds" if a < 0 or a >= @size or b < 0 or b >= @size
+    tmp = *( @data + a )
+    *( @data + a ) = *( @data + b )
+    *( @data + b ) = tmp
+  end
+
+  #{
+  # @brief Reverses the elements in place
+  #}
+  def reverse! -> Void
+    i = 0
+    j = @size - 1
+    while i < j
+      tmp = *( @data + i )
+      *( @data + i ) = *( @data + j )
+      *( @data + j ) = tmp
+      i += 1
+      j -= 1
+    end
+  end
+
+  #{
+  # @brief Appends every element of `other` to this vector.
+  # @param other The vector whose elements are copied in.
+  #}
+  def concat( other : Vector[T] ) -> Void
+    other_size = other.size
+    return if other_size == 0
+
+    reserve( @size + other_size )
+
+    i = 0
+    while i < other_size
+      *( @data + @size + i ) = *( other.data + i )
+      i += 1
+    end
+    @size += other_size
+  end
+
+  # #---------------------------------------------------------------------------
+
+  #{
+  # @brief Index of the first element equal to `val`, or -1 when absent.
+  #}
+  def index_of( val : T ) -> Int
+    i = 0
+    while i < @size
+      return i if *( @data + i ) == val
+      i += 1
+    end
+    -1
+  end
+
+  #{
+  # @brief true when at least one element equals `val`.
+  #}
+  def contains?( val : T ) -> Bool
+    index_of( val ) >= 0
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief Deep copy: a new vector owning its own buffer with the same elements.
+  #}
+  def copy -> Vector[T]
+    result = Vector[T].new( @size < 1 ? 1 : @size, @alignement )
+    i = 0
+    while i < @size
+      result.push( *( @data + i ) )
+      i += 1
+    end
+    result
+  end
+
+  #{
+  # @brief Element-wise equality: same size and equal elements in order.
+  #}
+  def ==( other : Vector[T] ) -> Bool
+    return true if @data == other.data
+    return false if @size != other.size
+
+    i = 0
+    while i < @size
+      return false if *( @data + i ) != *( other.data + i )
+      i += 1
+    end
+    true
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief "[a, b, c]" — every element rendered through its own to_string.
+  #}
+  def to_string -> String
+    s = "["
+    i = 0
+    while i < @size
+      s += ( *( @data + i ) ).to_string
+      s += ", " if i < @size - 1
+      i += 1
+    end
+    s + "]"
+  end
+
+  #{
+  # @brief Create a slice view of the full Vector
+  #}
+  def to_slice -> Slice[ T ]
+    Slice[ T ].new( @data, @size )
+  end
+
+  #{
+  # @brief Create a slice view of a specific portion of the Vector
+  #}
+  def slice( start : Int, length : Int ) -> Slice[ T ]
+    raise "Vector: slice out of bounds" if start < 0 or length < 0 or start + length > @size
+    Slice[ T ].new( @data + start, length )
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief Moves the elements into a fresh allocation of `new_capacity`.
+  #        malloc + copy + free. Protected against potential shrink overflow.
+  #}
+  private def reallocate( new_capacity : Int ) -> Void
+    new_capacity = 1 if new_capacity < 1
+    new_data     = AlignedAllocator.alloc[ T ]( new_capacity, @alignement )
+
+    limit = @size < new_capacity ? @size : new_capacity
+    i = 0
+    while i < limit
+      *( new_data + i ) = *( @data + i )
+      i += 1
+    end
+
+    AlignedAllocator.free( @data ) unless @data.null?
+    @data     = new_data
+    @capacity = new_capacity
+    @size     = limit
+  end
+
+  #---------------------------------------------------------------------------
+
+end

@@ -69,6 +69,8 @@ module Volt::Frontend
         node
       when .string?
         parse_string_literal( tok )
+      when .char?
+        parse_char_literal( tok )
       when .true?
         BoolLit.new( true, tok.span )
       when .false?
@@ -76,6 +78,20 @@ module Volt::Frontend
       when TokenKind::Nil
         NilLit.new( tok.span )
       when .ident?
+        if tok.value == "sizeof"
+          loc = tok.span
+          if @current.kind.l_paren?
+            advance # consume (
+            @paren_depth += 1
+            ty = parse_type
+            @paren_depth -= 1
+            expect( TokenKind::RParen )
+            return SizeofExpr.new( ty, loc )
+          else
+            ty = parse_type
+            return SizeofExpr.new( ty, loc )
+          end
+        end
         Ident.new( tok.value, tok.span )
       when .self_?
         SelfExpr.new( tok.span )
@@ -91,7 +107,11 @@ module Volt::Frontend
       when .l_bracket?
         parse_array_lit( tok )
       when .l_brace?
-        parse_brace_block( tok )
+        # `{` in expression position : a parameterised block (`{ |x| ... }`)
+        # keeps its historical meaning ; anything else is a hash literal
+        # (blocks attached to calls never reach `nud` — see `led` /
+        # `parse_space_call_args`).
+        @current.kind.pipe? ? parse_brace_block( tok ) : parse_hash_literal( tok )
       when .minus?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Minus, operand, tok.span )
@@ -108,6 +128,10 @@ module Volt::Frontend
         raw = tok.value
         pattern = raw[ 1, raw.bytesize - 2 ]
         RegexLit.new( pattern, tok.span )
+      when .symbol_lit?
+        name = tok.value.lchop( ":" )
+        Symbols.intern( name )
+        SymbolLit.new( name, tok.span )
       when .bang?
         operand = parse_expr( Prec::Unary )
         UnaryOp.new( TokenKind::Bang, operand, tok.span )
@@ -184,7 +208,7 @@ module Volt::Frontend
         if @current.kind.else?
           expect( TokenKind::Else )
           else_expr = parse_expr( Prec::Modifier )
-          IfExpr.new( left, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+          IfExpr.new( then_expr, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
         else
           IfExpr.new( then_expr, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
         end
@@ -193,8 +217,8 @@ module Volt::Frontend
         if @current.kind.else?
           expect( TokenKind::Else )
           else_expr = parse_expr( Prec::Modifier )
-          neg = UnaryOp.new( TokenKind::Bang, left, op.span )
-          IfExpr.new( neg, [ then_expr.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
+          neg = UnaryOp.new( TokenKind::Bang, then_expr, op.span )
+          IfExpr.new( neg, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, [ else_expr.as( ANode ) ], left.loc )
         else
           neg = UnaryOp.new( TokenKind::Bang, then_expr, op.span )
           IfExpr.new( neg, [ left.as( ANode ) ], [] of { AExpr, Array( ANode ) }, nil, left.loc )
@@ -274,10 +298,21 @@ module Volt::Frontend
         rhs = parse_expr( Prec.new( Prec::Assignment.value - 1 ) )
         Assign.new( left, nil, rhs, left.loc )
       when .colon?
-        ty  = parse_type
-        expect( TokenKind::Eq )
-        rhs = parse_expr( Prec::None )
-        Assign.new( left, ty, rhs, left.loc )
+        ty = parse_type
+        # `name : Type` with no `= value` : a bare declaration (only
+        # meaningful for a type with a well-defined zero value to reserve,
+        # e.g. a fixed-size stack array — `buf : UInt8[ 20 ]`). Requires a
+        # plain identifier target ; `expect` surfaces the usual parse error
+        # for anything else (`obj.field : Type` has no bare-declare form).
+        if @current.kind.eq?
+          advance
+          rhs = parse_expr( Prec::None )
+          Assign.new( left, ty, rhs, left.loc )
+        elsif left.is_a?( Ident )
+          VarDecl.new( left.name, ty, left.loc )
+        else
+          error!( Catalog::Parse.expected( TokenKind::Eq, @current ) )
+        end
       else
         error!( Catalog::Parse.unexpected_infix( op ) )
       end
@@ -452,7 +487,7 @@ module Volt::Frontend
       case kind
       # `TokenKind::Nil` spelled as a constant: `.nil?` here would call
       # `Object#nil?` (always false), silently dropping `nil` from the set.
-      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
+      when .int?, .float?, .string?, .char?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .at?,
             .l_paren?, .l_bracket?, .l_brace?, .minus?, .plus?, .tilde?, .star?, .amp?,
             .dunder_file?, .dunder_line?, .regex?, .bang?, .not?,
             .if?, .unless?, .match?, .while?, .until?, .await?,

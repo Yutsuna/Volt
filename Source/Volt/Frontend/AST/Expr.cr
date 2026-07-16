@@ -44,20 +44,29 @@ module Volt::Frontend
   end
 
 
+  # [ a, b, c ]  |  [ a, b, c ] of Elem — a fixed-size *stack* array literal
+  # (`Elem[N]`, same register-run representation as `buf : UInt8[ 20 ]`).
+  # `elem_ann` carries the optional `of` element-type annotation.
   class ArrayLit < AExpr
     property elements : Array( AExpr )
+    property elem_ann : ATypeNode?
 
-    def initialize( @elements : Array( AExpr ), loc : Span )
+    def initialize( @elements : Array( AExpr ), loc : Span, @elem_ann : ATypeNode? = nil )
       super( loc )
     end
   end
 
 
-  # { key => value, ... }
+  # { key => value, ... }  |  { name: value, ... }  |  {} of K => V
+  # `key_ann`/`val_ann` carry the optional `of K => V` annotation (the only
+  # way an *empty* literal can name its types).
   class HashLiteralExpr < AExpr
     property pairs : Array( { AExpr, AExpr } )
+    property key_ann : ATypeNode?
+    property val_ann : ATypeNode?
 
-    def initialize( @pairs : Array( { AExpr, AExpr } ), loc : Span )
+    def initialize( @pairs : Array( { AExpr, AExpr } ), loc : Span,
+                    @key_ann : ATypeNode? = nil, @val_ann : ATypeNode? = nil )
       super( loc )
     end
   end
@@ -151,8 +160,27 @@ module Volt::Frontend
     property target   : AExpr
     property type_ann : ATypeNode?
     property value    : AExpr
+    # Set by the semantic pass when `target` is a `MemberAccess` with no
+    # matching field : `obj.name = v` then dispatches to a `name=` setter
+    # method instead of a `STORE_FIELD` (see `TypeChecker#infer_assign_member`).
+    property is_setter_call : Bool = false
 
     def initialize( @target : AExpr, @type_ann : ATypeNode?, @value : AExpr, loc : Span )
+      super( loc )
+    end
+  end
+
+
+  # name : Type   (no initializer) : reserves a fresh, zero-initialized local
+  # of the annotated type — the one shape `Assign` can't express since it
+  # requires a value. In practice this is how a fixed-size stack array is
+  # declared (`buf : UInt8[ 20 ]`) : there is no single element value to
+  # initialize it *with*, only a size to reserve.
+  class VarDecl < AExpr
+    property name     : String
+    property type_ann : ATypeNode
+
+    def initialize( @name : String, @type_ann : ATypeNode, loc : Span )
       super( loc )
     end
   end
@@ -188,6 +216,11 @@ module Volt::Frontend
     property args     : Array( AExpr )
     property block    : BlockExpr?
     property safe     : Bool           # true for ?.  navigation
+    # Set by `TypeChecker` for `.is_a?`/`.has?` : both are pure compile-time
+    # reflection, resolved to a constant `true`/`false` during typecheck
+    # (never dispatched as a real method) — `FunctionEmiter` reads this
+    # instead of compiling a call when it's non-nil.
+    property resolved_bool : Bool?
 
     def initialize( @receiver : AExpr, @name : String, @args : Array( AExpr ),
                     @block : BlockExpr?, @safe : Bool, loc : Span )
@@ -336,6 +369,20 @@ module Volt::Frontend
   end
 
 
+  # `:name` — an interned identifier. As the argument of `.has?` it stays a
+  # compile-time-only token (folded by `TypeChecker`) ; everywhere else it is
+  # a first-class runtime value of type `Symbol` : its interned `Int64` id
+  # (`Frontend::Symbols`), which makes symbol comparison and hashing integer
+  # operations.
+  class SymbolLit < AExpr
+    property value : String
+
+    def initialize( @value : String, loc : Span )
+      super( loc )
+    end
+  end
+
+
   class TypeofExpr < AExpr
     property operand : AExpr
     property resolved_operand_type : Type?
@@ -344,6 +391,16 @@ module Volt::Frontend
       super( loc )
     end
   end
+
+
+  class SizeofExpr < AExpr
+      property type_node : ATypeNode
+      property byte_size : Int32 = 0
+
+      def initialize( @type_node : ATypeNode, loc : Span )
+        super( loc )
+      end
+    end
 
 
 end

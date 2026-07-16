@@ -17,6 +17,9 @@ module Volt::Spec
     it "Simple expressions: evaluate(\"2 + 3\") returns value 5" do
       session = REPL::REPLSession.new
       result = session.evaluate( "2 + 3" )
+      if diags = result.diagnostics
+        diags.each { |d| STDERR.puts d.to_s }
+      end
       result.ok?.should be_true
       result.value.should_not be_nil
       result.value.not_nil!.as_i.should eq( 5 )
@@ -174,6 +177,36 @@ module Volt::Spec
       session.evaluate( "x = 42" ).ok?.should be_true
       res = session.evaluate( "x = \"hello\"" )
       res.ok?.should be_false
+    end
+
+    it "Pointer primitive, address, malloc, value, and free in REPL" do
+      session = REPL::REPLSession.new
+      
+      r1 = session.evaluate( "a = Pointer[Int].malloc 2" )
+      r1.ok?.should be_true
+      r1.value.should_not be_nil
+      r1.value.not_nil!.tag.should eq( Volt::IR::Value::Tag::Int )
+      
+      r2 = session.evaluate( "a.null?" )
+      r2.ok?.should be_true
+      r2.value.not_nil!.as_bool.should be_false
+      
+      r3 = session.evaluate( "*a = 42" )
+      r3.ok?.should be_true
+      
+      r4 = session.evaluate( "a.value" )
+      r4.ok?.should be_true
+      r4.value.not_nil!.as_i.should eq( 42 )
+      
+      r5 = session.evaluate( "*(a + 1) = 100" )
+      r5.ok?.should be_true
+      
+      r6 = session.evaluate( "(a + 1).value" )
+      r6.ok?.should be_true
+      r6.value.not_nil!.as_i.should eq( 100 )
+
+      r7 = session.evaluate( "a.free" )
+      r7.ok?.should be_true
     end
 
   end

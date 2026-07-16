@@ -26,6 +26,11 @@ module Volt::Compiler
       @scope    = {} of String => Int32
       @next_reg = 0
       @max_reg  = 0
+      # Registers below this line are pinned (params, named locals, RAII
+      # temps) : `compile_body` recycles everything above it between
+      # statements, so a long body's per-statement temporaries reuse the
+      # same registers instead of exhausting the 8-bit operand space.
+      @reg_floor = 0
       @scopes_resource_registers = [ [] of Tuple( Int32, Int32 ) ]
       @loop_stack = [] of LoopCtx
     end
@@ -53,9 +58,18 @@ module Volt::Compiler
     #------------------------------------------------------------------------------------
 
     def bind_param( name : String, type : Frontend::Type ) : Int32
-      base = alloc_block( slot_count( type ) )
+      n    = slot_count( type )
+      base = alloc_block( n )
       @scope[ name ] = base
+      protect_regs( base, n )
       base
+    end
+
+    # Pins `[reg, reg + n)` below the temp-recycling floor so a named local,
+    # parameter or RAII-tracked register is never handed out again as a
+    # statement temporary.
+    private def protect_regs( reg : Int32, n : Int32 = 1 ) : Nil
+      @reg_floor = reg + n if reg + n > @reg_floor
     end
 
     # The register `self` is bound to — used by `BytecodeCompiler` to return
@@ -70,6 +84,13 @@ module Volt::Compiler
     def slot_count( type : Frontend::Type ) : Int32
       if type.is_a?( Frontend::NominalType ) && type.kind.struct?
         type.reg_layout.try( &.total_size ) || 1
+      elsif type.array?
+        # A fixed-size stack array is `N` contiguous slots, one per element —
+        # the exact same "struct value lives in a register run" model
+        # (architecture #1.B), just addressed by a runtime index instead of a
+        # named field. Recurses so `Elem[N]` where `Elem` is itself a
+        # multi-slot struct still sizes correctly.
+        type.array_size * slot_count( type.element )
       else
         1
       end
@@ -112,6 +133,7 @@ module Volt::Compiler
     def track_raii_resource( reg : Int32, type_id : Int32 )
       @scopes_resource_registers.last << { reg, type_id }
       @chunk.drop_map.entries << IR::DropEntry.new( here.to_u32, UInt32::MAX, reg.to_u8, type_id )
+      protect_regs( reg )
     end
 
     # Style-1 constructor shorthand (`def initialize( @x : T )`) has no
@@ -168,6 +190,11 @@ module Volt::Compiler
            ( t = expr.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
           track_raii_resource( last, t.type_id )
         end
+        # A finished statement's temporaries are dead : recycle everything
+        # above the pinned floor so a long body can't exhaust the 8-bit
+        # register operand space. The tail keeps its result register live
+        # for the caller (RET / branch-result placement).
+        @next_reg = @reg_floor if !is_tail && @next_reg > @reg_floor
       end
       if last < 0
         last = alloc
@@ -177,8 +204,11 @@ module Volt::Compiler
     end
 
     # True for a bare constructor call (`Type.new` / `Type.new(...)`) — the
-    # only statement-position expression that *creates* an unowned object.
+    # only statement-position expressions that *create* an unowned object
+    # (array/hash literals construct `Array[T]` / `Hash[K, V]` instances the
+    # same way).
     private def ctor_temp?( expr : Frontend::AExpr ) : Bool
+      return true if expr.is_a?( Frontend::HashLiteralExpr ) || expr.is_a?( Frontend::ArrayLit )
       return false unless expr.is_a?( Frontend::MethodCall ) || expr.is_a?( Frontend::MemberAccess )
       return false unless expr.name == "new"
       recv = expr.receiver
@@ -200,6 +230,10 @@ module Volt::Compiler
         r = alloc
         emit_abc( IR::Opcode::LOAD_NIL, r, 0, 0 )
         r
+      when Frontend::ArrayLit     then compile_array_lit( expr )
+      when Frontend::HashLiteralExpr then compile_hash_literal( expr )
+      # A symbol is its interned id — an ordinary integer constant at runtime.
+      when Frontend::SymbolLit    then const_reg( IR::Value.int( Frontend::Symbols.intern( expr.value ) ) )
       when Frontend::Ident        then compile_ident( expr )
       when Frontend::InstanceVar  then compile_instance_var( expr )
       when Frontend::ClassVar     then compile_class_var( expr )
@@ -207,10 +241,12 @@ module Volt::Compiler
       when Frontend::SelfExpr     then @scope[ "self" ]
       when Frontend::SuperCall    then compile_super_call( expr )
       when Frontend::Assign       then compile_assign( expr )
+      when Frontend::VarDecl      then compile_var_decl( expr )
       when Frontend::BinaryOp     then compile_binary( expr )
       when Frontend::UnaryOp      then compile_unary( expr )
       when Frontend::Call         then compile_call( expr )
       when Frontend::MethodCall   then compile_method_call( expr )
+      when Frontend::Index        then compile_index( expr )
       when Frontend::PipeExpr     then compile_expr( expr.desugared.not_nil! )
       when Frontend::IfExpr     then compile_if( expr )
       when Frontend::WhileExpr  then compile_while( expr )
@@ -229,6 +265,8 @@ module Volt::Compiler
           t = nominal_of( owner )
         end
         compile_string_lit( t.to_s )
+      when Frontend::SizeofExpr
+        const_reg( IR::Value.int( expr.byte_size.to_i64 ) )
       else
         raise "internal: unlowerable node #{expr.class.name} (should be rejected by Semantic)"
       end
@@ -256,6 +294,16 @@ module Volt::Compiler
 
     private def emit_abx( op : IR::Opcode, a : Int32, bx : Int32 )
       @chunk.code << IR::Instruction.abx( op, a, bx )
+    end
+
+    # Direct `CALL` : the callee chunk index rides the 16-bit `Bx` field (an
+    # 8-bit `B` silently wrapped past 255 chunks — the REPL recompiles every
+    # known method each turn, so it crossed that limit within a few lines).
+    # No argument-count operand : args are contiguous at `A+1..` and the
+    # callee's own arity/num_registers describe the window.
+    private def emit_call( base : Int32, chunk_index : Int32 )
+      raise "internal: chunk index #{chunk_index} exceeds the 16-bit CALL operand" if chunk_index > 0xFFFF
+      emit_abx( IR::Opcode::CALL, base, chunk_index )
     end
 
     private def here : Int32
@@ -304,6 +352,7 @@ module Volt::Compiler
       when Frontend::InstanceVar  then compile_assign_ivar( expr, target )
       when Frontend::ClassVar     then compile_assign_class_var( expr, target )
       when Frontend::MemberAccess then compile_assign_member( expr, target )
+      when Frontend::Index        then compile_assign_index( expr, target )
       when Frontend::UnaryOp
         if target.op.star?
           compile_assign_deref( expr, target )
@@ -313,6 +362,63 @@ module Volt::Compiler
       else
         raise "internal: unlowerable assignment target #{expr.target.class}"
       end
+    end
+
+    # `name : Type` (no initializer) : reserves a fresh, zero/nil-initialized
+    # register block for `name` — `NEW_STRUCT` already does exactly this for
+    # any slot count, so a 1-slot local reuses it too rather than adding a
+    # separate single-register path.
+    private def compile_var_decl( expr : Frontend::VarDecl ) : Int32
+      n    = slot_count( expr.resolved_type || Frontend::Type::UNKNOWN )
+      home = n <= 1 ? alloc : alloc_block( n )
+      emit_abx( IR::Opcode::NEW_STRUCT, home, n )
+      @scope[ expr.name ] = home
+      protect_regs( home, n )
+      home
+    end
+
+    # `{ k => v, ... }` : constructs the `Hash[K, V]` instance the checker
+    # instantiated (`resolved_type`), then dispatches one `[]=` per pair —
+    # exactly the code `h = Hash[K, V].new ; h[k] = v ; ...` would emit.
+    private def compile_hash_literal( expr : Frontend::HashLiteralExpr ) : Int32
+      ty = expr.resolved_type
+      raise "internal: unlowerable hash literal (untyped)" unless ty.is_a?( Frontend::NominalType )
+      info = @types[ ty.name ]?
+      raise "internal: hash literal type `#{ty.name}` was never collected" unless info
+
+      obj = compile_constructor_call( info, [] of Frontend::AExpr )
+      expr.pairs.each do |( k, v )|
+        kreg = compile_expr( k )
+        vreg = compile_expr( v )
+        compile_virtual_call( ty, "[]=", obj, [ kreg, vreg ],
+                              [ k.resolved_type || Frontend::Type::UNKNOWN,
+                                v.resolved_type || Frontend::Type::UNKNOWN ] )
+      end
+      obj
+    end
+
+    # `[ a, b, c ]` : constructs the `Array[T]` instance the checker
+    # instantiated (`resolved_type`) sized for its elements, then dispatches
+    # one `[]=` per element — exactly the code
+    # `a = Array[T].new( n ) ; a[ 0 ] = e0 ; ...` would emit. Every method
+    # lives in the Core (`Lib/Primitives/Array.vl`) ; the literal is syntax
+    # only.
+    private def compile_array_lit( expr : Frontend::ArrayLit ) : Int32
+      ty = expr.resolved_type
+      raise "internal: unlowerable array literal (untyped)" unless ty.is_a?( Frontend::NominalType )
+      info = @types[ ty.name ]?
+      raise "internal: array literal type `#{ty.name}` was never collected" unless info
+
+      size_arg = Frontend::IntLit.new( expr.elements.size.to_i64, expr.loc )
+      obj = compile_constructor_call( info, [ size_arg ] of Frontend::AExpr )
+      expr.elements.each_with_index do |e, i|
+        ireg = const_reg( IR::Value.int( i.to_i64 ) )
+        vreg = compile_expr( e )
+        compile_virtual_call( ty, "[]=", obj, [ ireg, vreg ],
+                              [ Frontend::Type::INT,
+                                e.resolved_type || Frontend::Type::UNKNOWN ] )
+      end
+      obj
     end
 
     private def compile_assign_deref( expr : Frontend::Assign, target : Frontend::UnaryOp ) : Int32
@@ -358,24 +464,24 @@ module Volt::Compiler
         place_value( home, value_reg, slot_count( target.resolved_type || Frontend::Type::UNKNOWN ) )
         home
       else
-        # First binding. A bare `x = y` / `x = self` RHS compiles to the
-        # *existing* name's home register — binding `x` to it directly would
-        # alias the two names (rebinding either then clobbers the other), and
-        # `track_raii_resource` below would put that shared register into
-        # `raii_regs`, which `execute` nil-inits at frame entry — for a
-        # parameter that wipes the argument before the body ever reads it.
-        # Copy into a fresh home register instead.
-        if expr.value.is_a?( Frontend::Ident ) || expr.value.is_a?( Frontend::SelfExpr )
-          n    = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
-          home = n <= 1 ? alloc : alloc_block( n )
-          place_value( home, value_reg, n )
-          value_reg = home
-        end
-        @scope[ name ] = value_reg
+        # First binding : compact the local into a fresh home register just
+        # above the pinned floor, so the temporaries its value computation
+        # used are recycled by the next statement instead of being pinned
+        # under a high watermark. Copying (never aliasing `value_reg`) also
+        # keeps `x = y` / `x = self` from sharing the RHS name's register
+        # (rebinding either would clobber the other), and keeps `raii_regs`
+        # nil-init from wiping a parameter at frame entry. The copy is safe
+        # against overlap : `home ≤ value_reg` (or fully disjoint below).
+        n = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
+        @next_reg = @reg_floor if @next_reg > @reg_floor
+        home = n <= 1 ? alloc : alloc_block( n )
+        place_value( home, value_reg, n ) unless home == value_reg
+        @scope[ name ] = home
+        protect_regs( home, n )
         if ( t = expr.value.resolved_type ).is_a?( Frontend::NominalType ) && t.kind.object?
-          track_raii_resource( value_reg, t.type_id )
+          track_raii_resource( home, t.type_id )
         end
-        value_reg
+        home
       end
     end
 
@@ -407,12 +513,95 @@ module Volt::Compiler
     private def compile_assign_member( expr : Frontend::Assign, target : Frontend::MemberAccess ) : Int32
       recv_ty = target.receiver.resolved_type
       raise "internal: member assignment on non-object receiver" unless recv_ty.is_a?( Frontend::NominalType )
+
+      # `obj.name = v` with no matching field : dispatch to the `name=`
+      # setter method the semantic pass resolved (mirrors `compile_assign_index`'s
+      # `[]=` dispatch).
+      if expr.is_setter_call
+        self_reg  = compile_expr( target.receiver )
+        value_reg = compile_expr( expr.value )
+        arg_types = [ expr.value.resolved_type || Frontend::Type::UNKNOWN ]
+        return( recv_ty.kind.struct? ? compile_struct_call( recv_ty, "#{target.name}=", self_reg, [ value_reg ], arg_types )
+                                      : compile_virtual_call( recv_ty, "#{target.name}=", self_reg, [ value_reg ], arg_types ) )
+      end
+
       recv_reg  = compile_expr( target.receiver )
       slot      = field_slot_index( recv_ty.name, target.name )
       value_reg = compile_expr( expr.value )
       n         = slot_count( target.resolved_type || Frontend::Type::UNKNOWN )
       n.times { |i| emit_abc( IR::Opcode::STORE_FIELD, recv_reg, slot + i, value_reg + i ) }
       value_reg
+    end
+
+    # `receiver[ index ]` : lowers to a direct call on `receiver`'s own `[]`
+    # method, same dispatch rule `compile_method_call` uses (struct : direct
+    # `CALL` ; class : vtable). Mirrors `infer_index` in the `TypeChecker`.
+    private def compile_index( expr : Frontend::Index ) : Int32
+      recv_ty = expr.receiver.resolved_type || Frontend::Type::UNKNOWN
+
+      if recv_ty.array?
+        base_reg  = compile_expr( expr.receiver )
+        index_reg = compile_expr( expr.index )
+        emit_abx( IR::Opcode::CHECK_INDEX, index_reg, recv_ty.array_size )
+        n      = slot_count( recv_ty.element )
+        offset = scaled_index_reg( index_reg, n )
+        dest   = n <= 1 ? alloc : alloc_block( n )
+        n.times { |i| emit_abc( IR::Opcode::LOAD_INDEXED, dest + i, base_reg + i, offset ) }
+        return dest
+      end
+
+      raise "internal: indexing on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
+
+      self_reg  = compile_expr( expr.receiver )
+      arg_regs  = [ compile_expr( expr.index ) ]
+      arg_types = [ expr.index.resolved_type || Frontend::Type::UNKNOWN ]
+      if recv_ty.kind.struct?
+        compile_struct_call( recv_ty, "[]", self_reg, arg_regs, arg_types )
+      else
+        compile_virtual_call( recv_ty, "[]", self_reg, arg_regs, arg_types )
+      end
+    end
+
+    # `receiver[ index ] = value` : lowers to a direct call on `receiver`'s
+    # own `[]=` method, mirroring `compile_index` above.
+    private def compile_assign_index( expr : Frontend::Assign, target : Frontend::Index ) : Int32
+      recv_ty = target.receiver.resolved_type || Frontend::Type::UNKNOWN
+
+      if recv_ty.array?
+        base_reg  = compile_expr( target.receiver )
+        index_reg = compile_expr( target.index )
+        emit_abx( IR::Opcode::CHECK_INDEX, index_reg, recv_ty.array_size )
+        value_reg = compile_expr( expr.value )
+        n         = slot_count( recv_ty.element )
+        offset    = scaled_index_reg( index_reg, n )
+        n.times { |i| emit_abc( IR::Opcode::STORE_INDEXED, base_reg + i, offset, value_reg + i ) }
+        return value_reg
+      end
+
+      raise "internal: indexed assignment on non-object type" unless recv_ty.is_a?( Frontend::NominalType )
+
+      self_reg  = compile_expr( target.receiver )
+      index_reg = compile_expr( target.index )
+      value_reg = compile_expr( expr.value )
+      arg_regs  = [ index_reg, value_reg ]
+      arg_types = [ target.index.resolved_type || Frontend::Type::UNKNOWN, expr.value.resolved_type || Frontend::Type::UNKNOWN ]
+      if recv_ty.kind.struct?
+        compile_struct_call( recv_ty, "[]=", self_reg, arg_regs, arg_types )
+      else
+        compile_virtual_call( recv_ty, "[]=", self_reg, arg_regs, arg_types )
+      end
+    end
+
+    # `LOAD_INDEXED`/`STORE_INDEXED` add a *register* offset, not a scaled
+    # one, so a multi-slot element (`n > 1`) needs its index pre-multiplied
+    # by the element's own slot count before use — `base + i` (the constant
+    # part, folded at compile time) plus `idx * n` (the runtime part) is
+    # exactly `base + idx * n + i`, the element's true slot address.
+    private def scaled_index_reg( index_reg : Int32, n : Int32 ) : Int32
+      return index_reg if n <= 1
+      scaled = alloc
+      emit_abc( IR::Opcode::MUL_INT, scaled, index_reg, const_reg( IR::Value.int( n.to_i64 ) ) )
+      scaled
     end
 
     private def compile_ident( expr : Frontend::Ident ) : Int32
@@ -432,21 +621,45 @@ module Volt::Compiler
 
       # Parenthesis-less zero-arg call on `self` (mirrors `compile_call`'s
       # self-dispatch and `TypeChecker#infer_ident`) : `boot_sequence`.
-      if ( owner = @self_owner ) && !@scope.has_key?( expr.name ) && find_method( owner.name, expr.name )
-        self_reg = @scope[ "self" ]
+      if ( owner = @self_owner ) && !@scope.has_key?( expr.name ) && ( msig = find_method( owner.name, expr.name ) )
+        self_reg  = @scope[ "self" ]
+        call_args = pad_args( [] of Frontend::AExpr, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         if owner.kind.struct?
-          return compile_struct_call( nominal_of( owner ), expr.name, self_reg, [] of Int32, [] of Frontend::Type )
+          return compile_struct_call( nominal_of( owner ), expr.name, self_reg, arg_regs, arg_types )
         else
-          return compile_virtual_call( nominal_of( owner ), expr.name, self_reg, [] of Int32, [] of Frontend::Type )
+          return compile_virtual_call( nominal_of( owner ), expr.name, self_reg, arg_regs, arg_types )
         end
       end
 
       if sig = @signatures[ expr.name ]?
-        base = alloc_block( Math.max( 1, slot_count( sig.ret ) ) )
+        call_args  = pad_args( [] of Frontend::AExpr, sig )
+        arg_regs   = call_args.map { |a| compile_expr( a ) }
+        arg_slots  = call_args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
+        total_args = arg_slots.sum
+
+        base = alloc_block( Math.max( 1 + total_args, slot_count( sig.ret ) ) )
+        offset = 1
+        arg_regs.each_with_index do |ar, i|
+          n = arg_slots[ i ]
+          place_value( base + offset, ar, n )
+          offset += n
+        end
+
         if sig.extern
-          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, expr.name ), 0 )
+          emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || expr.name ), total_args )
+          # The FFI trampoline always returns the callee's result register
+          # verbatim (as a 64-bit value) : a native `int` (e.g. libc's
+          # `memcmp`) leaves its true value in the low 32 bits with the sign
+          # only meaningful at that width, so a signed narrow return type
+          # must be re-sign-extended here or a negative result silently
+          # reads back as a huge positive Int64.
+          if sig.ret.integer? && sig.ret.int_bit_width < 64
+            emit_abx( IR::Opcode::CONV_INT, base, sig.ret.int_bit_width )
+          end
         else
-          emit_abc( IR::Opcode::CALL, base, @func_index[ expr.name ], 0 )
+          emit_call( base, @func_index[ expr.name ] )
         end
         return base
       end
@@ -505,19 +718,30 @@ module Volt::Compiler
       place_value( window + 2, ptr_reg, 1 )
       place_value( window + 3, size_reg, 1 )
       place_value( window + 4, owned_reg, 1 )
-      emit_abc( IR::Opcode::CALL, window, @func_index[ init_chunk_name( info, 3 ) ], 4 )
+      init = info.initializers[ 3 ]?.try( &.first ) || info.initializer.not_nil!
+      emit_call( window, @func_index[ init_chunk_name( info, init.params ) ] )
       obj
     end
 
     private def compile_member_access( expr : Frontend::MemberAccess ) : Int32
       return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
-      # `Book.new` and `GeoCoordinate.new` : a parenthesis-less constructor call on a nominal type
+      # `Type.new` and static member access
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
-         ( info = @types[ recv.name ]? )
+          ( info = @types[ recv.name ]? )
         recv.resolved_type = nominal_of( info )
         if expr.name == "new"
           return compile_constructor_call( info, [] of Frontend::AExpr )
+        end
+        if msig = info.methods[expr.name]?
+          if msig.is_static || info.kind.module?
+            call_args = pad_args( [] of Frontend::AExpr, msig )
+            arg_regs  = call_args.map { |a| compile_expr( a ) }
+            arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+            return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+          end
+        elsif info.kind.module?
+          return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
         end
       end
 
@@ -525,15 +749,34 @@ module Volt::Compiler
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
          ( info = @types[ recv.name ]? ) && info.kind.module?
         recv.resolved_type = nominal_of( info )
+        if msig = info.methods[expr.name]?
+          call_args = pad_args( [] of Frontend::AExpr, msig )
+          arg_regs  = call_args.map { |a| compile_expr( a ) }
+          arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+          return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+        end
         return compile_static_call( info.name, expr.name, [] of Int32, [] of Frontend::Type )
       end
 
       recv_ty = expr.receiver.resolved_type
+      # `.size` on a fixed-size stack array : a compile-time constant, same
+      # as `sizeof` — no receiver evaluation needed.
+      if recv_ty && recv_ty.array? && expr.name == "size"
+        return const_reg( IR::Value.int( recv_ty.array_size.to_i64 ) )
+      end
+      # `sym.to_int` : a Symbol already is its Int64 id — a no-op reinterpret.
+      if recv_ty && recv_ty.symbol? && expr.name == "to_int"
+        return compile_expr( expr.receiver )
+      end
       unless recv_ty.is_a?( Frontend::NominalType )
         # Parenthesis-less zero-arg method call on a primitive receiver.
         if info = primitive_owner( recv_ty, expr.name )
           r = compile_expr( expr.receiver )
-          return compile_primitive_call( info, expr.name, r, [] of Int32, [] of Frontend::Type )
+          msig      = find_method( info.name, expr.name ).not_nil!
+          call_args = pad_args( [] of Frontend::AExpr, msig )
+          arg_regs  = call_args.map { |a| compile_expr( a ) }
+          arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+          return compile_primitive_call( info, expr.name, r, arg_regs, arg_types )
         end
         raise "internal: member access on non-object type"
       end
@@ -544,11 +787,14 @@ module Volt::Compiler
         # field access by the parser/Semantic) : a struct resolves straight
         # to a direct call (no polymorphism possible) ; a class goes through
         # the vtable, same as the parenthesised case in `compile_method_call`.
-        if find_method( recv_ty.name, expr.name )
+        if msig = find_method( recv_ty.name, expr.name )
+          call_args = pad_args( [] of Frontend::AExpr, msig )
+          arg_regs  = call_args.map { |a| compile_expr( a ) }
+          arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
           if recv_ty.kind.struct?
-            return compile_struct_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+            return compile_struct_call( recv_ty, expr.name, recv_reg, arg_regs, arg_types )
           else
-            return compile_virtual_call( recv_ty, expr.name, recv_reg, [] of Int32, [] of Frontend::Type )
+            return compile_virtual_call( recv_ty, expr.name, recv_reg, arg_regs, arg_types )
           end
         end
         raise "internal: zero-arg method calls are not yet lowered (Phase 4) : #{recv_ty.name}##{expr.name}"
@@ -603,12 +849,31 @@ module Volt::Compiler
       end
       return compile_to_string( expr.receiver ) if expr.name == "to_string"
 
+      # `.is_a?`/`.has?` : `TypeChecker` already folded these to a constant
+      # (`resolved_bool`) — their args (a bare type name / a `:symbol`) are
+      # compile-time-only tokens with no runtime representation, so only the
+      # receiver is compiled here, purely for its side effects.
+      resolved_bool = expr.resolved_bool
+      unless resolved_bool.nil?
+        compile_expr( expr.receiver )
+        r = alloc
+        emit_abc( resolved_bool ? IR::Opcode::LOAD_TRUE : IR::Opcode::LOAD_FALSE, r, 0, 0 )
+        return r
+      end
+
       if ( recv = expr.receiver ).is_a?( Frontend::Ident ) && !@scope.has_key?( recv.name ) &&
-         ( info = @types[ recv.name ]? )
+          ( info = @types[ recv.name ]? )
         if expr.name == "new"
           return compile_constructor_call( info, expr.args )
         end
-        if info.kind.module?
+        if msig = info.methods[expr.name]?
+          if msig.is_static || info.kind.module?
+            call_args = pad_args( expr.args, msig )
+            arg_regs  = call_args.map { |a| compile_expr( a ) }
+            arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+            return compile_static_call( info.name, expr.name, arg_regs, arg_types )
+          end
+        elsif info.kind.module?
           arg_regs  = expr.args.map { |a| compile_expr( a ) }
           arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
           return compile_static_call( info.name, expr.name, arg_regs, arg_types )
@@ -621,6 +886,13 @@ module Volt::Compiler
       # the vtable instead (`compile_virtual_call`), since the receiver's
       # runtime type may be a subclass of its static type.
       recv_ty = expr.receiver.resolved_type
+      if recv_ty && recv_ty.array? && expr.name == "size" && expr.args.empty?
+        return const_reg( IR::Value.int( recv_ty.array_size.to_i64 ) )
+      end
+      # `sym.to_int()` : a Symbol already is its Int64 id — a no-op reinterpret.
+      if recv_ty && recv_ty.symbol? && expr.name == "to_int" && expr.args.empty?
+        return compile_expr( expr.receiver )
+      end
       # An explicit `obj.finalize()` never dispatches virtually (no vtable
       # slot exists for it) — resolved statically to the receiver's own or
       # nearest ancestor's chunk, mirroring `compile_super_call`'s walk.
@@ -631,8 +903,10 @@ module Volt::Compiler
 
       if recv_ty.is_a?( Frontend::NominalType ) && ( recv_ty.kind.struct? || recv_ty.kind.object? )
         self_reg  = compile_expr( expr.receiver )
-        arg_regs  = expr.args.map { |a| compile_expr( a ) }
-        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        msig      = find_method( recv_ty.name, expr.name ).not_nil!
+        call_args = pad_args( expr.args, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         if recv_ty.kind.struct?
           return compile_struct_call( recv_ty, expr.name, self_reg, arg_regs, arg_types )
         else
@@ -644,8 +918,10 @@ module Volt::Compiler
       # (`struct Int … end` in the Core) : direct `CALL`, `self` = 1 slot.
       if info = primitive_owner( recv_ty, expr.name )
         self_reg  = compile_expr( expr.receiver )
-        arg_regs  = expr.args.map { |a| compile_expr( a ) }
-        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        msig      = find_method( info.name, expr.name ).not_nil!
+        call_args = pad_args( expr.args, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         return compile_primitive_call( info, expr.name, self_reg, arg_regs, arg_types )
       end
 
@@ -676,7 +952,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -698,7 +974,7 @@ module Volt::Compiler
 
       base = alloc_block( 2 )
       place_value( base + 1, self_reg, 1 )
-      emit_abc( IR::Opcode::CALL, base, idx, 1 )
+      emit_call( base, idx )
       base
     end
 
@@ -734,7 +1010,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -758,7 +1034,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -844,8 +1120,8 @@ module Volt::Compiler
       cur  = owner.superclass
       while cur && ( info = @types[ cur ]? )
         if method == "initialize"
-          if sig = info.initializers[ expr.args.size ]? || info.initializer
-            if i = @func_index[ init_chunk_name( info, expr.args.size ) ]?
+          if sig = resolve_initializer( info, expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN } )
+            if i = @func_index[ init_chunk_name( info, sig.params ) ]?
               idx  = i
               msig = sig
               break
@@ -876,7 +1152,7 @@ module Volt::Compiler
         place_value( base + offset, ar, n )
         offset += n
       end
-      emit_abc( IR::Opcode::CALL, base, idx, total )
+      emit_call( base, idx )
       base
     end
 
@@ -885,6 +1161,12 @@ module Volt::Compiler
     # why structs need no allocation at all).
 
     private def compile_constructor_call( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
+      # `Pointer[T].new( address )` : free reinterpret of the integer address
+      # (same payload bits, no allocation, no initializer chunk — the sema
+      # intrinsic in `TypeChecker#infer_constructor_call` typed it already).
+      if info.name.starts_with?( "Pointer[" ) && args.size == 1
+        return compile_expr( args[ 0 ] )
+      end
       info.kind.struct? ? compile_struct_new( info, args ) : compile_class_new( info, args )
     end
 
@@ -898,20 +1180,22 @@ module Volt::Compiler
     # should live — the same `base`-is-both-return-and-arg-window convention
     # `compile_class_new`/`compile_call` already use.
     private def compile_struct_new( info : Frontend::TypeInfo, args : Array( Frontend::AExpr ) ) : Int32
-      if init = ( info.initializers[ args.size ]? || info.initializer )
-        idx      = @func_index[ init_chunk_name( info, args.size ) ]
+      arg_tys = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+      if init = resolve_initializer( info, arg_tys )
+        call_args = pad_args( args, init )
+        idx      = @func_index[ init_chunk_name( info, init.params ) ]
         self_slots = info.reg_layout.try( &.total_size ) || 1
-        arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
+        arg_slot_counts = call_args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total    = self_slots + arg_slot_counts.sum
         base     = alloc_block( 1 + total )
         offset   = 1 + self_slots
-        args.each_with_index do |a, i|
+        call_args.each_with_index do |a, i|
           ar = compile_expr( a )
           n  = arg_slot_counts[ i ]
           place_value( base + offset, ar, n )
           offset += n
         end
-        emit_abc( IR::Opcode::CALL, base, idx, total )
+        emit_call( base, idx )
         return base
       end
 
@@ -934,9 +1218,11 @@ module Volt::Compiler
       emit_abx( IR::Opcode::INIT_OBJ, obj, info.type_id )
 
       if provider = find_initializer_owner( info )
-        init    = provider.initializers[ args.size ]? || provider.initializer.not_nil!
-        idx     = @func_index[ init_chunk_name( provider, args.size ) ]
-        arg_slot_counts = args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
+        arg_tys   = args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+        init      = resolve_initializer( provider, arg_tys ).not_nil!
+        call_args = pad_args( args, init )
+        idx     = @func_index[ init_chunk_name( provider, init.params ) ]
+        arg_slot_counts = call_args.each_index.map { |i| slot_count( init.params[ i ]? || Frontend::Type::UNKNOWN ) }.to_a
         total   = 1 + arg_slot_counts.sum
         # `window` (== A) is the CALL's return-value landing spot : args
         # (self first, then declared params) start at `window + 1`, same
@@ -944,13 +1230,13 @@ module Volt::Compiler
         window  = alloc_block( 1 + total )
         place_value( window + 1, obj, 1 )
         offset = 2
-        args.each_with_index do |a, i|
+        call_args.each_with_index do |a, i|
           ar = compile_expr( a )
           n  = arg_slot_counts[ i ]
           place_value( window + offset, ar, n )
           offset += n
         end
-        emit_abc( IR::Opcode::CALL, window, idx, total )
+        emit_call( window, idx )
       end
 
       obj
@@ -964,10 +1250,35 @@ module Volt::Compiler
     # sharing, architecture #1.A.3).
     # Chunk key for a type's `initialize` overload : a lone constructor keeps
     # the historical plain `Type#initialize` name, multiple overloads are
-    # arity-mangled `Type#initialize/<arity>` (see `TypeCollector`).
-    private def init_chunk_name( info : Frontend::TypeInfo, arity : Int32 ) : String
-      key = info.initializers.size > 1 ? "initialize/#{arity}" : "initialize"
+    # mangled by parameter type via `Frontend.overload_key` (see
+    # `TypeCollector`) since two overloads may share an arity.
+    private def init_chunk_name( info : Frontend::TypeInfo, params : Array( Frontend::Type ) ) : String
+      total = info.initializers.values.sum( &.size )
+      key   = total > 1 ? Frontend.overload_key( "initialize", params ) : "initialize"
       "#{info.name}##{key}"
+    end
+
+    # Picks the overload whose declared parameters match `arg_tys` from the
+    # arity-grouped candidates, falling back to the type's lone/default
+    # initializer when the type declares none of its own (struct-style
+    # implicit field constructor) or none of that arity are found.
+    private def resolve_initializer( info : Frontend::TypeInfo, arg_tys : Array( Frontend::Type ) ) : Frontend::FuncSig?
+      group = info.initializers[ arg_tys.size ]?
+      return Frontend.select_overload( group, arg_tys ) if group
+      # No overload declares exactly this many parameters — one may still
+      # accept this arg count once its trailing defaulted parameters are
+      # filled in (mirrors `TypeChecker#infer_constructor_call`).
+      info.initializers.values.flatten.find { |cand| arity_in_range?( cand, arg_tys.size ) } || info.initializer
+    end
+
+    private def arity_in_range?( sig : Frontend::FuncSig, arg_count : Int32 ) : Bool
+      min_required = sig.params.size
+      sig.params.size.times do |i|
+        idx = sig.params.size - 1 - i
+        break unless sig.defaults[ idx ]?
+        min_required = idx
+      end
+      arg_count >= min_required && arg_count <= sig.params.size
     end
 
     private def find_initializer_owner( info : Frontend::TypeInfo ) : Frontend::TypeInfo?
@@ -1033,12 +1344,40 @@ module Volt::Compiler
         return compile_virtual_call( nominal_of( info ), "+", lreg, [ rreg ], [ Frontend::Type::UNKNOWN ] )
       end
 
-      if ( op_name = operator_method_name( expr.op ) )
-        lt = expr.left.resolved_type
-        if lt.is_a?( Frontend::NominalType ) && ( lt.kind.struct? || lt.kind.object? ) && @types[ lt.name ]?.try( &.methods[ op_name ]? )
-          rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
-          result = lt.kind.struct? ? compile_struct_call( lt, op_name, lreg, [ rreg ], [ rt ] ) :
-                                      compile_virtual_call( lt, op_name, lreg, [ rreg ], [ rt ] )
+      # A mixin body (`Comparable#<`, `#==`, ...) type-checks once with `self`
+      # bound to the mixin itself (see `compile_instance_var`'s field
+      # refresh) : refresh the cached type from `@self_owner` so `self <=>
+      # other` inside an adopted copy dispatches against the real includer's
+      # own `<=>` (`String#<=>`, `Int#<=>`), not the mixin's placeholder type.
+      if ( owner = @self_owner )
+        expr.left.resolved_type  = nominal_of( owner ) if expr.left.is_a?( Frontend::SelfExpr )
+        expr.right.resolved_type = nominal_of( owner ) if expr.right.is_a?( Frontend::SelfExpr )
+      end
+
+      lt = expr.left.resolved_type
+      rt = expr.right.resolved_type
+
+      # A comparison between two numeric operands always takes the native
+      # path, even when the type includes `Comparable` : a primitive's own
+      # `<=>` is defined in terms of native `<`/`>` (`Int#<=>`), so routing
+      # `==`/`<`/... back through the mixin's adopted method here would
+      # recurse forever (`Int#==` -> `<=>` -> `comp == 0` -> `Int#==` -> ...).
+      is_comparison = expr.op.eq_eq? || expr.op.bang_eq? || expr.op.lt? ||
+                      expr.op.gt? || expr.op.lt_eq? || expr.op.gt_eq? || expr.op.spaceship?
+      numeric_cmp = is_comparison && lt && rt && lt.numeric? && rt.numeric?
+
+      if !numeric_cmp && ( op_name = operator_method_name( expr.op ) )
+        struct_owner = lt.is_a?( Frontend::NominalType ) && lt.kind.struct? && @types[ lt.name ]?.try( &.methods[ op_name ]? )
+        # `find_method` (unlike a raw `.methods[op_name]?`) walks the mixin
+        # chain, so a class-kind receiver whose operator is only adopted
+        # from a mixin (`String#<` from `Comparable`, never overridden) is
+        # still found — `compile_virtual_call` resolves it through the
+        # includer's own vtable slot regardless of which ancestor declared it.
+        class_owner = lt.is_a?( Frontend::NominalType ) && lt.kind.object? && find_method( lt.name, op_name )
+        if struct_owner || class_owner
+          rarg   = rt || Frontend::Type::UNKNOWN
+          result = struct_owner ? compile_struct_call( lt.as( Frontend::NominalType ), op_name, lreg, [ rreg ], [ rarg ] ) :
+                                    compile_virtual_call( lt.as( Frontend::NominalType ), op_name, lreg, [ rreg ], [ rarg ] )
           if expr.op.bang_eq? || expr.op.not_match_op?
             neg = alloc
             emit_abc( IR::Opcode::NOT, neg, result, 0 )
@@ -1046,8 +1385,8 @@ module Volt::Compiler
           end
           return result
         elsif ( info = primitive_owner( lt, op_name ) )
-          rt     = expr.right.resolved_type || Frontend::Type::UNKNOWN
-          result = compile_primitive_call( info, op_name, lreg, [ rreg ], [ rt ] )
+          rarg   = rt || Frontend::Type::UNKNOWN
+          result = compile_primitive_call( info, op_name, lreg, [ rreg ], [ rarg ] )
           if expr.op.bang_eq? || expr.op.not_match_op?
             neg = alloc
             emit_abc( IR::Opcode::NOT, neg, result, 0 )
@@ -1186,6 +1525,23 @@ module Volt::Compiler
       dest
     end
 
+    # A call site may omit any suffix of the callee's defaulted trailing
+    # parameters ; pads `args` back out to `sig.params.size` by splicing in
+    # the declaration's default-value expressions (already type-checked once
+    # against an empty scope, so `resolved_type` is set — see
+    # `TypeChecker#check_param_defaults`) so every other call-compiling path
+    # can keep treating `args.size == sig.params.size` as an invariant.
+    private def pad_args( args : Array( Frontend::AExpr ), sig : Frontend::FuncSig ) : Array( Frontend::AExpr )
+      return args if args.size >= sig.params.size
+      padded = args.dup
+      ( args.size...sig.params.size ).each do |i|
+        default = sig.defaults[ i ]?
+        raise "internal: missing default for parameter #{i} of `#{sig.name}`" unless default
+        padded << default
+      end
+      padded
+    end
+
     private def compile_call( expr : Frontend::Call ) : Int32
       name = expr.callee.as( Frontend::Ident ).name
 
@@ -1196,9 +1552,10 @@ module Volt::Compiler
       # virtual for a class (so an inherited method calling another
       # overridable method still late-binds to the actual subclass), direct
       # for a struct.
-      if ( owner = @self_owner ) && !@scope.has_key?( name ) && find_method( owner.name, name )
-        arg_regs  = expr.args.map { |a| compile_expr( a ) }
-        arg_types = expr.args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
+      if ( owner = @self_owner ) && !@scope.has_key?( name ) && ( msig = find_method( owner.name, name ) )
+        call_args = pad_args( expr.args, msig )
+        arg_regs  = call_args.map { |a| compile_expr( a ) }
+        arg_types = call_args.map { |a| a.resolved_type || Frontend::Type::UNKNOWN }
         if owner.kind.module?
           return compile_static_call( owner.name, name, arg_regs, arg_types )
         end
@@ -1211,9 +1568,10 @@ module Volt::Compiler
       end
 
       sig  = @signatures[ name ]
+      call_args  = pad_args( expr.args, sig )
 
-      arg_regs   = expr.args.map { |a| compile_expr( a ) }
-      arg_slots  = expr.args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
+      arg_regs   = call_args.map { |a| compile_expr( a ) }
+      arg_slots  = call_args.map { |a| slot_count( a.resolved_type || Frontend::Type::UNKNOWN ) }
       total_args = arg_slots.sum
       ret_slots  = slot_count( sig.ret )
 
@@ -1226,9 +1584,12 @@ module Volt::Compiler
       end
 
       if sig.extern
-        emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, name ), total_args )
+        emit_abc( IR::Opcode::CALL_NATIVE, base, @natives.intern( sig.lib, sig.extern_name || name ), total_args )
+        if sig.ret.integer? && sig.ret.int_bit_width < 64
+          emit_abx( IR::Opcode::CONV_INT, base, sig.ret.int_bit_width )
+        end
       else
-        emit_abc( IR::Opcode::CALL, base, @func_index[ name ], total_args )
+        emit_call( base, @func_index[ name ] )
       end
 
       base
@@ -1345,6 +1706,11 @@ module Volt::Compiler
       when .match_op?         then "=~"
       when .not_match_op?     then "=~"
       when .eq_eq_eq?         then "==="
+      when .lt?               then "<"
+      when .gt?               then ">"
+      when .lt_eq?            then "<="
+      when .gt_eq?            then ">="
+      when .spaceship?        then "<=>"
       else                         nil
       end
     end

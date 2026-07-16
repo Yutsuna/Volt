@@ -76,7 +76,10 @@ LCallMethod:
 
 LCall:
 	{
-		Int32 CalleeIndex = OP_B;
+		/* Chunk index rides the 16-bit Bx field: an 8-bit B wraps past 255
+		 * chunks (the REPL crosses that within a few lines). No arg-count
+		 * operand — args are contiguous and the callee knows its window. */
+		Int32 CalleeIndex = OP_BX;
 		Int32 CalleeBase  = Base + OP_A + 1;
 		const FChunkInfo* Callee = &Chunks[ CalleeIndex ];
 

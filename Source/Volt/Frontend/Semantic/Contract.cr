@@ -8,16 +8,41 @@ module Volt::Frontend
     property extern    : Bool
     property lib       : String?
     property decl_span : Span?
+    property extern_name : String? = nil
     # Nominal owner (class/struct/mixin/module) of a method, or nil for a free
     # function. `is_static` marks methods resolved at compile time with no
     # receiver (module functions), as opposed to instance methods.
     property owner     : String?
     property is_static : Bool
     property visibility : Visibility
+    # Parallel to `params` : the parsed default-value expression for each
+    # parameter, or `nil` for parameters with none. Only trailing parameters
+    # may have a default (enforced by `check_call_args`); a shorter array
+    # (or one made entirely of `nil`s) means "no defaults known" and the
+    # call site must supply every argument.
+    property defaults : Array( AExpr? )
 
     def initialize( @name, @params, @ret, @extern = false, @lib = nil, @decl_span = nil,
-                    @owner = nil, @is_static = false, @visibility = Visibility::Public )
+                    @owner = nil, @is_static = false, @visibility = Visibility::Public,
+                    @defaults = [] of AExpr? )
     end
+  end
+
+
+  # Picks the overload whose parameter types exactly match `arg_tys` among
+  # `candidates` (already filtered to the right arity by the caller). Falls
+  # back to the first candidate when none match exactly — the caller then
+  # reports the mismatch itself via `check_call_args`'s per-argument
+  # diagnostics, so this never needs to raise on its own.
+  def self.select_overload( candidates : Array( FuncSig ), arg_tys : Array( Type ) ) : FuncSig
+    candidates.find { |c| c.params.map( &.to_s ) == arg_tys.map( &.to_s ) } || candidates.first
+  end
+
+  # Chunk-name suffix for one overload of `name`, derived from its parameter
+  # types so two overloads sharing an arity (`initialize(val : T)` vs
+  # `initialize(ptr : Pointer[T])`) still mangle to distinct keys.
+  def self.overload_key( name : String, params : Array( Type ) ) : String
+    "#{name}/#{params.map( &.to_s ).join( "," )}"
   end
 
 
@@ -53,13 +78,16 @@ module Volt::Frontend
     # `initialize` / `finalize` methods.
     property initializer : FuncSig?
     property finalizer   : FuncSig?
-    # Every user `initialize` overload keyed by arity. `initializer` stays the
+    # Every user `initialize` overload keyed by arity, then grouped by
+    # declaration (two overloads may share an arity : `initialize(val : T)`
+    # and `initialize(ptr : Pointer[T])` are both arity 1, disambiguated by
+    # parameter type via `select_overload`). `initializer` stays the
     # first-declared one (a cheap "has any constructor" presence marker for
-    # the single-overload fast path); arity-aware resolution goes through
-    # this hash. When a type declares more than one overload, its
-    # `methods`/`methods_ast` entries are keyed `initialize/<arity>` so each
-    # overload gets its own compiled chunk.
-    property initializers : Hash( Int32, FuncSig )
+    # the single-overload fast path). When a type declares more than one
+    # overload total, its `methods`/`methods_ast` entries are keyed
+    # `initialize/<param types>` (see `overload_key`) so each overload gets
+    # its own compiled chunk.
+    property initializers : Hash( Int32, Array( FuncSig ) )
     # Static dispatch table for a class : method name -> slot index. Built by
     # `TypeCollector#build_vtable` by copying the superclass's layout verbatim
     # (an override reuses its inherited index) and appending each mixin's and
@@ -79,7 +107,7 @@ module Volt::Frontend
                     @methods = {} of String => FuncSig,
                     @methods_ast = {} of String => FuncDecl,
                     @initializer = nil, @finalizer = nil,
-                    @initializers = {} of Int32 => FuncSig,
+                    @initializers = {} of Int32 => Array( FuncSig ),
                     @vtable_layout = {} of String => Int32, @vtable_size = 0,
                     @class_vars = {} of String => Type,
                     @extend_self = false)
