@@ -14,6 +14,7 @@ module Volt::IR
     F32 = 9
     F64 = 10
     OBJ = 11   # class-instance reference : payload pointer + VAL_OBJECT tag
+    BOOL = 12  # one byte in memory, restored with the VAL_BOOL tag on load
 
     def self.for( type : Frontend::Type ) : PtrWidth
       case type.kind
@@ -23,7 +24,10 @@ module Volt::IR
       when .int64?, .int?   then I64
       # A symbol is its interned Int64 id at runtime (`Frontend::Symbols`).
       when .symbol?          then I64
-      when .u_int8?, .bool?  then U8
+      when .u_int8?          then U8
+      # A Bool stores as one byte but must load back Bool-tagged : an
+      # int-tagged 0/1 would fail `==` against a real Bool (Hash[Bool, V]).
+      when .bool?            then BOOL
       when .u_int16?         then U16
       when .u_int32?         then U32
       when .u_int64?, .u_int? then U64
