@@ -30,7 +30,7 @@ module Volt::Build
     def clean
       Logger.info "Cleaning build directory..."
       FileUtils.rm_rf('build')
-      :continue
+      :halt
     end
 
     def validate
