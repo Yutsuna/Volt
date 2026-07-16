@@ -12,9 +12,16 @@ def __volt_ptr_address( ptr : Void* ) -> UInt64
 
 
 struct Pointer[ T ] include Inspectable
+  include Hashable
 
   def null? -> Bool
     address == 0
+  end
+
+  # Identity hash : two pointers are `==` when they hold the same address,
+  # so mixing the address (via `Int#hash`) is a correct — and free — hash.
+  def hash -> UInt64
+    address.hash
   end
 
   def address -> UInt64
