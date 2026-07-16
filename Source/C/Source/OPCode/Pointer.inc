@@ -44,6 +44,10 @@ LLoadPtr:
 		case WIDTH_F64:
 			Regs[ OP_A ] = MakeFloat( *(double*)Ptr );
 			break;
+		case WIDTH_OBJ:
+			Regs[ OP_A ].Tag = VAL_OBJECT;
+			Regs[ OP_A ].Payload = *(Void**)Ptr;
+			break;
 		default:
 			SAVE_CURSOR();
 			return VM_ERR_BADOP;
@@ -79,6 +83,7 @@ LStorePtr:
 			*(uint64_t*)Ptr = (uint64_t)AsInt( Val );
 			break;
 		case WIDTH_PTR:
+		case WIDTH_OBJ:
 			*(Void**)Ptr = Val.Payload;
 			break;
 		case WIDTH_F32:
