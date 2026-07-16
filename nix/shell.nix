@@ -6,8 +6,9 @@
 
 let
   llvmAttrs = pkgs.llvmPackages_latest;
-  voltProj = pkgs.callPackage ./package.nix { inherit inputs; };
+  voltProj  = pkgs.callPackage ./package.nix { inherit inputs; };
   voltBuild = pkgs.callPackage ./volt-build.nix {};
+  claudeEnv = pkgs.callPackage ./claude.nix {};
 in
 pkgs.mkShell {
   inputsFrom = [ voltProj ];
@@ -22,6 +23,7 @@ pkgs.mkShell {
     cmake-lint
     mold
     ruby-lsp
+    graphify
     voltBuild
   ];
 
@@ -29,5 +31,7 @@ pkgs.mkShell {
     export CXX=clang++
     export CC=clang
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
+
+    ${claudeEnv.shellHook}
   '';
 }
