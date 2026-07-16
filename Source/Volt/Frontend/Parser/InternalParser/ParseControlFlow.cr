@@ -103,6 +103,7 @@ module Volt::Frontend
 
     private def expr_if_on_same_line : AExpr?
       return nil if @current.kind.newline? || @current.kind.semicolon? || at_end?
+      return nil if @current.kind.if? || @current.kind.unless? || @current.kind.while? || @current.kind.until?
       parse_expr( Prec::Modifier )
     end
 
@@ -124,6 +125,7 @@ module Volt::Frontend
             when 't'  then io << '\t'; i += 2
             when 'r'  then io << '\r'; i += 2
             when '"'  then io << '"';  i += 2
+            when '\'' then io << '\''; i += 2
             when '\\' then io << '\\'; i += 2
             else
               io << '\\'
@@ -135,6 +137,19 @@ module Volt::Frontend
           end
         end
       end
+    end
+
+    # `'C'` desugars, at parse time, into a `UInt8` literal (`67_u8`) — Volt
+    # has no distinct `Char` type, so a character literal is just sugar for
+    # its single byte value.
+    private def parse_char_literal( tok : Token ) : AExpr
+      content = unescape( strip_quotes( tok ) )
+      unless content.bytesize == 1
+        error!( Catalog::Parse.invalid_char_literal( content, tok.span ) )
+      end
+      node = IntLit.new( content.byte_at( 0 ).to_i64, tok.span )
+      node.resolved_type = Type::UINT8
+      node
     end
 
     # `"a #{expr} b"` desugars, at parse time, into a left-folded string
@@ -181,6 +196,14 @@ module Volt::Frontend
             case bytes[ i ]
             when '{' then depth += 1
             when '}' then depth -= 1
+            when '"', '\''
+              # A string literal nested in the interpolation: its quotes,
+              # braces and escapes must not affect the `}` matching.
+              q  = bytes[ i ]
+              i += 1
+              while i < bytes.size && bytes[ i ] != q
+                i += bytes[ i ] == '\\' ? 2 : 1
+              end
             end
             i += 1 if depth > 0
           end

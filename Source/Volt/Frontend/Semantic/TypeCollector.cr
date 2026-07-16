@@ -15,6 +15,10 @@ module Volt::Frontend
   # end up correctly populated regardless of visitation order (nominals are
   # shared, mutable instances).
   class TypeCollector
+    # The name of the implicit universal root every class derives from when
+    # it declares no superclass of its own (see `resolve_class`).
+    OBJECT_ROOT = "Object"
+
     getter types         : Hash( String, TypeInfo )
     getter nominals      : Hash( String, NominalType )
     getter methods       : Array( FuncDecl )
@@ -30,6 +34,18 @@ module Volt::Frontend
       @method_entries = [] of { FuncDecl, String, FuncSig }
       @resolving = Set( String ).new
       @resolved  = Set( String ).new
+
+      # Seed the `Object` root itself : absent any real declaration, it needs
+      # no entry in `@decls` — just enough of a `NominalType`/`TypeInfo` pair
+      # for annotation lookup (`other : Object`) and the superclass-chain
+      # walk to terminate on by name. Deliberately *not* marked `@resolved` :
+      # user code is free to declare its own `class Object` (shadowing this
+      # seed — `declare` overwrites both maps for it), and it must still go
+      # through `resolve_class` like any other type. Pre-marking it resolved
+      # would make `resolve("Object")` short-circuit on the stale seed and
+      # skip that class's `initialize`/`finalize`/methods entirely.
+      @nominals[ OBJECT_ROOT ] = NominalType.object( OBJECT_ROOT, -1 )
+      @types[ OBJECT_ROOT ]    = TypeInfo.new( NominalKind::Class, OBJECT_ROOT, -1 )
     end
 
     def collect( nodes : Array( ANode ) ) : Nil
@@ -85,7 +101,7 @@ module Volt::Frontend
       # patching": a second `struct Int … end` elsewhere merges its methods
       # into the same `TypeInfo` rather than duplicate-erroring.
       # `resolve` routes it to `resolve_primitive_reopen`.
-      if node.is_a?( StructDecl ) && Type.from_primitive_name( name )
+      if node.is_a?( StructDecl ) && ( Type.from_primitive_name( name ) || name == "Array" )
         if existing = @decls[ name ]?
           existing.as( StructDecl ).body.concat( node.body )
           return
@@ -172,6 +188,14 @@ module Volt::Frontend
         else
           @bag << Catalog::Sema.unknown_superclass( info.name, sup, node.loc )
         end
+      elsif info.name != OBJECT_ROOT
+        # Every class implicitly derives from the universal `Object` root
+        # unless it names a superclass of its own — this is what lets
+        # `other : Object` (see `Comparable`) accept a value of any class :
+        # the superclass-chain walk in `TypeChecker#type_compatible?` finds
+        # `Object` at the end of every chain. `Object` itself carries no
+        # layout, so `base_layout` stays nil here.
+        info.superclass = OBJECT_ROOT
       end
 
       mixin_names = resolve_mixins( info.name, node.mixins, node.loc )
@@ -222,7 +246,7 @@ module Volt::Frontend
     end
 
     private def resolve_struct( node : StructDecl, info : TypeInfo ) : Nil
-      return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name )
+      return resolve_primitive_reopen( node, info ) if Type.from_primitive_name( node.name ) || node.name == "Array"
 
       info.mixins = resolve_mixins( info.name, node.mixins, node.loc )
       fields      = collect_fields( node.body, nil )
@@ -458,16 +482,32 @@ module Volt::Frontend
     end
 
     private def collect_methods( body : Array( ANode ), info : TypeInfo ) : Nil
-      # `initialize` is the one name allowed to overload — resolved by arity.
-      # When several overloads exist, each is keyed `initialize/<arity>` so
-      # every overload compiles to its own chunk; a single `initialize` keeps
-      # the plain key (the shape every existing lookup expects).
+      # `initialize` is the one name allowed to overload : resolved by full
+      # parameter-type signature, not just arity, so `initialize(val : T)`
+      # and `initialize(ptr : Pointer[T])` coexist despite sharing arity 1.
+      # When several overloads exist, each is keyed `initialize/<param
+      # types>` (`overload_key`) so every overload compiles to its own
+      # chunk; a single `initialize` keeps the plain key (the shape every
+      # existing lookup expects).
       init_count = body.count { |n| n.is_a?( FuncDecl ) && n.name == "initialize" }
 
       body.each do |node|
         next unless node.is_a?( FuncDecl )
         unless node.type_params.empty?
-          @bag << Catalog::Sema.generic_method_unsupported( node.name, node.loc )
+          # A generic *static* method (`def self.alloc[T]`) has no `self` to
+          # bind, so it behaves exactly like a top-level generic function :
+          # it's registered under a qualified name (`Owner.method`) and
+          # monomorphized through the same template machinery, one concrete
+          # clone per call-site type argument. Instance-bound generic methods
+          # still need `self` typed against the (non-generic) owner, which
+          # this template path doesn't model, so those remain unsupported.
+          is_static = info.kind.module? ? ( node.is_static || info.extend_self ) : node.is_static
+          if is_static && ( mono = @mono )
+            node.name = "#{info.name}.#{node.name}"
+            mono.register_func_template( node )
+          else
+            @bag << Catalog::Sema.generic_method_unsupported( node.name, node.loc )
+          end
           next
         end
         sig = build_method_sig( node, info )
@@ -475,13 +515,14 @@ module Volt::Frontend
         case node.name
         when "initialize"
           arity = node.params.size
-          if first = info.initializers[ arity ]?
-            @bag << Catalog::Sema.duplicate_definition( "initialize", node.loc, first.decl_span )
+          group = ( info.initializers[ arity ] ||= [] of FuncSig )
+          if dup = group.find { |c| c.params.map( &.to_s ) == sig.params.map( &.to_s ) }
+            @bag << Catalog::Sema.duplicate_definition( "initialize", node.loc, dup.decl_span )
             next
           end
-          info.initializers[ arity ] = sig
+          group << sig
           info.initializer ||= sig
-          key = "initialize/#{arity}" if init_count > 1
+          key = Frontend.overload_key( "initialize", sig.params ) if init_count > 1
         when "finalize"
           unless node.params.empty?
             @bag << Catalog::Sema.finalize_has_arguments( node.loc )
@@ -529,7 +570,8 @@ module Volt::Frontend
       is_static = info.kind.module? ? ( decl.is_static || info.extend_self ) : decl.is_static
 
       FuncSig.new( decl.name, params, ret, decl_span: decl.loc, owner: info.name,
-                    is_static: is_static, visibility: decl.visibility )
+                    is_static: is_static, visibility: decl.visibility,
+                    defaults: decl.params.map( &.default ) )
     end
 
     # A concrete class must provide a non-abstract override for every abstract

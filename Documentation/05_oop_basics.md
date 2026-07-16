@@ -143,3 +143,27 @@ dog.speak() # => "Woof! My name is Fido"
 
 ### Layout inheritance
 A subclass layout begins with the exact field sequence of its parent class. This layout preservation guarantees that inherited fields reside at the identical byte offsets, whether the VM accesses the parent or the child reference, enabling direct access without dynamic field offsets resolution.
+
+### The implicit `Object` root
+Every `class` that declares no superclass of its own implicitly derives from `Object` — there is nothing to write, it happens automatically:
+
+```volt
+class Device        # implicitly `class Device < Object`
+  def ping -> Bool
+    true
+  end
+end
+```
+
+`Object` carries no fields and no methods of its own; it exists purely so a parameter or variable can be declared to accept *any* class instance:
+
+```volt
+def log_anything(value : Object) -> Void
+  puts(value.to_string)
+end
+
+log_anything(Device.new)   # any class satisfies `Object`
+log_anything("a string")   # String < Object too
+```
+
+This is what lets the standard library's `Comparable` mixin (see [Modules, Mixins, and Member Visibility](06_modules_and_mixins.md)) declare `def <=>(other : Object) -> Int` and have it accept a value of any class, not just one specific type.

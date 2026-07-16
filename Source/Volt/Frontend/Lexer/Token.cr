@@ -25,6 +25,7 @@ module Volt::Frontend
     Int
     Float
     String
+    Char
     True
     False
     Nil
@@ -161,6 +162,10 @@ module Volt::Frontend
 
     # regex literal
     Regex
+
+    # symbol literal : `:name` — compile-time-only, used to name a
+    # method/attribute for `.has?` (see `HasExpr`)
+    SymbolLit
 
     # whitespace / meta
     Newline

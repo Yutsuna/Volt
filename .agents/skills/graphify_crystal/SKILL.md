@@ -23,7 +23,7 @@ All commands are run from the project root.
 
 ### Default scan (recommended)
 
-Scans `Source/Volt` (`.cr`) and `Source/C` (`.c`, `.h`, `.inc`), excludes `Benchmarks/` and `Core/`:
+Scans `Source/Volt` (`.cr`) and `Source/C` (`.c`, `.h`, `.inc`), excludes `Benchmarks/` and `Lib/`:
 
 ```bash
 python3 .agents/skills/graphify_crystal/run_graphify.py

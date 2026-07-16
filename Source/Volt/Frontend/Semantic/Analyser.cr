@@ -16,10 +16,29 @@ module Volt::Frontend
     end
 
     def analyse : TypedProgram
+      inject_symbol_names
       partition
       check
       raise CompilationError.new( @bag ) if @bag.errors?
       TypedProgram.new( @program, @functions, @top_level, @sigs.table, @types, @methods )
+    end
+
+    # Synthesizes `__symbol_name( id ) -> String` from the process-global
+    # intern pool (`Frontend::Symbols`, filled by the parser) and appends it
+    # to the program — this is how `Symbol#to_string` resolves an interned
+    # `Int64` id back to its source name at runtime. Always injected (the
+    # Core's `Symbol.vl` references it unconditionally) ; generated as source
+    # and re-parsed so it flows through signature collection, typecheck and
+    # codegen like any ordinary function. Marked as a core file so a user
+    # program can never collide with the name.
+    private def inject_symbol_names : Nil
+      # Only meaningful when the Core is present : its `Symbol.vl` is the one
+      # consumer, and a bare Core-less program (unit specs) can't even
+      # compile the table's string literals.
+      return unless @program.nodes.any? { |n| n.is_a?( StructDecl ) && n.name == "Symbol" }
+      parsed = Frontend.parse( Symbols.function_source, "<symbols>" )
+      Frontend.core_files << "<symbols>"
+      @program.nodes.concat( parsed.nodes )
     end
 
     private def partition : Nil

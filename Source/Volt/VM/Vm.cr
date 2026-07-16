@@ -67,7 +67,7 @@ module Volt::VM
     # included : `Value#to_display`'s generic `Tag::Object` arm only knows
     # `<object:id>` (it can't see method bodies), so a raised/REPL-printed
     # `String` needs its bytes read directly off the known field layout
-    # (`ptr`, `size`, `owned` — slots 0/1/2, `Core/String.vl`'s declaration
+    # (`ptr`, `size`, `owned` — slots 0/1/2, `Lib/Primitives/String.vl`'s declaration
     # order) rather than calling back into `to_string` (this may run from
     # inside `RAISE`/`unwind`, not a safe place to re-enter `execute`).
     def display_value( v : IR::Value ) : String
@@ -118,7 +118,7 @@ module Volt::VM
     # Reads a `Value` as a Crystal `String` if it's a real Core `String`-class
     # instance (`Tag::Object` whose `type_id` matches the resolved "String"
     # class) — its bytes are read directly off the known field layout :
-    # `ptr`, `size`, `owned`, slots 0/1/2 per `Core/String.vl`'s declaration
+    # `ptr`, `size`, `owned`, slots 0/1/2 per `Lib/String.vl`'s declaration
     # order. `nil` for anything else (an ordinary object, a Regex, ...).
     def volt_string( v : IR::Value ) : String?
       return nil unless v.tag.object?
@@ -368,6 +368,9 @@ module Volt::VM
     private def execute_index( chunk_index : Int32, base : Int32 ) : Int32
       ensure_chunk_table
       ensure_class_table
+      if ENV[ "VOLT_VM_REFERENCE" ]?
+        return execute_reference( @unit.chunks[ chunk_index ], base )
+      end
       chunk     = @unit.chunks[ chunk_index ]
       saved_top = @stack_top
       @stack_top = base + chunk.num_registers
@@ -481,7 +484,8 @@ module Volt::VM
         raise VoltRuntimeError.new( display_value( frame[ ins.a ] ) )
       when .init?, .drop?, .drop_scope?
         exec_raii( frame, chunk, ins )
-      when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?
+      when .init_obj?, .load_field?, .store_field?, .copy_block?, .new_struct?,
+           .check_index?, .load_indexed?, .store_indexed?
         exec_object( frame, chunk, ins )
       else
         raise VoltRuntimeError.new( "opcode #{op} is not yet implemented" )
@@ -716,7 +720,7 @@ module Volt::VM
 
             # ---- calls ----
             when IR::Opcode::CALL
-              callee = @unit.chunks[ins.b]
+              callee = @unit.chunks[ins.bx]
               cbase  = base + ins.a + 1
               if cbase + callee.num_registers > STACK_CAPACITY
                 raise VoltRuntimeError.new( "stack overflow" )
