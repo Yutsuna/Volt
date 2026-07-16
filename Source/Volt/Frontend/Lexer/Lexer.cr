@@ -304,6 +304,11 @@ module Volt::Frontend
       when ':'
         if !at_end? && cur == ':'.ord.to_u8
           step; make( TokenKind::ColonColon )
+        elsif !at_end? && ( cur.unsafe_chr.alphanumeric? || cur == '_'.ord )
+          # `:name` — a symbol literal, never a type annotation/ternary colon
+          # (those are always followed by whitespace or `::`).
+          scan_ident_chars
+          make( TokenKind::SymbolLit )
         else
           make( TokenKind::Colon )
         end
@@ -327,8 +332,10 @@ module Volt::Frontend
         else
           make( TokenKind::RBrace )
         end
-      when '"', '\''
+      when '"'
         scan_string( c.unsafe_chr )
+      when '\''
+        scan_char
       when '0'..'9'
         scan_number
       when 'a'..'z', 'A'..'Z', '_'
@@ -459,12 +466,69 @@ module Volt::Frontend
           step
         elsif cur == '#'.ord.to_u8 && peek_next == '{'.ord.to_u8
           step; step
+          skip_interpolation
         else
           step
         end
       end
       step unless at_end?
       make( TokenKind::String )
+    end
+
+    private def scan_char : Token
+      while !at_end? && cur.unsafe_chr != '\''
+        if cur == '\\'.ord.to_u8
+          step
+          step
+        else
+          step
+        end
+      end
+      step unless at_end?
+      make( TokenKind::Char )
+    end
+
+    # Skips a `#{ ... }` interpolation body up to (and including) its matching
+    # `}`. Braces nest, and the expression may itself contain string literals —
+    # whose quotes must not terminate the enclosing string and whose own
+    # `#{ ... }` bodies recurse through here.
+    private def skip_interpolation : Nil
+      depth = 1
+      while !at_end? && depth > 0
+        c = cur
+        if c == '\\'.ord.to_u8
+          step
+          step
+        elsif c == '{'.ord.to_u8
+          depth += 1
+          step
+        elsif c == '}'.ord.to_u8
+          depth -= 1
+          step
+        elsif c == '"'.ord.to_u8 || c == '\''.ord.to_u8
+          skip_nested_string( c )
+        else
+          step
+        end
+      end
+    end
+
+    # Skips a string literal nested inside an interpolation body, including
+    # any interpolations of its own.
+    private def skip_nested_string( quote : UInt8 ) : Nil
+      step   # opening quote
+      while !at_end? && cur != quote
+        if cur == '\\'.ord.to_u8
+          step
+          step
+        elsif cur == '#'.ord.to_u8 && peek_next == '{'.ord.to_u8
+          step; step
+          skip_interpolation
+        else
+          step
+        end
+      end
+      step unless at_end?   # closing quote
     end
 
     private def scan_regex : Token
@@ -488,7 +552,7 @@ module Volt::Frontend
       case @last_kind
       # `TokenKind::Nil` spelled as a constant: `.nil?` would call
       # `Object#nil?` (always false), silently dropping `nil` from the set.
-      when .int?, .float?, .string?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
+      when .int?, .float?, .string?, .char?, .true?, .false?, TokenKind::Nil, .ident?, .self_?, .super?, .r_paren?, .r_bracket?, .r_brace?
         true
       when .def?   # `def /` declares the division operator, never a regex
         true

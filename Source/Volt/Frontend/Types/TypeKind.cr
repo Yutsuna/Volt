@@ -23,6 +23,8 @@ module Volt::Frontend
     UInt64
     UInt
     Pointer
+    Array     # fixed-size stack array (`Elem[N]`, e.g. `Int64[5]`)
+    Symbol    # interned identifier (`:name`) — an Int64 id at runtime
     Unknown
   end
 

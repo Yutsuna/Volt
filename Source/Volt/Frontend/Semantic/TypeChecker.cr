@@ -16,8 +16,25 @@ module Volt::Frontend
       fn.params.each_with_index do |p, i|
         scope.define( p.name, sig.params[ i ]? || Type::UNKNOWN )
       end
+      check_param_defaults( fn, sig )
       body_ty = check_body( fn.body, scope )
       sig.ret = body_ty if sig.ret.kind.unknown?
+    end
+
+    # A default-value expression is evaluated at the *call site*, with no
+    # access to the function's own parameters or locals — so it type-checks
+    # once here, in an empty scope, rather than at every call that omits it.
+    private def check_param_defaults( fn : FuncDecl, sig : FuncSig ) : Nil
+      empty_scope = Scope.new
+      fn.params.each_with_index do |p, i|
+        default = p.default
+        next unless default
+        param_ty = sig.params[ i ]?
+        default_ty = infer( default, empty_scope )
+        next if param_ty.nil? || param_ty.kind.unknown?
+        next if type_compatible?( param_ty, default_ty )
+        @bag << Catalog::Sema.argument_type( i + 1, fn.name, param_ty.to_s, default_ty.to_s, default.loc )
+      end
     end
 
     def check_top_level( nodes : Array( ANode ) ) : Nil
@@ -45,6 +62,7 @@ module Volt::Frontend
       fn.params.each_with_index do |p, i|
         scope.define( p.name, sig.params[ i ]? || Type::UNKNOWN )
       end
+      check_param_defaults( fn, sig )
 
       previous        = @self_type
       previous_method = @current_method
@@ -102,6 +120,11 @@ module Volt::Frontend
         infer( expr.to, scope )
         Type::UNKNOWN
       when MethodCall then infer_method_call( expr, scope )
+      when Index      then infer_index( expr, scope )
+      when VarDecl    then infer_var_decl( expr, scope )
+      when ArrayLit   then infer_array_lit( expr, scope )
+      when SymbolLit  then Type::SYMBOL
+      when HashLiteralExpr then infer_hash_literal( expr, scope )
       when PipeExpr   then infer_pipe( expr, scope )
       when ReturnExpr
         if v = expr.value
@@ -145,6 +168,15 @@ module Volt::Frontend
         end
         expr.resolved_operand_type = opt
         string_type
+      when SizeofExpr
+        @collector.try(&.instantiate_generics_in( expr.type_node ))
+        ty = Type.from_annotation( expr.type_node, @nominals )
+        if ty
+          expr.byte_size = ty.byte_size
+        else
+          @bag << Catalog::Sema.unknown_type( "?", expr.loc )
+        end
+        return Type::INT
       else
         @bag << Catalog::Sema.unsupported_expr( type_name( expr ), expr.loc )
         Type::UNKNOWN
@@ -161,7 +193,7 @@ module Volt::Frontend
         if m = find_method( owner.name, expr.name )
           is_caller_static = @current_method.try( &.is_static ) || false
           if !is_caller_static || m.is_static
-            @bag << Catalog::Sema.arity_mismatch( expr.name, m.params.size, 0, expr.loc ) unless m.params.empty?
+            check_call_args( expr.name, m.params, [] of AExpr, expr.loc, scope, defaults: m.defaults )
             return m.ret
           end
         elsif owner.kind.mixin?
@@ -172,13 +204,117 @@ module Volt::Frontend
         end
       end
       if sig = @sigs[ expr.name ]?
-        if sig.params.size != 0
-          @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc )
-        end
+        check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
         return sig.ret
       end
       @bag << Catalog::Sema.undefined_variable( expr.name, expr.loc, Suggest.closest( expr.name, scope.visible_names ) )
       Type::UNKNOWN
+    end
+
+    # `name : Type` (no initializer) : reserves a fresh local of the
+    # annotated type, zero-initialized (see `compile_var_decl` : reuses
+    # `NEW_STRUCT`'s existing nil-fill for the multi-slot case). Meaningful
+    # for any type, but in practice this is how a stack array is declared —
+    # there's no single element value to write `Int64[5] = ...` with.
+    private def infer_var_decl( expr : VarDecl, scope : Scope ) : Type
+      @collector.try( &.instantiate_generics_in( expr.type_ann ) )
+      ty = Type.from_annotation( expr.type_ann, @nominals )
+      if ty.nil?
+        @bag << Catalog::Sema.unsupported_annotation( expr.type_ann.loc )
+        return Type::UNKNOWN
+      end
+      scope.define( expr.name, ty )
+      ty
+    end
+
+    # `[ 1, 2, 3 ]` (+ optional `of Elem`) : lowers to the Core's generic
+    # `Array[T]` — the element type comes from the `of` annotation when
+    # given, otherwise from the first element, and every element must be
+    # compatible with it (Volt has no union types). The instantiation is
+    # triggered exactly like an explicit `Array[T].new`, and the compiler
+    # then emits one `[]=` dispatch per element (`compile_array_lit`) — the
+    # class itself is 100 % Volt (`Lib/Primitives/Array.vl`), the literal is
+    # pure syntax. An empty literal needs `[] of T` to name the type.
+    private def infer_array_lit( expr : ArrayLit, scope : Scope ) : Type
+      elem : Type? = nil
+      if ann = expr.elem_ann
+        @collector.try( &.instantiate_generics_in( ann ) )
+        elem = Type.from_annotation( ann, @nominals )
+        if elem.nil?
+          @bag << Catalog::Sema.unsupported_annotation( ann.loc )
+          return Type::UNKNOWN
+        end
+      end
+
+      expr.elements.each_with_index do |e, i|
+        ty = infer( e, scope )
+        if elem.nil?
+          elem = ty unless ty.kind.unknown?
+          next
+        end
+        unless type_compatible?( elem, ty )
+          @bag << Catalog::Sema.argument_type( i + 1, "array literal of #{elem}", elem.to_s, ty.to_s, e.loc )
+        end
+      end
+
+      base = elem
+      if base.nil?
+        @bag << Catalog::Sema.unsupported_expr(
+          "empty array literal without a type — spell it `[] of T`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      mangled = instantiate_type!( "Array", [ base ], expr.loc )
+      return Type::UNKNOWN unless mangled
+      @nominals[ mangled ]? || Type::UNKNOWN
+    end
+
+    # `{ k => v, ... }` / `{ name: v, ... }` / `{} of K => V` : lowers to the
+    # Core's generic `Hash[K, V]` — `K`/`V` come from the `of` annotation when
+    # given, otherwise from the first pair, and every pair must be compatible
+    # with them (Volt has no union types : a hash mixing `Int` and `String`
+    # values is rejected here). The concrete instantiation is triggered
+    # exactly like an explicit `Hash[K, V].new`, and the compiler then emits
+    # one `[]=` dispatch per pair (`compile_hash_literal`).
+    private def infer_hash_literal( expr : HashLiteralExpr, scope : Scope ) : Type
+      key_ty = hash_literal_ann( expr.key_ann )
+      val_ty = hash_literal_ann( expr.val_ann )
+      return Type::UNKNOWN if ( expr.key_ann && key_ty.nil? ) || ( expr.val_ann && val_ty.nil? )
+
+      expr.pairs.each do |( k, v )|
+        kt = infer( k, scope )
+        vt = infer( v, scope )
+        if key_ty.nil?
+          key_ty = kt unless kt.kind.unknown?
+        elsif !type_compatible?( key_ty.not_nil!, kt )
+          @bag << Catalog::Sema.argument_type( 1, "hash literal key", key_ty.to_s, kt.to_s, k.loc )
+        end
+        if val_ty.nil?
+          val_ty = vt unless vt.kind.unknown?
+        elsif !type_compatible?( val_ty.not_nil!, vt )
+          @bag << Catalog::Sema.argument_type( 2, "hash literal value", val_ty.to_s, vt.to_s, v.loc )
+        end
+      end
+
+      kt = key_ty
+      vt = val_ty
+      if kt.nil? || vt.nil?
+        @bag << Catalog::Sema.unsupported_expr(
+          "empty hash literal without types — spell it `{} of K => V`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      mangled = instantiate_type!( "Hash", [ kt, vt ], expr.loc )
+      return Type::UNKNOWN unless mangled
+      @nominals[ mangled ]? || Type::UNKNOWN
+    end
+
+    private def hash_literal_ann( ann : ATypeNode? ) : Type?
+      return nil unless ann
+      @collector.try( &.instantiate_generics_in( ann ) )
+      ty = Type.from_annotation( ann, @nominals )
+      @bag << Catalog::Sema.unsupported_annotation( ann.loc ) if ty.nil?
+      ty
     end
 
     private def infer_assign( expr : Assign, scope : Scope ) : Type
@@ -187,6 +323,7 @@ module Volt::Frontend
       when InstanceVar  then infer_assign_ivar( expr, target, scope )
       when ClassVar     then infer_assign_class_var( expr, target, scope )
       when MemberAccess then infer_assign_member( expr, target, scope )
+      when Index        then infer_assign_index( expr, target, scope )
       when UnaryOp
         if target.op.star?
           infer_assign_deref( expr, target, scope )
@@ -323,6 +460,15 @@ module Volt::Frontend
 
       field = find_field( recv_ty.name, target.name )
       if field.nil?
+        # No plain field named `target.name` : fall back to a user-defined
+        # `name=` setter method (`def value=( val : T ) -> T`), mirroring
+        # `infer_assign_index`'s `[]=` dispatch below.
+        if sig = find_method( recv_ty.name, "#{target.name}=" )
+          check_visibility( sig, target.receiver, recv_ty.name, expr.loc )
+          check_call_args( "#{recv_ty}##{target.name}=", sig.params, [ expr.value ], expr.loc, scope, [ value_ty ] )
+          expr.is_setter_call = true
+          return sig.ret
+        end
         @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, target.name, expr.loc )
         return Type::UNKNOWN
       end
@@ -355,12 +501,22 @@ module Volt::Frontend
 
     private def infer_self( expr : SelfExpr, scope : Scope ) : Type
       if ( owner = @self_type ) && !@current_method.try( &.is_static )
-        # A reopened primitive has no `NominalType` : `self` is the builtin.
+        if owner.name.starts_with?("Pointer[")
+          return reconstruct_type(owner.name)
+        end
         @nominals[ owner.name ]? || Type.from_primitive_name( owner.name ) || Type::UNKNOWN
       else
         @bag << Catalog::Sema.self_outside_method( expr.loc )
         Type::UNKNOWN
       end
+    end
+
+    private def reconstruct_type(name : String) : Type
+      if name.starts_with?("Pointer[")
+        inner = reconstruct_type(name[8...-1])
+        return Type.pointer(inner)
+      end
+      Type.from_primitive_name(name) || @nominals[name]? || Type::UNKNOWN
     end
 
     # `super` resolves against the *enclosing method's* name on the superclass
@@ -392,32 +548,34 @@ module Volt::Frontend
         expr.implicit_args = false
       end
 
+      arg_tys = expr.args.map { |a| infer( a, scope ) }
+
       m =
         if fn.name == "initialize"
-          find_super_initializer( sup, expr.args.size, expr.loc, scope )
+          find_super_initializer( sup, expr.args.size, arg_tys, expr.loc )
         else
           find_super_target( sup, fn.name )
         end
       if m.nil?
         @bag << Catalog::Sema.super_no_parent_method( owner.name, fn.name, expr.loc )
-        expr.args.each { |a| infer( a, scope ) }
         return Type::UNKNOWN
       end
 
-      check_call_args( "super", m.params, expr.args, expr.loc, scope )
+      check_call_args( "super", m.params, expr.args, expr.loc, scope, arg_tys )
       m.ret
     end
 
     # `super` inside `initialize` targets the nearest ancestor that declares
-    # any constructor, then picks its overload by arg count. A declaring
-    # ancestor with no matching arity is a hard arity error here (returning
-    # `nil` would misreport it as "no ancestor defines initialize").
-    private def find_super_initializer( type_name : String?, arity : Int32, loc : Span, scope : Scope ) : FuncSig?
+    # any constructor, then picks its overload by arg count and, when several
+    # overloads share that arity, by parameter type (`select_overload`). A
+    # declaring ancestor with no matching arity is a hard arity error here
+    # (returning `nil` would misreport it as "no ancestor defines initialize").
+    private def find_super_initializer( type_name : String?, arity : Int32, arg_tys : Array( Type ), loc : Span ) : FuncSig?
       cur = type_name
       while cur && ( info = @types[ cur ]? )
         unless info.initializers.empty?
-          if sig = info.initializers[ arity ]?
-            return sig
+          if group = info.initializers[ arity ]?
+            return Frontend.select_overload( group, arg_tys )
           end
           expected = info.initializer.try( &.params.size ) || 0
           @bag << Catalog::Sema.arity_mismatch( "super", expected, arity, loc )
@@ -493,8 +651,16 @@ module Volt::Frontend
       # `.to_string` is the one builtin every value supports ahead of a fuller
       # builtin method table.
       unless recv_ty.is_a?( NominalType )
+        # `.size` on a fixed-size stack array is a compiler intrinsic (the
+        # length is baked into the *type*, `Type#array_size` — there is no
+        # per-instance field to read, so no method dispatch is involved).
+        return Type::UINT64 if recv_ty.array? && expr.name == "size"
+        # `sym.to_int` — a Symbol *is* its interned Int64 id at runtime, so
+        # this is a free reinterpret (`Symbol.vl` builds `hash`/`to_string`
+        # on top of it).
+        return Type::INT if recv_ty.symbol? && expr.name == "to_int"
         if sig = primitive_method( recv_ty, expr.name )
-          @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+          check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
           return sig.ret
         end
         return string_type if expr.name == "to_string"
@@ -507,7 +673,7 @@ module Volt::Frontend
       end
 
       if sig = find_method( recv_ty.name, expr.name )
-        @bag << Catalog::Sema.arity_mismatch( expr.name, sig.params.size, 0, expr.loc ) unless sig.params.empty?
+        check_call_args( expr.name, sig.params, [] of AExpr, expr.loc, scope, defaults: sig.defaults )
         check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
         return sig.ret
       end
@@ -525,17 +691,66 @@ module Volt::Frontend
         return Type::BOOL
       end
 
+      # `.is_a?( Type )` / `.is_a?( typeof(x) )` and `.has?( :name )` : pure
+      # compile-time reflection, folded straight to a `true`/`false` constant
+      # here (see `resolved_bool`) — Volt has no runtime type tag to check
+      # against, so both are static queries over the types already resolved
+      # by this pass, not real dispatched calls.
+      if expr.name == "is_a?"
+        recv_ty = infer( expr.receiver, scope )
+        if expr.args.size != 1
+          @bag << Catalog::Sema.arity_mismatch( "is_a?", 1, expr.args.size, expr.loc )
+          expr.args.each { |a| infer( a, scope ) }
+          expr.resolved_bool = false
+          return Type::BOOL
+        end
+        target_ty = resolve_is_a_target( expr.args[ 0 ], scope )
+        if target_ty.nil?
+          arg = expr.args[ 0 ]
+          name = arg.is_a?( Ident ) ? arg.name : type_name( arg )
+          @bag << Catalog::Sema.unknown_type( name, arg.loc )
+          expr.resolved_bool = false
+          return Type::BOOL
+        end
+        expr.resolved_bool = static_is_a?( recv_ty, target_ty )
+        return Type::BOOL
+      end
+
+      if expr.name == "has?"
+        recv_ty = infer( expr.receiver, scope )
+        arg = expr.args[ 0 ]?
+        unless expr.args.size == 1 && arg.is_a?( SymbolLit )
+          @bag << Catalog::Sema.unsupported_expr( "`.has?` expects a single symbol argument, e.g. `.has?(:name)`", expr.loc )
+          expr.resolved_bool = false
+          return Type::BOOL
+        end
+        # `recv_ty.to_s` also resolves reopened primitives (`Int`, `Float`,
+        # `Bool`, …) : those live in `@types` as a plain method table keyed
+        # by their primitive name, same as any nominal class, even though
+        # the *value*'s `Type` is a bare singleton rather than a
+        # `NominalType` (see `TypeCollector#declare`'s primitive-reopening
+        # branch).
+        recv_name = recv_ty.to_s
+        expr.resolved_bool = !recv_ty.kind.unknown? &&
+          ( !find_method( recv_name, arg.value ).nil? || !find_field( recv_name, arg.value ).nil? )
+        return Type::BOOL
+      end
+
       # `Pair[String, Int64].new( args )` : explicit generic instantiation. The
       # receiver rewrites to the mangled concrete name so the compiler lowers
       # an ordinary constructor call.
-      if ( recv = expr.receiver ).is_a?( Index ) && generic_template_index?( recv ) && expr.name == "new"
+      if ( recv = expr.receiver ).is_a?( Index ) && generic_template_index?( recv )
         info = resolve_generic_receiver( recv )
         unless info
           expr.args.each { |a| infer( a, scope ) }
           return Type::UNKNOWN
         end
         expr.receiver = ident_for( info, recv.loc )
-        return infer_constructor_call( info, expr, scope )
+        if expr.name == "new"
+          return infer_constructor_call( info, expr, scope )
+        else
+          return infer_static_member( info, expr.name, expr.args, expr.loc, scope )
+        end
       end
 
       # `Pair.new( "Volt", 2026 )` : type arguments inferred from the
@@ -568,10 +783,20 @@ module Volt::Frontend
       recv_ty = infer( expr.receiver, scope )
       return Type::UNKNOWN if recv_ty.kind.unknown?
 
+      # `.size` on a fixed-size stack array (see the identical intercept in
+      # `infer_member_access`) — covers the explicit-call spelling `arr.size()`.
+      if recv_ty.array? && expr.name == "size" && expr.args.empty?
+        return Type::UINT64
+      end
+      # `sym.to_int()` — see the identical intercept in `infer_member_access`.
+      if recv_ty.symbol? && expr.name == "to_int" && expr.args.empty?
+        return Type::INT
+      end
+
       # A reopened primitive's own method wins over the builtin fallback :
       # `42.to_string` must run the Core `Int#to_string`, not `TO_STRING`.
       if sig = primitive_method( recv_ty, expr.name )
-        check_call_args( "#{recv_ty}##{expr.name}", sig.params, expr.args, expr.loc, scope )
+        check_call_args( "#{recv_ty}##{expr.name}", sig.params, expr.args, expr.loc, scope, defaults: sig.defaults )
         return sig.ret
       end
 
@@ -605,7 +830,84 @@ module Volt::Frontend
       end
 
       check_visibility( sig, expr.receiver, recv_ty.name, expr.loc )
-      check_call_args( expr.name, sig.params, expr.args, expr.loc, scope )
+      check_call_args( expr.name, sig.params, expr.args, expr.loc, scope, defaults: sig.defaults )
+      sig.ret
+    end
+
+    # `receiver[ index ]` desugars to a call on the receiver's own `[]` method
+    # (Crystal-style operator overload) : any `class`/`struct` declaring one
+    # (e.g. the Core's `Array[T]`) becomes indexable with no further compiler
+    # support. A generic-template reference (`Pair[String, Int64]`) never
+    # reaches here : `infer_method_call`/`infer_constructor_call` intercept
+    # that shape ahead of general expression inference.
+    private def infer_index( expr : Index, scope : Scope ) : Type
+      recv_ty  = infer( expr.receiver, scope )
+      index_ty = infer( expr.index, scope )
+      return Type::UNKNOWN if recv_ty.kind.unknown?
+
+      # `arr[i]` on a fixed-size stack array is a compiler intrinsic : length
+      # and element type are both known statically (`Type#array_size`/
+      # `#element`), so this never dispatches through a `[]` method — a
+      # literal out-of-range index is caught here at compile time ; a
+      # runtime-computed one is guarded by `CHECK_INDEX` in the compiler.
+      if recv_ty.array?
+        unless index_ty.integer?
+          @bag << Catalog::Sema.argument_type( 1, "[]", "Int", index_ty.to_s, expr.loc )
+        end
+        if ( lit = expr.index ).is_a?( IntLit ) && ( lit.value < 0 || lit.value >= recv_ty.array_size )
+          @bag << Catalog::Sema.unsupported_expr(
+            "array index #{lit.value} out of bounds for size #{recv_ty.array_size}", expr.loc )
+        end
+        return recv_ty.element
+      end
+
+      unless recv_ty.is_a?( NominalType )
+        @bag << Catalog::Sema.unsupported_expr( "indexing `[]` on non-object type `#{recv_ty}`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      sig = find_method( recv_ty.name, "[]" )
+      if sig.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, "[]", expr.loc )
+        return Type::UNKNOWN
+      end
+      check_call_args( "#{recv_ty}#[]", sig.params, [ expr.index ], expr.loc, scope, [ index_ty ] )
+      sig.ret
+    end
+
+    # `receiver[ index ] = value` desugars to a call on the receiver's own
+    # `[]=` method, mirroring `infer_index` above.
+    private def infer_assign_index( expr : Assign, target : Index, scope : Scope ) : Type
+      recv_ty  = infer( target.receiver, scope )
+      index_ty = infer( target.index, scope )
+      value_ty = infer( expr.value, scope )
+      return Type::UNKNOWN if recv_ty.kind.unknown?
+
+      if recv_ty.array?
+        unless index_ty.integer?
+          @bag << Catalog::Sema.argument_type( 1, "[]=", "Int", index_ty.to_s, expr.loc )
+        end
+        if ( lit = target.index ).is_a?( IntLit ) && ( lit.value < 0 || lit.value >= recv_ty.array_size )
+          @bag << Catalog::Sema.unsupported_expr(
+            "array index #{lit.value} out of bounds for size #{recv_ty.array_size}", expr.loc )
+        end
+        unless type_compatible?( recv_ty.element, value_ty )
+          @bag << Catalog::Sema.annotation_mismatch( "[]=", recv_ty.element.to_s, value_ty.to_s, expr.loc )
+        end
+        return recv_ty.element
+      end
+
+      unless recv_ty.is_a?( NominalType )
+        @bag << Catalog::Sema.unsupported_expr( "indexed assignment `[]=` on non-object type `#{recv_ty}`", expr.loc )
+        return Type::UNKNOWN
+      end
+
+      sig = find_method( recv_ty.name, "[]=" )
+      if sig.nil?
+        @bag << Catalog::Sema.unknown_field_or_method( recv_ty.name, "[]=", expr.loc )
+        return Type::UNKNOWN
+      end
+      check_call_args( "#{recv_ty}#[]=", sig.params, [ target.index, expr.value ], expr.loc, scope, [ index_ty, value_ty ] )
       sig.ret
     end
 
@@ -622,7 +924,7 @@ module Volt::Frontend
       if sig.visibility.private? && @self_type.try( &.name ) != info.name
         @bag << Catalog::Sema.private_method_call( info.name, name, loc )
       end
-      check_call_args( "#{info.name}.#{name}", sig.params, args, loc, scope )
+      check_call_args( "#{info.name}.#{name}", sig.params, args, loc, scope, defaults: sig.defaults )
       sig.ret
     end
 
@@ -654,15 +956,33 @@ module Volt::Frontend
 
     private def infer_constructor_call( info : TypeInfo, expr : MethodCall, scope : Scope,
                                         arg_tys : Array( Type )? = nil ) : Type
+      # `Pointer[T].new( address )` : compiler intrinsic. A raw pointer is a
+      # single tagged word, so constructing one from an integer address is a
+      # free reinterpret (mirrors Crystal's `Pointer(T).new(UInt64)`) — there
+      # is no field layout or initializer chunk to dispatch to.
+      if info.name.starts_with?( "Pointer[" ) && expr.args.size == 1
+        tys = arg_tys || expr.args.map { |a| infer( a, scope ) }
+        unless tys[ 0 ].integer?
+          @bag << Catalog::Sema.argument_type( 1, "#{info.name}.new", "UInt64", tys[ 0 ].to_s, expr.loc )
+        end
+        pointee = find_method( info.name, "value" ).try( &.ret ) || Type::UNKNOWN
+        return Type.pointer( pointee )
+      end
+
       @bag << Catalog::Sema.abstract_instantiation( info.name, expr.loc ) if info.is_abstract
 
       if owner = find_initializer_owner_info( info.name )
-        if init = owner.initializers[ expr.args.size ]?
-          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, arg_tys )
+        tys = arg_tys || expr.args.map { |a| infer( a, scope ) }
+        if group = owner.initializers[ expr.args.size ]?
+          init = Frontend.select_overload( group, tys )
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, tys, defaults: init.defaults )
+        elsif init = owner.initializers.values.flatten.find { |cand| arity_in_range?( cand, expr.args.size ) }
+          # No overload declares exactly this many parameters, but one accepts
+          # this arg count once its trailing defaulted parameters are filled in.
+          check_call_args( "#{info.name}.new", init.params, expr.args, expr.loc, scope, tys, defaults: init.defaults )
         else
           expected = owner.initializer.try( &.params.size ) || 0
           @bag << Catalog::Sema.arity_mismatch( "#{info.name}.new", expected, expr.args.size, expr.loc )
-          expr.args.each { |a| infer( a, scope ) } unless arg_tys
         end
       elsif layout = info.layout
         check_call_args( "#{info.name}.new", layout.fields.map( &.type ), expr.args, expr.loc, scope, arg_tys )
@@ -676,9 +996,17 @@ module Volt::Frontend
     # `arg_tys`, when given, carries the argument types a generic-inference
     # path already inferred : reusing them avoids inferring (and diagnosing)
     # each argument expression twice.
+    #
+    # `defaults`, when given, is `FuncSig#defaults` — parallel to `params`,
+    # `nil` for a parameter with no default. Only *trailing* parameters may
+    # have one, so the minimum accepted arg count is `params.size` minus the
+    # run of defaulted parameters at the end; a caller may omit any suffix of
+    # those and still fall inside the accepted range.
     private def check_call_args( name : String, params : Array( Type ), args : Array( AExpr ), loc : Span,
-                                 scope : Scope, arg_tys : Array( Type )? = nil ) : Nil
-      unless params.size == args.size
+                                 scope : Scope, arg_tys : Array( Type )? = nil,
+                                 defaults : Array( AExpr? )? = nil ) : Nil
+      min_required = min_required_args( params.size, defaults )
+      unless args.size >= min_required && args.size <= params.size
         @bag << Catalog::Sema.arity_mismatch( name, params.size, args.size, loc )
       end
       args.each_with_index do |arg, i|
@@ -688,6 +1016,29 @@ module Volt::Frontend
         next if type_compatible?( param, at )
         @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
       end
+    end
+
+    # The smallest arg count `sig` accepts, once its trailing defaulted
+    # parameters (if any) are allowed to be omitted.
+    private def min_required_args( param_count : Int32, defaults : Array( AExpr? )? ) : Int32
+      return param_count unless defaults
+      min_required = param_count
+      param_count.times do |i|
+        idx = param_count - 1 - i
+        break unless defaults[ idx ]?
+        min_required = idx
+      end
+      min_required
+    end
+
+    # Whether an `initialize` overload accepts `arg_count`, i.e. `arg_count`
+    # falls between its defaults-adjusted minimum and its full parameter
+    # count. Used to find an overload for a constructor call whose arg count
+    # doesn't exactly match any overload's declared arity (`Vector.new()`
+    # matching `initialize(capacity = 4, alignment = 16)`).
+    private def arity_in_range?( sig : FuncSig, arg_count : Int32 ) : Bool
+      min_required = min_required_args( sig.params.size, sig.defaults )
+      arg_count >= min_required && arg_count <= sig.params.size
     end
 
     # -----------------------------------------------------------------------------------
@@ -903,7 +1254,7 @@ module Volt::Frontend
       return Type::UNKNOWN unless sig
 
       expr.callee = Ident.new( mangled, expr.callee.loc )
-      check_call_args( name, sig.params, expr.args, expr.loc, scope, arg_tys )
+      check_call_args( name, sig.params, expr.args, expr.loc, scope, arg_tys, defaults: sig.defaults )
       sig.ret
     end
 
@@ -911,6 +1262,14 @@ module Volt::Frontend
     # builtin's `TypeInfo` (`struct Int … end` in the Core) : exact width
     # first (`Int32`), then the inferred family (`Int`).
     private def primitive_method( recv_ty : Type, name : String ) : FuncSig?
+      if recv_ty.pointer? && (mono = @mono) && mono.type_template?("Pointer")
+        mangled = mono.mangle("Pointer", [recv_ty.pointee])
+        unless @types.has_key?(mangled) || mono.instantiated?(mangled)
+          mono.instantiate_type("Pointer", [recv_ty.pointee], Span.new("<compiler>", 0_u32, 0_u32, 0_u32))
+          @collector.try(&.drain_instantiations)
+        end
+      end
+
       recv_ty.reopen_names.each do |owner|
         next unless info = @types[ owner ]?
         if sig = info.methods[ name ]?
@@ -1007,6 +1366,43 @@ module Volt::Frontend
       false
     end
 
+    # The `.is_a?` argument : either a bare type name (`String`, `Device` —
+    # resolved the same way an annotation's `SimpleType` would be, but
+    # against a raw `Ident` since there is no annotation grammar in call-arg
+    # position) or `typeof(x)` (already a first-class compile-time type
+    # query). Anything else has no meaning as a type reference.
+    private def resolve_is_a_target( arg : AExpr, scope : Scope ) : Type?
+      case arg
+      when TypeofExpr
+        infer( arg, scope )
+        arg.resolved_operand_type
+      when Ident
+        return nil if scope.local?( arg.name )
+        Type.from_primitive_name( arg.name ) || @nominals[ arg.name ]?
+      else
+        nil
+      end
+    end
+
+    # Static subtype check for `.is_a?` : identity, or `recv`'s superclass
+    # chain reaching `target` by name. Deliberately narrower than
+    # `type_compatible?` (no nil-for-Object, no Void* bridging, no legacy
+    # `Type::STR`/`String` blending) — `is_a?` answers "is this exactly (or
+    # a subclass of) that type", not "would this be accepted where that type
+    # is declared".
+    private def static_is_a?( recv : Type, target : Type ) : Bool
+      return false if recv.kind.unknown? || target.kind.unknown?
+      return true if recv == target
+      if recv.is_a?( NominalType ) && target.is_a?( NominalType )
+        cur = recv.name
+        while cur
+          return true if cur == target.name
+          cur = @types[ cur ]?.try( &.superclass )
+        end
+      end
+      false
+    end
+
     private def infer_binary( expr : BinaryOp, scope : Scope ) : Type
       lt = infer( expr.left, scope )
       rt = infer( expr.right, scope )
@@ -1057,6 +1453,12 @@ module Volt::Frontend
         lt
 
       when .lt?, .gt?, .lt_eq?, .gt_eq?, .spaceship?
+        if ( m = operator_method( lt, op_text( expr.op ) ) )
+          unless m.params.size == 1 && type_compatible?( m.params[ 0 ], rt )
+            @bag << Catalog::Sema.argument_type( 1, "#{lt}##{op_text( expr.op )}", m.params[ 0 ]?.try( &.to_s ) || "?", rt.to_s, expr.loc )
+          end
+          return m.ret
+        end
         return Type::BOOL if unknown
         unless lt.numeric? && lt == rt
           @bag << Catalog::Sema.comparison_numeric( lt.to_s, rt.to_s, expr.loc )
@@ -1173,6 +1575,17 @@ module Volt::Frontend
         return infer_explicit_generic_call( callee, base.name, expr, scope )
       end
 
+      # `Owner.method[T]( args )` : explicit instantiation of a generic
+      # *static* method, registered by the collector under its qualified
+      # name (`Owner.method`) and monomorphized exactly like a top-level
+      # generic function — there's no `self` to bind, so the mangled clone
+      # compiles as an ordinary free function.
+      if callee.is_a?( Index ) && ( base = callee.receiver ).is_a?( MemberAccess ) &&
+         ( owner_recv = base.receiver ).is_a?( Ident ) && !scope.local?( owner_recv.name ) &&
+         ( mono = @mono ) && mono.func_template?( "#{owner_recv.name}.#{base.name}" )
+        return infer_explicit_generic_call( callee, "#{owner_recv.name}.#{base.name}", expr, scope )
+      end
+
       unless callee.is_a?( Ident )
         @bag << Catalog::Sema.non_direct_call( expr.loc )
         expr.args.each { |a| infer( a, scope ) }
@@ -1190,7 +1603,7 @@ module Volt::Frontend
         if m = find_method( owner.name, name )
           is_caller_static = @current_method.try( &.is_static ) || false
           if !is_caller_static || m.is_static
-            check_call_args( name, m.params, expr.args, expr.loc, scope )
+            check_call_args( name, m.params, expr.args, expr.loc, scope, defaults: m.defaults )
               return m.ret
           end
         elsif owner.kind.mixin?
@@ -1217,17 +1630,7 @@ module Volt::Frontend
         return Type::UNKNOWN
       end
 
-      unless sig.params.size == expr.args.size
-        @bag << Catalog::Sema.arity_mismatch( name, sig.params.size, expr.args.size, expr.loc )
-      end
-
-      expr.args.each_with_index do |arg, i|
-        at    = infer( arg, scope )
-        param = sig.params[ i ]?
-        next if param.nil?
-        next if type_compatible?( param, at )
-        @bag << Catalog::Sema.argument_type( i + 1, name, param.to_s, at.to_s, arg.loc )
-      end
+      check_call_args( name, sig.params, expr.args, expr.loc, scope, defaults: sig.defaults )
 
       sig.ret
     end
@@ -1276,6 +1679,10 @@ module Volt::Frontend
       when .tilde?       then "~"
       when .lt_lt?       then "<<"
       when .gt_gt?       then ">>"
+      when .lt?          then "<"
+      when .gt?          then ">"
+      when .lt_eq?       then "<="
+      when .gt_eq?       then ">="
       when .spaceship?   then "<=>"
       when .eq_eq_eq?    then "==="
       when .match_op?    then "=~"

@@ -2,6 +2,10 @@ require "./Unit"
 require "./NativeTable"
 require "./FunctionEmiter"
 
+class Volt::IR::Chunk
+  property returns_object : Bool = false
+end
+
 module Volt::Compiler
 
 
@@ -102,12 +106,13 @@ module Volt::Compiler
     private def collect_method_jobs : Array( { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig } )
       jobs = [] of { String, Frontend::TypeInfo, Frontend::FuncDecl, Frontend::FuncSig }
       @typed.types.each_value do |info|
-        # A module's methods are static (no `self`) but still compile to
-        # ordinary chunks, keyed `Module#method`, called directly.
+
         if info.kind.module?
           info.methods_ast.each do |mname, decl|
             next if decl.is_abstract
-            jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
+            mangled = "#{info.name}##{mname}"
+            next if @func_index.has_key?(mangled)
+            jobs << { mangled, info, decl, info.methods[ mname ] }
           end
           next
         end
@@ -116,7 +121,9 @@ module Volt::Compiler
 
         info.methods_ast.each do |mname, decl|
           next if decl.is_abstract
-          jobs << { "#{info.name}##{mname}", info, decl, info.methods[ mname ] }
+          mangled = "#{info.name}##{mname}"
+          next if @func_index.has_key?(mangled)
+          jobs << { mangled, info, decl, info.methods[ mname ] }
         end
 
         info.mixins.each do |mixin_name|
@@ -124,9 +131,12 @@ module Volt::Compiler
           next unless mixin_info
           mixin_info.methods_ast.each do |mname, mdecl|
             next if info.methods_ast.has_key?( mname )
-            jobs << { "#{info.name}##{mname}", info, mdecl, mixin_info.methods[ mname ] }
+            mangled = "#{info.name}##{mname}"
+            next if @func_index.has_key?(mangled)
+            jobs << { mangled, info, mdecl, mixin_info.methods[ mname ] }
           end
         end
+
       end
       jobs
     end
@@ -194,7 +204,11 @@ module Volt::Compiler
       result = emitter.compile_body( fn.body, drop_tail_ctor: fn.return_type.nil? )
       emitter.exit_scope
       emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
-      emitter.finish
+
+      chunk = emitter.finish
+      ret_ty = sig.ret
+      chunk.returns_object = ret_ty.is_a?( Frontend::NominalType ) && ret_ty.kind.object?
+      chunk
     end
 
     # A method chunk's calling convention is `self` (1 slot for a class
@@ -227,7 +241,11 @@ module Volt::Compiler
       else
         emitter.emit_ret( result, emitter.slot_count( sig.ret ) )
       end
-      emitter.finish
+
+      chunk = emitter.finish
+      ret_ty = sig.ret
+      chunk.returns_object = ret_ty.is_a?( Frontend::NominalType ) && ret_ty.kind.object?
+      chunk
     end
 
     # Auto-generated deep-drop: DROPs every reference field so a class's RAII
@@ -243,15 +261,15 @@ module Volt::Compiler
 
     private def compile_dtor( class_name : String, finalize_idx : Int32, drop_idx : Int32 ) : IR::Chunk
       code = [] of IR::Instruction
-      
+
       if finalize_idx >= 0
         code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
-        code << IR::Instruction.abc( IR::Opcode::CALL, 1, finalize_idx, 1 )
+        code << IR::Instruction.abx( IR::Opcode::CALL, 1, finalize_idx )
       end
 
       if drop_idx >= 0
         code << IR::Instruction.abc( IR::Opcode::MOVE, 2, 0, 0 )
-        code << IR::Instruction.abc( IR::Opcode::CALL, 1, drop_idx, 1 )
+        code << IR::Instruction.abx( IR::Opcode::CALL, 1, drop_idx )
       end
 
       code << IR::Instruction.abx( IR::Opcode::RET, 0, 0 )
