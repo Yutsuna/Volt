@@ -7,3 +7,6 @@ build/
 .volt_history
 graphify-out
 .claude
+CLAUDE.md
+!VERSION.md
+compile_commands.json
