@@ -65,7 +65,8 @@ namespace Sema
             Frontend::AstContext Ast{ Interner, File };
             Core::DiagEngine Engine;
             Core::DiagEngine::Bag Bag = Engine.MakeBag();
-            PassContext Context{ Ast, Store, Bag };
+            PassStats Stats;
+            PassContext Context{ Ast, Store, Bag, Stats };
             const std::size_t Ran = RunPasses( Context );
 
             return Ran == Registry.size() && Bag.Errors() == 0;

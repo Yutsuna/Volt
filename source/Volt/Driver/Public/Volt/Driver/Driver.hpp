@@ -6,6 +6,8 @@
 #include "Volt/Driver/CircuitGraph.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/Sema/Link/InterfaceRegistry.hpp"
+#include "Volt/Sema/Pass.hpp"
 
 #include <cstddef>
 #include <deque>
@@ -50,7 +52,7 @@ namespace Driver
         Core::StringInterner Interner;
         Frontend::AstContext Ast;
         Sema::TypeStore Types;
-        std::size_t JsxLowered = 0;
+        Sema::PassStats Stats;
     };
 
     struct CompileResult
@@ -91,6 +93,13 @@ namespace Driver
             return Circuit;
         }
 
+        // The cross-unit interfaces published between the parse and sema
+        // phases (empty before compilation). Read-only for callers.
+        [[nodiscard]] const Sema::InterfaceRegistry &Interfaces () const
+        {
+            return Registry;
+        }
+
         [[nodiscard]] bool HasErrors () const
         {
             return Diagnostics.HasErrors();
@@ -115,13 +124,18 @@ namespace Driver
             bool bComponent = false;
         };
 
-        // Register + read every SourceRef into a CompileUnit, then parse and
-        // run sema over all of them in parallel. Fills Units.
+        // Register + read every SourceRef into a CompileUnit, then run the
+        // pipeline over all of them: parse (parallel), publish interfaces
+        // (serial), sema (parallel). Fills Units and Registry.
         CompileResult CompileRefs ( const std::vector<SourceRef> &Refs );
 
-        // Parse one already-registered unit and run its sema passes. Safe to
-        // call from any worker thread: only `Bag` and `Unit` are touched.
-        void CompileOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
+        // Lex + parse one already-registered unit. Safe to call from any
+        // worker thread: only `Bag` and `Unit` are touched.
+        void ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
+
+        // Run the sema passes over one parsed unit, with read-only access to
+        // the published cross-unit interfaces. Same thread-safety contract.
+        void RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
 
         // Read a file into the SourceManager; returns false (and reports)
         // when it cannot be read.
@@ -137,6 +151,7 @@ namespace Driver
         Core::SourceManager Sources;
         Core::DiagEngine Diagnostics;
         CircuitGraph Circuit;
+        Sema::InterfaceRegistry Registry;
         std::deque<CompileUnit> Units;
         Core::FileId DriverFile;
     };
