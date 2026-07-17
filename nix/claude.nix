@@ -7,7 +7,7 @@ let
     owner = "anthropics";
     repo = "claude-plugins-official";
     rev = "main";
-    hash = "sha256-ZLfdy+Z6iwQv+PzTEIqwoFcKUd0M936y3D5SD/5szS8=";
+    hash = "sha256-gHaXwJ4GDDsAoaK9mSpX+NLjy9sZ2iYS0+oqBxs0sAM=";
   };
   clangd-lsp-plugin = pkgs.stdenv.mkDerivation {
     name = "claude-clangd-lsp";
