@@ -1,0 +1,51 @@
+@[External("libc", "calloc")]
+abstract def __volt_calloc( count : UInt64, size : UInt64 ) -> Void*
+
+@[External("libc", "realloc")]
+abstract def __volt_realloc( ptr : Void*, size : UInt64 ) -> Void*
+
+@[External("libc", "free")]
+abstract def __volt_free( ptr : Void* ) -> Void
+
+@[External]
+abstract def __volt_ptr_address( ptr : Void* ) -> UInt64
+
+
+struct Pointer[ T ] include Inspectable
+  include Hashable
+
+  def null? -> Bool
+    address == 0
+  end
+
+  # Identity hash : two pointers are `==` when they hold the same address,
+  # so mixing the address (via `Int#hash`) is a correct — and free — hash.
+  def hash -> UInt64
+    address.hash
+  end
+
+  def address -> UInt64
+    __volt_ptr_address self
+  end
+
+  def value -> T
+    *self
+  end
+
+  def self.malloc( size : UInt64 ) -> Pointer[ T ]
+    __volt_calloc( size, sizeof T )
+  end
+
+  def realloc(size : UInt64) -> Pointer[ T ]
+    __volt_realloc( self, size * sizeof T )
+  end
+
+  def free -> Void
+    __volt_free self
+  end
+
+  def to_string -> String
+    "0x#{address.to_string}"
+  end
+
+end

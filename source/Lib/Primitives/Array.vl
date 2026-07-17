@@ -1,0 +1,223 @@
+#{
+# @class Array
+# @brief A fixed-size array
+#
+# Construction :
+#   arr  = [ 1, 2, 3, 4 ]                # Array[Int], size 4
+#   strs = [ "salut", "ça", "va" ]       # Array[String]
+#   raw  = [ 1, 2, 3 ] of UInt8          # element type forced by `of`
+#   none = [] of Int32                   # empty, explicitly typed
+#}
+class Array[ T ]
+  include Inspectable
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Number of elements, fixed for the array's whole lifetime.
+  #}
+  getter size : Int
+
+  #{
+  # @brief The underlying contiguous buffer.
+  #}
+  getter data : Pointer[ T ]
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Constructs an array of exactly `size` uninitialized elements.
+  # @param size The fixed element count.
+  #}
+  def initialize( size : Int = 0 )
+    raise "Array: negative size" if size < 0
+    @size = size
+    @data = AlignedAllocator.alloc[ T ]( size < 1 ? 1 : size, 16_u64 )
+  end
+
+  #{
+  # @brief RAII destructor : releases the backing buffer when the array
+  #        goes out of scope.
+  #}
+  def finalize -> Void
+    AlignedAllocator.free( @data ) unless @data.null?
+    @data = nil
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Bounds-checked element read: `a[i]`.
+  # @param index Position of the element, 0-based.
+  # @return The element stored at `index`.
+  #}
+  def []( index : Int ) -> T
+    raise "Array: index out of bounds" if index < 0 or index >= @size
+    *( @data + index )
+  end
+
+  #{
+  # @brief Bounds-checked element write: `a[i] = val`.
+  # @param index Position of the element, 0-based.
+  # @param val The new value to store.
+  # @return The stored value.
+  #}
+  def []=( index : Int, val : T ) -> T
+    raise "Array: index out of bounds" if index < 0 or index >= @size
+    *( @data + index ) = val
+  end
+
+  #{
+  # @brief Bounds-checked element read.
+  #}
+  def at( index : Int ) -> T
+    self[ index ]
+  end
+
+  #{
+  # @brief The first element.
+  #}
+  def first -> T
+    raise "Array: first on empty array" if @size == 0
+    *@data
+  end
+
+  #{
+  # @brief The last element.
+  #}
+  def last -> T
+    raise "Array: last on empty array" if @size == 0
+    *( @data + ( @size - 1 ) )
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief true when the array holds no elements (`[] of T`).
+  #}
+  def empty? -> Bool
+    @size == 0
+  end
+
+  #{
+  # @brief Overwrites every element with `val`.
+  # @param val The value assigned to each slot.
+  #}
+  def fill( val : T ) -> Void
+    i = 0
+    while i < @size
+      *( @data + i ) = val
+      i += 1
+    end
+  end
+
+  #{
+  # @brief Exchanges the elements at positions `a` and `b`.
+  #}
+  def swap( a : Int, b : Int ) -> Void
+    raise "Array: swap index out of bounds" if a < 0 or a >= @size or b < 0 or b >= @size
+    tmp = *( @data + a )
+    *( @data + a ) = *( @data + b )
+    *( @data + b ) = tmp
+  end
+
+  #{
+  # @brief Reverses the elements in place.
+  #}
+  def reverse! -> Void
+    i = 0
+    j = @size - 1
+    while i < j
+      tmp = *( @data + i )
+      *( @data + i ) = *( @data + j )
+      *( @data + j ) = tmp
+      i += 1
+      j -= 1
+    end
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Index of the first element equal to `val`, or -1 when absent.
+  #}
+  def index_of( val : T ) -> Int
+    i = 0
+    while i < @size
+      return i if *( @data + i ) == val
+      i += 1
+    end
+    -1
+  end
+
+  #{
+  # @brief true when at least one element equals `val`.
+  #}
+  def contains?( val : T ) -> Bool
+    index_of( val ) >= 0
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Deep copy: a new array owning its own buffer with the same elements.
+  #}
+  def copy -> Array[ T ]
+    result = Array[ T ].new( @size )
+    i = 0
+    while i < @size
+      result[ i ] = *( @data + i )
+      i += 1
+    end
+    result
+  end
+
+  #{
+  # @brief Element-wise equality: same size and equal elements in order.
+  #}
+  def ==( other : Array[ T ] ) -> Bool
+    return true if @data == other.data
+    return false if @size != other.size
+
+    i = 0
+    while i < @size
+      return false if *( @data + i ) != *( other.data + i )
+      i += 1
+    end
+    true
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief "[a, b, c]" — every element rendered through its own to_string.
+  #}
+  def to_string -> String
+    s = "["
+    i = 0
+    while i < @size
+      s += ( *( @data + i ) ).to_string
+      s += ", " if i < @size - 1
+      i += 1
+    end
+    s + "]"
+  end
+
+  #{
+  # @brief Create a slice view of the full array.
+  #}
+  def to_slice -> Slice[ T ]
+    Slice[ T ].new( @data, @size )
+  end
+
+  #{
+  # @brief Create a slice view of a specific portion of the array.
+  #}
+  def slice( start : Int, length : Int ) -> Slice[ T ]
+    raise "Array: slice out of bounds" if start < 0 or length < 0 or start + length > @size
+    Slice[ T ].new( @data + start, length )
+  end
+
+  #----------------------------------------------------------------------------
+
+end

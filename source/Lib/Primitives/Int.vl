@@ -1,0 +1,109 @@
+struct Int
+  include Inspectable
+  include Comparable
+  include Hashable
+
+  # alias Signed = Int8 | Int16 | Int32 | Int64
+  # alias Unsigned = UInt8 | UInt16 | UInt32 | UInt64
+
+  # NOTE: unsafe should be macro'd aand dynamic depending on the target of Int
+  # MIN_64 : Int = -9223372036854775808
+  # MAX_32 : Int = 9223372036854775807
+
+  #----------------------------------------------------------------------------
+
+  def <=>( other : Int ) -> Int
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  #----------------------------------------------------------------------------
+
+  def abs -> Int
+    self >= 0 ? self : -self
+  end
+
+  def min( other : Int ) -> Int
+   self < other ? self : other
+  end
+
+  def divisible_by?( other : Int ) -> Bool
+    other != 0 && self % other == 0
+  end
+
+  def even? -> Bool
+    divisible_by? 2
+  end
+
+  def odd? -> Bool
+    !even?
+  end
+
+  def successor -> Int
+    self + 1
+  end
+
+  def predecessor -> Int
+    self - 1
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief xorshift64 mix of the value, used by `Hash` to spread consecutive
+  #        integer keys across buckets.
+  #}
+  def hash -> UInt64
+    h = self
+    h ^= ( h << 13 )
+    h ^= ( h >> 7 )
+    h ^ ( h << 17 )
+  end
+
+  #----------------------------------------------------------------------------
+
+  # Digits are peeled off into a fixed-size stack array : the only heap allocation left is
+  # the final `String`'s own backing buffer, which every `String` owns by
+  # construction (`String#+` allocates one the same way).
+  def to_string -> String
+    return "0" if self == 0
+
+    negative = self < 0
+    n        = negative ? -self : self
+
+    digits : UInt8[ 20 ]
+    count = 0
+
+    while n > 0
+      digits[ count ] = 48 + ( n % 10 )
+      n = n / 10
+      count += 1
+    end
+
+    size = negative ? count + 1 : count
+    buf  = Pointer[ UInt8 ].malloc( size )
+
+    i = 0
+    if negative
+      *buf = 45
+      i = 1
+    end
+
+    j = count - 1
+    while j >= 0
+      *( buf + i ) = digits[ j ]
+      i += 1
+      j -= 1
+    end
+
+    String.new( buf, size, true )
+  end
+
+  #----------------------------------------------------------------------------
+
+end

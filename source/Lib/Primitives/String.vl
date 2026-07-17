@@ -1,0 +1,102 @@
+@[External("libc")]
+abstract def memcpy( dest : Void*, src : Void*, size : UInt64 ) -> Void*
+
+@[External("libc")]
+abstract def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
+
+
+#{
+# @class String
+# @brief A mutable string class that manages a buffer of bytes and provides common string operations.
+#}
+class String
+  include Inspectable
+  include Comparable
+  include Hashable
+
+  #----------------------------------------------------------------------------
+
+  getter data : Pointer[UInt8]
+  getter size : UInt64
+
+  #----------------------------------------------------------------------------
+
+  def initialize( str : String )
+    @size  = str.size
+    @data  = Pointer[UInt8].malloc( @size + sizeof UInt8 )
+    memcpy( @data, str.data, @size )
+    *( @data + @size ) = 0_u8
+    @owned = true
+  end
+
+  def initialize( @data : Pointer[UInt8], @size : UInt64, @owned : Bool )
+  end
+
+  def finalize -> Void
+    @data.free if @owned
+  end
+
+  #----------------------------------------------------------------------------
+
+  def to_string -> String
+    self
+  end
+
+  #----------------------------------------------------------------------------
+
+  def <=>( other : String ) -> Int32
+     min_size = @size < other.size ? @size : other.size
+     cmp      = memcmp( @data, other.data, min_size )
+     return cmp unless cmp == 0
+      if @size < other.size
+        -1_i32
+      elsif @size > other.size
+        1_i32
+      else
+        0_i32
+      end
+   end
+
+  #----------------------------------------------------------------------------
+
+  def +( other : String ) -> String
+    total = @size + other.size
+    buf   = Pointer[UInt8].malloc( total + 1_u64 )
+    memcpy( buf, @data, @size )
+    memcpy( buf + @size, other.data, other.size )
+    *( buf + total ) = 0_u8
+    String.new( buf, total, true )
+  end
+
+  def matches?( other : Regex ) -> Bool
+    __volt_regex_match( other, @data, @size ) != 0
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief djb2 hash over the raw bytes, folded to 56 bits each round.
+  #}
+  def hash -> UInt64
+    h = 5381
+    i = 0_u64
+    while i < @size
+      h = ( ( h << 5 ) + h + *( @data + i ) ) & 72057594037927935
+      i += 1
+    end
+    h
+  end
+
+  #----------------------------------------------------------------------------
+
+  def []( index : UInt64 ) -> UInt8
+    *( @data + index )
+  end
+
+  def []=( index : UInt64, value : UInt8 ) -> Void
+    *( @data + index ) = value
+  end
+
+  #----------------------------------------------------------------------------
+
+end

@@ -1,0 +1,42 @@
+struct Slice[ T ] include Inspectable
+
+  getter data : Pointer[T]
+  getter size : Int
+
+  #----------------------------------------------------------------------------
+
+  def initialize( @data : Pointer[T], @size : Int )
+  end
+
+  #----------------------------------------------------------------------------
+
+  def []( index : Int ) -> T
+    raise "Slice: index out of bounds" if index < 0 || index >= @size
+    *( @data + index )
+  end
+
+  def []=( index : Int, value : T ) -> Void
+    raise "Slice: index out of bounds" if index < 0 || index >= @size
+    *( @data + index ) = value
+  end
+
+  #----------------------------------------------------------------------------
+
+  def empty? -> Bool
+    @size == 0
+  end
+
+  def to_string -> String
+    s = "Slice["
+    i = 0
+    while i < @size
+      s += ( *( @data + i ) ).to_string
+      s += ", " if i < @size - 1
+      i += 1
+    end
+    s + "]"
+  end
+
+  #----------------------------------------------------------------------------
+
+end
