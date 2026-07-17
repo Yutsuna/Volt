@@ -12,57 +12,57 @@
 namespace Volt
 {
 
-    namespace Frontend
+namespace Frontend
+{
+
+    namespace
     {
 
-        namespace
+        static_assert( std::variant_size_v<ExprNode> >= 2 );
+        static_assert( std::variant_size_v<StmtNode> >= 2 );
+        static_assert( std::variant_size_v<DeclNode> >= 2 );
+        static_assert( std::variant_size_v<TypeNode> >= 2 );
+
+        // Kind aligns with the manifest order (monostate = None = 0).
+        // Only nodes without SmallVec members are constexpr-constructible;
+        // the rest are covered at runtime by BuildAndPrint below.
+        static_assert( KindOf( ExprNode{ IntLiteral{} } ) == ExprKind::IntLiteral );
+        static_assert( KindOf( StmtNode{ Return{} } ) == StmtKind::Return );
+
+        [[maybe_unused]] std::string BuildAndPrint ( Core::StringInterner &Interner, Core::FileId File )
         {
+            AstContext Ctx{ Interner, File };
 
-            static_assert( std::variant_size_v<ExprNode> >= 2 );
-            static_assert( std::variant_size_v<StmtNode> >= 2 );
-            static_assert( std::variant_size_v<DeclNode> >= 2 );
-            static_assert( std::variant_size_v<TypeNode> >= 2 );
+            // 1 + 2
+            const ExprId One = Ctx.Add( IntLiteral{ {}, Interner.Intern( "1" ) } );
+            const ExprId Two = Ctx.Add( IntLiteral{ {}, Interner.Intern( "2" ) } );
 
-            // Kind aligns with the manifest order (monostate = None = 0).
-            // Only nodes without SmallVec members are constexpr-constructible;
-            // the rest are covered at runtime by BuildAndPrint below.
-            static_assert( KindOf( ExprNode{ IntLiteral{} } ) == ExprKind::IntLiteral );
-            static_assert( KindOf( StmtNode{ Return{} } ) == StmtKind::Return );
+            Binary Sum;
+            Sum.Op           = TokenKind::Plus;
+            Sum.Lhs          = One;
+            Sum.Rhs          = Two;
+            const ExprId Add = Ctx.Add( ExprNode{ Sum } );
 
-            [[maybe_unused]] std::string BuildAndPrint( Core::StringInterner& Interner, Core::FileId File )
-            {
-                AstContext Ctx{ Interner, File };
+            Return Ret;
+            Ret.Value            = Add;
+            const StmtId RetStmt = Ctx.Add( StmtNode{ Ret } );
 
-                // 1 + 2
-                const ExprId One = Ctx.Add( IntLiteral{ {}, Interner.Intern( "1" ) } );
-                const ExprId Two = Ctx.Add( IntLiteral{ {}, Interner.Intern( "2" ) } );
+            Method M;
+            M.Name       = Interner.Intern( "answer" );
+            M.ReturnType = Ctx.Add( TypeNode{ TypeRef{ {}, { Interner.Intern( "Int32" ) }, {} } } );
+            M.Body.PushBack( RetStmt );
+            const DeclId Def = Ctx.Add( DeclNode{ M } );
 
-                Binary Sum;
-                Sum.Op          = TokenKind::Plus;
-                Sum.Lhs         = One;
-                Sum.Rhs         = Two;
-                const ExprId Add = Ctx.Add( ExprNode{ Sum } );
+            Ctx.TopDecls.push_back( Def );
 
-                Return Ret;
-                Ret.Value            = Add;
-                const StmtId RetStmt = Ctx.Add( StmtNode{ Ret } );
-
-                Method M;
-                M.Name       = Interner.Intern( "answer" );
-                M.ReturnType = Ctx.Add( TypeNode{ TypeRef{ {}, { Interner.Intern( "Int32" ) }, {} } } );
-                M.Body.PushBack( RetStmt );
-                const DeclId Def = Ctx.Add( DeclNode{ M } );
-
-                Ctx.TopDecls.push_back( Def );
-
-                std::ostringstream Out;
-                AstPrinter         Printer{ Ctx, Out };
-                Printer.PrintFile();
-                return Out.str();
-            }
-
+            std::ostringstream Out;
+            AstPrinter Printer{ Ctx, Out };
+            Printer.PrintFile();
+            return Out.str();
         }
 
-    }
+    } // namespace
 
-}
+} // namespace Frontend
+
+} // namespace Volt

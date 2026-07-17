@@ -7,55 +7,53 @@
 namespace Volt
 {
 
-    namespace Core
+namespace Core
+{
+
+    /// Strongly-typed 32-bit index into an Arena. The Tag makes every Id
+    /// family (ExprId, StmtId, ...) a distinct, non-interchangeable type.
+    template <typename Tag> struct TypedId
     {
 
-        /// Strongly-typed 32-bit index into an Arena. The Tag makes every Id
-        /// family (ExprId, StmtId, ...) a distinct, non-interchangeable type.
-        template <typename Tag>
-        struct TypedId
+        using ValueType = std::uint32_t;
+
+        static constexpr ValueType InvalidValue = ~ValueType{ 0 };
+
+        ValueType Value = InvalidValue;
+
+        constexpr TypedId () = default;
+
+        constexpr explicit TypedId ( ValueType InValue ) : Value( InValue )
         {
+        }
 
-            using ValueType = std::uint32_t;
+        [[nodiscard]] constexpr bool IsValid () const
+        {
+            return Value != InvalidValue;
+        }
 
-            static constexpr ValueType InvalidValue = ~ValueType{ 0 };
+        [[nodiscard]] constexpr explicit operator bool () const
+        {
+            return IsValid();
+        }
 
-            ValueType Value = InvalidValue;
+        constexpr auto operator<=>( const TypedId & ) const = default;
+    };
 
-            constexpr TypedId() = default;
+} // namespace Core
 
-            constexpr explicit TypedId( ValueType InValue ) : Value( InValue )
-            {
-            }
-
-            [[nodiscard]] constexpr bool IsValid() const
-            {
-                return Value != InvalidValue;
-            }
-
-            [[nodiscard]] constexpr explicit operator bool() const
-            {
-                return IsValid();
-            }
-
-            constexpr auto operator<=>( const TypedId& ) const = default;
-        };
-
-    }
-
-}
+} // namespace Volt
 
 namespace std
 {
 
-    template <typename Tag>
-    struct hash<Volt::Core::TypedId<Tag>>
+template <typename Tag> struct hash<Volt::Core::TypedId<Tag>>
+{
+
+    std::size_t operator()( const Volt::Core::TypedId<Tag> &Id ) const noexcept
     {
+        return std::hash<std::uint32_t>{}( Id.Value );
+    }
+};
 
-        std::size_t operator()( const Volt::Core::TypedId<Tag>& Id ) const noexcept
-        {
-            return std::hash<std::uint32_t>{}( Id.Value );
-        }
-    };
-
-}
+} // namespace std

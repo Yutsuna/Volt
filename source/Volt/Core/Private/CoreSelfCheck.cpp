@@ -18,94 +18,93 @@
 namespace Volt
 {
 
-    namespace Core
+namespace Core
+{
+
+    namespace
     {
 
-        namespace
+        struct NodeTag
+        {
+        };
+
+        using NodeId = TypedId<NodeTag>;
+
+        static_assert( !NodeId{}.IsValid() );
+        static_assert( NodeId{ 3 }.IsValid() );
+
+        struct Sample
         {
 
-            struct NodeTag
+            using Self = Sample;
+
+            int A    = 0;
+            double B = 0.0;
+
+            VOLT_FIELDS( A, B )
+        };
+
+        static_assert( Meta::Reflected<Sample> );
+        static_assert( Meta::FieldCount<Sample>() == 2 );
+
+        using Numbers = Meta::TypeList<int, float, double>;
+        static_assert( Numbers::Size == 3 );
+        static_assert( Meta::IndexOfV<double, Numbers> == 2 );
+        static_assert( std::is_same_v<Meta::AsVariantT<Numbers>, std::variant<int, float, double>> );
+
+        [[maybe_unused]] bool RunSmokeTest ()
+        {
+            Arena<std::string, NodeId> Strings;
+            const NodeId First  = Strings.Add( "alpha" );
+            const NodeId Second = Strings.Add( "beta" );
+            if ( Strings.Get( First ) != "alpha" || Strings.Get( Second ) != "beta" )
             {
-            };
-
-            using NodeId = TypedId<NodeTag>;
-
-            static_assert( !NodeId{}.IsValid() );
-            static_assert( NodeId{ 3 }.IsValid() );
-
-            struct Sample
-            {
-
-                using Self = Sample;
-
-                int    A = 0;
-                double B = 0.0;
-
-                VOLT_FIELDS( A, B )
-            };
-
-            static_assert( Meta::Reflected<Sample> );
-            static_assert( Meta::FieldCount<Sample>() == 2 );
-
-            using Numbers = Meta::TypeList<int, float, double>;
-            static_assert( Numbers::Size == 3 );
-            static_assert( Meta::IndexOfV<double, Numbers> == 2 );
-            static_assert( std::is_same_v<Meta::AsVariantT<Numbers>, std::variant<int, float, double>> );
-
-            [[maybe_unused]] bool RunSmokeTest()
-            {
-                Arena<std::string, NodeId> Strings;
-                const NodeId First  = Strings.Add( "alpha" );
-                const NodeId Second = Strings.Add( "beta" );
-                if ( Strings.Get( First ) != "alpha" || Strings.Get( Second ) != "beta" )
-                {
-                    return false;
-                }
-
-                SmallVec<int, 2> Vec;
-                for ( int Value = 0; Value < 8; ++Value )
-                {
-                    Vec.PushBack( Value );
-                }
-                int Sum = 0;
-                for ( const int Value : Vec )
-                {
-                    Sum += Value;
-                }
-                if ( Sum != 28 || Vec.Size() != 8 )
-                {
-                    return false;
-                }
-
-                StringInterner Interner;
-                const Symbol   Foo  = Interner.Intern( "foo" );
-                const Symbol   Foo2 = Interner.Intern( "foo" );
-                const Symbol   Bar  = Interner.Intern( "bar" );
-                if ( Foo != Foo2 || Foo == Bar || Interner.Resolve( Foo ) != "foo" )
-                {
-                    return false;
-                }
-
-                Result<int, std::string> Ok  = 42;
-                Result<int, std::string> Err = Fail( std::string{ "boom" } );
-                if ( !Ok.has_value() || Err.has_value() )
-                {
-                    return false;
-                }
-
-                const std::variant<int, double> Variant = 2.5;
-                const bool                       bIsDouble =
-                    std::visit( Meta::Overloaded{ []( int ) { return false; }, []( double ) { return true; } }, Variant );
-
-                int Reflected = 0;
-                Sample S{ 7, 1.5 };
-                Meta::ForEachField( S, [&]( const char*, auto& ) { ++Reflected; } );
-
-                return bIsDouble && Reflected == 2;
+                return false;
             }
 
+            SmallVec<int, 2> Vec;
+            for ( int Value = 0; Value < 8; ++Value )
+            {
+                Vec.PushBack( Value );
+            }
+            int Sum = 0;
+            for ( const int Value : Vec )
+            {
+                Sum += Value;
+            }
+            if ( Sum != 28 || Vec.Size() != 8 )
+            {
+                return false;
+            }
+
+            StringInterner Interner;
+            const Symbol Foo  = Interner.Intern( "foo" );
+            const Symbol Foo2 = Interner.Intern( "foo" );
+            const Symbol Bar  = Interner.Intern( "bar" );
+            if ( Foo != Foo2 || Foo == Bar || Interner.Resolve( Foo ) != "foo" )
+            {
+                return false;
+            }
+
+            Result<int, std::string> Ok  = 42;
+            Result<int, std::string> Err = Fail( std::string{ "boom" } );
+            if ( !Ok.has_value() || Err.has_value() )
+            {
+                return false;
+            }
+
+            const std::variant<int, double> Variant = 2.5;
+            const bool bIsDouble                    = std::visit( Meta::Overloaded{ [] ( int ) { return false; }, [] ( double ) { return true; } }, Variant );
+
+            int Reflected = 0;
+            Sample S{ 7, 1.5 };
+            Meta::ForEachField( S, [&] ( const char *, auto & ) { ++Reflected; } );
+
+            return bIsDouble && Reflected == 2;
         }
 
-    }
+    } // namespace
 
-}
+} // namespace Core
+
+} // namespace Volt
