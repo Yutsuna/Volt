@@ -1,28 +1,39 @@
-// Pratt.inl — infix operator binding-power table.
+// Pratt.inl — the operator table driving ParseExpr.
 //
 //   VOLT_INFIX( TokenName, LeftBindingPower, RightAssociative )
+//   VOLT_ASSIGN( TokenName, LeftBindingPower, RightAssociative )
+//   VOLT_PREFIX( TokenName )
 //
 // Higher binding power binds tighter. Right-associative operators recurse at
-// their own level; left-associative ones recurse one level higher. Prefix and
-// postfix operators are handled directly in ParseExpr.cpp.
+// their own level; left-associative ones recurse one level higher. VOLT_ASSIGN
+// rows are infix rows that additionally build an Assign node instead of a
+// Binary one. VOLT_PREFIX rows build a Unary node at PrefixBindingPower;
+// prefix/postfix forms that build *other* node shapes (deref `*p`, member,
+// call, index) stay structural in ParseExpr.cpp.
 
 #ifndef VOLT_INFIX
     #define VOLT_INFIX( Name, Lbp, RAssoc )
 #endif
+#ifndef VOLT_ASSIGN
+    #define VOLT_ASSIGN( Name, Lbp, RAssoc )
+#endif
+#ifndef VOLT_PREFIX
+    #define VOLT_PREFIX( Name )
+#endif
 
 // Assignment (right-associative, lowest precedence).
-VOLT_INFIX( Assign, 10, 1 )
-VOLT_INFIX( PlusEq, 10, 1 )
-VOLT_INFIX( MinusEq, 10, 1 )
-VOLT_INFIX( StarEq, 10, 1 )
-VOLT_INFIX( SlashEq, 10, 1 )
-VOLT_INFIX( PercentEq, 10, 1 )
-VOLT_INFIX( PowEq, 10, 1 )
-VOLT_INFIX( AmpEq, 10, 1 )
-VOLT_INFIX( PipeEq, 10, 1 )
-VOLT_INFIX( CaretEq, 10, 1 )
-VOLT_INFIX( ShlEq, 10, 1 )
-VOLT_INFIX( ShrEq, 10, 1 )
+VOLT_ASSIGN( Assign, 10, 1 )
+VOLT_ASSIGN( PlusEq, 10, 1 )
+VOLT_ASSIGN( MinusEq, 10, 1 )
+VOLT_ASSIGN( StarEq, 10, 1 )
+VOLT_ASSIGN( SlashEq, 10, 1 )
+VOLT_ASSIGN( PercentEq, 10, 1 )
+VOLT_ASSIGN( PowEq, 10, 1 )
+VOLT_ASSIGN( AmpEq, 10, 1 )
+VOLT_ASSIGN( PipeEq, 10, 1 )
+VOLT_ASSIGN( CaretEq, 10, 1 )
+VOLT_ASSIGN( ShlEq, 10, 1 )
+VOLT_ASSIGN( ShrEq, 10, 1 )
 
 // Ternary `?:` is handled specially in ParseExpr but needs a binding power.
 VOLT_INFIX( Question, 15, 1 )
@@ -64,4 +75,14 @@ VOLT_INFIX( Slash, 80, 0 )
 VOLT_INFIX( Percent, 80, 0 )
 VOLT_INFIX( Pow, 90, 1 )
 
+// Prefix operators that lower to a Unary node (`*p` is Deref — structural).
+VOLT_PREFIX( Minus )
+VOLT_PREFIX( Plus )
+VOLT_PREFIX( Bang )
+VOLT_PREFIX( Tilde )
+VOLT_PREFIX( KwNot )
+VOLT_PREFIX( Amp )
+
 #undef VOLT_INFIX
+#undef VOLT_ASSIGN
+#undef VOLT_PREFIX

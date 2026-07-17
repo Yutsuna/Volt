@@ -1,8 +1,10 @@
 #include "Volt/Driver/Driver.hpp"
 
 #include "Volt/Core/Meta/Overloaded.hpp"
+#include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstPrinter.hpp"
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
@@ -37,24 +39,15 @@ namespace Driver
             return Path.size() >= Suffix.size() && Path.substr( Path.size() - Suffix.size() ) == Suffix;
         }
 
+        [[nodiscard]] bool IsComponentPath ( std::string_view Path )
+        {
+            return HasSuffix( Path, WellKnown::ComponentExt );
+        }
+
         [[nodiscard]] bool IsSourceFile ( const fs::path &Path )
         {
             const std::string Ext = Path.extension().string();
-            return Ext == ".vl" || Ext == ".vlx";
-        }
-
-        // Read a StringLiteral expression's text, if that is what Id points at.
-        [[nodiscard]] std::optional<std::string> AsString ( const Frontend::AstContext &Ast, Frontend::ExprId Id )
-        {
-            if ( !Id.IsValid() )
-            {
-                return std::nullopt;
-            }
-            if ( const auto *Lit = std::get_if<Frontend::StringLiteral>( &Ast.Expr( Id ) ) )
-            {
-                return std::string{ Ast.Text( Lit->Value ) };
-            }
-            return std::nullopt;
+            return Ext == WellKnown::SourceExt || Ext == WellKnown::ComponentExt;
         }
 
     } // namespace
@@ -80,7 +73,7 @@ namespace Driver
         return true;
     }
 
-    void Driver::CompileOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
+    void Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
     {
         const std::string_view Text = Sources.TextOf( Unit.File );
 
@@ -96,16 +89,20 @@ namespace Driver
         {
             Parser.ParseFile();
         }
+    }
 
-        // Sema passes (JsxLowering included) run per file over local state.
-        Sema::PassContext Context{ Unit.Ast, Unit.Types, Bag };
+    void Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
+    {
+        // Passes (JsxLowering included) run per file over local state; the
+        // published Registry is the only shared input, and it is read-only.
+        Sema::PassContext Context{ Unit.Ast, Unit.Types, Bag, Unit.Stats, &Registry };
         static_cast<void>( Sema::RunPasses( Context ) );
     }
 
     CompileResult Driver::CompileRefs ( const std::vector<SourceRef> &Refs )
     {
         // Phase 1 (serial): register every file's text and unit up front so
-        // the parallel phase only touches per-unit state + the diag engine.
+        // the parallel phases only touch per-unit state + the diag engine.
         for ( const SourceRef &Ref : Refs )
         {
             Core::FileId File;
@@ -117,16 +114,17 @@ namespace Driver
             Units.emplace_back( File, Ref.Path, Ref.Module, Ref.bComponent );
         }
 
-        // Phase 2 (parallel): parse + lower + sema each unit. Workers pull
-        // indices from a shared atomic and accumulate into a thread-local
-        // Bag, merged once at the end (the only lock on the hot path).
-        const std::size_t Count    = Units.size();
-        const std::size_t Hardware = std::max<std::size_t>( 1, std::thread::hardware_concurrency() );
-        const std::size_t Workers  = std::min( Hardware, std::max<std::size_t>( 1, Count ) );
-
-        std::atomic<std::size_t> Next{ 0 };
-
+        // Workers pull unit indices from a shared atomic and accumulate into
+        // a thread-local Bag, merged once at the end (the only lock on the
+        // hot path).
+        const auto ForEachUnitParallel = [&] ( auto Step )
         {
+            const std::size_t Count    = Units.size();
+            const std::size_t Hardware = std::max<std::size_t>( 1, std::thread::hardware_concurrency() );
+            const std::size_t Workers  = std::min( Hardware, std::max<std::size_t>( 1, Count ) );
+
+            std::atomic<std::size_t> Next{ 0 };
+
             std::vector<std::jthread> Pool;
             Pool.reserve( Workers );
             for ( std::size_t W = 0; W < Workers; ++W )
@@ -142,19 +140,33 @@ namespace Driver
                             {
                                 break;
                             }
-                            CompileOne( Units[Index], Bag );
+                            ( this->*Step )( Units[Index], Bag );
                         }
                         Diagnostics.Merge( std::move( Bag ) );
                     } );
             }
-        } // jthreads join here
+        }; // jthreads join at the lambda's end
+
+        // Phase 2 (parallel): lex + parse every unit into its own arenas.
+        ForEachUnitParallel( &Driver::ParseOne );
+
+        // Phase 3 (serial): publish each unit's top-level interface. This is
+        // the cross-unit seam — after this point the Registry is frozen and
+        // sema may read any unit's exported declarations without locks.
+        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+        {
+            static_cast<void>( Sema::PublishUnitInterface( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Registry ) );
+        }
+
+        // Phase 4 (parallel): run the sema passes over every parsed unit.
+        ForEachUnitParallel( &Driver::RunSemaOne );
 
         CompileResult Result;
         Result.Files  = Units.size();
         Result.Errors = Diagnostics.ErrorTotal();
         for ( const CompileUnit &Unit : Units )
         {
-            Result.JsxLowered += Unit.JsxLowered;
+            Result.JsxLowered += Unit.Stats.JsxLowered;
         }
         return Result;
     }
@@ -165,7 +177,7 @@ namespace Driver
         Refs.reserve( Paths.size() );
         for ( const std::string &Path : Paths )
         {
-            Refs.push_back( SourceRef{ Path, std::string{}, HasSuffix( Path, ".vlx" ) } );
+            Refs.push_back( SourceRef{ Path, std::string{}, IsComponentPath( Path ) } );
         }
         return CompileRefs( Refs );
     }
@@ -184,7 +196,7 @@ namespace Driver
             for ( const Frontend::DeclId Id : Unit.Ast.TopDecls )
             {
                 const auto *Annotation = std::get_if<Frontend::Annotation>( &Unit.Ast.Decl( Id ) );
-                if ( Annotation == nullptr || Unit.Ast.Text( Annotation->Name ) != "Link" )
+                if ( Annotation == nullptr || Unit.Ast.Text( Annotation->Name ) != WellKnown::LinkAnnotation )
                 {
                     continue;
                 }
@@ -192,9 +204,9 @@ namespace Driver
                 {
                     continue;
                 }
-                if ( const std::optional<std::string> Target = AsString( Unit.Ast, Annotation->Args[0] ) )
+                if ( const std::optional<std::string_view> Target = Frontend::AsStringText( Unit.Ast, Annotation->Args[0] ) )
                 {
-                    Circuit.AddLink( From, *Target );
+                    Circuit.AddLink( From, std::string{ *Target } );
                 }
             }
         }
@@ -238,11 +250,13 @@ namespace Driver
 
         const fs::path ProjectDir = fs::path( ProjectPath ).parent_path();
 
-        std::string CircuitName = "@circuit";
+        std::string CircuitName{ WellKnown::DefaultCircuitName };
         std::string EntryRel;
         std::vector<std::pair<std::string, std::string>> Modules; // name -> rel dir
 
         // Walk the circuit manifest: `entrypoint "..."` and `modules(a=>b,...)`.
+        // Each recognised key is one clause over the AstQuery helpers — adding
+        // a manifest key = a WellKnown constant + one clause here.
         for ( const Frontend::DeclId TopId : Manifest.TopDecls )
         {
             const auto *Circ = std::get_if<Frontend::Circuit>( &Manifest.Decl( TopId ) );
@@ -254,41 +268,31 @@ namespace Driver
 
             for ( const Frontend::StmtId StmtId : Circ->Body )
             {
-                const auto *Expr = std::get_if<Frontend::ExprStmt>( &Manifest.Stmt( StmtId ) );
-                if ( Expr == nullptr )
-                {
-                    continue;
-                }
-                const auto *Call = std::get_if<Frontend::Call>( &Manifest.Expr( Expr->Expr ) );
+                const Frontend::Call *Call = Frontend::StmtAsCall( Manifest, StmtId );
                 if ( Call == nullptr )
                 {
                     continue;
                 }
-                const auto *Callee = std::get_if<Frontend::Identifier>( &Manifest.Expr( Call->Callee ) );
-                if ( Callee == nullptr )
-                {
-                    continue;
-                }
-                const std::string_view Name = Manifest.Text( Callee->Name );
+                const std::optional<std::string_view> Name = Frontend::CalleeName( Manifest, *Call );
 
-                if ( Name == "entrypoint" && Call->Args.Size() > 0 )
+                if ( Name == WellKnown::EntrypointKey && Call->Args.Size() > 0 )
                 {
-                    if ( const std::optional<std::string> Ep = AsString( Manifest, Call->Args[0] ) )
+                    if ( const std::optional<std::string_view> Ep = Frontend::AsStringText( Manifest, Call->Args[0] ) )
                     {
-                        EntryRel = *Ep;
+                        EntryRel = std::string{ *Ep };
                     }
                 }
-                else if ( Name == "modules" )
+                else if ( Name == WellKnown::ModulesKey )
                 {
                     for ( const Frontend::ExprId ArgId : Call->Args )
                     {
-                        const auto *Pair = std::get_if<Frontend::Binary>( &Manifest.Expr( ArgId ) );
+                        const Frontend::Binary *Pair = Frontend::AsBinaryOp( Manifest, ArgId, Frontend::TokenKind::FatArrow );
                         if ( Pair == nullptr )
                         {
                             continue;
                         }
-                        const std::optional<std::string> Key = AsString( Manifest, Pair->Lhs );
-                        const std::optional<std::string> Dir = AsString( Manifest, Pair->Rhs );
+                        const std::optional<std::string_view> Key = Frontend::AsStringText( Manifest, Pair->Lhs );
+                        const std::optional<std::string_view> Dir = Frontend::AsStringText( Manifest, Pair->Rhs );
                         if ( Key && Dir )
                         {
                             Modules.emplace_back( *Key, *Dir );
@@ -304,7 +308,7 @@ namespace Driver
         if ( !EntryRel.empty() )
         {
             const fs::path Entry = ProjectDir / EntryRel;
-            Refs.push_back( SourceRef{ Entry.string(), CircuitName, HasSuffix( EntryRel, ".vlx" ) } );
+            Refs.push_back( SourceRef{ Entry.string(), CircuitName, IsComponentPath( EntryRel ) } );
         }
 
         for ( const auto &[ModName, RelDir] : Modules )
@@ -321,7 +325,7 @@ namespace Driver
             {
                 if ( It.is_regular_file() && IsSourceFile( It.path() ) )
                 {
-                    Refs.push_back( SourceRef{ It.path().string(), ModName, It.path().extension() == ".vlx" } );
+                    Refs.push_back( SourceRef{ It.path().string(), ModName, IsComponentPath( It.path().string() ) } );
                 }
             }
         }
@@ -339,10 +343,7 @@ namespace Driver
         for ( const CompileUnit &Unit : Units )
         {
             Out << "// ==== " << Unit.Path << " ====\n";
-            // AstPrinter mutates nothing but takes a non-const context; the
-            // driver owns the units, so a const_cast to reuse the printer is
-            // safe and keeps PrintUnits observably const.
-            Frontend::AstPrinter Printer( const_cast<Frontend::AstContext &>( Unit.Ast ), Out );
+            Frontend::AstPrinter Printer( Unit.Ast, Out );
             Printer.PrintFile();
         }
     }
