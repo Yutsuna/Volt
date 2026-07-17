@@ -1,0 +1,45 @@
+@[External]
+abstract def __volt_format_float( value : Float64, buf : UInt8* ) -> Int32
+
+
+# TODO: add useful methods
+
+
+struct Float include Inspectable
+  include Hashable
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief format a Float to String
+  #}
+  def to_string -> String
+    return "0.0" if self == 0
+    buf    = Pointer[ UInt8 ].malloc( 32 )
+    digits = __volt_format_float( self, buf )
+    String.new( buf, digits, true )
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Hash of the float's raw IEEE-754 bit pattern, mixed through
+  #        `Int#hash`. `-0.0` is normalised to `0.0` first : the two compare
+  #        `==`, so they must hash equally.
+  #}
+  def hash -> UInt64
+    v = self == 0.0 ? 0.0 : self
+    bits_of( &v ).hash
+  end
+
+  # Type-puns a `Float64`'s storage into its raw bits : the untyped `Void*`
+  # parameter re-types the address as `Pointer[UInt64]`, and the load reads
+  # the same 8 bytes back unconverted.
+  private def bits_of( p : Void* ) -> UInt64
+    q : Pointer[ UInt64 ] = p
+    *q
+  end
+
+  #----------------------------------------------------------------------------
+
+end

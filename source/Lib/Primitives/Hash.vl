@@ -1,0 +1,305 @@
+#{
+# @class Hash
+# @brief An open-addressing hash map (Crystal-flavoured API).
+#
+# Construction :
+#   scores  = { "Alice" => 10, "Bob" => 15 }     # Hash[String, Int]
+#   options = { :vitesse => 100 }                # Hash[Symbol, Int]
+#   rapides = { vitesse: 100 }                   # shorthand, same keys
+#   vide    = {} of String => Int32              # empty, explicitly typed
+#
+# The literal is pure syntax : the compiler lowers `{ k => v, ... }` to
+# `Hash[K, V].new` followed by one `[]=` per pair — every method below is
+# ordinary Volt, nothing is built into the compiler.
+#
+# Keys are `Hashable` (`Lib/Mixins/Hashable.vl`) : they provide
+# `hash -> UInt64` and `==`. The Core includes it on `String`, every `Int`
+# width and `Symbol` — a Symbol key hashes and compares as a plain
+# integer, the fastest possible key.
+#
+# Storage is four parallel buffers (keys / values / cached key hashes /
+# one state byte per bucket : empty, full, tombstone), linear probing,
+# power-of-two capacity so the bucket index is `hash & (capacity - 1)`,
+# and a x2 rehash above a 3/4 load factor. Each key's hash is computed
+# exactly once at insertion : probes compare the cached hash before
+# falling back to `==`, and `rehash` redistributes without ever touching
+# the keys again.
+#
+# RAII : the buffers are owned by the instance and released by `finalize`
+# when the hash goes out of scope, same model as `Vector`.
+#}
+class Hash[ K, V ]
+  include Inspectable
+
+  #----------------------------------------------------------------------------
+
+  # Bucket states : EMPTY (0) stops a probe chain, FULL (1) holds an entry,
+  # DELETED (2, tombstone) keeps the chain walking — a lookup must see past
+  # removed entries to reach what was inserted behind them.
+
+  #{
+  # @brief Number of entries currently stored.
+  #}
+  getter size : Int
+
+  #{
+  # @brief Number of buckets the current allocation holds (power of two).
+  #}
+  getter capacity : Int
+
+  # `full + tombstones` — the probe-chain occupancy the load factor must be
+  # computed against (a chain only breaks on EMPTY, never on a tombstone).
+  used       : Int
+  key_data   : Pointer[ K ]
+  value_data : Pointer[ V ]
+  hash_data  : Pointer[ UInt64 ]
+  state_data : Pointer[ UInt8 ]
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Constructs an empty hash pre-sized for `capacity` entries
+  #        (rounded up to a power of two, minimum 8).
+  #}
+  def initialize( capacity : Int = 8 )
+    raise "Hash: negative capacity" if capacity < 0
+    @capacity = 8
+    while @capacity < capacity
+      @capacity = @capacity * 2
+    end
+    @size       = 0
+    @used       = 0
+    @key_data   = AlignedAllocator.alloc[ K ]( @capacity, 16_u64 )
+    @value_data = AlignedAllocator.alloc[ V ]( @capacity, 16_u64 )
+    @hash_data  = AlignedAllocator.alloc[ UInt64 ]( @capacity, 16_u64 )
+    @state_data = AlignedAllocator.alloc[ UInt8 ]( @capacity, 16_u64 )
+    reset_states
+  end
+
+  #{
+  # @brief RAII destructor : releases the four backing buffers when the
+  #        hash goes out of scope.
+  #}
+  def finalize -> Void
+    AlignedAllocator.free( @key_data )   unless @key_data.null?
+    AlignedAllocator.free( @value_data ) unless @value_data.null?
+    AlignedAllocator.free( @hash_data )  unless @hash_data.null?
+    AlignedAllocator.free( @state_data ) unless @state_data.null?
+    @key_data   = nil
+    @value_data = nil
+    @hash_data  = nil
+    @state_data = nil
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Inserts `value` under `key`, replacing any previous value.
+  # @return The stored value.
+  #}
+  def []=( key : K, value : V ) -> V
+    h        = key.hash
+    existing = bucket_of( key, h )
+    if existing >= 0
+      *( @value_data + existing ) = value
+      return value
+    end
+
+    rehash( @capacity * 2 ) if ( @used + 1 ) * 4 > @capacity * 3
+
+    i = h & ( @capacity - 1 )
+    while *( @state_data + i ) == 1_u8
+      i = ( i + 1 ) & ( @capacity - 1 )
+    end
+    @used += 1 if *( @state_data + i ) == 0_u8
+    *( @state_data + i ) = 1_u8
+    *( @key_data + i )   = key
+    *( @value_data + i ) = value
+    *( @hash_data + i )  = h
+    @size += 1
+    value
+  end
+
+  #{
+  # @brief The value stored under `key`.
+  # @return The value ; raises when the key is absent (see `fetch`).
+  #}
+  def []( key : K ) -> V
+    i = bucket_of( key, key.hash )
+    # Parenthesised : `raise` binds its argument tighter than `+`, so the
+    # bare spelling would raise the literal alone and orphan the key.
+    raise( "Hash: missing key " + key.to_string ) if i < 0
+    *( @value_data + i )
+  end
+
+  #{
+  # @brief The value stored under `key`, or `default` when absent.
+  #}
+  def fetch( key : K, default : V ) -> V
+    i = bucket_of( key, key.hash )
+    i < 0 ? default : *( @value_data + i )
+  end
+
+  #{
+  # @brief true when an entry exists under `key`.
+  #}
+  def has_key?( key : K ) -> Bool
+    bucket_of( key, key.hash ) >= 0
+  end
+
+  #{
+  # @brief Removes the entry under `key` (tombstoned, reclaimed on rehash).
+  # @return true when an entry was actually removed.
+  #}
+  def delete( key : K ) -> Bool
+    i = bucket_of( key, key.hash )
+    return false if i < 0
+    *( @state_data + i ) = 2_u8
+    @size -= 1
+    true
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief true when the hash holds no entries.
+  #}
+  def empty? -> Bool
+    @size == 0
+  end
+
+  #{
+  # @brief Removes every entry. Capacity is left untouched.
+  #}
+  def clear -> Void
+    reset_states
+    @size = 0
+    @used = 0
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Every key currently stored, in bucket order.
+  #}
+  def keys -> Vector[ K ]
+    result = Vector[ K ].new( @size < 1 ? 1 : @size )
+    i = 0
+    while i < @capacity
+      result.push( *( @key_data + i ) ) if *( @state_data + i ) == 1_u8
+      i += 1
+    end
+    result
+  end
+
+  #{
+  # @brief Every value currently stored, in bucket order.
+  #}
+  def values -> Vector[ V ]
+    result = Vector[ V ].new( @size < 1 ? 1 : @size )
+    i = 0
+    while i < @capacity
+      result.push( *( @value_data + i ) ) if *( @state_data + i ) == 1_u8
+      i += 1
+    end
+    result
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief "{k => v, ...}" in bucket order — every key/value rendered
+  #        through its own to_string.
+  #}
+  def to_string -> String
+    s     = "{"
+    first = true
+    i     = 0
+    while i < @capacity
+      if *( @state_data + i ) == 1_u8
+        s += ", " unless first
+        first = false
+        s += ( *( @key_data + i ) ).to_string + " => " + ( *( @value_data + i ) ).to_string
+      end
+      i += 1
+    end
+    s + "}"
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief The bucket holding `key` (whose hash is `h`), or -1 when absent.
+  #        Linear probing : walks from the key's home bucket past full and
+  #        tombstoned slots, stopping at the first EMPTY (the chain
+  #        invariant `[]=` maintains by always keeping one empty bucket).
+  #        The cached bucket hash is compared first — `==` only runs on a
+  #        64-bit hash match, so a miss never touches the stored keys.
+  #}
+  private def bucket_of( key : K, h : UInt64 ) -> Int
+    i = h & ( @capacity - 1 )
+    while *( @state_data + i ) != 0_u8
+      if *( @state_data + i ) == 1_u8 && *( @hash_data + i ) == h
+        return i if *( @key_data + i ) == key
+      end
+      i = ( i + 1 ) & ( @capacity - 1 )
+    end
+    -1
+  end
+
+  #{
+  # @brief Moves every live entry into fresh buffers of `new_capacity`
+  #        buckets, dropping tombstones along the way. Redistribution uses
+  #        the cached hashes — no key is ever re-hashed.
+  #}
+  private def rehash( new_capacity : Int ) -> Void
+    old_keys     = @key_data
+    old_values   = @value_data
+    old_hashes   = @hash_data
+    old_states   = @state_data
+    old_capacity = @capacity
+
+    @capacity   = new_capacity
+    @key_data   = AlignedAllocator.alloc[ K ]( @capacity, 16_u64 )
+    @value_data = AlignedAllocator.alloc[ V ]( @capacity, 16_u64 )
+    @hash_data  = AlignedAllocator.alloc[ UInt64 ]( @capacity, 16_u64 )
+    @state_data = AlignedAllocator.alloc[ UInt8 ]( @capacity, 16_u64 )
+    reset_states
+    @used = @size
+
+    i = 0
+    while i < old_capacity
+      if *( old_states + i ) == 1_u8
+        h = *( old_hashes + i )
+        j = h & ( @capacity - 1 )
+        while *( @state_data + j ) == 1_u8
+          j = ( j + 1 ) & ( @capacity - 1 )
+        end
+        *( @state_data + j ) = 1_u8
+        *( @key_data + j )   = *( old_keys + i )
+        *( @value_data + j ) = *( old_values + i )
+        *( @hash_data + j )  = h
+      end
+      i += 1
+    end
+
+    AlignedAllocator.free( old_keys )
+    AlignedAllocator.free( old_values )
+    AlignedAllocator.free( old_hashes )
+    AlignedAllocator.free( old_states )
+  end
+
+  #{
+  # @brief Marks every bucket EMPTY (`aligned_alloc` returns raw memory).
+  #}
+  private def reset_states -> Void
+    i = 0
+    while i < @capacity
+      *( @state_data + i ) = 0_u8
+      i += 1
+    end
+  end
+
+  #----------------------------------------------------------------------------
+
+end
