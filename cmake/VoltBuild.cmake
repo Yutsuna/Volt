@@ -9,5 +9,7 @@ VoltAddModules(
   ${CMAKE_CURRENT_SOURCE_DIR}/source/Volt/
   Core
   Frontend
+  Sema
+  Driver
   Volt
 )
