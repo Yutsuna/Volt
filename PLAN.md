@@ -1,4 +1,4 @@
-# Volt C++23 Compiler — Architecture « béton » 2026
+# Volt C++26 Compiler — Architecture « béton » 2026
 
 ## Context
 
@@ -16,7 +16,7 @@ Contraintes fermes (rappel) :
 - **Zéro hardcode de type** : `Int`, `String`, `Array` sont du Volt pur ; le C++ ne voit que
   `Primitive / Pointer / Aggregate` + annotations (`@[Primitive]`, `@[Intrinsic]`, `@[External]`).
 - **JSX natif** dans la grammaire, abaissé en appels `Volt::JSX.create_element(...)`.
-- Style **Unreal PascalCase**, C++23, `Public/Private`, module CMake `VoltModule`, `-Werror`.
+- Style **Unreal PascalCase**, C++26, `Public/Private`, module CMake `VoltModule`, `-Werror`.
 - **Pas de pointeurs intelligents** dans l'AST : stockage valeur (arena + index typés).
 
 ## État existant (à réutiliser, ne pas casser)
@@ -184,7 +184,7 @@ lancer **`/graphify volt/Source`** pour rafraîchir le graphe de connaissance du
 .agents/
   README.md                      # comment utiliser agents/skills/rules ; pointe vers .clang-format & /graphify
   rules/
-    cpp-style.md                 # Unreal PascalCase, C++23, Public/Private, -Werror ; « clang-format avant commit »
+    cpp-style.md                 # Unreal PascalCase, C++26, Public/Private, -Werror ; « clang-format avant commit »
     meta-first.md                # feature = éditer un manifeste (Nodes/TokenKind/PassList.inl), viser ~10 lignes
     zero-hardcode.md             # aucun nom de type Volt dans Frontend/Sema ; Memory Layouts only
     ast-value.md                 # arena + Id typés, jamais de smart pointers dans l'AST
