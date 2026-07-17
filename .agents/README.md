@@ -38,7 +38,7 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   stdlib (`source/Lib/`) + annotations. See [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
 - **Value AST.** Arena + typed `Id`s, never smart pointers in the AST. See
   [`rules/ast-value.md`](rules/ast-value.md).
-- **Unreal C++ style, C++23, `Public/Private`, `-Werror`.** See
+- **Unreal C++ style, C++26, `Public/Private`, `-Werror`.** See
   [`rules/cpp-style.md`](rules/cpp-style.md).
 - **The `volt` CLI surface is a contract.** Subcommands (`run`, `repl`, `parse`,
   `check`, `version`, `help`, `circuit`, then `build`, `format`) and their
