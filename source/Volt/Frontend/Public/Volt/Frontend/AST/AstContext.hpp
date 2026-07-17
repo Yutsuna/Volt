@@ -15,135 +15,135 @@
 namespace Volt
 {
 
-    namespace Frontend
+namespace Frontend
+{
+
+    /// All AST storage for a single source file: five value-arenas plus the
+    /// list of top-level items. One per file keeps parsing and later sema
+    /// fully local and parallelisable. The string interner is shared and
+    /// outlives every AstContext.
+    class AstContext
     {
 
-        /// All AST storage for a single source file: five value-arenas plus the
-        /// list of top-level items. One per file keeps parsing and later sema
-        /// fully local and parallelisable. The string interner is shared and
-        /// outlives every AstContext.
-        class AstContext
+    public:
+
+        AstContext ( Core::StringInterner &InInterner, Core::FileId InFile ) : Interner( &InInterner ), File( InFile )
         {
+        }
 
-        public:
+        [[nodiscard]] Core::StringInterner &Strings () const
+        {
+            return *Interner;
+        }
 
-            AstContext( Core::StringInterner& InInterner, Core::FileId InFile ) : Interner( &InInterner ), File( InFile )
-            {
-            }
+        [[nodiscard]] Core::FileId FileId () const
+        {
+            return File;
+        }
 
-            [[nodiscard]] Core::StringInterner& Strings() const
-            {
-                return *Interner;
-            }
+        [[nodiscard]] std::string_view Text ( Symbol Handle ) const
+        {
+            return Interner->Resolve( Handle );
+        }
 
-            [[nodiscard]] Core::FileId FileId() const
-            {
-                return File;
-            }
+        // --- Node creation (overloaded on the category variant) ----------
 
-            [[nodiscard]] std::string_view Text( Symbol Handle ) const
-            {
-                return Interner->Resolve( Handle );
-            }
+        [[nodiscard]] ExprId Add ( ExprNode Node )
+        {
+            return Exprs.Add( std::move( Node ) );
+        }
 
-            // --- Node creation (overloaded on the category variant) ----------
+        [[nodiscard]] StmtId Add ( StmtNode Node )
+        {
+            return Stmts.Add( std::move( Node ) );
+        }
 
-            [[nodiscard]] ExprId Add( ExprNode Node )
-            {
-                return Exprs.Add( std::move( Node ) );
-            }
+        [[nodiscard]] DeclId Add ( DeclNode Node )
+        {
+            return Decls.Add( std::move( Node ) );
+        }
 
-            [[nodiscard]] StmtId Add( StmtNode Node )
-            {
-                return Stmts.Add( std::move( Node ) );
-            }
+        [[nodiscard]] TypeId Add ( TypeNode Node )
+        {
+            return Types.Add( std::move( Node ) );
+        }
 
-            [[nodiscard]] DeclId Add( DeclNode Node )
-            {
-                return Decls.Add( std::move( Node ) );
-            }
+        [[nodiscard]] ParamId Add ( Param Node )
+        {
+            return Params.Add( std::move( Node ) );
+        }
 
-            [[nodiscard]] TypeId Add( TypeNode Node )
-            {
-                return Types.Add( std::move( Node ) );
-            }
+        // --- Node access -------------------------------------------------
 
-            [[nodiscard]] ParamId Add( Param Node )
-            {
-                return Params.Add( std::move( Node ) );
-            }
+        [[nodiscard]] ExprNode &Expr ( ExprId Id )
+        {
+            return Exprs.Get( Id );
+        }
+        [[nodiscard]] const ExprNode &Expr ( ExprId Id ) const
+        {
+            return Exprs.Get( Id );
+        }
 
-            // --- Node access -------------------------------------------------
+        [[nodiscard]] StmtNode &Stmt ( StmtId Id )
+        {
+            return Stmts.Get( Id );
+        }
+        [[nodiscard]] const StmtNode &Stmt ( StmtId Id ) const
+        {
+            return Stmts.Get( Id );
+        }
 
-            [[nodiscard]] ExprNode& Expr( ExprId Id )
-            {
-                return Exprs.Get( Id );
-            }
-            [[nodiscard]] const ExprNode& Expr( ExprId Id ) const
-            {
-                return Exprs.Get( Id );
-            }
+        [[nodiscard]] DeclNode &Decl ( DeclId Id )
+        {
+            return Decls.Get( Id );
+        }
+        [[nodiscard]] const DeclNode &Decl ( DeclId Id ) const
+        {
+            return Decls.Get( Id );
+        }
 
-            [[nodiscard]] StmtNode& Stmt( StmtId Id )
-            {
-                return Stmts.Get( Id );
-            }
-            [[nodiscard]] const StmtNode& Stmt( StmtId Id ) const
-            {
-                return Stmts.Get( Id );
-            }
+        [[nodiscard]] TypeNode &Type ( TypeId Id )
+        {
+            return Types.Get( Id );
+        }
+        [[nodiscard]] const TypeNode &Type ( TypeId Id ) const
+        {
+            return Types.Get( Id );
+        }
 
-            [[nodiscard]] DeclNode& Decl( DeclId Id )
-            {
-                return Decls.Get( Id );
-            }
-            [[nodiscard]] const DeclNode& Decl( DeclId Id ) const
-            {
-                return Decls.Get( Id );
-            }
+        [[nodiscard]] Param &GetParam ( ParamId Id )
+        {
+            return Params.Get( Id );
+        }
+        [[nodiscard]] const Param &GetParam ( ParamId Id ) const
+        {
+            return Params.Get( Id );
+        }
 
-            [[nodiscard]] TypeNode& Type( TypeId Id )
-            {
-                return Types.Get( Id );
-            }
-            [[nodiscard]] const TypeNode& Type( TypeId Id ) const
-            {
-                return Types.Get( Id );
-            }
+        /// Number of expression slots. Lets a pass iterate every node by
+        /// index — new nodes it appends land past the original count.
+        [[nodiscard]] std::size_t ExprCount () const
+        {
+            return Exprs.Size();
+        }
 
-            [[nodiscard]] Param& GetParam( ParamId Id )
-            {
-                return Params.Get( Id );
-            }
-            [[nodiscard]] const Param& GetParam( ParamId Id ) const
-            {
-                return Params.Get( Id );
-            }
+        // --- Top-level items ---------------------------------------------
 
-            /// Number of expression slots. Lets a pass iterate every node by
-            /// index — new nodes it appends land past the original count.
-            [[nodiscard]] std::size_t ExprCount() const
-            {
-                return Exprs.Size();
-            }
+        std::vector<DeclId> TopDecls;
+        std::vector<StmtId> TopStmts;
 
-            // --- Top-level items ---------------------------------------------
+    private:
 
-            std::vector<DeclId> TopDecls;
-            std::vector<StmtId> TopStmts;
+        Core::StringInterner *Interner = nullptr;
+        Core::FileId File;
 
-        private:
+        Core::Arena<ExprNode, ExprId> Exprs;
+        Core::Arena<StmtNode, StmtId> Stmts;
+        Core::Arena<DeclNode, DeclId> Decls;
+        Core::Arena<TypeNode, TypeId> Types;
+        Core::Arena<Param, ParamId> Params;
+    };
 
-            Core::StringInterner* Interner = nullptr;
-            Core::FileId          File;
+} // namespace Frontend
 
-            Core::Arena<ExprNode, ExprId> Exprs;
-            Core::Arena<StmtNode, StmtId> Stmts;
-            Core::Arena<DeclNode, DeclId> Decls;
-            Core::Arena<TypeNode, TypeId> Types;
-            Core::Arena<Param, ParamId>   Params;
-        };
-
-    }
-
-}
+} // namespace Volt
