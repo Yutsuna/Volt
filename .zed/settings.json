@@ -1,7 +1,7 @@
 {
   "file_types": {
-    "Crystal": ["cr", "vl"],
     "C": ["c", "h", "inc"],
+    "C++": ["cpp", "hpp"],
   },
   "load_direnv": "shell_hook",
   "languages": {
