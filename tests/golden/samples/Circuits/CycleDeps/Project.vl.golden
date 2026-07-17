@@ -1,0 +1,51 @@
+// ==== samples/Circuits/CycleDeps/Project.vl ====
+(Circuit
+  Name='CycleApp'
+  Body=[
+    (ExprStmt
+      Expr=(Call
+        Callee=(Identifier
+          Name='runtime')
+        Args=[
+          (StringLiteral
+            Value='0.1.0')
+        ]
+        ArgNames=[
+          ''
+        ]))
+    (ExprStmt
+      Expr=(Call
+        Callee=(Identifier
+          Name='entrypoint')
+        Args=[
+          (StringLiteral
+            Value='Source/Main.vl')
+        ]
+        ArgNames=[
+          ''
+        ]))
+    (ExprStmt
+      Expr=(Call
+        Callee=(Identifier
+          Name='modules')
+        Args=[
+          (Binary
+            Op==>
+            Lhs=(StringLiteral
+              Value='Alpha')
+            Rhs=(StringLiteral
+              Value='Source/Alpha'))
+          (Binary
+            Op==>
+            Lhs=(StringLiteral
+              Value='Beta')
+            Rhs=(StringLiteral
+              Value='Source/Beta'))
+        ]
+        ArgNames=[
+          ''
+          ''
+        ]))
+  ])
+[Volt] 1 file(s), 0 error(s)
+--- exit 0 ---

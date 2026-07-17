@@ -1,0 +1,62 @@
+// ==== samples/Circuits/DiamandDeps/Source/Auth/Service.vl ====
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Core')
+  ])
+(Module
+  Name='Auth'
+  Body=[
+    (Class
+      Name='AuthService'
+      Generics=[]
+      Super=nil
+      Body=[
+        (Field
+          Name='config'
+          DeclType=(TypeRef
+            Path=[
+              'Core'
+              'AppConfig'
+            ]
+            Generics=[])
+          Default=nil
+          Accessor=none)
+        (Method
+          Name='initialize'
+          Params=[
+            (Param
+              Name='config'
+              DeclType=(TypeRef
+                Path=[
+                  'Core'
+                  'AppConfig'
+                ]
+                Generics=[])
+              Default=nil
+              bInstanceVar=true)
+          ]
+          ReturnType=nil
+          Body=[]
+          bSelf=false
+          bAbstract=false)
+        (Method
+          Name='verify_token'
+          Params=[]
+          ReturnType=(TypeRef
+            Path=[
+              'Bool'
+            ]
+            Generics=[])
+          Body=[
+            (ExprStmt
+              Expr=(BoolLiteral
+                Value=true))
+          ]
+          bSelf=false
+          bAbstract=false)
+      ])
+  ])
+[Volt] 1 file(s), 0 error(s), 2 exported decl(s)
+--- exit 0 ---

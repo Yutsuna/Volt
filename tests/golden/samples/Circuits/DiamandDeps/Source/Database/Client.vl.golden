@@ -1,0 +1,58 @@
+// ==== samples/Circuits/DiamandDeps/Source/Database/Client.vl ====
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Core')
+  ])
+(Module
+  Name='Database'
+  Body=[
+    (Class
+      Name='DbClient'
+      Generics=[]
+      Super=nil
+      Body=[
+        (Field
+          Name='config'
+          DeclType=(TypeRef
+            Path=[
+              'Core'
+              'AppConfig'
+            ]
+            Generics=[])
+          Default=nil
+          Accessor=none)
+        (Method
+          Name='initialize'
+          Params=[
+            (Param
+              Name='config'
+              DeclType=(TypeRef
+                Path=[
+                  'Core'
+                  'AppConfig'
+                ]
+                Generics=[])
+              Default=nil
+              bInstanceVar=true)
+          ]
+          ReturnType=nil
+          Body=[]
+          bSelf=false
+          bAbstract=false)
+        (Method
+          Name='connect'
+          Params=[]
+          ReturnType=(TypeRef
+            Path=[
+              'Void'
+            ]
+            Generics=[])
+          Body=[]
+          bSelf=false
+          bAbstract=false)
+      ])
+  ])
+[Volt] 1 file(s), 0 error(s), 2 exported decl(s)
+--- exit 0 ---
