@@ -1,0 +1,28 @@
+// ==== samples/Circuits/CycleDeps/Source/Alpha/Alpha.vl ====
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Beta')
+  ])
+(Module
+  Name='Alpha'
+  Body=[
+    (Method
+      Name='ping'
+      Params=[]
+      ReturnType=(TypeRef
+        Path=[
+          'Int64'
+        ]
+        Generics=[])
+      Body=[
+        (ExprStmt
+          Expr=(IntLiteral
+            Raw='1'))
+      ]
+      bSelf=true
+      bAbstract=false)
+  ])
+[Volt] 1 file(s), 0 error(s), 2 exported decl(s)
+--- exit 0 ---

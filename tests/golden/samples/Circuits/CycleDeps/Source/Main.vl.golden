@@ -1,0 +1,16 @@
+// ==== samples/Circuits/CycleDeps/Source/Main.vl ====
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Alpha')
+  ])
+(ExprStmt
+  Expr=(Assign
+    Op==
+    Target=(Identifier
+      Name='x')
+    Value=(IntLiteral
+      Raw='1')))
+[Volt] 1 file(s), 0 error(s)
+--- exit 0 ---
