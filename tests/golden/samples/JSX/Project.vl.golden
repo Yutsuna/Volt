@@ -1,0 +1,54 @@
+// ==== samples/JSX/Project.vl ====
+(Circuit
+  Name='App'
+  Body=[
+    (ExprStmt
+      Expr=(Call
+        Callee=(Identifier
+          Name='runtime')
+        Args=[
+          (StringLiteral
+            Value='0.1.0')
+        ]
+        ArgNames=[
+          ''
+        ]))
+    (ExprStmt
+      Expr=(Call
+        Callee=(Identifier
+          Name='modules')
+        Args=[
+          (Binary
+            Op==>
+            Lhs=(StringLiteral
+              Value='Components')
+            Rhs=(StringLiteral
+              Value='Components'))
+          (Binary
+            Op==>
+            Lhs=(StringLiteral
+              Value='Models')
+            Rhs=(StringLiteral
+              Value='Models'))
+        ]
+        ArgNames=[
+          ''
+          ''
+        ]))
+    (ExprStmt
+      Expr=(Call
+        Callee=(Identifier
+          Name='battery')
+        Args=[
+          (StringLiteral
+            Value='http')
+          (StringLiteral
+            Value='1.0.0')
+        ]
+        ArgNames=[
+          ''
+          'version'
+        ]))
+  ])
+[Volt] 1 file(s), 0 error(s)
+--- exit 0 ---

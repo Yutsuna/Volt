@@ -1,0 +1,69 @@
+// ==== samples/Circuits/TwoDeps/Source/Main.vl ====
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Models')
+  ])
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Components')
+  ])
+(ExprStmt
+  Expr=(Assign
+    Op==
+    Target=(Identifier
+      Name='user')
+    Value=(Call
+      Callee=(Member
+        Object=(Member
+          Object=(Identifier
+            Name='Models')
+          Name='User')
+        Name='new')
+      Args=[
+        (IntLiteral
+          Raw='42')
+        (StringLiteral
+          Value='Yutsuna')
+      ]
+      ArgNames=[
+        ''
+        ''
+      ])))
+(ExprStmt
+  Expr=(Assign
+    Op==
+    Target=(Identifier
+      Name='logger')
+    Value=(Call
+      Callee=(Member
+        Object=(Member
+          Object=(Identifier
+            Name='Components')
+          Name='UserLogger')
+        Name='new')
+      Args=[
+        (StringLiteral
+          Value='[user]')
+      ]
+      ArgNames=[
+        ''
+      ])))
+(ExprStmt
+  Expr=(Call
+    Callee=(Member
+      Object=(Identifier
+        Name='logger')
+      Name='log_user')
+    Args=[
+      (Identifier
+        Name='user')
+    ]
+    ArgNames=[
+      ''
+    ]))
+[Volt] 1 file(s), 0 error(s)
+--- exit 0 ---

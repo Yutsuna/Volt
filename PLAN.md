@@ -206,6 +206,53 @@ Note d'intégration : Claude Code lit les subagents dans `.claude/agents/`. On g
 vérité dans `.agents/` (portable, versionnée) et on la câble au harness via un lien/copie
 `.claude/agents → .agents/agents` (et skills de même) au moment de l'implémentation.
 
+## Surface CLI cible (`volt <command>`)
+
+Le front `Volt/Main.cpp` devient une **table de commandes** (meta-first : une
+commande = une entrée { nom, résumé, options, fonction }) ; le contrat complet
+des options par commande est dans `.agents/rules/cli-surface.md`.
+
+```
+volt build | check | circuit | format | help | parse | repl | run | version
+```
+
+Toutes seront faites ; priorité actuelle : `run`, `repl`, `parse`, `check`,
+`version`, `help`, `circuit` (puis `build`, `format`). Correspondances :
+`parse` → Driver + AstPrinter (formats json|dot|text = back-ends du printer) ;
+`check` → passes Sema (`--type` sélectionne les passes) ; `run`/`repl` → phase
+JIT/interpréteur sur la même pipeline Driver ; `version` → `VERSION.md`.
+
+## Observations de revue (2026-07-17) — chantiers d'archi
+
+Revue de modularité : les manifestes tiennent leur promesse (~10 lignes) ; les
+sept points ci-dessous sont les endroits où elle casse. État : **tous traités**
+(cette session), sauf mention contraire.
+
+1. **Canal de sortie des passes.** `PassContext` n'exposait que `Ast/Types/Diags` ;
+   toute passe voulant remonter un résultat au Driver devait toucher 3 modules.
+   → `PassStats` (Sema) embarqué dans `CompileUnit`, rempli par les passes via
+   `PassContext.Stats`. (Corrige au passage `Result.JsxLowered` toujours à 0.)
+2. **Hardcode du Driver.** `"Link"`, `"entrypoint"`, `"modules"`, `".vl"`/`".vlx"`
+   éparpillés + cascades de `std::get_if` de 5 niveaux pour lire le manifeste
+   circuit. → constantes centralisées (`Driver/WellKnown.hpp`) + helpers de
+   requête AST (`Frontend/AST/AstQuery.hpp`) ; ajouter une clé manifeste ≈ 5 lignes.
+3. **Asymétrie Pratt.** L'infixe était en table mais préfixes et affectations
+   restaient des switch manuscrits dans `ParseExpr.cpp`. → `VOLT_PREFIX` /
+   `VOLT_ASSIGN` dans `Pratt.inl` ; nouvel opérateur préfixe = 1 ligne.
+4. **`JsxLowering` à cheval Frontend/Sema.** Seule passe non conforme à la
+   convention « fonction pure sur PassContext ». → implémentation rapatriée en
+   privé côté Sema ; le header public Frontend disparaît.
+5. **`AstPrinter` et const.** Le printer est const mais `Driver::PrintUnits`
+   gardait un `const_cast` vestigial. → supprimé.
+6. **Couture cross-unité (le vrai risque phase suivante).** Tout est par-fichier ;
+   le TypeChecker réel devra voir les décls des autres fichiers. → phase sérielle
+   « publication d'interfaces » entre parse parallèle et sema parallèle :
+   `Sema/Link/InterfaceRegistry` (nom qualifié → unité + DeclId, clés `std::string`
+   car interners locaux), exposé en lecture seule aux passes via `PassContext`.
+7. **Garde-fous non branchés.** Golden sweep et grep zéro-hardcode promis mais
+   inexistants. → `scripts/golden.rb` (sweep `samples/**` via `volt --print`,
+   goldens sous `tests/golden/`) + `scripts/check_hardcode.sh`, câblés en ctest.
+
 ## Hors périmètre (phases suivantes)
 
 TypeChecker complet, résolution de layouts, JIT interpréteur (dev/hot-reload), codegen LLVM AOT,

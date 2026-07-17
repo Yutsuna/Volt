@@ -1,0 +1,93 @@
+// ==== samples/Circuits/DiamandDeps/Source/Main.vl ====
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Auth')
+  ])
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Database')
+  ])
+(Annotation
+  Name='Link'
+  Args=[
+    (StringLiteral
+      Value='Core')
+  ])
+(ExprStmt
+  Expr=(Assign
+    Op==
+    Target=(Identifier
+      Name='config')
+    Value=(Call
+      Callee=(Member
+        Object=(Member
+          Object=(Identifier
+            Name='Core')
+          Name='AppConfig')
+        Name='new')
+      Args=[
+        (IntLiteral
+          Raw='5432')
+        (Member
+          Object=(StringLiteral
+            Value='super-secret-key')
+          Name='data')
+      ]
+      ArgNames=[
+        ''
+        ''
+      ])))
+(ExprStmt
+  Expr=(Assign
+    Op==
+    Target=(Identifier
+      Name='db')
+    Value=(Call
+      Callee=(Member
+        Object=(Member
+          Object=(Identifier
+            Name='Database')
+          Name='DbClient')
+        Name='new')
+      Args=[
+        (Identifier
+          Name='config')
+      ]
+      ArgNames=[
+        ''
+      ])))
+(ExprStmt
+  Expr=(Assign
+    Op==
+    Target=(Identifier
+      Name='auth')
+    Value=(Call
+      Callee=(Member
+        Object=(Member
+          Object=(Identifier
+            Name='Auth')
+          Name='AuthService')
+        Name='new')
+      Args=[
+        (Identifier
+          Name='config')
+      ]
+      ArgNames=[
+        ''
+      ])))
+(ExprStmt
+  Expr=(Member
+    Object=(Identifier
+      Name='db')
+    Name='connect'))
+(ExprStmt
+  Expr=(Member
+    Object=(Identifier
+      Name='auth')
+    Name='verify_token'))
+[Volt] 1 file(s), 0 error(s)
+--- exit 0 ---

@@ -40,3 +40,7 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   [`rules/ast-value.md`](rules/ast-value.md).
 - **Unreal C++ style, C++23, `Public/Private`, `-Werror`.** See
   [`rules/cpp-style.md`](rules/cpp-style.md).
+- **The `volt` CLI surface is a contract.** Subcommands (`run`, `repl`, `parse`,
+  `check`, `version`, `help`, `circuit`, then `build`, `format`) and their
+  options are specified once in [`rules/cli-surface.md`](rules/cli-surface.md);
+  `Main.cpp` stays a thin command table over `Driver`.
