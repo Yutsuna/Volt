@@ -3,22 +3,20 @@
 namespace Volt
 {
 
-    namespace Meta
+namespace Meta
+{
+
+    /// The classic overload set for std::visit: combine per-alternative
+    /// lambdas into one callable. A pass is then just an Overloaded{...}
+    /// with a generic `[](auto&)` fallback that walks fields via Reflect.
+    template <typename... Fs> struct Overloaded : Fs...
     {
 
-        /// The classic overload set for std::visit: combine per-alternative
-        /// lambdas into one callable. A pass is then just an Overloaded{...}
-        /// with a generic `[](auto&)` fallback that walks fields via Reflect.
-        template <typename... Fs>
-        struct Overloaded : Fs...
-        {
+        using Fs::operator()...;
+    };
 
-            using Fs::operator()...;
-        };
+    template <typename... Fs> Overloaded( Fs... ) -> Overloaded<Fs...>;
 
-        template <typename... Fs>
-        Overloaded( Fs... ) -> Overloaded<Fs...>;
+} // namespace Meta
 
-    }
-
-}
+} // namespace Volt

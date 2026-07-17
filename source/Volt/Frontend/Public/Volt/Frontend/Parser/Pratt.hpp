@@ -5,35 +5,35 @@
 namespace Volt
 {
 
-    namespace Frontend
+namespace Frontend
+{
+
+    struct BindingPower
     {
 
-        struct BindingPower
-        {
+        int Left  = 0; // 0 means "not an infix operator"
+        int Right = 0;
+    };
 
-            int Left  = 0; // 0 means "not an infix operator"
-            int Right = 0;
-        };
-
-        /// Binding power for an infix operator, generated from Pratt.inl.
-        [[nodiscard]] constexpr BindingPower InfixBinding( TokenKind Kind )
+    /// Binding power for an infix operator, generated from Pratt.inl.
+    [[nodiscard]] constexpr BindingPower InfixBinding ( TokenKind Kind )
+    {
+        switch ( Kind )
         {
-            switch ( Kind )
-            {
-#define VOLT_INFIX( Name, Lbp, RAssoc )                                                                                          \
-    case TokenKind::Name:                                                                                                        \
+#define VOLT_INFIX( Name, Lbp, RAssoc )                                                                                                                                  \
+    case TokenKind::Name:                                                                                                                                                \
         return BindingPower{ Lbp, ( RAssoc ) ? ( Lbp ) : ( Lbp + 1 ) };
 #include "Volt/Frontend/Parser/Pratt.inl"
-                default:
-                    return BindingPower{ 0, 0 };
-            }
+        default:
+            return BindingPower{ 0, 0 };
         }
-
-        [[nodiscard]] constexpr bool IsInfixOperator( TokenKind Kind )
-        {
-            return InfixBinding( Kind ).Left != 0;
-        }
-
     }
 
-}
+    [[nodiscard]] constexpr bool IsInfixOperator ( TokenKind Kind )
+    {
+        return InfixBinding( Kind ).Left != 0;
+    }
+
+} // namespace Frontend
+
+} // namespace Volt
