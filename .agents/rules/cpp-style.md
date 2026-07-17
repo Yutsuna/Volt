@@ -1,6 +1,6 @@
 # Rule: C++ style
 
-- **C++23**, GNU/Clang toolchain, built under `-Werror`. A warning is a failure.
+- **C++26**, GNU/Clang toolchain, built under `-Werror`. A warning is a failure.
 - **Unreal-flavoured PascalCase**: types, functions and locals are `PascalCase`
   (`ParseExpr`, `TypeStore`, `const std::size_t Count`); booleans read `bAbstract`,
   `bComponent`. Member layout follows the existing nodes (public API first,
