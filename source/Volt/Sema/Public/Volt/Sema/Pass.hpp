@@ -14,16 +14,32 @@ namespace Volt
 namespace Sema
 {
 
+    // Per-unit counters that passes report back through. This is the one
+    // output channel from a pass to the Driver: adding a stat = one field
+    // here, incremented by the pass, aggregated by the Driver. Never a
+    // reason to widen a pass signature.
+    struct PassStats
+    {
+
+        std::size_t JsxLowered = 0;
+    };
+
+    class InterfaceRegistry;
+
     // Everything a pass is allowed to touch for one source file. One
     // PassContext per AstContext keeps a whole-circuit compile embarrassingly
     // parallel: passes never reach across files, and diagnostics land in a
-    // thread-local Bag that the Driver merges once at the end.
+    // thread-local Bag that the Driver merges once at the end. Globals is the
+    // one read-only exception: the cross-unit interfaces the Driver published
+    // serially before the parallel sema phase (null in single-file tools).
     struct PassContext
     {
 
         Frontend::AstContext &Ast;
         TypeStore &Types;
         Core::DiagEngine::Bag &Diags;
+        PassStats &Stats;
+        const InterfaceRegistry *Globals = nullptr;
     };
 
     // A pass is a pure function over a PassContext. New pass = one line in

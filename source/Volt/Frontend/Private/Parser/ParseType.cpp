@@ -108,9 +108,9 @@ namespace Frontend
             }
             else if ( Accept( TokenKind::Question ) )
             {
-                NilableType Nil;
-                Nil.Inner = Base;
-                Base      = MakeType( std::move( Nil ), RangeSince( Begin ) );
+                NilableType Nilable;
+                Nilable.Inner = Base;
+                Base          = MakeType( std::move( Nilable ), RangeSince( Begin ) );
             }
             else if ( Check( TokenKind::LBracket ) && PeekKind( 1 ) == TokenKind::IntLiteral )
             {

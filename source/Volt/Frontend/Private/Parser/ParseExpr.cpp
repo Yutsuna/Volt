@@ -14,35 +14,6 @@ namespace Volt
 namespace Frontend
 {
 
-    namespace
-    {
-
-        constexpr int PrefixBindingPower = 100;
-
-        [[nodiscard]] bool IsAssignment ( TokenKind Kind )
-        {
-            switch ( Kind )
-            {
-            case TokenKind::Assign:
-            case TokenKind::PlusEq:
-            case TokenKind::MinusEq:
-            case TokenKind::StarEq:
-            case TokenKind::SlashEq:
-            case TokenKind::PercentEq:
-            case TokenKind::PowEq:
-            case TokenKind::AmpEq:
-            case TokenKind::PipeEq:
-            case TokenKind::CaretEq:
-            case TokenKind::ShlEq:
-            case TokenKind::ShrEq:
-                return true;
-            default:
-                return false;
-            }
-        }
-
-    } // namespace
-
     bool Parser::CanStartCommandArgument () const
     {
         switch ( PeekKind() )
@@ -116,14 +87,9 @@ namespace Frontend
         const std::uint32_t Begin = Here();
         const TokenKind Kind      = PeekKind();
 
-        switch ( Kind )
-        {
-        case TokenKind::Minus:
-        case TokenKind::Plus:
-        case TokenKind::Bang:
-        case TokenKind::Tilde:
-        case TokenKind::KwNot:
-        case TokenKind::Amp:
+        // Every VOLT_PREFIX row of Pratt.inl lowers to a Unary node here; a
+        // new prefix operator is one manifest line, never a new case.
+        if ( IsPrefixOperator( Kind ) )
         {
             Advance();
             Unary Node;
@@ -132,7 +98,8 @@ namespace Frontend
             return MakeExpr( std::move( Node ), RangeSince( Begin ) );
         }
 
-        case TokenKind::Star:
+        // `*p` builds a Deref node, not a Unary — structural, so not in the manifest.
+        if ( Kind == TokenKind::Star )
         {
             Advance();
             Deref Node;
@@ -140,9 +107,7 @@ namespace Frontend
             return MakeExpr( std::move( Node ), RangeSince( Begin ) );
         }
 
-        default:
-            return ParsePrimary();
-        }
+        return ParsePrimary();
     }
 
     ExprId Parser::ParsePrimary ()

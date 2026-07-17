@@ -63,6 +63,14 @@ int main ( int ArgCount, char **ArgValues )
     Driver.RenderDiagnostics( std::cerr );
 
     std::cerr << "[Volt] " << Result.Files << " file(s), " << Result.Errors << " error(s)";
+    if ( Result.JsxLowered > 0 )
+    {
+        std::cerr << ", " << Result.JsxLowered << " jsx node(s) lowered";
+    }
+    if ( Driver.Interfaces().Size() > 0 )
+    {
+        std::cerr << ", " << Driver.Interfaces().Size() << " exported decl(s)";
+    }
     if ( bCircuit )
     {
         std::cerr << ", " << Driver.Graph().ModuleCount() << " module(s)";
