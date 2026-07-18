@@ -12,6 +12,11 @@ namespace Core
 
     /// Strongly-typed 32-bit index into an Arena. The Tag makes every Id
     /// family (ExprId, StmtId, ...) a distinct, non-interchangeable type.
+    ///
+    /// Under VOLT_CHECKED_IDS (opt-in build config), Ids also carry the tag
+    /// of the arena that minted them so Arena::Get can catch an Id crossing
+    /// into a foreign arena. Provenance never participates in comparison or
+    /// hashing, and the field does not exist in normal builds.
     template <typename Tag> struct TypedId
     {
 
@@ -20,6 +25,11 @@ namespace Core
         static constexpr ValueType InvalidValue = ~ValueType{ 0 };
 
         ValueType Value = InvalidValue;
+
+#if defined( VOLT_CHECKED_IDS )
+        // 0 = unstamped (hand-built index): bounds-checked only.
+        ValueType Provenance = 0;
+#endif
 
         constexpr TypedId () = default;
 
@@ -37,7 +47,15 @@ namespace Core
             return IsValid();
         }
 
-        constexpr auto operator<=>( const TypedId & ) const = default;
+        [[nodiscard]] constexpr auto operator<=>( const TypedId &Other ) const
+        {
+            return Value <=> Other.Value;
+        }
+
+        [[nodiscard]] constexpr bool operator==( const TypedId &Other ) const
+        {
+            return Value == Other.Value;
+        }
     };
 
 } // namespace Core
