@@ -5,17 +5,15 @@
 }:
 
 let
-  llvmAttrs = pkgs.llvmPackages_latest;
+  gccAttrs = pkgs.gcc16;
   voltProj = pkgs.callPackage ./package.nix { inherit inputs; };
   voltBuild = pkgs.callPackage ./volt-build.nix { };
-  claudeEnv = pkgs.callPackage ./claude.nix { };
 in
 pkgs.mkShell {
   inputsFrom = [ voltProj ];
 
   nativeBuildInputs = with pkgs; [
-    llvmAttrs.clang
-    llvmAttrs.lldb
+    gccAttrs
     valgrind
     gdb
     gtest
@@ -28,10 +26,10 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-    export CXX=clang++
-    export CC=clang
+    export CXX=g++
+    export CC=gcc
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
 
-    ${claudeEnv.shellHook}
+    graphify update .
   '';
 }
