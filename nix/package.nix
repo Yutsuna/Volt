@@ -4,10 +4,11 @@
   ...
 }:
 let
+  gccStdenv = pkgs.gcc16Stdenv;
   llvmAttrs = pkgs.llvmPackages_latest;
   version = with builtins; head (split "\n" (readFile ../VERSION.md));
 in
-llvmAttrs.stdenv.mkDerivation {
+gccStdenv.mkDerivation {
   pname = "volt";
   inherit version;
   src = pkgs.lib.cleanSource ../.;
