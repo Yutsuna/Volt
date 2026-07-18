@@ -16,6 +16,29 @@ void PrintUsage ( std::ostream &Out )
 
 } // namespace
 
+//
+// Idée de main:
+//
+// std::vector<std::string_view> Args;
+// Args.reserve( ArgCount - 1 );
+// for (std::int32_t Index = 1; Index < ArgCount; ++Index)
+// {
+//     Args.emplace_back( ArgValue[ Index ] );
+// }
+// const std::string_view CommandName = Args[0];
+// const std::span<const std::string_view> CommandArgs( Args.begin() + 1, Args.end());
+// const auto &Registry = FCommandRegistry::GetInstance().GetCommands();
+// const auto It = Registry.find( CommandName );
+//
+// if ( It == Registry.end() )
+// {
+//     return error blabla...;
+// }
+//
+// return It->second->Execute( CommandArgs );
+//
+//
+
 // Front CLI: hand the requested files (or a whole circuit) to the Driver, which
 // parses and runs the sema passes across a thread pool, then report diagnostics.
 int main ( int ArgCount, char **ArgValues )
