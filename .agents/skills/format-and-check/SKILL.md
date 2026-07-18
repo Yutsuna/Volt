@@ -11,10 +11,9 @@ Run these before finishing a change. Any failure means the change is not done.
    ```sh
    clang-format -i <files>        # repo .clang-format: Allman, SpacesInParens, col 170
    ```
-2. **Build clean** under `-Werror`:
+2. **Build clean** under `-Werror` (see the `build` skill — never raw cmake/ninja):
    ```sh
-   cmake -S . -B build -G Ninja   # only if CMake lists changed
-   ninja -C build                 # zero warnings, zero errors
+   volt-build                     # zero warnings, zero errors → build/bin/Volt_d
    ```
 3. **Lint** (respect `.clang-tidy`): resolve or justify every diagnostic on
    touched files. clang-tidy does not understand GCC's `-freflection`, so
