@@ -36,12 +36,8 @@ namespace Core
         struct Sample
         {
 
-            using Self = Sample;
-
             int A    = 0;
             double B = 0.0;
-
-            VOLT_FIELDS( A, B )
         };
 
         static_assert( Meta::Reflected<Sample> );
