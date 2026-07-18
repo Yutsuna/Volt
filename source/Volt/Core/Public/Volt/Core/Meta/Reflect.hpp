@@ -77,6 +77,12 @@ namespace Meta
         return "<unknown>";
     }
 
+    /// Unqualified type name of T ("Binary", "Method"), aliases resolved.
+    template <typename T> [[nodiscard]] constexpr std::string_view TypeName ()
+    {
+        return std::meta::identifier_of( std::meta::dealias( ^^std::remove_cvref_t<T> ) );
+    }
+
     /// Type name of the active alternative of a variant (monostate → "None").
     template <typename... Alts> [[nodiscard]] constexpr std::string_view ActiveName ( const std::variant<Alts...> &Node )
     {
