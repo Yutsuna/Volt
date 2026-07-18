@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <string_view>
 
 namespace Volt
@@ -20,9 +21,17 @@ namespace Driver
         inline constexpr std::string_view SourceExt    = ".vl";
         inline constexpr std::string_view ComponentExt = ".vlx";
 
+        // The circuit manifest file, as found at a project root.
+        inline constexpr std::string_view ManifestName = "Project.vl";
+
         // `circuit "Name" { ... }` manifest keys.
+        inline constexpr std::string_view RuntimeKey    = "runtime";
         inline constexpr std::string_view EntrypointKey = "entrypoint";
         inline constexpr std::string_view ModulesKey    = "modules";
+
+        // The conventional project layout `volt circuit` scans and generates.
+        inline constexpr std::string_view SourceDirName = "Source";
+        inline constexpr std::string_view DefaultEntry  = "Source/Main.vl";
 
         // Top-level annotations the Driver itself interprets.
         inline constexpr std::string_view LinkAnnotation = "Link";
