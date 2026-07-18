@@ -288,9 +288,16 @@ au parse. Le jour venu : queue protégée par mutex + `counting_semaphore` (pas 
 work-stealing — sur-ingénierie à l'échelle d'un compilateur). À implémenter **avec** la
 feature imports, pas avant.
 
-**Différé — Axe 1 (réflexion native P2996).** Design prêt (seam `ForEachField`), mais
-ni clang 22 ni GCC 15 n'exposent `<meta>`/`-freflection`. Migration à la disponibilité
-mainline ; le `static_assert` d'arité couvre le risque de désync entre-temps.
+**Fait (2026-07-18) — Axe 1 (réflexion native P2996).** Toolchain passée à GCC 16.1
+(`-freflection`, flake Nix `gcc16Stdenv`). `Reflect.hpp` réécrit sur `<meta>` :
+`ForEachField` = `template for` sur `nonstatic_data_members_of` (champ `Loc` exclu par
+convention), + `EnumName` (le printer affiche les noms d'énumérateurs) et `ActiveName`
+(nom du nœud actif d'un variant, remplace les tables X-macro de noms). `VOLT_FIELDS`,
+`using Self`, `AggregateArity` et le check d'arité supprimés (~330 lignes) — un champ
+ne peut plus se désynchroniser, par construction. clang-tooling ne parse pas encore
+P2996 : `.clangd` retire `-freflection` (TUs incluant `Reflect.hpp` opaques à clangd /
+clang-tidy jusqu'à P2996 dans LLVM). Vérifié : build `-Werror` OK, goldens 18/18,
+corpus 35/35, zéro-hardcode OK.
 
 ## Hors périmètre (phases suivantes)
 
