@@ -3,6 +3,7 @@
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Frontend/AST/AstDump.hpp"
 #include "Volt/Frontend/AST/AstPrinter.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
@@ -99,7 +100,7 @@ namespace Driver
         static_cast<void>( Sema::RunPasses( Context ) );
     }
 
-    CompileResult Driver::CompileRefs ( const std::vector<SourceRef> &Refs )
+    CompileResult Driver::CompileRefs ( const std::vector<SourceRef> &Refs, bool bParseOnly )
     {
         // Phase 1 (serial): register every file's text and unit up front so
         // the parallel phases only touch per-unit state + the diag engine.
@@ -150,16 +151,20 @@ namespace Driver
         // Phase 2 (parallel): lex + parse every unit into its own arenas.
         ForEachUnitParallel( &Driver::ParseOne );
 
-        // Phase 3 (serial): publish each unit's top-level interface. This is
-        // the cross-unit seam — after this point the Registry is frozen and
-        // sema may read any unit's exported declarations without locks.
-        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+        if ( !bParseOnly )
         {
-            static_cast<void>( Sema::PublishUnitInterface( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Registry ) );
-        }
+            // Phase 3 (serial): publish each unit's top-level interface. This is
+            // the cross-unit seam — after this point the Registry is frozen and
+            // sema may read any unit's exported declarations without locks.
+            for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+            {
+                static_cast<void>(
+                    Sema::PublishUnitInterface( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Registry ) );
+            }
 
-        // Phase 4 (parallel): run the sema passes over every parsed unit.
-        ForEachUnitParallel( &Driver::RunSemaOne );
+            // Phase 4 (parallel): run the sema passes over every parsed unit.
+            ForEachUnitParallel( &Driver::RunSemaOne );
+        }
 
         CompileResult Result;
         Result.Files  = Units.size();
@@ -180,6 +185,17 @@ namespace Driver
             Refs.push_back( SourceRef{ Path, std::string{}, IsComponentPath( Path ) } );
         }
         return CompileRefs( Refs );
+    }
+
+    CompileResult Driver::ParseFiles ( const std::vector<std::string> &Paths )
+    {
+        std::vector<SourceRef> Refs;
+        Refs.reserve( Paths.size() );
+        for ( const std::string &Path : Paths )
+        {
+            Refs.push_back( SourceRef{ Path, std::string{}, IsComponentPath( Path ) } );
+        }
+        return CompileRefs( Refs, /*bParseOnly=*/true );
     }
 
     void Driver::BuildLinkGraph ( const std::string &RootModule )
@@ -345,6 +361,15 @@ namespace Driver
             Out << "// ==== " << Unit.Path << " ====\n";
             Frontend::AstPrinter Printer( Unit.Ast, Out );
             Printer.PrintFile();
+        }
+    }
+
+    void Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const
+    {
+        for ( const CompileUnit &Unit : Units )
+        {
+            Frontend::AstDumper Dumper( Unit.Ast, Sources, Out, Options );
+            Dumper.DumpFile();
         }
     }
 

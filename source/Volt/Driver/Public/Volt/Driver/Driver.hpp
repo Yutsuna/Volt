@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Volt/Core/Container/NonCopyable.hpp"
+#include "Volt/Core/Container/NonMovable.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
@@ -18,6 +20,11 @@
 namespace Volt
 {
 
+namespace Frontend
+{
+    struct FAstDumpOptions;
+} // namespace Frontend
+
 namespace Driver
 {
 
@@ -28,20 +35,16 @@ namespace Driver
     //
     // Non-movable on purpose: the AstContext caches `&Interner`, so a unit
     // must stay put. std::deque gives us stable addresses without moves.
-    class CompileUnit
+    class CompileUnit : public FNonMovable, FNonCopyable
     {
 
     public:
 
         CompileUnit ( Core::FileId InFile, std::string InPath, std::string InModule, bool bInComponent )
-            : File( InFile ), Path( std::move( InPath ) ), Module( std::move( InModule ) ), bComponent( bInComponent ), Ast( Interner, InFile )
+            : File( InFile ), Path( std::move( InPath ) ), Module( std::move( InModule ) ), bComponent( bInComponent ),
+              Ast( Interner, InFile )
         {
         }
-
-        CompileUnit ( const CompileUnit & )           = delete;
-        CompileUnit &operator=( const CompileUnit & ) = delete;
-        CompileUnit ( CompileUnit && )                = delete;
-        CompileUnit &operator=( CompileUnit && )      = delete;
 
         ~CompileUnit () = default;
 
@@ -83,6 +86,10 @@ namespace Driver
         // Compile a flat list of files (single file, or an explicit set).
         CompileResult CompileFiles ( const std::vector<std::string> &Paths );
 
+        // Parse-only pipeline over a flat list of files: lex + parse, no
+        // interface publication and no sema. `volt parse` dumps this raw AST.
+        CompileResult ParseFiles ( const std::vector<std::string> &Paths );
+
         // Compile a whole circuit given its `Project.vl` manifest: resolve
         // the declared modules, gather their sources + the entrypoint, build
         // the `@[Link]` graph (rejecting cycles), then compile in parallel.
@@ -105,6 +112,13 @@ namespace Driver
             return Diagnostics.HasErrors();
         }
 
+        // Every gathered diagnostic (warnings included), for callers that
+        // want to render even on a successful compile.
+        [[nodiscard]] std::size_t DiagnosticCount () const
+        {
+            return Diagnostics.Count();
+        }
+
         void RenderDiagnostics ( std::ostream &Out ) const
         {
             Diagnostics.Render( Sources, Out );
@@ -113,6 +127,9 @@ namespace Driver
         // Print the parsed + lowered AST of every compiled unit (golden-test
         // / debug hook). Units keep their AST after compilation.
         void PrintUnits ( std::ostream &Out ) const;
+
+        // Dump every unit's AST as the human tree (`volt parse` output).
+        void DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const;
 
     private:
 
@@ -125,9 +142,10 @@ namespace Driver
         };
 
         // Register + read every SourceRef into a CompileUnit, then run the
-        // pipeline over all of them: parse (parallel), publish interfaces
-        // (serial), sema (parallel). Fills Units and Registry.
-        CompileResult CompileRefs ( const std::vector<SourceRef> &Refs );
+        // pipeline over all of them: parse (parallel), then — unless bParseOnly —
+        // publish interfaces (serial) and sema (parallel). Fills Units (and
+        // Registry when sema runs).
+        CompileResult CompileRefs ( const std::vector<SourceRef> &Refs, bool bParseOnly = false );
 
         // Lex + parse one already-registered unit. Safe to call from any
         // worker thread: only `Bag` and `Unit` are touched.
