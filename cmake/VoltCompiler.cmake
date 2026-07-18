@@ -37,6 +37,11 @@ target_compile_options( VoltCompileOptions INTERFACE
 
 ###########################################################
 
+if( VOLT_CHECKED_IDS )
+  target_compile_definitions( VoltCompileOptions INTERFACE VOLT_CHECKED_IDS=1 )
+  message( STATUS "[Volt] Checked IDs: enabled" )
+endif()
+
 if( VOLT_ENABLE_ASAN )
   target_compile_options( VoltCompileOptions INTERFACE
     $<$<CONFIG:Debug>:-fsanitize=address;-fno-omit-frame-pointer>
