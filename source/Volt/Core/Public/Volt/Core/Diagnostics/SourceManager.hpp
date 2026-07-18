@@ -13,37 +13,46 @@ namespace Volt
 namespace Core
 {
 
-    /// Owns the text of every source file and maps FileId <-> path/content.
-    /// Files are registered up-front (single-threaded); after that all
-    /// lookups are const and safe to call from parallel parse threads.
+    /**
+     * @class SourceManager
+     * @brief OWns the text of every source file and maps FileId <-> path/content.
+     * @details Files are registered up-front (single-threaded)
+     *          After that all lookups are const safe to call from parallel parse threads.
+     */
     class SourceManager
     {
 
     public:
 
+        /**
+         * @struct FileEntry
+         * @brief Represents a single source file
+         */
         struct FileEntry
         {
 
             std::string Path;
             std::string Text;
-            std::vector<std::uint32_t> LineStarts; // byte offset of each line
+            std::vector<std::uint32_t> LineStarts; //<< byte offset of each line
         };
 
+        /** @brief Adds a new source file to the manager */
         [[nodiscard]] FileId AddFile ( std::string Path, std::string Text );
 
+        /** @brief Gets the path of a source file */
         [[nodiscard]] std::string_view PathOf ( FileId File ) const;
+
+        /** @brief Gets the text of a source file */
         [[nodiscard]] std::string_view TextOf ( FileId File ) const;
 
-        /// Resolve a byte offset to a 1-based line/column pair.
+        /** @brief Resolves a byte offset to a 1-based line/column pair */
         [[nodiscard]] LineColumn Resolve ( FileId File, std::uint32_t Offset ) const;
 
-        /// The raw text of the line containing Offset (without the newline).
+        /** @brief Gets the text of the line containing the given offset */
         [[nodiscard]] std::string_view LineText ( FileId File, std::uint32_t Offset ) const;
 
-        [[nodiscard]] std::size_t FileCount () const
-        {
-            return Files.size();
-        }
+        /** @brief Gets the number of files */
+        [[nodiscard]] std::size_t FileCount () const noexcept;
 
     private:
 

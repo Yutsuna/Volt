@@ -1,85 +1,100 @@
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
+#include "Volt/Core/Diagnostics/SourceLocation.hpp"
 
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <utility>
 
-namespace Volt
+/**
+ * Private helpers
+ */
+
+namespace
 {
 
-namespace Core
+inline void TrimTrailingNewlines ( const std::string &Text, const std::size_t Begin, std::size_t *OutEnd ) noexcept
 {
-
-    FileId SourceManager::AddFile ( std::string Path, std::string Text )
+    while ( *OutEnd > Begin && ( Text[*OutEnd - 1] == '\n' || Text[*OutEnd - 1] == '\r' ) )
     {
-        const auto Index = static_cast<FileId::ValueType>( Files.size() );
+        --*OutEnd;
+    }
+}
 
-        FileEntry Entry;
-        Entry.Path = std::move( Path );
-        Entry.Text = std::move( Text );
+} // namespace
 
-        Entry.LineStarts.push_back( 0 );
-        for ( std::size_t Offset = 0; Offset < Entry.Text.size(); ++Offset )
+/**
+ * Public
+ */
+
+/**
+ * SourceManager
+ */
+
+Volt::Core::FileId Volt::Core::SourceManager::AddFile ( std::string Path, std::string Text )
+{
+    const auto Index = static_cast<FileId::ValueType>( Files.size() );
+
+    FileEntry Entry;
+    Entry.Path = std::move( Path );
+    Entry.Text = std::move( Text );
+
+    Entry.LineStarts.push_back( 0 );
+    for ( std::size_t Offset = 0; Offset < Entry.Text.size(); ++Offset )
+    {
+        if ( Entry.Text[Offset] == '\n' )
         {
-            if ( Entry.Text[Offset] == '\n' )
-            {
-                Entry.LineStarts.push_back( static_cast<std::uint32_t>( Offset + 1 ) );
-            }
+            Entry.LineStarts.push_back( static_cast<std::uint32_t>( Offset + 1 ) );
         }
-
-        Files.push_back( std::move( Entry ) );
-        return FileId{ Index };
     }
 
-    const SourceManager::FileEntry &SourceManager::EntryOf ( FileId File ) const
-    {
-        return Files[File.Value];
-    }
+    Files.push_back( std::move( Entry ) );
+    return FileId{ Index };
+}
 
-    std::string_view SourceManager::PathOf ( FileId File ) const
-    {
-        return EntryOf( File ).Path;
-    }
+const Volt::Core::SourceManager::FileEntry &Volt::Core::SourceManager::EntryOf ( FileId File ) const
+{
+    return Files[File.Value];
+}
 
-    std::string_view SourceManager::TextOf ( FileId File ) const
-    {
-        return EntryOf( File ).Text;
-    }
+std::string_view Volt::Core::SourceManager::PathOf ( FileId File ) const
+{
+    return EntryOf( File ).Path;
+}
 
-    LineColumn SourceManager::Resolve ( FileId File, std::uint32_t Offset ) const
-    {
-        const FileEntry &Entry = EntryOf( File );
+std::string_view Volt::Core::SourceManager::TextOf ( FileId File ) const
+{
+    return EntryOf( File ).Text;
+}
 
-        // Last line whose start offset is <= Offset.
-        const auto It    = std::upper_bound( Entry.LineStarts.begin(), Entry.LineStarts.end(), Offset );
-        const auto Index = static_cast<std::uint32_t>( std::distance( Entry.LineStarts.begin(), It ) - 1 );
+Volt::Core::LineColumn Volt::Core::SourceManager::Resolve ( FileId File, std::uint32_t Offset ) const
+{
+    const FileEntry &Entry = EntryOf( File );
 
-        LineColumn Result;
-        Result.Line   = Index + 1;
-        Result.Column = ( Offset - Entry.LineStarts[Index] ) + 1;
-        return Result;
-    }
+    const auto It    = std::ranges::upper_bound( Entry.LineStarts, Offset );
+    const auto Index = static_cast<std::uint32_t>( std::distance( Entry.LineStarts.begin(), It ) - 1 );
 
-    std::string_view SourceManager::LineText ( FileId File, std::uint32_t Offset ) const
-    {
-        const FileEntry &Entry = EntryOf( File );
+    LineColumn Result;
+    Result.Line   = Index + 1;
+    Result.Column = ( Offset - Entry.LineStarts[Index] ) + 1;
+    return Result;
+}
 
-        const auto It    = std::upper_bound( Entry.LineStarts.begin(), Entry.LineStarts.end(), Offset );
-        const auto Index = static_cast<std::size_t>( std::distance( Entry.LineStarts.begin(), It ) - 1 );
+std::string_view Volt::Core::SourceManager::LineText ( FileId File, std::uint32_t Offset ) const
+{
+    const FileEntry &Entry = EntryOf( File );
+    const auto It          = std::ranges::upper_bound( Entry.LineStarts, Offset );
+    const auto Index       = static_cast<std::size_t>( std::distance( Entry.LineStarts.begin(), It ) - 1 );
 
-        const std::size_t Begin = Entry.LineStarts[Index];
-        std::size_t End         = ( Index + 1 < Entry.LineStarts.size() ) ? Entry.LineStarts[Index + 1] : Entry.Text.size();
+    const std::size_t Begin = Entry.LineStarts[Index];
+    std::size_t End         = ( Index + 1 < Entry.LineStarts.size() ) ? Entry.LineStarts[Index + 1] : Entry.Text.size();
 
-        // Trim the trailing newline so callers get just the visible line.
-        while ( End > Begin && ( Entry.Text[End - 1] == '\n' || Entry.Text[End - 1] == '\r' ) )
-        {
-            --End;
-        }
+    TrimTrailingNewlines( Entry.Text, Begin, &End );
 
-        return std::string_view{ Entry.Text }.substr( Begin, End - Begin );
-    }
+    return std::string_view{ Entry.Text }.substr( Begin, End - Begin );
+}
 
-} // namespace Core
-
-} // namespace Volt
+std::size_t Volt::Core::SourceManager::FileCount () const noexcept
+{
+    return Files.size();
+}
