@@ -26,7 +26,10 @@ namespace Core
 
         SmallVec () = default;
 
-        SmallVec ( std::initializer_list<T> Init )
+        // Delegating to the default constructor first means *this is a live
+        // object during the copy loop: if an element copy throws, ~SmallVec
+        // runs and releases whatever was already constructed.
+        SmallVec ( std::initializer_list<T> Init ) : SmallVec()
         {
             Reserve( Init.size() );
             for ( const T &Value : Init )
@@ -35,7 +38,7 @@ namespace Core
             }
         }
 
-        SmallVec ( const SmallVec &Other )
+        SmallVec ( const SmallVec &Other ) : SmallVec()
         {
             Reserve( Other.Count );
             for ( SizeType Index = 0; Index < Other.Count; ++Index )
@@ -44,30 +47,33 @@ namespace Core
             }
         }
 
-        SmallVec ( SmallVec &&Other ) noexcept
+        SmallVec ( SmallVec &&Other ) noexcept( std::is_nothrow_move_constructible_v<T> )
         {
             MoveFrom( std::move( Other ) );
         }
 
+        // Copy-and-swap shape: build the copy aside, then steal it, so *this
+        // keeps its old contents if any element copy throws (strong guarantee
+        // whenever T's move cannot throw).
         SmallVec &operator=( const SmallVec &Other )
         {
             if ( this != &Other )
             {
-                Clear();
-                Reserve( Other.Count );
-                for ( SizeType Index = 0; Index < Other.Count; ++Index )
-                {
-                    PushBack( Other.Data[Index] );
-                }
+                SmallVec Temp{ Other };
+                *this = std::move( Temp );
             }
             return *this;
         }
 
-        SmallVec &operator=( SmallVec &&Other ) noexcept
+        SmallVec &operator=( SmallVec &&Other ) noexcept( std::is_nothrow_move_constructible_v<T> )
         {
             if ( this != &Other )
             {
                 Destroy();
+                Data     = InlineData();
+                Count    = 0;
+                Capacity = N;
+                bHeap    = false;
                 MoveFrom( std::move( Other ) );
             }
             return *this;
@@ -92,7 +98,13 @@ namespace Core
         {
             if ( Count == Capacity )
             {
+                // InArgs may alias our own storage (Vec.PushBack( Vec[0] )):
+                // materialise the value before Grow relocates the elements.
+                T Value( std::forward<Args>( InArgs )... );
                 Grow( Capacity == 0 ? N : Capacity * 2 );
+                T *Slot = std::construct_at( Data + Count, std::move( Value ) );
+                ++Count;
+                return *Slot;
             }
             T *Slot = std::construct_at( Data + Count, std::forward<Args>( InArgs )... );
             ++Count;
@@ -172,19 +184,31 @@ namespace Core
 
             T *NewData = static_cast<T *>( ::operator new[]( NewCapacity * sizeof( T ), std::align_val_t{ alignof( T ) } ) );
 
-            for ( SizeType Index = 0; Index < Count; ++Index )
+            // move_if_noexcept: fall back to copying when T's move can throw,
+            // so a throw mid-relocation leaves the old buffer intact.
+            SizeType Relocated = 0;
+            try
             {
-                std::construct_at( NewData + Index, std::move( Data[Index] ) );
-                std::destroy_at( Data + Index );
+                for ( ; Relocated < Count; ++Relocated )
+                {
+                    std::construct_at( NewData + Relocated, std::move_if_noexcept( Data[Relocated] ) );
+                }
+            }
+            catch ( ... )
+            {
+                std::destroy_n( NewData, Relocated );
+                ::operator delete[]( NewData, std::align_val_t{ alignof( T ) } );
+                throw;
             }
 
+            std::destroy_n( Data, Count );
             ReleaseStorage();
             Data     = NewData;
             Capacity = NewCapacity;
             bHeap    = true;
         }
 
-        void MoveFrom ( SmallVec &&Other ) noexcept
+        void MoveFrom ( SmallVec &&Other ) noexcept( std::is_nothrow_move_constructible_v<T> )
         {
             if ( Other.bHeap )
             {
@@ -206,7 +230,7 @@ namespace Core
                 Count    = 0;
                 for ( SizeType Index = 0; Index < Other.Count; ++Index )
                 {
-                    std::construct_at( Data + Count, std::move( Other.Data[Index] ) );
+                    std::construct_at( Data + Count, std::move_if_noexcept( Other.Data[Index] ) );
                     ++Count;
                 }
                 Other.Clear();
