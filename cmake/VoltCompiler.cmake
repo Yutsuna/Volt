@@ -10,6 +10,10 @@ set( CMAKE_CXX_SCAN_FOR_MODULES OFF )
 ###########################################################
 
 target_compile_options( VoltCompileOptions INTERFACE
+  $<$<CXX_COMPILER_ID:GNU>:-freflection>
+ )
+
+target_compile_options( VoltCompileOptions INTERFACE
   -Wall
   -Wextra
   -Wpedantic
