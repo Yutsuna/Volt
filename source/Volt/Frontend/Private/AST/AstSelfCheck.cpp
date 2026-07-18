@@ -23,6 +23,21 @@ namespace Frontend
         static_assert( std::variant_size_v<DeclNode> >= 2 );
         static_assert( std::variant_size_v<TypeNode> >= 2 );
 
+        // Every node reflects all of its fields except the leading Loc. A
+        // field added to a struct but forgotten in VOLT_FIELDS would silently
+        // vanish from the printer / walkers — fail the build instead.
+        // clang-format off
+#define VOLT_CHECK_NODE( Name )                                                                                                                                          \
+    static_assert( Meta::AggregateArity<Name>() == Meta::FieldCount<Name>() + 1,                                                                                         \
+                   #Name ": VOLT_FIELDS is out of sync with the struct (every field except Loc must be listed)" );
+#define VOLT_EXPR( Name ) VOLT_CHECK_NODE( Name )
+#define VOLT_STMT( Name ) VOLT_CHECK_NODE( Name )
+#define VOLT_DECL( Name ) VOLT_CHECK_NODE( Name )
+#define VOLT_TYPE( Name ) VOLT_CHECK_NODE( Name )
+#include "Volt/Frontend/AST/Nodes.inl"
+#undef VOLT_CHECK_NODE
+        // clang-format on
+
         // Kind aligns with the manifest order (monostate = None = 0).
         // Only nodes without SmallVec members are constexpr-constructible;
         // the rest are covered at runtime by BuildAndPrint below.
