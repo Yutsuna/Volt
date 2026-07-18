@@ -7,7 +7,6 @@
 #include <mutex>
 #include <ostream>
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace Volt
@@ -44,29 +43,34 @@ namespace Core
 
         public:
 
-            Diagnostic &Report ( Diagnostic Diag )
-            {
-                if ( Diag.Severity == ESeverity::Error )
-                {
-                    ++ErrorCount;
-                }
-                return Items.emplace_back( std::move( Diag ) );
-            }
+            /**
+             * @brief Report a diagnostic into the bag.
+             * @param Diag The diagnostic to report.
+             * @return A reference to the reported diagnostic.
+             */
+            Diagnostic &Report ( Diagnostic Diag );
 
-            Diagnostic &Error ( SourceRange Range, std::string Message )
-            {
-                return Report( Diagnostic{ ESeverity::Error, Range, std::move( Message ), {} } );
-            }
+            /**
+             * @brief Report an error diagnostic into the bag.
+             * @param Range The source range associated with the diagnostic.
+             * @param Message The error message.
+             * @return A reference to the reported diagnostic.
+             */
+            Diagnostic &Error ( SourceRange Range, std::string Message );
 
-            Diagnostic &Warning ( SourceRange Range, std::string Message )
-            {
-                return Report( Diagnostic{ ESeverity::Warning, Range, std::move( Message ), {} } );
-            }
+            /**
+             * @brief Report a warning diagnostic into the bag.
+             * @param Range The source range associated with the diagnostic.
+             * @param Message The warning message.
+             * @return A reference to the reported diagnostic.
+             */
+            Diagnostic &Warning ( SourceRange Range, std::string Message );
 
-            [[nodiscard]] std::size_t Errors () const
-            {
-                return ErrorCount;
-            }
+            /**
+             * @brief Get the number of error diagnostics in the bag.
+             * @return The number of error diagnostics.
+             */
+            [[nodiscard]] std::size_t Errors () const noexcept;
 
         private:
 
@@ -76,53 +80,48 @@ namespace Core
             std::size_t ErrorCount = 0;
         };
 
-        [[nodiscard]] Bag MakeBag () const
-        {
-            return Bag{};
-        }
+        /**
+         * @brief Create a new empty Bag for thread-local accumulation of diagnostics.
+         * @return A new empty Bag.
+         */
+        [[nodiscard]] static Bag MakeBag () noexcept;
 
-        /// Fold a thread-local Bag into the shared store (takes the lock).
-        void Merge ( Bag &&Local )
-        {
-            const std::scoped_lock Guard{ Mutex };
-            for ( Diagnostic &Diag : Local.Items )
-            {
-                Store.push_back( std::move( Diag ) );
-            }
-            ErrorCount += Local.ErrorCount;
-            Local.Items.clear();
-            Local.ErrorCount = 0;
-        }
+        /**
+         * @brief Fold a thread-local Bag into the shared store.
+         * @param Local The thread-local Bag to merge.
+         */
+        void Merge ( Bag &&Local );
 
-        /// Report a single diagnostic directly (takes the lock).
-        Diagnostic &Report ( Diagnostic Diag )
-        {
-            const std::scoped_lock Guard{ Mutex };
-            if ( Diag.Severity == ESeverity::Error )
-            {
-                ++ErrorCount;
-            }
-            return Store.emplace_back( std::move( Diag ) );
-        }
+        /**
+         * @brief Report a single diagnostic directly into the shared store.
+         * @param Diag The diagnostic to report.
+         * @return A reference to the reported diagnostic.
+         */
+        Diagnostic &Report ( Diagnostic Diag );
 
-        [[nodiscard]] std::size_t ErrorTotal () const
-        {
-            const std::scoped_lock Guard{ Mutex };
-            return ErrorCount;
-        }
+        /**
+         * @brief Get the total number of error diagnostics in the shared store.
+         * @return The total number of error diagnostics.
+         */
+        [[nodiscard]] std::size_t ErrorTotal () const noexcept;
 
-        [[nodiscard]] bool HasErrors () const
-        {
-            return ErrorTotal() != 0;
-        }
+        /**
+         * @brief Check if there are any error diagnostics in the shared store.
+         * @return True if there are error diagnostics, false otherwise.
+         */
+        [[nodiscard]] bool HasErrors () const noexcept;
 
-        [[nodiscard]] std::size_t Count () const
-        {
-            const std::scoped_lock Guard{ Mutex };
-            return Store.size();
-        }
+        /**
+         * @brief Get the total number of diagnostics in the shared store.
+         * @return The total number of diagnostics.
+         */
+        [[nodiscard]] std::size_t Count () const noexcept;
 
-        /// Pretty-print every buffered diagnostic to Out.
+        /**
+         * @brief Pretty-print Render all diagnostics in the shared store to the given output stream.
+         * @param Sources The source manager for resolving source locations.
+         * @param Out The output stream to render diagnostics to.
+         */
         void Render ( const SourceManager &Sources, std::ostream &Out ) const;
 
     private:
