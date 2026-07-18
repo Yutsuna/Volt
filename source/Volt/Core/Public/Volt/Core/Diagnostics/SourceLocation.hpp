@@ -10,16 +10,24 @@ namespace Volt
 namespace Core
 {
 
+    /**
+     * @tag FileTag
+     * @brief Tag type for FileId, used to differentiate it from other TypedId types
+     */
     struct FileTag
     {
     };
 
-    /// Handle for a file registered with the SourceManager.
+    /**
+     * @typedef FileId
+     * @brief Handle for a file registered with the SourceManager.
+     */
     using FileId = TypedId<FileTag>;
 
-    /// Half-open byte range [Begin, End) inside a single source file. AST
-    /// nodes and tokens carry these; line/column is derived on demand by
-    /// the SourceManager so hot paths stay offset-only.
+    /**
+     * @struct SourceRange
+     * @brief Half-open byte range inside a single source file.
+     */
     struct SourceRange
     {
 
@@ -27,18 +35,14 @@ namespace Core
         std::uint32_t Begin = 0;
         std::uint32_t End   = 0;
 
-        [[nodiscard]] constexpr std::uint32_t Length () const
-        {
-            return End - Begin;
-        }
-
-        [[nodiscard]] static constexpr SourceRange Merge ( SourceRange Lhs, SourceRange Rhs )
-        {
-            return SourceRange{ Lhs.File, Lhs.Begin < Rhs.Begin ? Lhs.Begin : Rhs.Begin, Lhs.End > Rhs.End ? Lhs.End : Rhs.End };
-        }
+        [[nodiscard]] constexpr std::uint32_t Length () const noexcept;
+        [[nodiscard]] static constexpr SourceRange Merge ( SourceRange Lhs, SourceRange Rhs ) noexcept;
     };
 
-    /// Human-facing 1-based position resolved from a byte offset.
+    /**
+     * @struct LineColumn
+     * @brief Human-facing 1-based position resolved from a byte offset.
+     */
     struct LineColumn
     {
 
@@ -49,3 +53,5 @@ namespace Core
 } // namespace Core
 
 } // namespace Volt
+
+#include "Inline/SourceLocation.inl"
