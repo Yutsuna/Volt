@@ -1,8 +1,9 @@
 // Nodes.inl — the single manifest that drives every AST category.
 //
 // Re-included with different definitions of VOLT_EXPR / VOLT_STMT / VOLT_DECL /
-// VOLT_TYPE to generate the per-category Kind enum, the std::variant, and the
-// node-name tables. Adding a node = one line here + its struct + VOLT_FIELDS.
+// VOLT_TYPE to generate the per-category Kind enum and the std::variant.
+// Field names come from P2996 reflection. Adding a node = one line here +
+// its plain struct.
 
 #ifndef VOLT_EXPR
     #define VOLT_EXPR( Name )

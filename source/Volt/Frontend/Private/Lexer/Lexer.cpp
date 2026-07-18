@@ -53,7 +53,7 @@ namespace Frontend
 #define VOLT_PUNCT( Name, Spelling ) PunctEntry{ Spelling, TokenKind::Name },
 #include "Volt/Frontend/Lexer/TokenKind.inl"
                 };
-                std::stable_sort( Entries.begin(), Entries.end(), [] ( const PunctEntry &A, const PunctEntry &B ) { return A.Spelling.size() > B.Spelling.size(); } );
+                std::ranges::stable_sort( Entries, [] ( const PunctEntry &A, const PunctEntry &B ) { return A.Spelling.size() > B.Spelling.size(); } );
                 return Entries;
             }();
             return Table;
@@ -111,7 +111,7 @@ namespace Frontend
         {
             const std::size_t Start = Pos;
             Pos += 2;
-            while ( !AtEnd() && !( Peek() == '#' && Peek( 1 ) == '}' ) )
+            while ( !AtEnd() && ( Peek() != '#' || Peek( 1 ) != '}' ) )
             {
                 ++Pos;
             }
@@ -265,7 +265,7 @@ namespace Frontend
             const char C = Peek();
             if ( C == '\\' )
             {
-                Pos += ( Peek( 1 ) != '\0' ) ? 2 : 1;
+                Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
                 continue;
             }
             if ( C == '#' && Peek( 1 ) == '{' )
@@ -315,7 +315,7 @@ namespace Frontend
         ++Pos; // opening quote
         if ( Peek() == '\\' )
         {
-            Pos += ( Peek( 1 ) != '\0' ) ? 2 : 1;
+            Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
         }
         else if ( !AtEnd() )
         {
@@ -371,7 +371,7 @@ namespace Frontend
         const std::string_view Rest = Source.substr( Start );
         for ( const PunctEntry &Entry : PunctTable() )
         {
-            if ( Rest.substr( 0, Entry.Spelling.size() ) == Entry.Spelling )
+            if ( Rest.starts_with( Entry.Spelling ) )
             {
                 Pos = Start + Entry.Spelling.size();
                 return Make( Entry.Kind, Start );
@@ -456,7 +456,7 @@ namespace Frontend
         std::vector<Token> Tokens;
         for ( ;; )
         {
-            Token Tok       = Next();
+            const Token Tok = Next();
             const bool bEof = Tok.Is( TokenKind::Eof );
             Tokens.push_back( Tok );
             if ( bEof )
