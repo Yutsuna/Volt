@@ -6,6 +6,9 @@
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
 
+#include <string_view>
+#include <variant>
+
 namespace Volt
 {
 
@@ -63,16 +66,19 @@ namespace Frontend
     struct Param
     {
 
-        using Self = Param;
-
         Core::SourceRange Loc;
         Symbol Name;
         TypeId DeclType;
         ExprId Default;
         bool bInstanceVar = false; // `def initialize(@x : T)`
-
-        VOLT_FIELDS( Name, DeclType, Default, bInstanceVar )
     };
+
+    /// Name of a node variant's active alternative. One reflective template
+    /// replaces the former per-category X-macro switches.
+    template <typename... Alts> [[nodiscard]] constexpr std::string_view NodeName ( const std::variant<Alts...> &Node )
+    {
+        return Meta::ActiveName( Node );
+    }
 
 } // namespace Frontend
 

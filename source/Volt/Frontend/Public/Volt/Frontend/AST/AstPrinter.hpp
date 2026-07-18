@@ -47,7 +47,7 @@ namespace Frontend
 
     /// Reflective S-expression printer. It knows nothing about individual
     /// nodes: it walks the manifest-generated variant and each struct's
-    /// VOLT_FIELDS, so a new node prints correctly with zero printer code.
+    /// fields via P2996, so a new node prints correctly with zero printer code.
     class AstPrinter
     {
 
@@ -174,7 +174,7 @@ namespace Frontend
             }
             else if constexpr ( std::is_enum_v<F> )
             {
-                Out << static_cast<long long>( Value );
+                Out << Meta::EnumName( Value );
             }
             else
             {
