@@ -50,15 +50,21 @@ namespace Meta
      */
     template <Reflected T, typename Fn> constexpr void ForEachField ( T &Object, Fn &&Callback );
 
-    /// Number of semantic fields ForEachField will visit.
+    /**
+     * @brief Number of semantic fields ForEachField will visit.
+     */
     template <Reflected T> [[nodiscard]] consteval std::size_t FieldCount ();
 
-    /// Enumerator name of Value, or "<unknown>" for out-of-range values.
+    /**
+     * @brief Enumerator name of Value, or "<unknown>" for out-of-range values.
+     */
     template <typename E>
         requires std::is_enum_v<E>
     [[nodiscard]] constexpr std::string_view EnumName ( E Value );
 
-    /// Type name of the active alternative of a variant (monostate → "None").
+    /**
+     * @brief Type name of the active alternative of a variant (monostate → "None").
+     */
     template <typename... Alts> [[nodiscard]] constexpr std::string_view ActiveName ( const std::variant<Alts...> &Node );
 
     // clang-format on
