@@ -1,10 +1,11 @@
 #pragma once
 
-#include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/CLI/GenericCommand.hpp"
 
+#include <map>
 #include <memory>
+#include <string>
 #include <string_view>
-#include <unordered_map>
 
 namespace Volt
 {
@@ -20,7 +21,8 @@ namespace CLI
     {
     public:
 
-        using FCommandMap = std::unordered_map<std::string_view, std::unique_ptr<IGenericCommand>>;
+        // Ordered by name so `volt help` and error listings are deterministic.
+        using FCommandMap = std::map<std::string_view, std::unique_ptr<IGenericCommand>>;
 
     public:
 
@@ -34,6 +36,12 @@ namespace CLI
 
         /** @brief Get all registered commands */
         [[nodiscard]] const FCommandMap &GetRegisteredCommands () const noexcept;
+
+        /** @brief Find a command by name, or nullptr */
+        [[nodiscard]] IGenericCommand *Find ( std::string_view InName ) const noexcept;
+
+        /** @brief The registered command names joined by InSeparator */
+        [[nodiscard]] std::string JoinCommandNames ( std::string_view InSeparator = ", " ) const;
 
     private:
 
@@ -55,7 +63,7 @@ namespace CLI
 
         TCommandRegister () noexcept
         {
-            FCommandRegistry::GetInstance().RegisterCommand( std::make_unique<TCommand> );
+            FCommandRegistry::GetInstance().RegisterCommand( std::make_unique<TCommand>() );
         }
     };
 
