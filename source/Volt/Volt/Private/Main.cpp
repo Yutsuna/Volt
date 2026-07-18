@@ -1,6 +1,10 @@
+#include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"
 
+#include <filesystem>
 #include <iostream>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -8,48 +12,20 @@
 namespace
 {
 
-void PrintUsage ( std::ostream &Out )
-{
-    Out << "usage: Volt [--print] <file.vl|file.vlx> [more...]\n"
-        << "       Volt [--print] --circuit <Project.vl>\n";
-}
-
-} // namespace
-
-//
-// Idée de main:
-//
-// std::vector<std::string_view> Args;
-// Args.reserve( ArgCount - 1 );
-// for (std::int32_t Index = 1; Index < ArgCount; ++Index)
-// {
-//     Args.emplace_back( ArgValue[ Index ] );
-// }
-// const std::string_view CommandName = Args[0];
-// const std::span<const std::string_view> CommandArgs( Args.begin() + 1, Args.end());
-// const auto &Registry = FCommandRegistry::GetInstance().GetCommands();
-// const auto It = Registry.find( CommandName );
-//
-// if ( It == Registry.end() )
-// {
-//     return error blabla...;
-// }
-//
-// return It->second->Execute( CommandArgs );
-//
-//
-
-// Front CLI: hand the requested files (or a whole circuit) to the Driver, which
-// parses and runs the sema passes across a thread pool, then report diagnostics.
-int main ( int ArgCount, char **ArgValues )
+/**
+ * Legacy invocation — `Volt [--print] <file.vl> [more...]` and
+ * `Volt [--print] --circuit <Project.vl>` — kept verbatim because
+ * scripts/golden.sh captures this exact surface (printed AST, diagnostics,
+ * summary, exit code). New workflows go through the command registry.
+ */
+int RunLegacy ( std::span<const std::string_view> Args )
 {
     std::vector<std::string> Files;
     bool bCircuit = false;
     bool bPrint   = false;
 
-    for ( int Index = 1; Index < ArgCount; ++Index )
+    for ( const std::string_view Arg : Args )
     {
-        const std::string_view Arg = ArgValues[Index];
         if ( Arg == "--circuit" )
         {
             bCircuit = true;
@@ -57,11 +33,6 @@ int main ( int ArgCount, char **ArgValues )
         else if ( Arg == "--print" )
         {
             bPrint = true;
-        }
-        else if ( Arg == "-h" || Arg == "--help" )
-        {
-            PrintUsage( std::cout );
-            return 0;
         }
         else
         {
@@ -71,12 +42,13 @@ int main ( int ArgCount, char **ArgValues )
 
     if ( Files.empty() )
     {
-        PrintUsage( std::cerr );
+        std::cerr << "usage: Volt [--print] <file.vl|file.vlx> [more...]\n"
+                  << "       Volt [--print] --circuit <Project.vl>\n";
         return 2;
     }
 
     Volt::Driver::Driver Driver;
-    Volt::Driver::CompileResult Result = bCircuit ? Driver.CompileCircuit( Files.front() ) : Driver.CompileFiles( Files );
+    const Volt::Driver::CompileResult Result = bCircuit ? Driver.CompileCircuit( Files.front() ) : Driver.CompileFiles( Files );
 
     if ( bPrint )
     {
@@ -105,4 +77,56 @@ int main ( int ArgCount, char **ArgValues )
     std::cerr << '\n';
 
     return Driver.HasErrors() ? 1 : 0;
+}
+
+int Run ( std::span<const std::string_view> Args )
+{
+    using Volt::CLI::FCommandRegistry;
+    using Volt::Core::FLogger;
+
+    const FCommandRegistry &Registry = FCommandRegistry::GetInstance();
+
+    if ( Args.empty() )
+    {
+        FLogger::Error( "No command specified." );
+        FLogger::Error( "Available commands: " + Registry.JoinCommandNames() );
+        return 84;
+    }
+
+    if ( Volt::CLI::IGenericCommand *Command = Registry.Find( Args.front() ) )
+    {
+        return Command->Execute( Args.subspan( 1 ) );
+    }
+
+    // Not a command: fall back to the legacy direct-compile surface when the
+    // arguments look like it (flags or an existing path) — golden.sh relies on it.
+    std::error_code Ec;
+    if ( Args.front().starts_with( '-' ) or std::filesystem::exists( Args.front(), Ec ) )
+    {
+        return RunLegacy( Args );
+    }
+
+    FLogger::Error( "Unknown command: " + std::string( Args.front() ) );
+    FLogger::Error( "Available commands: " + Registry.JoinCommandNames() );
+    return 84;
+}
+
+} // namespace
+
+// Front CLI: dispatch to the registered command (parse/check/circuit/help...),
+// which drives the Driver pipeline and reports through the async logger.
+int main ( int ArgCount, const char **ArgValues )
+{
+    const Volt::Core::FLogScope LogScope;
+
+    std::vector<std::string_view> Args;
+    Args.reserve( static_cast<std::size_t>( ArgCount > 0 ? ArgCount - 1 : 0 ) );
+    for ( int Index = 1; Index < ArgCount; ++Index )
+    {
+        Args.emplace_back( ArgValues[Index] );
+    }
+
+    const int Code = Run( Args );
+    Volt::Core::FLogger::Flush();
+    return Code;
 }
