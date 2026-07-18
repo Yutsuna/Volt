@@ -17,7 +17,16 @@ Run these before finishing a change. Any failure means the change is not done.
    ninja -C build                 # zero warnings, zero errors
    ```
 3. **Lint** (respect `.clang-tidy`): resolve or justify every diagnostic on
-   touched files.
+   touched files. clang-tidy does not understand GCC's `-freflection`, so
+   point it at a stripped compile DB:
+   ```sh
+   mkdir -p build/tidy
+   sed 's/ -freflection//' build/compile_commands.json > build/tidy/compile_commands.json
+   clang-tidy -p build/tidy <touched .cpp files>
+   ```
+   TUs that include `Volt/Core/Meta/Reflect.hpp` cannot be parsed by clang
+   tooling at all until LLVM ships P2996 — diagnostics there are noise;
+   justify instead of chasing them.
 4. **Corpus sweep** — every sample and stdlib file must parse:
    ```sh
    for f in $(find samples source/Lib -name '*.vl' -o -name '*.vlx'); do
