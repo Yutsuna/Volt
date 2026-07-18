@@ -253,6 +253,45 @@ sept points ci-dessous sont les endroits où elle casse. État : **tous traités
    inexistants. → `scripts/golden.rb` (sweep `samples/**` via `volt --print`,
    goldens sous `tests/golden/`) + `scripts/check_hardcode.sh`, câblés en ctest.
 
+## Refonte métaprogrammation C++26 (2026-07-17) — état
+
+Cinq axes évalués contre la toolchain réelle (clang 22.1.8 / GCC 15.2). **Faits :**
+
+1. **SmallVec exception-safe** (`Core/Support/SmallVec.hpp`). `Grow` relocalise via
+   `std::move_if_noexcept` avec rollback (destruction + `operator delete[]`) si un
+   ctor lance ; copy-and-swap pour `operator=` par copie (garantie forte quand le
+   move de `T` ne lance pas) ; ctors copie/liste délégués au ctor par défaut pour
+   nettoyage RAII sur exception ; `EmplaceBack` matérialise la valeur avant `Grow`
+   (auto-aliasing `Vec.PushBack(Vec[0])`). `_` (P2169) adopté dans l'interner.
+2. **StringInterner pmr** (`Core/Support/StringInterner.hpp`). `deque<string>` +
+   `unordered_map` → `monotonic_buffer_resource{64K}` + `vector<string_view>` bump-
+   alloués. Fin des allocations par-chaîne / fragmentation ; adresses stables
+   conservées. (Bench formel du lexing = à faire ; le lookup hash reste le coût dominant.)
+3. **TypedId à provenance** (`Core/Support/Id.hpp` + `Arena.hpp`), sous option de
+   build `VOLT_CHECKED_IDS` (OFF par défaut, layout Id **inchangé** en Release). Chaque
+   `Arena` porte un tag process-unique, estampillé sur les Ids ; `Arena::Get` abort sur
+   un Id d'une autre arène. Vérifié : accès inter-arène → `std::abort` + diagnostic.
+   Choix : option de build explicite plutôt que `if consteval` (qui distingue
+   compile/runtime, pas Debug/Release) et hors de `TypedId` en Debug (divergence de layout).
+4. **Anti-désync VOLT_FIELDS** (`Core/Meta/Reflect.hpp` + `AST/AstSelfCheck.cpp`).
+   `Meta::AggregateArity<T>()` (comptage de champs par sonde brace-init, style PFR) ;
+   `static_assert( AggregateArity == FieldCount + 1 )` sur chaque nœud via `Nodes.inl` :
+   un champ ajouté mais oublié dans `VOLT_FIELDS` casse le build. **Seam pour P2996** :
+   `ForEachField` reste le seul point à réimplémenter sur `std::meta` quand clang mainline
+   le shippera → `VOLT_FIELDS`/`VOLT_FOR_EACH` supprimables sans toucher un call site.
+
+**Différé — Axe 4 (work-stealing / imports dynamiques).** `Driver::Units` (`std::deque`)
+est traversé par phases (parse série, sema parallèle jthread). `std::deque::push_back`
+n'invalide **pas** les références (seulement les itérateurs) ; le seul risque réel est le
+push concurrent, non déclenché tant que le langage n'a pas d'`import`/`require` découvert
+au parse. Le jour venu : queue protégée par mutex + `counting_semaphore` (pas de scheduler
+work-stealing — sur-ingénierie à l'échelle d'un compilateur). À implémenter **avec** la
+feature imports, pas avant.
+
+**Différé — Axe 1 (réflexion native P2996).** Design prêt (seam `ForEachField`), mais
+ni clang 22 ni GCC 15 n'exposent `<meta>`/`-freflection`. Migration à la disponibilité
+mainline ; le `static_assert` d'arité couvre le risque de désync entre-temps.
+
 ## Hors périmètre (phases suivantes)
 
 TypeChecker complet, résolution de layouts, JIT interpréteur (dev/hot-reload), codegen LLVM AOT,
