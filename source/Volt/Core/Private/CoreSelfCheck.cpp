@@ -1,6 +1,10 @@
-// Compile-time smoke test for the header-only Support/Meta foundation.
-// Templates are not checked until instantiated, so this TU instantiates the
-// core utilities and asserts their invariants under -Werror.
+/**
+ * @file CoreSelfCheck.cpp
+ * @brief Compile-time smoke test for the header-only Support/Meta foundation.
+ * @details Templates are not checked until instantiated,
+ *          So this TU instantiates the core utilities
+ *          and asserts their invariants under -Werror.
+ */
 
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
