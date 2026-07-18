@@ -14,15 +14,23 @@ namespace CLI
 
     /**
      * @struct FOption
-     * @brief Represents CLI option with its name, description, and callback function.
+     * @brief One CLI option: names, optional value placeholder, description, callback.
+     * @details A non-empty ValueName ("INPUT") makes the option consume the next
+     *          argument, which is handed to the callback; flags get "".
      */
     struct FOption
     {
-        std::string_view ShortName;
-        std::string_view LongName;
+
+        std::string_view ShortName; //<< "-i", or empty when the option has no short form
+        std::string_view LongName;  //<< "--input"
+        std::string_view ValueName; //<< "INPUT", or empty for a plain flag
         std::string_view Description;
-        bool bHasValue = false;
         std::function<void( std::string_view )> Callback;
+
+        [[nodiscard]] bool HasValue () const noexcept
+        {
+            return !ValueName.empty();
+        }
     };
 
     /**
@@ -42,18 +50,19 @@ namespace CLI
          * @param InArgs A span of string views representing the command-line arguments.
          * @return An integer status code indicating the result of the command execution.
          */
-        [[nodiscard]] virtual int32_t Execute ( std::span<const std::string_view> InArgs ) = 0;
+        [[nodiscard]] virtual std::int32_t Execute ( std::span<const std::string_view> InArgs ) = 0;
 
     public:
 
         [[nodiscard]] virtual std::string_view GetName () const noexcept        = 0;
         [[nodiscard]] virtual std::string_view GetDescription () const noexcept = 0;
+        [[nodiscard]] virtual std::string_view GetUsage () const noexcept       = 0;
         [[nodiscard]] virtual std::vector<FOption> GetOptions ()                = 0;
 
     protected:
 
-        static constexpr int32_t ExitSuccess = 0;
-        static constexpr int32_t ExitFailure = 1;
+        static constexpr std::int32_t ExitSuccess = 0;
+        static constexpr std::int32_t ExitFailure = 84;
     };
 
 } // namespace CLI
