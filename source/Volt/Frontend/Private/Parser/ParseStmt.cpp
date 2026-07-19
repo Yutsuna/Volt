@@ -11,10 +11,11 @@ namespace Volt
 namespace Frontend
 {
 
-    void Parser::ParseStatementBlock ( StmtList &Out )
+    void Parser::ParseStatementBlock ( StmtList &Out, TokenKind ExtraTerminator )
     {
         SkipTerminators();
-        while ( !AtEnd() && !Check( TokenKind::KwEnd ) && !Check( TokenKind::KwElse ) && !Check( TokenKind::KwElsif ) )
+        while ( !AtEnd() and !Check( TokenKind::KwEnd ) and !Check( TokenKind::KwElse ) and !Check( TokenKind::KwElsif ) &&
+                !Check( ExtraTerminator ) )
         {
             const std::size_t Before = Pos;
 
@@ -62,7 +63,7 @@ namespace Frontend
         const std::uint32_t Begin = Here();
 
         // `name : Type [= init]` — a typed local declaration.
-        if ( Check( TokenKind::Identifier ) && PeekKind( 1 ) == TokenKind::Colon )
+        if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Colon )
         {
             LocalDecl Node;
             Node.Name = InternText( Advance() );
@@ -191,8 +192,8 @@ namespace Frontend
         // A bare `return` is followed by a terminator, `end`, or a trailing
         // statement modifier (`return if c` / `return unless c`); only parse
         // a value when none of those come next.
-        if ( !Check( TokenKind::Newline ) && !Check( TokenKind::Semicolon ) && !Check( TokenKind::Eof ) &&
-             !Check( TokenKind::KwEnd ) && !Check( TokenKind::KwIf ) && !Check( TokenKind::KwUnless ) )
+        if ( !Check( TokenKind::Newline ) and !Check( TokenKind::Semicolon ) and !Check( TokenKind::Eof ) &&
+             !Check( TokenKind::KwEnd ) and !Check( TokenKind::KwIf ) and !Check( TokenKind::KwUnless ) )
         {
             Node.Value = ParseExpr( 0 );
         }

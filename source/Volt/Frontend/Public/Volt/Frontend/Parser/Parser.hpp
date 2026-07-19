@@ -95,7 +95,7 @@ namespace Frontend
 
         void SkipTerminators ()
         {
-            while ( Check( TokenKind::Newline ) || Check( TokenKind::Semicolon ) )
+            while ( Check( TokenKind::Newline ) or Check( TokenKind::Semicolon ) )
             {
                 Advance();
             }
@@ -163,6 +163,10 @@ namespace Frontend
         [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range );
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
         [[nodiscard]] ExprId ParseDoBlock ();
+        // Attach a trailing block to the call it follows: mutates `Lhs` in
+        // place if it is already a bare `Call` with no block yet (`each do`),
+        // otherwise wraps it in a new `Call` (e.g. a bare identifier callee).
+        [[nodiscard]] ExprId AttachTrailingBlock ( ExprId Lhs, ExprId BlockId, std::uint32_t Begin );
         void ParseCallArguments ( ExprList &Args, SymbolList &ArgNames, TokenKind Close );
         [[nodiscard]] bool CanStartCommandArgument () const;
 
@@ -174,7 +178,11 @@ namespace Frontend
         [[nodiscard]] StmtId ParseWhile ();
         [[nodiscard]] StmtId ParseReturn ();
         [[nodiscard]] StmtId ParseExprOrLocalStatement ();
-        void ParseStatementBlock ( StmtList &Out );
+        // `ExtraTerminator` lets a caller stop the block on a token besides
+        // `end`/`else`/`elsif` (e.g. `}` for a brace block). `Eof` is a safe
+        // no-op default: the loop already exits via AtEnd() before Check()
+        // could ever see it.
+        void ParseStatementBlock ( StmtList &Out, TokenKind ExtraTerminator = TokenKind::Eof );
         [[nodiscard]] StmtId ApplyModifiers ( StmtId Inner );
 
         // --- Grammar: declarations (ParseDecl.cpp) -----------------------
@@ -200,6 +208,10 @@ namespace Frontend
         [[nodiscard]] TypeId ParseType ();
         [[nodiscard]] TypeId ParseTypePrimary ();
         [[nodiscard]] bool AtTypeStart () const;
+        // Shared tail for every FuncType spelling (`-> R`, `(A, B) -> R`,
+        // bare `T -> R`): resolve the return type and wrap. The three
+        // callers differ only in how `Params` was populated.
+        [[nodiscard]] TypeId FinishFuncType ( TypeList Params, std::uint32_t Begin );
 
         // --- Grammar: JSX (ParseJsx.cpp) ---------------------------------
 
@@ -209,6 +221,11 @@ namespace Frontend
 
         std::vector<Token> Tokens;
         std::size_t Pos = 0;
+        // While parsing paren-less command-call arguments, a trailing `do`
+        // must bind to the outer command call, not to the last argument
+        // (Ruby/Crystal rule: `do` binds loosest, `{` binds tightest). Any
+        // delimited context (parens, brackets, block bodies) clears it back.
+        bool bNoDoBlock = false;
         AstContext &Context;
         Core::DiagEngine::Bag &Diagnostics;
         Core::StringInterner &Interner;

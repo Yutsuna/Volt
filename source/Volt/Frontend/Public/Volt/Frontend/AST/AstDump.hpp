@@ -65,7 +65,7 @@ namespace Frontend
         /// "bSelfClosing" -> "SelfClosing": drop the bool Hungarian prefix.
         [[nodiscard]] inline std::string_view StripBoolPrefix ( std::string_view Name )
         {
-            if ( Name.size() > 1 && Name[0] == 'b' && std::isupper( static_cast<unsigned char>( Name[1] ) ) != 0 )
+            if ( Name.size() > 1 and Name[0] == 'b' and std::isupper( static_cast<unsigned char>( Name[1] ) ) != 0 )
             {
                 return Name.substr( 1 );
             }
@@ -217,8 +217,8 @@ namespace Frontend
         // --- Field classification ----------------------------------------
 
         template <typename F>
-        static constexpr bool IsNodeId = std::same_as<F, ExprId> || std::same_as<F, StmtId> || std::same_as<F, DeclId> ||
-                                         std::same_as<F, TypeId> || std::same_as<F, ParamId>;
+        static constexpr bool IsNodeId = std::same_as<F, ExprId> or std::same_as<F, StmtId> or std::same_as<F, DeclId> ||
+                                         std::same_as<F, TypeId> or std::same_as<F, ParamId>;
 
         // Element type of a NodeList, or void for anything else — keeps the
         // classification below well-formed for every reflected field type.
@@ -234,7 +234,7 @@ namespace Frontend
 
         template <typename F> static constexpr bool IsSymbolList = std::same_as<typename TListElem<F>::Type, Symbol>;
 
-        template <typename F> static constexpr bool IsIdList = Detail::IsNodeList<F>::value && !IsSymbolList<F>;
+        template <typename F> static constexpr bool IsIdList = Detail::IsNodeList<F>::value and !IsSymbolList<F>;
 
         // --- Node rendering ----------------------------------------------
 
@@ -273,7 +273,7 @@ namespace Frontend
         {
             // Synthesized nodes carry an invalid file; SourceManager lookups
             // are not bounds-checked, so skip rather than resolve.
-            if ( !Options.bShowLocation || !Loc.File.IsValid() )
+            if ( !Options.bShowLocation or !Loc.File.IsValid() )
             {
                 return;
             }

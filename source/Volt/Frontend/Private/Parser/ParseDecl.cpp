@@ -112,7 +112,7 @@ namespace Frontend
     void Parser::ParseDeclBlock ( DeclList &Out )
     {
         SkipTerminators();
-        while ( !AtEnd() && !Check( TokenKind::KwEnd ) )
+        while ( !AtEnd() and !Check( TokenKind::KwEnd ) )
         {
             const std::size_t Before = Pos;
 
@@ -264,7 +264,7 @@ namespace Frontend
         // Method name: identifier, or an operator method like `[]`, `[]=`,
         // `<=>`, `+`, ... A trailing `=` makes it a setter (`value=`), the
         // named counterpart of `[]=`.
-        if ( Check( TokenKind::Identifier ) || Check( TokenKind::Constant ) )
+        if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) )
         {
             Node.Name = InternText( Advance() );
             if ( Accept( TokenKind::Assign ) )
@@ -312,7 +312,7 @@ namespace Frontend
         const std::uint32_t Begin = Here();
 
         EAccessor Accessor = EAccessor::None;
-        if ( Check( TokenKind::Identifier ) && PeekKind( 1 ) == TokenKind::Identifier )
+        if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Identifier )
         {
             const std::string_view Word = Spelling( Peek() );
             if ( Word == "getter" )
@@ -358,7 +358,7 @@ namespace Frontend
         Expect( TokenKind::LBracket, "to open an annotation" );
 
         Annotation Node;
-        if ( Check( TokenKind::Constant ) || Check( TokenKind::Identifier ) )
+        if ( Check( TokenKind::Constant ) or Check( TokenKind::Identifier ) )
         {
             Node.Name = InternText( Advance() );
         }
@@ -389,7 +389,7 @@ namespace Frontend
         Expect( TokenKind::LBrace, "to open a circuit body" );
         SkipTerminators();
 
-        while ( !AtEnd() && !Check( TokenKind::RBrace ) )
+        while ( !AtEnd() and !Check( TokenKind::RBrace ) )
         {
             const std::size_t Before = Pos;
             const StmtId Stmt        = ParseStatement();

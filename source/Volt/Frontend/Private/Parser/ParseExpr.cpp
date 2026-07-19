@@ -13,6 +13,28 @@ namespace Volt
 namespace Frontend
 {
 
+    namespace
+    {
+
+        // Only these expression kinds denote something a trailing `do ... end`
+        // / `{ ... }` block can sensibly attach to (a callee); literals, hash
+        // literals, and the like can never be "called" with a block.
+        [[nodiscard]] bool IsBlockAttachable ( ExprKind Kind )
+        {
+            switch ( Kind )
+            {
+            case ExprKind::Identifier:
+            case ExprKind::Member:
+            case ExprKind::Call:
+            case ExprKind::Index:
+                return true;
+            default:
+                return false;
+            }
+        }
+
+    } // namespace
+
     bool Parser::CanStartCommandArgument () const
     {
         switch ( PeekKind() )
@@ -43,7 +65,7 @@ namespace Frontend
         {
             const TokenKind Op    = PeekKind();
             const BindingPower Bp = InfixBinding( Op );
-            if ( Bp.Left == 0 || Bp.Left < MinBindingPower )
+            if ( Bp.Left == 0 or Bp.Left < MinBindingPower )
             {
                 break;
             }
@@ -205,12 +227,12 @@ namespace Frontend
         {
             const std::uint32_t Begin = Here();
 
-            if ( Accept( TokenKind::Dot ) || Accept( TokenKind::ColonColon ) )
+            if ( Accept( TokenKind::Dot ) or Accept( TokenKind::ColonColon ) )
             {
                 Member Node;
                 Node.Object       = Lhs;
                 const Token &Name = Peek();
-                if ( Check( TokenKind::Identifier ) || Check( TokenKind::Constant ) )
+                if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) )
                 {
                     Node.Name = InternText( Advance() );
                 }
@@ -238,23 +260,11 @@ namespace Frontend
                 Expect( TokenKind::RBracket, "to close index" );
                 Lhs = MakeExpr( std::move( Node ), RangeSince( Begin ) );
             }
-            else if ( Check( TokenKind::KwDo ) )
+            else if ( ( ( Check( TokenKind::KwDo ) and !bNoDoBlock ) or Check( TokenKind::LBrace ) ) and IsBlockAttachable( KindOf( Context.Expr( Lhs ) ) ) )
             {
-                // Trailing `do |x| ... end` block: attach to the call it
-                // follows, wrapping a bare callee (`each do`, `v.each do`)
-                // into a Call first.
-                const ExprId BlockId = ParseDoBlock();
-                if ( Call *AsCall = std::get_if<Call>( &Context.Expr( Lhs ) ); AsCall != nullptr && !AsCall->BlockArg.IsValid() )
-                {
-                    AsCall->BlockArg = BlockId;
-                }
-                else
-                {
-                    Call Node;
-                    Node.Callee   = Lhs;
-                    Node.BlockArg = BlockId;
-                    Lhs           = MakeExpr( std::move( Node ), RangeSince( Begin ) );
-                }
+                // Trailing `do |x| ... end` / `{ |x| ... }` block — same
+                // construct, two spellings.
+                Lhs = AttachTrailingBlock( Lhs, ParseDoBlock(), Begin );
             }
             else
             {
@@ -272,6 +282,10 @@ namespace Frontend
             return;
         }
 
+        // Delimited by parens/brackets: a fresh context where `do` may
+        // attach again (`foo(x.each do ... end)`).
+        const bool Saved = bNoDoBlock;
+        bNoDoBlock       = false;
         do
         {
             SkipNewlines();
@@ -280,7 +294,7 @@ namespace Frontend
                 break;
             }
             Symbol Name;
-            if ( Check( TokenKind::Identifier ) && PeekKind( 1 ) == TokenKind::Colon )
+            if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Colon )
             {
                 Name = InternText( Advance() );
                 Advance(); // ':'
@@ -289,13 +303,47 @@ namespace Frontend
             ArgNames.PushBack( Name );
             SkipNewlines();
         } while ( Accept( TokenKind::Comma ) );
+        bNoDoBlock = Saved;
         SkipNewlines();
+    }
+
+    ExprId Parser::AttachTrailingBlock ( ExprId Lhs, ExprId BlockId, std::uint32_t Begin )
+    {
+        // Reach into the arena and mutate the existing Call in place when
+        // possible (`each do`, `v.each do`) rather than nesting a wrapper
+        // Call around it — this is the one deliberate exception to the
+        // value-AST convention that nodes are replaced via Context.Add, not
+        // edited through a live reference. It is safe because no further
+        // Context.Add call happens between the lookup and the assignment.
+        if ( Call *AsCall = std::get_if<Call>( &Context.Expr( Lhs ) ); AsCall != nullptr and !AsCall->BlockArg.IsValid() )
+        {
+            AsCall->BlockArg = BlockId;
+            return Lhs;
+        }
+
+        // A bare callee (e.g. a block on a local/identifier) has no Call to
+        // mutate — wrap it in one.
+        Call Node;
+        Node.Callee   = Lhs;
+        Node.BlockArg = BlockId;
+        return MakeExpr( std::move( Node ), RangeSince( Begin ) );
     }
 
     ExprId Parser::ParseDoBlock ()
     {
         const std::uint32_t Begin = Here();
-        Expect( TokenKind::KwDo, "to begin a block" );
+
+        // `do ... end` and `{ ... }` are the same block literal, just
+        // spelled with different delimiters (Ruby/Crystal).
+        const bool bBrace = Check( TokenKind::LBrace );
+        if ( bBrace )
+        {
+            Advance();
+        }
+        else
+        {
+            Expect( TokenKind::KwDo, "to begin a block" );
+        }
 
         Block Node;
         // Parameters are hard-expected between pipes, outside the Pratt
@@ -304,20 +352,34 @@ namespace Frontend
         {
             do
             {
-                Param Item;
-                Item.Name = InternText( Expect( TokenKind::Identifier, "as a block parameter name" ) );
+                Param ParamNode;
+                ParamNode.Name = InternText( Expect( TokenKind::Identifier, "as a block parameter name" ) );
                 if ( Accept( TokenKind::Colon ) )
                 {
-                    Item.DeclType = ParseType();
+                    ParamNode.DeclType = ParseType();
                 }
-                Node.Params.PushBack( Context.Add( std::move( Item ) ) );
+                Node.Params.PushBack( Context.Add( std::move( ParamNode ) ) );
             } while ( Accept( TokenKind::Comma ) );
             Expect( TokenKind::Pipe, "to close block parameters" );
         }
 
-        SkipTerminators();
-        ParseStatementBlock( Node.Body );
-        Expect( TokenKind::KwEnd, "to close block" );
+        // The body is a fresh statement context: `do` may attach again.
+        const bool Saved = bNoDoBlock;
+        bNoDoBlock       = false;
+
+        // `end` is already one of ParseStatementBlock's built-in terminators;
+        // only a brace block needs the extra one.
+        const TokenKind Close = bBrace ? TokenKind::RBrace : TokenKind::KwEnd;
+        if ( bBrace )
+        {
+            ParseStatementBlock( Node.Body, Close );
+        }
+        else
+        {
+            ParseStatementBlock( Node.Body );
+        }
+        bNoDoBlock = Saved;
+        Expect( Close, "to close block" );
 
         return MakeExpr( std::move( Node ), RangeSince( Begin ) );
     }
@@ -326,10 +388,16 @@ namespace Frontend
     {
         Call Node;
         Node.Callee = Callee;
+
+        // Inside the argument list a trailing `do` belongs to this command
+        // call, not to the last argument — suppress it there (`{` still
+        // binds tightest and may attach to an argument, as in Ruby).
+        const bool Saved = bNoDoBlock;
+        bNoDoBlock       = true;
         do
         {
             Symbol Name;
-            if ( Check( TokenKind::Identifier ) && PeekKind( 1 ) == TokenKind::Colon )
+            if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Colon )
             {
                 Name = InternText( Advance() );
                 Advance(); // ':'
@@ -337,6 +405,14 @@ namespace Frontend
             Node.Args.PushBack( ParseExpr( 0 ) );
             Node.ArgNames.PushBack( Name );
         } while ( Accept( TokenKind::Comma ) );
+        bNoDoBlock = Saved;
+
+        // This result never flows back through ParsePostfix, so claim the
+        // trailing block here (`foo 1 do |y| ... end`).
+        if ( Check( TokenKind::KwDo ) or Check( TokenKind::LBrace ) )
+        {
+            Node.BlockArg = ParseDoBlock();
+        }
 
         return MakeExpr( std::move( Node ), RangeSince( Start.Begin ) );
     }
@@ -345,7 +421,11 @@ namespace Frontend
     {
         Expect( TokenKind::LParen, "to open a parenthesised expression" );
         SkipNewlines();
+        // Parens delimit a fresh expression context: `do` may attach again.
+        const bool Saved = bNoDoBlock;
+        bNoDoBlock       = false;
         const ExprId Inner = ParseExpr( 0 );
+        bNoDoBlock         = Saved;
         SkipNewlines();
         Expect( TokenKind::RParen, "to close a parenthesised expression" );
         return Inner;
@@ -396,7 +476,9 @@ namespace Frontend
                 {
                     break;
                 }
-                Node.Keys.PushBack( ParseExpr( 0 ) );
+                // Parse the key above `=>`'s binding power so the Pratt loop
+                // leaves the arrow for the explicit Expect below.
+                Node.Keys.PushBack( ParseExpr( InfixBinding( TokenKind::FatArrow ).Left + 1 ) );
                 Expect( TokenKind::FatArrow, "between hash key and value" );
                 Node.Values.PushBack( ParseExpr( 0 ) );
                 SkipNewlines();
@@ -429,7 +511,7 @@ namespace Frontend
         std::size_t Index        = 0;
         while ( Index < Raw.size() )
         {
-            if ( Raw[Index] == '#' && Index + 1 < Raw.size() && Raw[Index + 1] == '{' )
+            if ( Raw[Index] == '#' and Index + 1 < Raw.size() and Raw[Index + 1] == '{' )
             {
                 if ( Index > LiteralStart )
                 {
@@ -440,7 +522,7 @@ namespace Frontend
 
                 std::size_t Cursor = Index + 2;
                 int Depth          = 1;
-                while ( Cursor < Raw.size() && Depth > 0 )
+                while ( Cursor < Raw.size() and Depth > 0 )
                 {
                     if ( Raw[Cursor] == '{' )
                     {
