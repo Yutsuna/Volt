@@ -4,7 +4,6 @@
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
-#include "Volt/Frontend/AST/AstPrinter.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
@@ -352,16 +351,6 @@ namespace Driver
         Result.Errors = Diagnostics.ErrorTotal();
         Result.bCycle = !Circuit.FindCycle().empty();
         return Result;
-    }
-
-    void Driver::PrintUnits ( std::ostream &Out ) const
-    {
-        for ( const CompileUnit &Unit : Units )
-        {
-            Out << "// ==== " << Unit.Path << " ====\n";
-            Frontend::AstPrinter Printer( Unit.Ast, Out );
-            Printer.PrintFile();
-        }
     }
 
     void Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const

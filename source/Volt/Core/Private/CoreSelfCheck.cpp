@@ -94,7 +94,8 @@ namespace Core
             }
 
             const std::variant<int, double> Variant = 2.5;
-            const bool bIsDouble                    = std::visit( Meta::Overloaded{ [] ( int ) { return false; }, [] ( double ) { return true; } }, Variant );
+            const bool bIsDouble =
+                std::visit( Meta::Overloaded{ [] ( int ) { return false; }, [] ( double ) { return true; } }, Variant );
 
             int Reflected = 0;
             Sample S{ 7, 1.5 };

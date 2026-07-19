@@ -191,8 +191,8 @@ namespace Frontend
         // A bare `return` is followed by a terminator, `end`, or a trailing
         // statement modifier (`return if c` / `return unless c`); only parse
         // a value when none of those come next.
-        if ( !Check( TokenKind::Newline ) && !Check( TokenKind::Semicolon ) && !Check( TokenKind::Eof ) && !Check( TokenKind::KwEnd ) && !Check( TokenKind::KwIf ) &&
-             !Check( TokenKind::KwUnless ) )
+        if ( !Check( TokenKind::Newline ) && !Check( TokenKind::Semicolon ) && !Check( TokenKind::Eof ) &&
+             !Check( TokenKind::KwEnd ) && !Check( TokenKind::KwIf ) && !Check( TokenKind::KwUnless ) )
         {
             Node.Value = ParseExpr( 0 );
         }
