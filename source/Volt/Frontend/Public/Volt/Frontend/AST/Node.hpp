@@ -71,6 +71,7 @@ namespace Frontend
         TypeId DeclType;
         ExprId Default;
         bool bInstanceVar = false; // `def initialize(@x : T)`
+        bool bIsBlock     = false; // `def each(&block : T -> Void)`
     };
 
     /// Name of a node variant's active alternative. One reflective template
