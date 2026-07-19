@@ -99,7 +99,14 @@ namespace Driver
         static_cast<void>( Sema::RunPasses( Context ) );
     }
 
-    CompileResult Driver::CompileRefs ( const std::vector<SourceRef> &Refs, bool bParseOnly )
+    void Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
+    {
+        // Lowerings rewrite purely local state; no published interfaces.
+        Sema::PassContext Context{ Unit.Ast, Unit.Types, Bag, Unit.Stats };
+        static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
+    }
+
+    CompileResult Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline )
     {
         // Phase 1 (serial): register every file's text and unit up front so
         // the parallel phases only touch per-unit state + the diag engine.
@@ -150,7 +157,7 @@ namespace Driver
         // Phase 2 (parallel): lex + parse every unit into its own arenas.
         ForEachUnitParallel( &Driver::ParseOne );
 
-        if ( !bParseOnly )
+        if ( Pipeline == EPipeline::Full )
         {
             // Phase 3 (serial): publish each unit's top-level interface. This is
             // the cross-unit seam — after this point the Registry is frozen and
@@ -163,6 +170,12 @@ namespace Driver
 
             // Phase 4 (parallel): run the sema passes over every parsed unit.
             ForEachUnitParallel( &Driver::RunSemaOne );
+        }
+        else if ( Pipeline == EPipeline::ParseAndLower )
+        {
+            // Lowered parse (`volt parse --lowered`): rewrite each unit's AST
+            // in place, still without the cross-unit seam.
+            ForEachUnitParallel( &Driver::LowerOne );
         }
 
         CompileResult Result;
@@ -186,7 +199,7 @@ namespace Driver
         return CompileRefs( Refs );
     }
 
-    CompileResult Driver::ParseFiles ( const std::vector<std::string> &Paths )
+    CompileResult Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered )
     {
         std::vector<SourceRef> Refs;
         Refs.reserve( Paths.size() );
@@ -194,7 +207,7 @@ namespace Driver
         {
             Refs.push_back( SourceRef{ Path, std::string{}, IsComponentPath( Path ) } );
         }
-        return CompileRefs( Refs, /*bParseOnly=*/true );
+        return CompileRefs( Refs, bLowered ? EPipeline::ParseAndLower : EPipeline::ParseOnly );
     }
 
     void Driver::BuildLinkGraph ( const std::string &RootModule )
