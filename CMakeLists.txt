@@ -10,9 +10,12 @@ project(
 list( APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" )
 
 include( ProcessorCount )
+include( VoltTooling )
+include( VoltFormat )
+include( VoltTidy )
 include( VoltOptions )
 include( VoltCompiler )
 include( VoltLLVM )
-include( VoltTests )
 include( VoltModule )
 include( VoltBuild )
+include( VoltTests )
