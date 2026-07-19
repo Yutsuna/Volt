@@ -1,15 +1,10 @@
 #{
 # @class Array
 # @brief A fixed-size array
-#
-# Construction :
-#   arr  = [ 1, 2, 3, 4 ]                # Array[Int], size 4
-#   strs = [ "salut", "ça", "va" ]       # Array[String]
-#   raw  = [ 1, 2, 3 ] of UInt8          # element type forced by `of`
-#   none = [] of Int32                   # empty, explicitly typed
 #}
 class Array[ T ]
   include Inspectable
+  include Iterable[ T ]
 
   #----------------------------------------------------------------------------
 
@@ -42,6 +37,30 @@ class Array[ T ]
   def finalize -> Void
     AlignedAllocator.free( @data ) unless @data.null?
     @data = nil
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Implementation of the Iterable contract using zero-allocation `yield`.
+  #}
+  def each -> Void
+    i = 0
+    while i < @size
+      yield *( @data + i )
+      i += 1
+    end
+  end
+
+  #{
+  # @brief Implementation of the Iterable contract using an explicit `&block` closure.
+  #}
+  def each( &block : T -> Void ) -> Void
+    i = 0
+    while i < @size
+      block.call( *( @data + i ) )
+      i += 1
+    end
   end
 
   #----------------------------------------------------------------------------
