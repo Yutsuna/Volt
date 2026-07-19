@@ -38,7 +38,7 @@ namespace Sema
             const LayoutId Node = Store.AddAggregate( std::move( Pair ) );
 
             Store.Bind( Interner.Intern( "Node" ), Node );
-            if ( Store.Lookup( Interner.Intern( "Node" ) ) != Node || Store.Size() != 3 )
+            if ( Store.Lookup( Interner.Intern( "Node" ) ) != Node or Store.Size() != 3 )
             {
                 return false;
             }
@@ -69,7 +69,7 @@ namespace Sema
             PassContext Context{ Ast, Store, Bag, Stats };
             const std::size_t Ran = RunPasses( Context );
 
-            return Ran == Registry.size() && Bag.Errors() == 0;
+            return Ran == Registry.size() and Bag.Errors() == 0;
         }
 
     } // namespace
