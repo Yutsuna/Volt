@@ -57,7 +57,7 @@ namespace Core
             Arena<std::string, NodeId> Strings;
             const NodeId First  = Strings.Add( "alpha" );
             const NodeId Second = Strings.Add( "beta" );
-            if ( Strings.Get( First ) != "alpha" || Strings.Get( Second ) != "beta" )
+            if ( Strings.Get( First ) != "alpha" or Strings.Get( Second ) != "beta" )
             {
                 return false;
             }
@@ -72,7 +72,7 @@ namespace Core
             {
                 Sum += Value;
             }
-            if ( Sum != 28 || Vec.Size() != 8 )
+            if ( Sum != 28 or Vec.Size() != 8 )
             {
                 return false;
             }
@@ -81,14 +81,14 @@ namespace Core
             const Symbol Foo  = Interner.Intern( "foo" );
             const Symbol Foo2 = Interner.Intern( "foo" );
             const Symbol Bar  = Interner.Intern( "bar" );
-            if ( Foo != Foo2 || Foo == Bar || Interner.Resolve( Foo ) != "foo" )
+            if ( Foo != Foo2 or Foo == Bar or Interner.Resolve( Foo ) != "foo" )
             {
                 return false;
             }
 
             Result<int, std::string> Ok  = 42;
             Result<int, std::string> Err = Fail( std::string{ "boom" } );
-            if ( !Ok.has_value() || Err.has_value() )
+            if ( !Ok.has_value() or Err.has_value() )
             {
                 return false;
             }
@@ -101,7 +101,7 @@ namespace Core
             Sample S{ 7, 1.5 };
             Meta::ForEachField( S, [&] ( const char *, auto & ) { ++Reflected; } );
 
-            return bIsDouble && Reflected == 2;
+            return bIsDouble and Reflected == 2;
         }
 
     } // namespace

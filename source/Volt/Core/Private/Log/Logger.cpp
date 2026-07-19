@@ -195,7 +195,7 @@ void WorkerMain ()
     {
         FLogState &S = State();
         std::unique_lock Lock( S.Mutex );
-        S.Pushed.wait( Lock, [&S] { return !S.Queue.empty() || S.bClosing; } );
+        S.Pushed.wait( Lock, [&S] { return !S.Queue.empty() or S.bClosing; } );
 
         if ( S.Queue.empty() )
         {
@@ -222,7 +222,7 @@ void WorkerMain ()
 
 void Enqueue ( FLogRecord Record )
 {
-    if ( Record.Level != ELogLevel::Progress && Record.Level < State().MinLevel.load( std::memory_order_relaxed ) )
+    if ( Record.Level != ELogLevel::Progress and Record.Level < State().MinLevel.load( std::memory_order_relaxed ) )
     {
         return;
     }
@@ -232,7 +232,7 @@ void Enqueue ( FLogRecord Record )
     FLogState &S = State();
     {
         std::unique_lock Lock( S.Mutex );
-        S.Popped.wait( Lock, [&S] { return S.Queue.size() < QueueCapacity || S.bClosing; } );
+        S.Popped.wait( Lock, [&S] { return S.Queue.size() < QueueCapacity or S.bClosing; } );
         if ( S.bClosing )
         {
             return;
@@ -292,7 +292,7 @@ void Volt::Core::FLogger::Flush ()
     {
         return;
     }
-    S.Popped.wait( Lock, [&S] { return ( S.Queue.empty() && !S.bBusy ) || S.bClosing; } );
+    S.Popped.wait( Lock, [&S] { return ( S.Queue.empty() and !S.bBusy ) or S.bClosing; } );
 }
 
 void Volt::Core::FLogger::SetMinLevel ( ELogLevel Level ) noexcept
