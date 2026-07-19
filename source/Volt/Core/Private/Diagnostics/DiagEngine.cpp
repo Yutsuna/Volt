@@ -4,6 +4,7 @@
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
 
 #include <cstdint>
+#include <iterator>
 #include <ostream>
 #include <string>
 
@@ -61,13 +62,9 @@ void Volt::Core::DiagEngine::Merge ( Bag &&Local )
 {
     const std::scoped_lock Guard{ Mutex };
 
-    for ( Diagnostic &Diag : std::move( Local ).Items )
-    {
-        Store.push_back( std::move( Diag ) );
-    }
     ErrorCount += Local.ErrorCount;
-    Local.Items.clear();
-    Local.ErrorCount = 0;
+    auto &&Items = std::move( Local ).Items;
+    Store.insert( Store.end(), std::make_move_iterator( Items.begin() ), std::make_move_iterator( Items.end() ) );
 }
 
 Volt::Core::Diagnostic &Volt::Core::DiagEngine::Report ( Diagnostic Diag )

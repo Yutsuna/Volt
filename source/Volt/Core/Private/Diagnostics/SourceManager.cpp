@@ -15,7 +15,7 @@ namespace
 
 inline void TrimTrailingNewlines ( const std::string &Text, const std::size_t Begin, std::size_t *OutEnd ) noexcept
 {
-    while ( *OutEnd > Begin && ( Text[*OutEnd - 1] == '\n' || Text[*OutEnd - 1] == '\r' ) )
+    while ( *OutEnd > Begin and ( Text[*OutEnd - 1] == '\n' or Text[*OutEnd - 1] == '\r' ) )
     {
         --*OutEnd;
     }
