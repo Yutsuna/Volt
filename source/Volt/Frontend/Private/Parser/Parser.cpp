@@ -9,8 +9,12 @@ namespace Volt
 namespace Frontend
 {
 
-    Parser::Parser ( std::vector<Token> InTokens, AstContext &InContext, Core::DiagEngine::Bag &InDiagnostics, std::string_view InSource )
-        : Tokens( std::move( InTokens ) ), Context( InContext ), Diagnostics( InDiagnostics ), Interner( InContext.Strings() ), Source( InSource )
+    Parser::Parser ( std::vector<Token> InTokens,
+                     AstContext &InContext,
+                     Core::DiagEngine::Bag &InDiagnostics,
+                     std::string_view InSource )
+        : Tokens( std::move( InTokens ) ), Context( InContext ), Diagnostics( InDiagnostics ), Interner( InContext.Strings() ),
+          Source( InSource )
     {
         if ( Tokens.empty() )
         {

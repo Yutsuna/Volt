@@ -30,7 +30,8 @@ namespace Sema
 
             static const bool bSorted = []
             {
-                std::stable_sort( Registry.begin(), Registry.end(), [] ( const PassInfo &A, const PassInfo &B ) { return A.Order < B.Order; } );
+                std::stable_sort( Registry.begin(), Registry.end(),
+                                  [] ( const PassInfo &A, const PassInfo &B ) { return A.Order < B.Order; } );
                 return true;
             }();
             static_cast<void>( bSorted );

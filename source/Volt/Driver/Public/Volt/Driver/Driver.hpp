@@ -124,10 +124,6 @@ namespace Driver
             Diagnostics.Render( Sources, Out );
         }
 
-        // Print the parsed + lowered AST of every compiled unit (golden-test
-        // / debug hook). Units keep their AST after compilation.
-        void PrintUnits ( std::ostream &Out ) const;
-
         // Dump every unit's AST as the human tree (`volt parse` output).
         void DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const;
 
