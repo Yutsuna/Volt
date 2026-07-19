@@ -26,6 +26,9 @@ module Volt::Build
 
         Commands:
           clean         Clean the build directory and cache.
+          format        Format all source files using clang-format (parallel, cached).
+          tidy          Run parallel and cached clang-tidy on source files.
+          test          Build then run the ctest suites in parallel (implies testing).
           help, -h      Show this help message.
 
         Build Types:
@@ -44,8 +47,10 @@ module Volt::Build
 
         Examples:
           volt-build clean
+          volt-build format
+          volt-build tidy
+          volt-build test
           volt-build release run
-          volt-build debug asan run -- --verbose
           volt-build debug asan run -- --verbose
       USAGE
     end
@@ -58,6 +63,8 @@ module Volt::Build
         run: false,
         clean: false,
         format: false,
+        tidy: false,
+        test: false,
         cmake_flags: FLAGS_MAP.values.each_with_object({}) { |var, h| h[var] = 'OFF' },
         run_args: [],
         help: false
@@ -82,6 +89,11 @@ module Volt::Build
           options[:clean] = true
         when 'format'
           options[:format] = true
+        when 'tidy'
+          options[:tidy] = true
+        when 'test'
+          options[:test] = true
+          options[:cmake_flags][FLAGS_MAP['testing']] = 'ON'
         when *FLAGS_MAP.keys
           options[:cmake_flags][FLAGS_MAP[arg]] = 'ON'
         when '--'
