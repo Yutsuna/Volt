@@ -12,6 +12,30 @@ struct Int
 
   #----------------------------------------------------------------------------
 
+  #{
+  # @brief Executes the block 'self' times, yielding the index (zero-allocation).
+  #}
+  def times -> Void
+    i = 0
+    while i < self
+      yield i
+      i += 1
+    end
+  end
+
+  #{
+  # @brief Executes the closure 'self' times, passing the index (explicit closure).
+  #}
+  def times( &block : Int -> Void ) -> Void
+    i = 0
+    while i < self
+      block.call( i )
+      i += 1
+    end
+  end
+
+  #----------------------------------------------------------------------------
+
   def <=>( other : Int ) -> Int
     if self < other
       -1

@@ -1,4 +1,6 @@
-struct Slice[ T ] include Inspectable
+struct Slice[ T ]
+  include Inspectable
+  include Iterable[ T ]
 
   getter data : Pointer[T]
   getter size : Int
@@ -6,6 +8,30 @@ struct Slice[ T ] include Inspectable
   #----------------------------------------------------------------------------
 
   def initialize( @data : Pointer[T], @size : Int )
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Implementation of the Iterable contract using zero-allocation `yield`.
+  #}
+  def each -> Void
+    i = 0
+    while i < @size
+      yield *( @data + i )
+      i += 1
+    end
+  end
+
+  #{
+  # @brief Implementation of the Iterable contract using an explicit `&block` closure.
+  #}
+  def each( &block : T -> Void ) -> Void
+    i = 0
+    while i < @size
+      block.call( *( @data + i ) )
+      i += 1
+    end
   end
 
   #----------------------------------------------------------------------------

@@ -2,7 +2,9 @@
 # @class Vector
 # @brief A dynamically-sized, heap-allocated growable array
 #}
-class Vector[T] include Inspectable
+class Vector[T]
+  include Inspectable
+  include Iterable[T]
 
 
   #----------------------------------------------------------------------------
@@ -53,6 +55,30 @@ class Vector[T] include Inspectable
   def finalize -> Void
     AlignedAllocator.free( @data ) unless @data.null?
     @data = nil
+  end
+
+  #---------------------------------------------------------------------------
+
+  #{
+  # @brief Implementation of the Iterable contract using zero-allocation `yield`.
+  #}
+  def each -> Void
+    i = 0
+    while i < @size
+      yield *( @data + i )
+      i += 1
+    end
+  end
+
+  #{
+  # @brief Implementation of the Iterable contract using an explicit `&block` closure.
+  #}
+  def each( &block : T -> Void ) -> Void
+    i = 0
+    while i < @size
+      block.call( *( @data + i ) )
+      i += 1
+    end
   end
 
   #---------------------------------------------------------------------------
