@@ -162,6 +162,7 @@ namespace Frontend
         [[nodiscard]] ExprId ParseStringLiteral ( const Token &Tok );
         [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range );
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
+        [[nodiscard]] ExprId ParseDoBlock ();
         void ParseCallArguments ( ExprList &Args, SymbolList &ArgNames, TokenKind Close );
         [[nodiscard]] bool CanStartCommandArgument () const;
 
