@@ -23,7 +23,7 @@ namespace Sema
         // order the entries happen to appear in PassList.inl.
         [[nodiscard]] const std::span<const PassInfo> BuildRegistry ()
         {
-#define VOLT_PASS( Name, Order ) PassInfo{ #Name, Order, &Name },
+#define VOLT_PASS( Name, Order, Kind ) PassInfo{ #Name, Order, EPassKind::Kind, &Name },
             static std::array Registry{
 #include "Volt/Sema/PassList.inl"
             };
@@ -54,6 +54,20 @@ namespace Sema
         {
             Pass.Run( Context );
             ++Ran;
+        }
+        return Ran;
+    }
+
+    std::size_t RunPasses ( PassContext &Context, EPassKind Only )
+    {
+        std::size_t Ran = 0;
+        for ( const PassInfo &Pass : PassRegistry() )
+        {
+            if ( Pass.Kind == Only )
+            {
+                Pass.Run( Context );
+                ++Ran;
+            }
         }
         return Ran;
     }
