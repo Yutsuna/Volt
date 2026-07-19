@@ -12,11 +12,12 @@
   PUBLIC_INCLUDES "Public/" DEPS ..)` and registered in
   `cmake/VoltBuild.cmake`'s `VoltAddModules(...)`. Libraries are shared and
   cascade their `DEPS` (`Frontend → Core`, `Sema → Frontend`, `Driver → Sema`).
-- **Formatting is mechanical**: run `clang-format -i` (repo `.clang-format`:
-  LLVM base, Allman braces, `SpacesInParens`, `ColumnLimit: 170`). Do not
-  hand-format; let the tool do it, then respect `.clang-tidy`.
+- **Formatting is mechanical**: run `volt-build format` (repo `.clang-format`:
+  LLVM base, Allman braces, `SpacesInParens`, `ColumnLimit: 170` — parallel,
+  per-file cached). Do not hand-format; let the tool do it, then respect
+  `.clang-tidy` via `volt-build tidy`.
 - **`[[nodiscard]]`** on every pure accessor / factory. Prefer free functions +
   `std::visit(Overloaded{…})` over virtual dispatch.
 
-Before finishing: `clang-format -i <touched files>` → `ninja -C build` (clean,
-no warnings) → `.clang-tidy` clean.
+Before finishing: `volt-build format` → `volt-build` (clean, no warnings) →
+`volt-build tidy` clean → `volt-build test` green (see skill `format-and-check`).

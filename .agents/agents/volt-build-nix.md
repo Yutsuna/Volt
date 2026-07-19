@@ -17,9 +17,16 @@ You keep the build correct and reproducible.
 - **Toolchain**: `flake.nix` / `flake.lock` + `.envrc` (`use flake .#default`);
   `direnv` loads the dev shell. Warnings/`-Werror`, sanitizers and LLVM live in
   `cmake/VoltCompiler.cmake`, `cmake/VoltOptions.cmake`, `cmake/VoltLLVM.cmake`.
-- **Build**: `cmake -S . -B build -G Ninja` then `ninja -C build` (or
-  `scripts/build.rb`). Sanitizers are opt-in and Debug-only; TSAN and ASan are
-  mutually exclusive — for a TSAN build pass `-DVOLT_ENABLE_ASAN=OFF`.
+- **Build**: `volt-build` from the dev shell (Nix-wrapped `scripts/build.rb`;
+  `ruby` is not on PATH — never raw cmake/ninja, see skill `build`). Sanitizers
+  are opt-in and Debug-only; TSAN and ASan are mutually exclusive — for a TSAN
+  build pass `-DVOLT_ENABLE_ASAN=OFF`.
+- **Tooling targets**: `format` / `tidy` are stamp-based per-file CMake targets
+  from `cmake/VoltTooling.cmake` (generic `volt_per_file_tool()`), declared in
+  `cmake/VoltFormat.cmake` / `cmake/VoltTidy.cmake`; `volt-build test` drives
+  the ctest suites of `cmake/VoltTests.cmake`. Files come from the
+  `VOLT_ALL_FILES` global property `VoltModule` fills; a new tool = one
+  `volt_per_file_tool` call, never an ad-hoc loop.
 
 Verify a green `-Werror` configure+build after any wiring change, then
 `graphify update .`.

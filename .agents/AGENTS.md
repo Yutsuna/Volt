@@ -23,10 +23,10 @@ Rules:
 
 ## Two reflexes on every change
 
-1. **Format & lint.** Run `clang-format -i` on every file you touch (repo
-   `.clang-format`: LLVM/Allman, `SpacesInParens`, column 170) and respect
-   `.clang-tidy` before you call a task done. The build is `-Werror`; warnings
-   are failures.
+1. **Format & lint.** Run `volt-build format` and `volt-build tidy` before you
+   call a task done (repo `.clang-format`: LLVM/Allman, `SpacesInParens`,
+   column 170) — both are parallel and per-file cached, so they only touch what
+   changed. The build is `-Werror`; warnings are failures.
 2. **Keep the map current.** After a significant architecture change, run
    `graphify update .` (AST-only, no API cost) so `graphify-out/` still reflects
    the code. See [`rules/graphify.md`](rules/graphify.md).
