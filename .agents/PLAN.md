@@ -250,8 +250,14 @@ sept points ci-dessous sont les endroits où elle casse. État : **tous traités
    `Sema/Link/InterfaceRegistry` (nom qualifié → unité + DeclId, clés `std::string`
    car interners locaux), exposé en lecture seule aux passes via `PassContext`.
 7. **Garde-fous non branchés.** Golden sweep et grep zéro-hardcode promis mais
-   inexistants. → `scripts/golden.rb` (sweep `samples/**` via `volt --print`,
-   goldens sous `tests/golden/`) + `scripts/check_hardcode.sh`, câblés en ctest.
+   inexistants. → d'abord scripts bash, puis (2026-07-19) migrés en **vrais
+   ctest** sans bash : `cmake/VoltTests.cmake` (gate `VOLT_ENABLE_TESTING`,
+   `volt-build testing`) enregistre `Golden.*` (sweep `samples/**` via
+   `volt parse --no-color`, goldens sous `tests/golden/`, régénération =
+   cible `golden-update` ou `cmake -DUPDATE=1 -P tests/GoldenTest.cmake`),
+   `Corpus.*` (chaque fichier `source/Lib/**` doit parser) et `ZeroHardcode`
+   (`tests/ZeroHardcode.cmake`). La surface legacy `Volt --print` et
+   `Driver::PrintUnits` sont supprimées ; `Main.cpp` est un pur dispatcher.
 
 ## Refonte métaprogrammation C++26 (2026-07-17) — état
 

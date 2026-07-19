@@ -44,6 +44,7 @@ Usage: volt parse [options] [input_file]
     -o OUTPUT, --output OUTPUT       Output target path structure
     --format FORMAT                  Serialization formats (json|dot|text)
     --simplify                       Deduplicate structural tree layout elements
+    --lowered                        Display the tree after the AST lowering passes
     --no-color                       Output without colors
     --no-location                    Omit character and index coordinates
     -h, --help                       Show help
@@ -61,7 +62,9 @@ Usage: volt check [options] [input_file_or_dir]
 
 ## How this maps onto the architecture
 
-- `parse`  → Driver parse (+ JsxLowering) + `AstPrinter` serialisation
+- `parse`  → Driver parse only: the raw AST is the product (tooling needs the
+  structured JSX nodes). `--lowered` additionally runs the `EPassKind::Lowering`
+  passes from `PassList.inl` — never full sema. Serialisation via the dumper
   (`text` today; `json`/`dot` are printer back-ends, not new traversals).
 - `check`  → Driver parse + Sema passes; `--type` selects which pass orders run.
 - `run` / `repl` → the later JIT/interpreter phase; both sit on top of the same
