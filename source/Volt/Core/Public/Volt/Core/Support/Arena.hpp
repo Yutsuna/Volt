@@ -108,8 +108,8 @@ namespace Core
         void CheckId ( [[maybe_unused]] IdType Id ) const
         {
 #if defined( VOLT_CHECKED_IDS )
-            const bool bForeign = Id.Provenance != 0 && Id.Provenance != Tag;
-            if ( bForeign || Id.Value >= Storage.size() )
+            const bool bForeign = Id.Provenance != 0 and Id.Provenance != Tag;
+            if ( bForeign or Id.Value >= Storage.size() )
             {
                 std::fprintf( stderr, "Volt: TypedId %u (arena tag %u) used with arena tag %u of size %zu\n", Id.Value,
                               Id.Provenance, Tag, Storage.size() );
