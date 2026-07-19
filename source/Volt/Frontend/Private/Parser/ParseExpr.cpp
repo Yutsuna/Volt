@@ -260,7 +260,8 @@ namespace Frontend
                 Expect( TokenKind::RBracket, "to close index" );
                 Lhs = MakeExpr( std::move( Node ), RangeSince( Begin ) );
             }
-            else if ( ( ( Check( TokenKind::KwDo ) and !bNoDoBlock ) or Check( TokenKind::LBrace ) ) and IsBlockAttachable( KindOf( Context.Expr( Lhs ) ) ) )
+            else if ( ( ( Check( TokenKind::KwDo ) and !bNoDoBlock ) or Check( TokenKind::LBrace ) ) and
+                      IsBlockAttachable( KindOf( Context.Expr( Lhs ) ) ) )
             {
                 // Trailing `do |x| ... end` / `{ |x| ... }` block — same
                 // construct, two spellings.
@@ -422,8 +423,8 @@ namespace Frontend
         Expect( TokenKind::LParen, "to open a parenthesised expression" );
         SkipNewlines();
         // Parens delimit a fresh expression context: `do` may attach again.
-        const bool Saved = bNoDoBlock;
-        bNoDoBlock       = false;
+        const bool Saved   = bNoDoBlock;
+        bNoDoBlock         = false;
         const ExprId Inner = ParseExpr( 0 );
         bNoDoBlock         = Saved;
         SkipNewlines();
