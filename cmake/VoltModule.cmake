@@ -27,6 +27,8 @@ function( VoltModule )
     return()
   endif()
 
+  set_property( GLOBAL APPEND PROPERTY VOLT_ALL_FILES ${ALL_SOURCES} )
+
   #############################################################################
 
   string( TOLOWER "${M_TYPE}" TYPE )
