@@ -111,7 +111,8 @@ namespace Core
             const bool bForeign = Id.Provenance != 0 && Id.Provenance != Tag;
             if ( bForeign || Id.Value >= Storage.size() )
             {
-                std::fprintf( stderr, "Volt: TypedId %u (arena tag %u) used with arena tag %u of size %zu\n", Id.Value, Id.Provenance, Tag, Storage.size() );
+                std::fprintf( stderr, "Volt: TypedId %u (arena tag %u) used with arena tag %u of size %zu\n", Id.Value,
+                              Id.Provenance, Tag, Storage.size() );
                 std::abort();
             }
 #endif
