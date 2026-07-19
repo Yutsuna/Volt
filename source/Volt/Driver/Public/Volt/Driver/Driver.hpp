@@ -12,6 +12,7 @@
 #include "Volt/Sema/Pass.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <ostream>
 #include <string>
@@ -87,8 +88,11 @@ namespace Driver
         CompileResult CompileFiles ( const std::vector<std::string> &Paths );
 
         // Parse-only pipeline over a flat list of files: lex + parse, no
-        // interface publication and no sema. `volt parse` dumps this raw AST.
-        CompileResult ParseFiles ( const std::vector<std::string> &Paths );
+        // interface publication and no analysis. `volt parse` dumps this raw
+        // AST; with bLowered, the AST lowering passes (EPassKind::Lowering)
+        // additionally run over each unit, so `volt parse --lowered` shows
+        // the tree the analysis passes actually see.
+        CompileResult ParseFiles ( const std::vector<std::string> &Paths, bool bLowered = false );
 
         // Compile a whole circuit given its `Project.vl` manifest: resolve
         // the declared modules, gather their sources + the entrypoint, build
@@ -137,11 +141,18 @@ namespace Driver
             bool bComponent = false;
         };
 
+        // How far CompileRefs drives each unit past the parallel parse.
+        enum class EPipeline : std::uint8_t
+        {
+            Full,          // publish interfaces (serial), then every sema pass
+            ParseOnly,     // stop after parse (`volt parse`)
+            ParseAndLower, // parse + AST lowering passes (`volt parse --lowered`)
+        };
+
         // Register + read every SourceRef into a CompileUnit, then run the
-        // pipeline over all of them: parse (parallel), then — unless bParseOnly —
-        // publish interfaces (serial) and sema (parallel). Fills Units (and
-        // Registry when sema runs).
-        CompileResult CompileRefs ( const std::vector<SourceRef> &Refs, bool bParseOnly = false );
+        // pipeline over all of them up to the requested phase. Fills Units
+        // (and Registry when the full sema phase runs).
+        CompileResult CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline = EPipeline::Full );
 
         // Lex + parse one already-registered unit. Safe to call from any
         // worker thread: only `Bag` and `Unit` are touched.
@@ -150,6 +161,10 @@ namespace Driver
         // Run the sema passes over one parsed unit, with read-only access to
         // the published cross-unit interfaces. Same thread-safety contract.
         void RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
+
+        // Run only the AST lowering passes over one parsed unit — no
+        // cross-unit interfaces involved. Same thread-safety contract.
+        void LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
 
         // Read a file into the SourceManager; returns false (and reports)
         // when it cannot be read.
