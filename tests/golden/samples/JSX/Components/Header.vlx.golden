@@ -1,71 +1,15 @@
-// ==== samples/JSX/Components/Header.vlx ====
-(Component
-  Name='Header'
-  Params=[
-    (Param
-      Name='title'
-      DeclType=(TypeRef
-        Path=[
-          'String'
-        ]
-        Generics=[])
-      Default=nil
-      bInstanceVar=false)
-  ]
-  Body=[
-    (ExprStmt
-      Expr=(Call
-        Callee=(Member
-          Object=(Member
-            Object=(Identifier
-              Name='Volt')
-            Name='JSX')
-          Name='create_element')
-        Args=[
-          (StringLiteral
-            Value='header')
-          (HashLit
-            Keys=[]
-            Values=[]
-            KeyType=nil
-            ValueType=nil)
-          (ArrayLit
-            Elements=[
-              (Call
-                Callee=(Member
-                  Object=(Member
-                    Object=(Identifier
-                      Name='Volt')
-                    Name='JSX')
-                  Name='create_element')
-                Args=[
-                  (StringLiteral
-                    Value='h1')
-                  (HashLit
-                    Keys=[]
-                    Values=[]
-                    KeyType=nil
-                    ValueType=nil)
-                  (ArrayLit
-                    Elements=[
-                      (Identifier
-                        Name='title')
-                    ]
-                    ElemType=nil)
-                ]
-                ArgNames=[
-                  ''
-                  ''
-                  ''
-                ])
-            ]
-            ElemType=nil)
-        ]
-        ArgNames=[
-          ''
-          ''
-          ''
-        ]))
-  ])
-[Volt] 1 file(s), 0 error(s), 2 jsx node(s) lowered, 1 exported decl(s)
+Program 'samples/JSX/Components/Header.vlx'
+└─ Component 'Header' @1:1
+   ├─ params
+   │  └─ Param 'title'
+   │     └─ decl_type
+   │        └─ TypeRef 'String' @1:27
+   └─ body
+      └─ ExprStmt @3:3
+         └─ expr
+            └─ JsxElement 'header' @3:3
+               └─ children
+                  └─ JsxElement 'h1' @4:5
+                     └─ children
+                        └─ Identifier 'title' @4:10
 --- exit 0 ---
