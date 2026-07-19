@@ -8,6 +8,14 @@ namespace Volt
 namespace Frontend
 {
 
+    TypeId Parser::FinishFuncType ( TypeList Params, std::uint32_t Begin )
+    {
+        FuncType Func;
+        Func.Params = std::move( Params );
+        Func.Return = ParseType();
+        return MakeType( std::move( Func ), RangeSince( Begin ) );
+    }
+
     bool Parser::AtTypeStart () const
     {
         switch ( PeekKind() )
@@ -42,7 +50,7 @@ namespace Frontend
         // handled as a postfix in ParseType, so only recurse when the
         // bracket opens on something type-shaped.
         if ( Check( TokenKind::LBracket ) &&
-             ( PeekKind( 1 ) == TokenKind::Constant || PeekKind( 1 ) == TokenKind::Arrow || PeekKind( 1 ) == TokenKind::LParen ) )
+             ( PeekKind( 1 ) == TokenKind::Constant or PeekKind( 1 ) == TokenKind::Arrow or PeekKind( 1 ) == TokenKind::LParen ) )
         {
             Advance();
             do
@@ -62,9 +70,7 @@ namespace Frontend
         // Function type with no explicit parameters: `-> Ret`.
         if ( Accept( TokenKind::Arrow ) )
         {
-            FuncType Func;
-            Func.Return = ParseType();
-            return MakeType( std::move( Func ), RangeSince( Begin ) );
+            return FinishFuncType( {}, Begin );
         }
 
         // Parenthesised: either `(A, B) -> R` or a grouped `(T)`.
@@ -82,10 +88,7 @@ namespace Frontend
 
             if ( Accept( TokenKind::Arrow ) )
             {
-                FuncType Func;
-                Func.Params = std::move( Params );
-                Func.Return = ParseType();
-                return MakeType( std::move( Func ), RangeSince( Begin ) );
+                return FinishFuncType( std::move( Params ), Begin );
             }
 
             if ( Params.Size() == 1 )
@@ -113,7 +116,7 @@ namespace Frontend
                 Nilable.Inner = Base;
                 Base          = MakeType( std::move( Nilable ), RangeSince( Begin ) );
             }
-            else if ( Check( TokenKind::LBracket ) && PeekKind( 1 ) == TokenKind::IntLiteral )
+            else if ( Check( TokenKind::LBracket ) and PeekKind( 1 ) == TokenKind::IntLiteral )
             {
                 Advance(); // '['
                 FixedArrayType Fixed;
@@ -131,10 +134,9 @@ namespace Frontend
         // Bare single-parameter function type: `T -> R` (right-associative).
         if ( Accept( TokenKind::Arrow ) )
         {
-            FuncType Func;
-            Func.Params.PushBack( Base );
-            Func.Return = ParseType();
-            return MakeType( std::move( Func ), RangeSince( Begin ) );
+            TypeList Params;
+            Params.PushBack( Base );
+            return FinishFuncType( std::move( Params ), Begin );
         }
 
         return Base;

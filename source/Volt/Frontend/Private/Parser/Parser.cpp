@@ -82,7 +82,7 @@ namespace Frontend
     {
         while ( !AtEnd() )
         {
-            if ( Check( TokenKind::Newline ) || Check( TokenKind::Semicolon ) )
+            if ( Check( TokenKind::Newline ) or Check( TokenKind::Semicolon ) )
             {
                 return;
             }
