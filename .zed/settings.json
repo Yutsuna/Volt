@@ -2,6 +2,7 @@
   "file_types": {
     "C": ["c", "h", "inc"],
     "C++": ["cpp", "hpp"],
+    "Volt": ["vl", "vlx", "volt"]
   },
   "load_direnv": "shell_hook",
   "languages": {
