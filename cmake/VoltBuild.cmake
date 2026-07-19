@@ -13,3 +13,6 @@ VoltAddModules(
   Driver
   Volt
 )
+
+
+volt_enable_formatting()

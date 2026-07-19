@@ -46,6 +46,7 @@ module Volt::Build
           volt-build clean
           volt-build release run
           volt-build debug asan run -- --verbose
+          volt-build debug asan run -- --verbose
       USAGE
     end
 
@@ -56,6 +57,7 @@ module Volt::Build
         build_type: 'Debug',
         run: false,
         clean: false,
+        format: false,
         cmake_flags: FLAGS_MAP.values.each_with_object({}) { |var, h| h[var] = 'OFF' },
         run_args: [],
         help: false
@@ -78,6 +80,8 @@ module Volt::Build
           options[:run] = true
         when 'clean'
           options[:clean] = true
+        when 'format'
+          options[:format] = true
         when *FLAGS_MAP.keys
           options[:cmake_flags][FLAGS_MAP[arg]] = 'ON'
         when '--'
