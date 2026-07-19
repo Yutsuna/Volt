@@ -99,7 +99,7 @@ struct FManifest
         bool bHasSource = false;
         for ( const fs::directory_entry &File : fs::recursive_directory_iterator( Dir, Ec ) )
         {
-            if ( File.is_regular_file() && IsSourceFile( File.path() ) )
+            if ( File.is_regular_file() and IsSourceFile( File.path() ) )
             {
                 bHasSource = true;
                 break;
@@ -209,14 +209,14 @@ struct FManifest
         }
         const std::optional<std::string_view> Key = Volt::Frontend::CalleeName( Ast, *Call );
 
-        if ( Key == WellKnown::RuntimeKey && Call->Args.Size() > 0 )
+        if ( Key == WellKnown::RuntimeKey and Call->Args.Size() > 0 )
         {
             if ( const auto Value = Volt::Frontend::AsStringText( Ast, Call->Args[0] ) )
             {
                 Manifest.Runtime = std::string( *Value );
             }
         }
-        else if ( Key == WellKnown::EntrypointKey && Call->Args.Size() > 0 )
+        else if ( Key == WellKnown::EntrypointKey and Call->Args.Size() > 0 )
         {
             if ( const auto Value = Volt::Frontend::AsStringText( Ast, Call->Args[0] ) )
             {
@@ -235,7 +235,7 @@ struct FManifest
                 }
                 const auto Name = Volt::Frontend::AsStringText( Ast, Pair->Lhs );
                 const auto Dir  = Volt::Frontend::AsStringText( Ast, Pair->Rhs );
-                if ( Name && Dir )
+                if ( Name and Dir )
                 {
                     Manifest.Modules.emplace_back( *Name, *Dir );
                 }
