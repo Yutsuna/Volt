@@ -17,6 +17,7 @@ module Volt::Build
     def execute!
       steps = []
       steps << :clean     if @options[ :clean ]
+      steps << :format    if @options[ :format ]
       steps << :validate
       steps << :configure
       steps << :build
@@ -39,6 +40,20 @@ module Volt::Build
 
       Logger.ok "No changes detected. Build is up-to-date (Cached)."
       @options[:run] ? run_bin : :halt
+    end
+
+    def format
+      Logger.info "Formatting codebase with clang-format...."
+      if !File.exist?( 'build/CMakeCache.txt' ) and configure == nil
+        Logger.fatal!("CMake configuration failed: cannot format code without a valid CMake configuration.")
+      end
+
+      if system( "cmake --build build --target format")
+        Logger.ok "Formatting completed."
+      else
+        Logger.fatal! "Formatting failed."
+      end
+      :halt
     end
 
     def configure
