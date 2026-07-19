@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
+require 'etc'
 require 'fileutils'
+require 'json'
 
 
 module Volt::Build
@@ -15,44 +17,43 @@ module Volt::Build
     end
 
     def execute!
-      steps = []
-      steps << :clean     if @options[ :clean ]
-      steps << :format    if @options[ :format ]
-      steps << :validate
-      steps << :configure
-      steps << :build
-      steps << :persist
-      steps << :run_bin
       steps.each { |step| break if send( step ) == :halt }
     end
 
     private
 
+    def steps
+      return [ :clean ]               if @options[ :clean ]
+      return [ :configure, :format ]  if @options[ :format ]
+      return [ :configure, :tidy ]    if @options[ :tidy ]
+      [ :validate, :configure, :build, :persist, :epilogue ]
+    end
+
     def clean
       Logger.info "Cleaning build directory..."
-      FileUtils.rm_rf('build')
+      FileUtils.rm_rf( 'build' )
       :halt
     end
 
     def validate
-      return :continue if @options[:clean]
       return :continue unless @cache.valid?
 
       Logger.ok "No changes detected. Build is up-to-date (Cached)."
-      @options[:run] ? run_bin : :halt
+      epilogue
     end
 
     def format
-      Logger.info "Formatting codebase with clang-format...."
-      if !File.exist?( 'build/CMakeCache.txt' ) and configure == nil
-        Logger.fatal!("CMake configuration failed: cannot format code without a valid CMake configuration.")
-      end
+      run_tool 'format', "Formatting codebase with clang-format (incremental)..."
+    end
 
-      if system( "cmake --build build --target format")
-        Logger.ok "Formatting completed."
-      else
-        Logger.fatal! "Formatting failed."
-      end
+    def tidy
+      run_tool 'tidy', "Linting codebase with clang-tidy (parallel, incremental)..."
+    end
+
+    def run_tool( target, message )
+      Logger.info message
+      system( 'cmake', '--build', 'build', '--target', target ) or Logger.fatal!( "Target '#{target}' failed." )
+      Logger.ok "#{target.capitalize} completed."
       :halt
     end
 
@@ -80,8 +81,20 @@ module Volt::Build
       :continue
     end
 
+    def epilogue
+      test    if @options[ :test ]
+      run_bin if @options[ :run ]
+      :halt
+    end
+
+    def test
+      jobs = Etc.nprocessors
+      Logger.info "Running test suites (ctest, #{jobs} jobs)..."
+      system( 'ctest', '--test-dir', 'build', '--output-on-failure', '--parallel', jobs.to_s ) or Logger.fatal!( "Tests failed." )
+      Logger.ok "All tests passed."
+    end
+
     def run_bin
-      return :continue unless @options[:run]
       Logger.fatal!("Executable not found at #{@binary_path}") unless File.exist?(@binary_path)
 
       Logger.info "Executing: #{@binary_path} #{@options[:run_args].join(' ')}"

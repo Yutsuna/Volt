@@ -28,6 +28,7 @@ module Volt::Build
 
       def fatal!( message )
         log message, " ERR ", AnsiColor::RED
+        exit 84
       end
 
       private
