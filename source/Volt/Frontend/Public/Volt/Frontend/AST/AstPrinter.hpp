@@ -136,8 +136,8 @@ namespace Frontend
             {
                 Out << '\'' << ( Value.IsValid() ? Context.Strings().Resolve( Value ) : std::string_view{} ) << '\'';
             }
-            else if constexpr ( std::same_as<F, ExprId> || std::same_as<F, StmtId> || std::same_as<F, DeclId> ||
-                                std::same_as<F, TypeId> || std::same_as<F, ParamId> )
+            else if constexpr ( std::same_as<F, ExprId> or std::same_as<F, StmtId> or std::same_as<F, DeclId> ||
+                                std::same_as<F, TypeId> or std::same_as<F, ParamId> )
             {
                 if ( Value.IsValid() )
                 {

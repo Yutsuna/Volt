@@ -69,7 +69,7 @@ namespace Frontend
             return nullptr;
         }
         const auto *Node = std::get_if<Binary>( &Ast.Expr( Id ) );
-        if ( Node == nullptr || Node->Op != Op )
+        if ( Node == nullptr or Node->Op != Op )
         {
             return nullptr;
         }

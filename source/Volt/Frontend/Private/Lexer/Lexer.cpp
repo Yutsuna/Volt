@@ -18,22 +18,22 @@ namespace Frontend
 
         [[nodiscard]] bool IsIdentStart ( char C )
         {
-            return ( C >= 'a' && C <= 'z' ) || ( C >= 'A' && C <= 'Z' ) || C == '_';
+            return ( C >= 'a' and C <= 'z' ) or ( C >= 'A' and C <= 'Z' ) or C == '_';
         }
 
         [[nodiscard]] bool IsIdentCont ( char C )
         {
-            return IsIdentStart( C ) || ( C >= '0' && C <= '9' );
+            return IsIdentStart( C ) or ( C >= '0' and C <= '9' );
         }
 
         [[nodiscard]] bool IsDigit ( char C )
         {
-            return C >= '0' && C <= '9';
+            return C >= '0' and C <= '9';
         }
 
         [[nodiscard]] bool IsHexDigit ( char C )
         {
-            return IsDigit( C ) || ( C >= 'a' && C <= 'f' ) || ( C >= 'A' && C <= 'F' );
+            return IsDigit( C ) or ( C >= 'a' and C <= 'f' ) or ( C >= 'A' and C <= 'F' );
         }
 
         struct PunctEntry
@@ -92,7 +92,7 @@ namespace Frontend
         while ( !AtEnd() )
         {
             const char C = Peek();
-            if ( C == ' ' || C == '\t' || C == '\r' )
+            if ( C == ' ' or C == '\t' or C == '\r' )
             {
                 ++Pos;
             }
@@ -115,7 +115,7 @@ namespace Frontend
         {
             const std::size_t Start = Pos;
             Pos += 2;
-            while ( !AtEnd() && ( Peek() != '#' || Peek( 1 ) != '}' ) )
+            while ( !AtEnd() and ( Peek() != '#' or Peek( 1 ) != '}' ) )
             {
                 ++Pos;
             }
@@ -131,7 +131,7 @@ namespace Frontend
         }
 
         // Line comment: # ... to end of line (newline stays significant).
-        while ( !AtEnd() && Peek() != '\n' )
+        while ( !AtEnd() and Peek() != '\n' )
         {
             ++Pos;
         }
@@ -162,15 +162,15 @@ namespace Frontend
 
     Token Lexer::LexIdentifier ( std::size_t Start )
     {
-        const bool bConstant = Source[Start] >= 'A' && Source[Start] <= 'Z';
+        const bool bConstant = Source[Start] >= 'A' and Source[Start] <= 'Z';
 
-        while ( !AtEnd() && IsIdentCont( Peek() ) )
+        while ( !AtEnd() and IsIdentCont( Peek() ) )
         {
             ++Pos;
         }
 
         // Method-style suffixes: `admin?`, `save!`.
-        if ( Peek() == '?' || Peek() == '!' )
+        if ( Peek() == '?' or Peek() == '!' )
         {
             ++Pos;
             return MakeText( TokenKind::Identifier, Start );
@@ -192,46 +192,46 @@ namespace Frontend
 
         // A '_' is a digit-group separator only when a digit follows it;
         // otherwise it begins a typed suffix (`16_u64`) and must be left.
-        if ( Peek() == '0' && ( Peek( 1 ) == 'x' || Peek( 1 ) == 'X' ) )
+        if ( Peek() == '0' and ( Peek( 1 ) == 'x' or Peek( 1 ) == 'X' ) )
         {
             Pos += 2;
-            while ( IsHexDigit( Peek() ) || ( Peek() == '_' && IsHexDigit( Peek( 1 ) ) ) )
+            while ( IsHexDigit( Peek() ) or ( Peek() == '_' and IsHexDigit( Peek( 1 ) ) ) )
             {
                 ++Pos;
             }
         }
-        else if ( Peek() == '0' && ( Peek( 1 ) == 'b' || Peek( 1 ) == 'B' ) )
+        else if ( Peek() == '0' and ( Peek( 1 ) == 'b' or Peek( 1 ) == 'B' ) )
         {
             Pos += 2;
-            while ( Peek() == '0' || Peek() == '1' || ( Peek() == '_' && ( Peek( 1 ) == '0' || Peek( 1 ) == '1' ) ) )
+            while ( Peek() == '0' or Peek() == '1' or ( Peek() == '_' and ( Peek( 1 ) == '0' or Peek( 1 ) == '1' ) ) )
             {
                 ++Pos;
             }
         }
         else
         {
-            while ( IsDigit( Peek() ) || ( Peek() == '_' && IsDigit( Peek( 1 ) ) ) )
+            while ( IsDigit( Peek() ) or ( Peek() == '_' and IsDigit( Peek( 1 ) ) ) )
             {
                 ++Pos;
             }
 
             // Fractional part, but only if a digit follows the dot (so that
             // `1..2` ranges and `5.foo` calls keep the dot separate).
-            if ( Peek() == '.' && IsDigit( Peek( 1 ) ) )
+            if ( Peek() == '.' and IsDigit( Peek( 1 ) ) )
             {
                 bFloat = true;
                 ++Pos;
-                while ( IsDigit( Peek() ) || ( Peek() == '_' && IsDigit( Peek( 1 ) ) ) )
+                while ( IsDigit( Peek() ) or ( Peek() == '_' and IsDigit( Peek( 1 ) ) ) )
                 {
                     ++Pos;
                 }
             }
 
-            if ( Peek() == 'e' || Peek() == 'E' )
+            if ( Peek() == 'e' or Peek() == 'E' )
             {
                 bFloat = true;
                 ++Pos;
-                if ( Peek() == '+' || Peek() == '-' )
+                if ( Peek() == '+' or Peek() == '-' )
                 {
                     ++Pos;
                 }
@@ -243,7 +243,7 @@ namespace Frontend
         }
 
         // Typed suffix: `_u64`, `_i32`, `_f64`, ...
-        if ( Peek() == '_' && ( Peek( 1 ) == 'u' || Peek( 1 ) == 'i' || Peek( 1 ) == 'f' ) )
+        if ( Peek() == '_' and ( Peek( 1 ) == 'u' or Peek( 1 ) == 'i' or Peek( 1 ) == 'f' ) )
         {
             if ( Peek( 1 ) == 'f' )
             {
@@ -264,7 +264,7 @@ namespace Frontend
         ++Pos; // opening quote
         bool bInterpolation = false;
 
-        while ( !AtEnd() && Peek() != '"' )
+        while ( !AtEnd() and Peek() != '"' )
         {
             const char C = Peek();
             if ( C == '\\' )
@@ -272,14 +272,14 @@ namespace Frontend
                 Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
                 continue;
             }
-            if ( C == '#' && Peek( 1 ) == '{' )
+            if ( C == '#' and Peek( 1 ) == '{' )
             {
                 bInterpolation = true;
                 Pos += 2;
                 // Skip the interpolation body, tracking nested braces so an
                 // inner '}' (or string) does not terminate it prematurely.
                 int Depth = 1;
-                while ( !AtEnd() && Depth > 0 )
+                while ( !AtEnd() and Depth > 0 )
                 {
                     const char D = Peek();
                     if ( D == '{' )
@@ -355,11 +355,11 @@ namespace Frontend
         if ( IsIdentStart( Peek( 1 ) ) )
         {
             Pos += 1; // ':'
-            while ( !AtEnd() && IsIdentCont( Peek() ) )
+            while ( !AtEnd() and IsIdentCont( Peek() ) )
             {
                 ++Pos;
             }
-            if ( Peek() == '?' || Peek() == '!' )
+            if ( Peek() == '?' or Peek() == '!' )
             {
                 ++Pos;
             }
@@ -441,10 +441,10 @@ namespace Frontend
 
             // `@name` is an instance variable, but `@[` (annotation) and a
             // lone `@` fall through to the punctuation matcher.
-            if ( C == '@' && IsIdentStart( Peek( 1 ) ) )
+            if ( C == '@' and IsIdentStart( Peek( 1 ) ) )
             {
                 Pos += 1;
-                while ( !AtEnd() && IsIdentCont( Peek() ) )
+                while ( !AtEnd() and IsIdentCont( Peek() ) )
                 {
                     ++Pos;
                 }

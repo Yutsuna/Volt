@@ -19,12 +19,12 @@ namespace Frontend
 
         [[nodiscard]] std::string_view Trim ( std::string_view Text )
         {
-            const auto IsSpace = [] ( char C ) { return C == ' ' || C == '\t' || C == '\r' || C == '\n'; };
-            while ( !Text.empty() && IsSpace( Text.front() ) )
+            const auto IsSpace = [] ( char C ) { return C == ' ' or C == '\t' or C == '\r' or C == '\n'; };
+            while ( !Text.empty() and IsSpace( Text.front() ) )
             {
                 Text.remove_prefix( 1 );
             }
-            while ( !Text.empty() && IsSpace( Text.back() ) )
+            while ( !Text.empty() and IsSpace( Text.back() ) )
             {
                 Text.remove_suffix( 1 );
             }
@@ -89,7 +89,7 @@ namespace Frontend
 
         JsxElement Element;
         std::string TagName;
-        if ( Check( TokenKind::Identifier ) || Check( TokenKind::Constant ) )
+        if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) )
         {
             TagName     = std::string( Spelling( Peek() ) );
             Element.Tag = InternText( Advance() );
@@ -100,10 +100,10 @@ namespace Frontend
         }
 
         // Attributes.
-        while ( !AtEnd() && !Check( TokenKind::Gt ) && !Check( TokenKind::Slash ) )
+        while ( !AtEnd() and !Check( TokenKind::Gt ) and !Check( TokenKind::Slash ) )
         {
             SkipNewlines();
-            if ( Check( TokenKind::Gt ) || Check( TokenKind::Slash ) )
+            if ( Check( TokenKind::Gt ) or Check( TokenKind::Slash ) )
             {
                 break;
             }
@@ -111,7 +111,7 @@ namespace Frontend
             // Attribute name: identifier / constant / keyword, optionally
             // namespaced (`on:click`, lexed as ident + `:click` symbol).
             std::string AttrName;
-            if ( Check( TokenKind::Identifier ) || Check( TokenKind::Constant ) || IsKeyword( PeekKind() ) )
+            if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) or IsKeyword( PeekKind() ) )
             {
                 AttrName = std::string( Spelling( Advance() ) );
             }
@@ -179,7 +179,7 @@ namespace Frontend
             }
 
             // Closing tag `</tag>` or `</>`.
-            if ( Check( TokenKind::Lt ) && PeekKind( 1 ) == TokenKind::Slash )
+            if ( Check( TokenKind::Lt ) and PeekKind( 1 ) == TokenKind::Slash )
             {
                 Advance(); // '<'
                 Advance(); // '/'
@@ -210,13 +210,13 @@ namespace Frontend
             // from the original source so whitespace/structure is preserved.
             const std::uint32_t TextBegin = Here();
             std::uint32_t TextEnd         = TextBegin;
-            while ( !AtEnd() && !Check( TokenKind::Lt ) && !Check( TokenKind::LBrace ) && !Check( TokenKind::KwEnd ) )
+            while ( !AtEnd() and !Check( TokenKind::Lt ) and !Check( TokenKind::LBrace ) and !Check( TokenKind::KwEnd ) )
             {
                 TextEnd = Peek().Range.End;
                 Advance();
             }
 
-            if ( TextEnd > TextBegin && TextEnd <= Source.size() )
+            if ( TextEnd > TextBegin and TextEnd <= Source.size() )
             {
                 const std::string_view Slice = Trim( Source.substr( TextBegin, TextEnd - TextBegin ) );
                 if ( !Slice.empty() )
