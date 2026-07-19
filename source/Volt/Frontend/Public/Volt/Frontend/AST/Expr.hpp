@@ -140,8 +140,18 @@ namespace Frontend
         ExprId Value;
     };
 
+    // `do |Params| Body end` — a trailing block literal attached to a Call.
+    struct Block
+    {
+
+        Core::SourceRange Loc;
+        ParamList Params;
+        StmtList Body;
+    };
+
     // `Callee(Args...)`. ArgNames is parallel to Args; an invalid Symbol
     // marks a positional argument, a valid one a `name: value` argument.
+    // BlockArg is invalid when the call carries no trailing `do ... end` block.
     struct Call
     {
 
@@ -149,6 +159,7 @@ namespace Frontend
         ExprId Callee;
         ExprList Args;
         SymbolList ArgNames;
+        ExprId BlockArg;
     };
 
     // `Object[Args...]`
