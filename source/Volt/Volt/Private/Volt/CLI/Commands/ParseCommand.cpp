@@ -49,6 +49,10 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FParseCommand::GetOptions ()
             [this] ( std::string_view ) { this->bSimplify = true; }
         },
         {
+            "", "--lowered", "", "Display the tree after the AST lowering passes",
+            [this] ( std::string_view ) { this->bLowered = true; }
+        },
+        {
             "", "--no-color", "", "Output without colors",
             [this] ( std::string_view ) { this->bNoColor = true; }
         },
@@ -89,7 +93,7 @@ std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_vie
     }
 
     Driver::Driver TheDriver;
-    static_cast<void>( TheDriver.ParseFiles( { Input } ) );
+    static_cast<void>( TheDriver.ParseFiles( { Input }, bLowered ) );
 
     if ( TheDriver.HasErrors() )
     {
