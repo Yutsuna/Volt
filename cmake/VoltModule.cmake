@@ -27,7 +27,15 @@ function( VoltModule )
     return()
   endif()
 
-  set_property( GLOBAL APPEND PROPERTY VOLT_ALL_FILES ${ALL_SOURCES} )
+  file(
+    GLOB_RECURSE
+    TOOLING_FILES
+    CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/*.hpp" "${CMAKE_CURRENT_SOURCE_DIR}/*.inl"
+  )
+  set_property( GLOBAL APPEND PROPERTY VOLT_ALL_FILES
+    ${ALL_SOURCES} ${TOOLING_FILES}
+  )
 
   #############################################################################
 
@@ -81,7 +89,12 @@ function( VoltModule )
 
   #############################################################################
 
-  #TODO: add testing
+  #TODO: add functional testing on
+  # Module/
+  # |-- Public/
+  # |-- Private/
+  # |-- Tests/      <<there
+  # |-- Benchmarks/ <<there
 
   #############################################################################
 
