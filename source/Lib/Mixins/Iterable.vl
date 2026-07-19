@@ -26,9 +26,7 @@ mixin Iterable[ T ]
   # @brief Returns true if the block yields true for at least one element.
   #}
   def any? -> Bool
-    each do |element|
-      return true if yield element
-    end
+    each { |element| return true if yield element }
     false
   end
 
@@ -36,9 +34,7 @@ mixin Iterable[ T ]
   # @brief Returns true if the block yields true for all elements.
   #}
   def all? -> Bool
-    each do |element|
-      return false unless yield element
-    end
+    each { |element| return false unless yield element }
     true
   end
 
@@ -64,9 +60,7 @@ mixin Iterable[ T ]
   # @brief Returns true if the closure returns true for at least one element.
   #}
   def any?( &block : T -> Bool ) -> Bool
-    each do |element|
-      return true if block.call( element )
-    end
+    each { |element| return true if block.call( element ) }
     false
   end
 
@@ -74,9 +68,7 @@ mixin Iterable[ T ]
   # @brief Returns true if the closure returns true for all elements.
   #}
   def all?( &block : T -> Bool ) -> Bool
-    each do |element|
-      return false unless block.call( element )
-    end
+    each { |element| return false unless block.call( element ) }
     true
   end
 
