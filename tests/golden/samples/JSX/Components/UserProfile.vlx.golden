@@ -1,126 +1,39 @@
-// ==== samples/JSX/Components/UserProfile.vlx ====
-(Component
-  Name='UserProfile'
-  Params=[
-    (Param
-      Name='user'
-      DeclType=(TypeRef
-        Path=[
-          'User'
-        ]
-        Generics=[])
-      Default=nil
-      bInstanceVar=false)
-  ]
-  Body=[
-    (ExprStmt
-      Expr=(Assign
-        Op==
-        Target=(Identifier
-          Name='label')
-        Value=(Ternary
-          Cond=(Member
-            Object=(Identifier
-              Name='user')
-            Name='admin?')
-          Then=(StringLiteral
-            Value='Admin')
-          Else=(StringLiteral
-            Value='Member'))))
-    (ExprStmt
-      Expr=(Call
-        Callee=(Member
-          Object=(Member
-            Object=(Identifier
-              Name='Volt')
-            Name='JSX')
-          Name='create_element')
-        Args=[
-          (StringLiteral
-            Value='div')
-          (HashLit
-            Keys=[
-              (StringLiteral
-                Value='class')
-            ]
-            Values=[
-              (StringLiteral
-                Value='profile')
-            ]
-            KeyType=nil
-            ValueType=nil)
-          (ArrayLit
-            Elements=[
-              (Call
-                Callee=(Member
-                  Object=(Member
-                    Object=(Identifier
-                      Name='Volt')
-                    Name='JSX')
-                  Name='create_element')
-                Args=[
-                  (StringLiteral
-                    Value='h2')
-                  (HashLit
-                    Keys=[]
-                    Values=[]
-                    KeyType=nil
-                    ValueType=nil)
-                  (ArrayLit
-                    Elements=[
-                      (Member
-                        Object=(Identifier
-                          Name='user')
-                        Name='name')
-                    ]
-                    ElemType=nil)
-                ]
-                ArgNames=[
-                  ''
-                  ''
-                  ''
-                ])
-              (Call
-                Callee=(Member
-                  Object=(Member
-                    Object=(Identifier
-                      Name='Volt')
-                    Name='JSX')
-                  Name='create_element')
-                Args=[
-                  (StringLiteral
-                    Value='span')
-                  (HashLit
-                    Keys=[
-                      (StringLiteral
-                        Value='class')
-                    ]
-                    Values=[
-                      (StringLiteral
-                        Value='badge')
-                    ]
-                    KeyType=nil
-                    ValueType=nil)
-                  (ArrayLit
-                    Elements=[
-                      (Identifier
-                        Name='label')
-                    ]
-                    ElemType=nil)
-                ]
-                ArgNames=[
-                  ''
-                  ''
-                  ''
-                ])
-            ]
-            ElemType=nil)
-        ]
-        ArgNames=[
-          ''
-          ''
-          ''
-        ]))
-  ])
-[Volt] 1 file(s), 0 error(s), 3 jsx node(s) lowered, 1 exported decl(s)
+Program 'samples/JSX/Components/UserProfile.vlx'
+└─ Component 'UserProfile' @1:1
+   ├─ params
+   │  └─ Param 'user'
+   │     └─ decl_type
+   │        └─ TypeRef 'User' @1:31
+   └─ body
+      ├─ ExprStmt @3:3
+      │  └─ expr
+      │     └─ Assign '=' @3:9
+      │        ├─ target
+      │        │  └─ Identifier 'label' @3:3
+      │        └─ value
+      │           └─ Ternary @3:23
+      │              ├─ cond
+      │              │  └─ Member 'admin?' @3:15
+      │              │     └─ object
+      │              │        └─ Identifier 'user' @3:11
+      │              ├─ then
+      │              │  └─ StringLiteral 'Admin' @3:25
+      │              └─ else
+      │                 └─ StringLiteral 'Member' @3:35
+      └─ ExprStmt @5:3
+         └─ expr
+            └─ JsxElement 'div' [class] @5:3
+               ├─ attr_values
+               │  └─ StringLiteral 'profile' @5:14
+               └─ children
+                  ├─ JsxElement 'h2' @6:5
+                  │  └─ children
+                  │     └─ Member 'name' @6:14
+                  │        └─ object
+                  │           └─ Identifier 'user' @6:10
+                  └─ JsxElement 'span' [class] @7:5
+                     ├─ attr_values
+                     │  └─ StringLiteral 'badge' @7:17
+                     └─ children
+                        └─ Identifier 'label' @7:26
 --- exit 0 ---
