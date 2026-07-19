@@ -1,0 +1,85 @@
+#{
+# @mixin Iterable
+# @brief Provides iteration capabilities for collections.
+#}
+mixin Iterable[ T ]
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Base iteration method yielding each element successively.
+  #}
+  abstract def each -> Void
+
+  #{
+  # @brief Iterates over the elements, yielding the element and its index.
+  #}
+  def each_with_index -> Void
+    index = 0
+    each do |element|
+      yield element, index
+      index += 1
+    end
+  end
+
+  #{
+  # @brief Returns true if the block yields true for at least one element.
+  #}
+  def any? -> Bool
+    each do |element|
+      return true if yield element
+    end
+    false
+  end
+
+  #{
+  # @brief Returns true if the block yields true for all elements.
+  #}
+  def all? -> Bool
+    each do |element|
+      return false unless yield element
+    end
+    true
+  end
+
+  #----------------------------------------------------------------------------
+
+  #{
+  # @brief Base iteration method passing each element to a closure.
+  #}
+  abstract def each( &block : T -> Void ) -> Void
+
+  #{
+  # @brief Iterates over the elements, passing the element and its index to a closure.
+  #}
+  def each_with_index( &block : ( T, Int ) -> Void ) -> Void
+    index = 0
+    each do |element|
+      block.call( element, index )
+      index += 1
+    end
+  end
+
+  #{
+  # @brief Returns true if the closure returns true for at least one element.
+  #}
+  def any?( &block : T -> Bool ) -> Bool
+    each do |element|
+      return true if block.call( element )
+    end
+    false
+  end
+
+  #{
+  # @brief Returns true if the closure returns true for all elements.
+  #}
+  def all?( &block : T -> Bool ) -> Bool
+    each do |element|
+      return false unless block.call( element )
+    end
+    true
+  end
+
+  #----------------------------------------------------------------------------
+
+end
