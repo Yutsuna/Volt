@@ -5,7 +5,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string_view>
 #include <utility>
 
 namespace Volt
@@ -239,6 +238,24 @@ namespace Frontend
                 Expect( TokenKind::RBracket, "to close index" );
                 Lhs = MakeExpr( std::move( Node ), RangeSince( Begin ) );
             }
+            else if ( Check( TokenKind::KwDo ) )
+            {
+                // Trailing `do |x| ... end` block: attach to the call it
+                // follows, wrapping a bare callee (`each do`, `v.each do`)
+                // into a Call first.
+                const ExprId BlockId = ParseDoBlock();
+                if ( Call *AsCall = std::get_if<Call>( &Context.Expr( Lhs ) ); AsCall != nullptr && !AsCall->BlockArg.IsValid() )
+                {
+                    AsCall->BlockArg = BlockId;
+                }
+                else
+                {
+                    Call Node;
+                    Node.Callee   = Lhs;
+                    Node.BlockArg = BlockId;
+                    Lhs           = MakeExpr( std::move( Node ), RangeSince( Begin ) );
+                }
+            }
             else
             {
                 break;
@@ -273,6 +290,36 @@ namespace Frontend
             SkipNewlines();
         } while ( Accept( TokenKind::Comma ) );
         SkipNewlines();
+    }
+
+    ExprId Parser::ParseDoBlock ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwDo, "to begin a block" );
+
+        Block Node;
+        // Parameters are hard-expected between pipes, outside the Pratt
+        // table, so `|` never reads as the bitwise-or operator here.
+        if ( Accept( TokenKind::Pipe ) )
+        {
+            do
+            {
+                Param Item;
+                Item.Name = InternText( Expect( TokenKind::Identifier, "as a block parameter name" ) );
+                if ( Accept( TokenKind::Colon ) )
+                {
+                    Item.DeclType = ParseType();
+                }
+                Node.Params.PushBack( Context.Add( std::move( Item ) ) );
+            } while ( Accept( TokenKind::Comma ) );
+            Expect( TokenKind::Pipe, "to close block parameters" );
+        }
+
+        SkipTerminators();
+        ParseStatementBlock( Node.Body );
+        Expect( TokenKind::KwEnd, "to close block" );
+
+        return MakeExpr( std::move( Node ), RangeSince( Begin ) );
     }
 
     ExprId Parser::ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start )

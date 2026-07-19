@@ -128,6 +128,15 @@ namespace Frontend
             }
         }
 
+        // Bare single-parameter function type: `T -> R` (right-associative).
+        if ( Accept( TokenKind::Arrow ) )
+        {
+            FuncType Func;
+            Func.Params.PushBack( Base );
+            Func.Return = ParseType();
+            return MakeType( std::move( Func ), RangeSince( Begin ) );
+        }
+
         return Base;
     }
 
