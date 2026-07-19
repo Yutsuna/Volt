@@ -39,9 +39,7 @@ function( VoltParse SOURCE LOWERED OUT_VAR )
   )
   #############################################################################
 
-  set( ${OUT_VAR} "
-    ${STD_OUT}${STD_ERR}--- exit ${EXIT_CODE} ---\n" PARENT_SCOPE
-  )
+  set( ${OUT_VAR} "${STD_OUT}${STD_ERR}--- exit ${EXIT_CODE} ---\n" PARENT_SCOPE )
 endfunction()
 
 #############################################################################
