@@ -23,8 +23,8 @@ namespace Frontend
     {
         switch ( Kind )
         {
-#define VOLT_INFIX( Name, Lbp, RAssoc )                                                                                                                                  \
-    case TokenKind::Name:                                                                                                                                                \
+#define VOLT_INFIX( Name, Lbp, RAssoc )                                                                                          \
+    case TokenKind::Name:                                                                                                        \
         return BindingPower{ Lbp, ( RAssoc ) ? ( Lbp ) : ( Lbp + 1 ) };
 #define VOLT_ASSIGN( Name, Lbp, RAssoc ) VOLT_INFIX( Name, Lbp, RAssoc )
 #include "Volt/Frontend/Parser/Pratt.inl"
@@ -44,8 +44,8 @@ namespace Frontend
     {
         switch ( Kind )
         {
-#define VOLT_ASSIGN( Name, Lbp, RAssoc )                                                                                                                                 \
-    case TokenKind::Name:                                                                                                                                                \
+#define VOLT_ASSIGN( Name, Lbp, RAssoc )                                                                                         \
+    case TokenKind::Name:                                                                                                        \
         return true;
 #include "Volt/Frontend/Parser/Pratt.inl"
         default:
@@ -59,8 +59,8 @@ namespace Frontend
     {
         switch ( Kind )
         {
-#define VOLT_PREFIX( Name )                                                                                                                                              \
-    case TokenKind::Name:                                                                                                                                                \
+#define VOLT_PREFIX( Name )                                                                                                      \
+    case TokenKind::Name:                                                                                                        \
         return true;
 #include "Volt/Frontend/Parser/Pratt.inl"
         default:
