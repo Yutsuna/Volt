@@ -19,24 +19,31 @@ module Volt::Build
 
     def valid?
       return false unless File.exist?( PATH ) and File.exist?( @binary_path )
-      cached_state = JSON.parse( File.read( PATH ), symbolize_names: true ) rescue nil
+      cached_state = JSON.parse( File.read( PATH ) ) rescue nil
       return false unless cached_state
-      return false if cached_state[ :build_type ] != @build_type
-      return false if cached_state[ :cmake_flags ] != @cmake_flags
-      cached_state[ :files ] == current_state[ :files ]
+      return false if cached_state[ 'build_type' ] != @build_type
+      return false if cached_state[ 'cmake_flags' ] != @cmake_flags
+      cached_state[ 'files' ] == current_state[ 'files' ]
     end
 
     def save!
       File.write( PATH, JSON.pretty_generate( current_state ) )
     end
 
+    def save_configure!
+      File.write( PATH, JSON.pretty_generate(
+        'build_type'  => @build_type,
+        'cmake_flags' => @cmake_flags
+      ) )
+    end
+
     private
 
     def current_state
       @current_state ||= {
-        build_type:   @build_type,
-        cmake_flags:  @cmake_flags,
-        files:        compute_files_metadata
+        'build_type'  => @build_type,
+        'cmake_flags' => @cmake_flags,
+        'files'       => compute_files_metadata
       }
     end
 
@@ -44,7 +51,7 @@ module Volt::Build
       metadata = {}
       trackable_files.each do |file|
         stat = File.stat( file )
-        metadata[ file ] = { mtime: stat.mtime.to_i, size: stat.size }
+        metadata[ file ] = { 'mtime' => stat.mtime.to_i, 'size' => stat.size }
       rescue Errno::ENOENT
       end
       metadata
