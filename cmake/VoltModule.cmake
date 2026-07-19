@@ -66,6 +66,7 @@ function( VoltModule )
   target_include_directories( ${M_NAME} PUBLIC
     "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/Public>"
   )
+  set_property( GLOBAL APPEND PROPERTY VOLT_PUBLIC_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/Public" )
   foreach( DIR IN LISTS M_PRIVATE_INCLUDES )
     target_include_directories( ${M_NAME} PRIVATE
       "${CMAKE_CURRENT_SOURCE_DIR}/${DIR}"
