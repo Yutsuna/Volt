@@ -53,7 +53,8 @@ namespace Frontend
 #define VOLT_PUNCT( Name, Spelling ) PunctEntry{ Spelling, TokenKind::Name },
 #include "Volt/Frontend/Lexer/TokenKind.inl"
                 };
-                std::ranges::stable_sort( Entries, [] ( const PunctEntry &A, const PunctEntry &B ) { return A.Spelling.size() > B.Spelling.size(); } );
+                std::ranges::stable_sort( Entries, [] ( const PunctEntry &A, const PunctEntry &B )
+                                          { return A.Spelling.size() > B.Spelling.size(); } );
                 return Entries;
             }();
             return Table;
@@ -61,7 +62,10 @@ namespace Frontend
 
     } // namespace
 
-    Lexer::Lexer ( Core::FileId InFile, std::string_view InSource, Core::StringInterner &InInterner, Core::DiagEngine::Bag &InDiagnostics )
+    Lexer::Lexer ( Core::FileId InFile,
+                   std::string_view InSource,
+                   Core::StringInterner &InInterner,
+                   Core::DiagEngine::Bag &InDiagnostics )
         : File( InFile ), Source( InSource ), Interner( InInterner ), Diagnostics( InDiagnostics )
     {
     }

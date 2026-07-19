@@ -23,12 +23,19 @@ namespace Sema
         // `module` nesting. Only *named type-level* declarations export;
         // fields, includes and annotations stay unit-private. A new
         // exportable decl kind = one lambda line here.
-        std::size_t PublishDecls ( const Frontend::AstContext &Ast, const std::string &Prefix, const auto &DeclIds, std::uint32_t Unit, InterfaceRegistry &Registry )
+        std::size_t PublishDecls ( const Frontend::AstContext &Ast,
+                                   const std::string &Prefix,
+                                   const auto &DeclIds,
+                                   std::uint32_t Unit,
+                                   InterfaceRegistry &Registry )
         {
             std::size_t Published = 0;
 
             const auto Qualify = [&] ( Frontend::Symbol Name )
-            { return Prefix.empty() ? std::string{ Ast.Text( Name ) } : Prefix + std::string{ QualifySeparator } + std::string{ Ast.Text( Name ) }; };
+            {
+                return Prefix.empty() ? std::string{ Ast.Text( Name ) }
+                                      : Prefix + std::string{ QualifySeparator } + std::string{ Ast.Text( Name ) };
+            };
 
             const auto Export = [&] ( Frontend::Symbol Name, Frontend::DeclKind Kind, Frontend::DeclId Id )
             {

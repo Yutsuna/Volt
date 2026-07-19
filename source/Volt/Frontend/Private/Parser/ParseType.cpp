@@ -41,7 +41,8 @@ namespace Frontend
         // Generic arguments `[T, U]` — but `[<int>]` is a fixed-array size,
         // handled as a postfix in ParseType, so only recurse when the
         // bracket opens on something type-shaped.
-        if ( Check( TokenKind::LBracket ) && ( PeekKind( 1 ) == TokenKind::Constant || PeekKind( 1 ) == TokenKind::Arrow || PeekKind( 1 ) == TokenKind::LParen ) )
+        if ( Check( TokenKind::LBracket ) &&
+             ( PeekKind( 1 ) == TokenKind::Constant || PeekKind( 1 ) == TokenKind::Arrow || PeekKind( 1 ) == TokenKind::LParen ) )
         {
             Advance();
             do
