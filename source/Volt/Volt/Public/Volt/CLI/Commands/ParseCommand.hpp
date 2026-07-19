@@ -21,6 +21,7 @@ namespace CLI
      *        -o OUTPUT, --output OUTPUT       Output target path structure
      *        --format FORMAT                  Serialization formats (json|dot|text)
      *        --simplify                       Deduplicate structural tree layout elements
+     *        --lowered                        Display the tree after the AST lowering passes
      *        --no-color                       Output without colors
      *        --no-location                    Omit character and index coordinates
      *        -h, --help                       Show help
@@ -46,6 +47,7 @@ namespace CLI
         std::string Format = "text";
 
         bool bSimplify   = false;
+        bool bLowered    = false;
         bool bNoColor    = false;
         bool bNoLocation = false;
     };
