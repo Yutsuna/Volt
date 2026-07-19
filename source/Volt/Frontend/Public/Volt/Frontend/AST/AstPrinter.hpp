@@ -106,7 +106,9 @@ namespace Frontend
         template <typename Variant> void PrintVariant ( const Variant &Node, int Depth )
         {
             Out << '(' << NodeName( Node );
-            std::visit( Meta::Overloaded{ [] ( const std::monostate & ) {}, [&] ( const auto &Struct ) { PrintFieldsOf( Struct, Depth ); } }, Node );
+            std::visit( Meta::Overloaded{ [] ( const std::monostate & ) {},
+                                          [&] ( const auto &Struct ) { PrintFieldsOf( Struct, Depth ); } },
+                        Node );
             Out << ')';
         }
 
@@ -134,7 +136,8 @@ namespace Frontend
             {
                 Out << '\'' << ( Value.IsValid() ? Context.Strings().Resolve( Value ) : std::string_view{} ) << '\'';
             }
-            else if constexpr ( std::same_as<F, ExprId> || std::same_as<F, StmtId> || std::same_as<F, DeclId> || std::same_as<F, TypeId> || std::same_as<F, ParamId> )
+            else if constexpr ( std::same_as<F, ExprId> || std::same_as<F, StmtId> || std::same_as<F, DeclId> ||
+                                std::same_as<F, TypeId> || std::same_as<F, ParamId> )
             {
                 if ( Value.IsValid() )
                 {

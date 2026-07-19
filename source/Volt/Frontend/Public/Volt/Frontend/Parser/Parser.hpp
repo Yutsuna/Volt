@@ -27,7 +27,10 @@ namespace Frontend
 
     public:
 
-        Parser ( std::vector<Token> InTokens, AstContext &InContext, Core::DiagEngine::Bag &InDiagnostics, std::string_view InSource = {} );
+        Parser ( std::vector<Token> InTokens,
+                 AstContext &InContext,
+                 Core::DiagEngine::Bag &InDiagnostics,
+                 std::string_view InSource = {} );
 
         /// Parse a whole file (mixed top-level declarations and statements).
         void ParseFile ();
