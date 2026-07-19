@@ -36,7 +36,7 @@ namespace Driver
 
         [[nodiscard]] bool HasSuffix ( std::string_view Path, std::string_view Suffix )
         {
-            return Path.size() >= Suffix.size() && Path.substr( Path.size() - Suffix.size() ) == Suffix;
+            return Path.size() >= Suffix.size() and Path.substr( Path.size() - Suffix.size() ) == Suffix;
         }
 
         [[nodiscard]] bool IsComponentPath ( std::string_view Path )
@@ -47,7 +47,7 @@ namespace Driver
         [[nodiscard]] bool IsSourceFile ( const fs::path &Path )
         {
             const std::string Ext = Path.extension().string();
-            return Ext == WellKnown::SourceExt || Ext == WellKnown::ComponentExt;
+            return Ext == WellKnown::SourceExt or Ext == WellKnown::ComponentExt;
         }
 
     } // namespace
@@ -224,7 +224,7 @@ namespace Driver
             for ( const Frontend::DeclId Id : Unit.Ast.TopDecls )
             {
                 const auto *Annotation = std::get_if<Frontend::Annotation>( &Unit.Ast.Decl( Id ) );
-                if ( Annotation == nullptr || Unit.Ast.Text( Annotation->Name ) != WellKnown::LinkAnnotation )
+                if ( Annotation == nullptr or Unit.Ast.Text( Annotation->Name ) != WellKnown::LinkAnnotation )
                 {
                     continue;
                 }
@@ -303,7 +303,7 @@ namespace Driver
                 }
                 const std::optional<std::string_view> Name = Frontend::CalleeName( Manifest, *Call );
 
-                if ( Name == WellKnown::EntrypointKey && Call->Args.Size() > 0 )
+                if ( Name == WellKnown::EntrypointKey and Call->Args.Size() > 0 )
                 {
                     if ( const std::optional<std::string_view> Ep = Frontend::AsStringText( Manifest, Call->Args[0] ) )
                     {
@@ -321,7 +321,7 @@ namespace Driver
                         }
                         const std::optional<std::string_view> Key = Frontend::AsStringText( Manifest, Pair->Lhs );
                         const std::optional<std::string_view> Dir = Frontend::AsStringText( Manifest, Pair->Rhs );
-                        if ( Key && Dir )
+                        if ( Key and Dir )
                         {
                             Modules.emplace_back( *Key, *Dir );
                         }
@@ -351,7 +351,7 @@ namespace Driver
             }
             for ( const fs::directory_entry &It : fs::recursive_directory_iterator( Dir, Ec ) )
             {
-                if ( It.is_regular_file() && IsSourceFile( It.path() ) )
+                if ( It.is_regular_file() and IsSourceFile( It.path() ) )
                 {
                     Refs.push_back( SourceRef{ It.path().string(), ModName, IsComponentPath( It.path().string() ) } );
                 }
