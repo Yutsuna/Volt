@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <string>
-#include <string_view>
 #include <utility>
 
 namespace Volt
@@ -218,7 +217,12 @@ namespace Frontend
         {
             SkipNewlines();
             Param Node;
-            if ( Check( TokenKind::InstanceVar ) )
+            if ( Accept( TokenKind::Amp ) )
+            {
+                Node.bIsBlock = true;
+                Node.Name     = InternText( Expect( TokenKind::Identifier, "as a block parameter name" ) );
+            }
+            else if ( Check( TokenKind::InstanceVar ) )
             {
                 Node.bInstanceVar        = true;
                 const std::string_view V = Interner.Resolve( Advance().Lexeme );
