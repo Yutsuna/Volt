@@ -5,6 +5,7 @@
 #include "Volt/Sema/Layout/TypeStore.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <span>
 #include <string_view>
 
@@ -46,16 +47,26 @@ namespace Sema
     // PassList.inl + one definition; the registry and ordering come for free.
     using PassFn = void ( * )( PassContext & );
 
+    // What a pass does to the AST, straight from the manifest's Kind column.
+    // The axis tools filter on: `volt parse --lowered` runs only Lowering
+    // passes, `check --type` selects Analysis subsets.
+    enum class EPassKind : std::uint8_t
+    {
+        Analysis, // reads the AST, reports diagnostics
+        Lowering, // rewrites the AST in place
+    };
+
     struct PassInfo
     {
 
         std::string_view Name;
-        int Order  = 0;
-        PassFn Run = nullptr;
+        int Order      = 0;
+        EPassKind Kind = EPassKind::Analysis;
+        PassFn Run     = nullptr;
     };
 
     // Forward-declare every pass function straight from the manifest.
-#define VOLT_PASS( Name, Order ) void Name( PassContext &Context );
+#define VOLT_PASS( Name, Order, Kind ) void Name( PassContext &Context );
 #include "Volt/Sema/PassList.inl"
 
     // The manifest passes, sorted ascending by Order (built once, cached).
@@ -64,6 +75,9 @@ namespace Sema
     // Run every registered pass over Context, in Order. Returns the number
     // of passes executed.
     std::size_t RunPasses ( PassContext &Context );
+
+    // Same, restricted to the passes of one Kind (manifest order preserved).
+    std::size_t RunPasses ( PassContext &Context, EPassKind Only );
 
 } // namespace Sema
 
