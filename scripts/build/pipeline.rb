@@ -66,7 +66,9 @@ module Volt::Build
       definitions = @options[:cmake_flags].map { |k, v| "-D#{k}=#{v}" }.join(' ')
       cmd = "cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=#{@options[:build_type]} #{definitions}"
 
-      system(cmd) ? :continue : Logger.fatal!("CMake configuration failed.")
+      system(cmd) or Logger.fatal!("CMake configuration failed.")
+      @cache.save_configure!
+      :continue
     end
 
     def build
@@ -111,11 +113,10 @@ module Volt::Build
       return true unless File.exist?('build/CMakeCache.txt')
       return true unless File.exist?(Cache::PATH)
 
-      cached_state = JSON.parse(File.read(Cache::PATH), symbolize_names: true) rescue nil
+      cached_state = JSON.parse(File.read(Cache::PATH)) rescue nil
       return true unless cached_state
 
-      cached_state[:build_type] != @options[:build_type] ||
-        cached_state[:cmake_flags] != @options[:cmake_flags]
+      cached_state['build_type'] != @options[:build_type] or cached_state['cmake_flags'] != @options[:cmake_flags]
     end
   end
 
