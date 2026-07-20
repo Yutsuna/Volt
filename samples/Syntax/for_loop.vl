@@ -1,0 +1,62 @@
+# TODO: in the future add assert! to the std lib as macro
+# macro def assert!( condition : Bool ) -> Void
+def assert!( condition : Bool ) -> Void
+  # if not {{condition}}
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#{
+# collection.each { |item| total += item }
+#}
+def for_collection -> Int32
+  collection = [ 1, 2, 3 ]
+  total = 0
+  for item in collection
+    total += item
+  end
+  total
+end
+
+#{
+# dictionary.each { |key, value| total += value }
+#}
+def for_dictionary -> Int32
+  dictionary = { "a" => 1, "b" => 2, "c" => 3 }
+  total = 0
+  for key, value in dictionary
+    total += value
+  end
+  total
+end
+
+#{
+# (1..3).each { |i| total += 1 }
+#}
+def for_range -> Int32
+  total = 0
+  for i in 1..3
+    total += i
+  end
+  total
+end
+
+#{
+#  users.each { |name, email, age| puts "#{name} (#{age}) can be reached at #{email}" }
+#}
+def for_array -> Void
+  users = [
+            [ "Alice", "alice@petass.com", 42 ],
+            [ "Morgan", "morgan@bg.fr", 25 ],
+            [ "Bob", "bob@marley.lol", 30 ]
+          ]
+  for name, email, age in users
+    puts "#{name} (#{age}) can be reached at #{email}"
+  end
+end
+
+assert!( for_collection == 6 )
+assert!( for_dictionary == 6 )
+assert!( for_range == 3 )
+for_array
