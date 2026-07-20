@@ -163,6 +163,8 @@ namespace Frontend
         [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range );
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
         [[nodiscard]] ExprId ParseDoBlock ();
+        [[nodiscard]] ExprId ParseCaseExpr ();
+        [[nodiscard]] ExprId ParseDotCall ();
         // Attach a trailing block to the call it follows: mutates `Lhs` in
         // place if it is already a bare `Call` with no block yet (`each do`),
         // otherwise wraps it in a new `Call` (e.g. a bare identifier callee).

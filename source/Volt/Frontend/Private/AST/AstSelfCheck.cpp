@@ -29,7 +29,11 @@ namespace Frontend
         static_assert( Meta::FieldCount<IntLiteral>() == 1 );
         static_assert( Meta::FieldCount<Binary>() == 3 );
         static_assert( Meta::FieldCount<NilLiteral>() == 0 );
+        static_assert( Meta::FieldCount<DotCall>() == 3 );
+        static_assert( Meta::FieldCount<WhenClause>() == 2 );
+        static_assert( Meta::FieldCount<CaseExpr>() == 3 );
         static_assert( Meta::EnumName( ExprKind::IntLiteral ) == "IntLiteral" );
+        static_assert( Meta::EnumName( ExprKind::CaseExpr ) == "CaseExpr" );
 
         // Kind aligns with the manifest order (monostate = None = 0).
         // Only nodes without SmallVec members are constexpr-constructible;

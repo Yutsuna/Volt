@@ -56,6 +56,15 @@ namespace Frontend
         ExprId Init;
     };
 
+    // `when Pattern1, Pattern2 then Body...`
+    struct WhenClause
+    {
+
+        Core::SourceRange Loc;
+        ExprList Patterns;
+        StmtList Body;
+    };
+
     enum class StmtKind
     {
 
