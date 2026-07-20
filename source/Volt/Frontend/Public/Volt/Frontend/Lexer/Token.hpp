@@ -13,7 +13,7 @@ namespace Frontend
 {
 
     /// Every token kind, generated from TokenKind.inl.
-    enum class TokenKind : std::uint16_t
+    enum class TokenKind : std::uint8_t
     {
 
 #define VOLT_TOKEN( Name ) Name,
