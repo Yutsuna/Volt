@@ -8,3 +8,4 @@ build/
 graphify-out
 !VERSION.md
 compile_commands.json
+result/
