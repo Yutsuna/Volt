@@ -1,0 +1,48 @@
+#{
+  @macro serializable
+  @brief Generates serialization methods for a class.
+  @param fields An Array<Symbol> of the fields to serialize.
+#}
+macro def serializable( fields : Array<Symbol> )
+
+  def to_string -> String
+    "User(#{
+      {% for field, index in fields %}
+        "{{ field }}: #{@{{ field }}.to_string}"
+      {% end %}
+    })"
+  end
+
+  def to_json -> String
+    "{" +
+      {% for field, index in fields %}
+        "\"{{ field }}\": " + @{{ field }}.to_json
+        {% if index < fields.size - 1 %} + ", " + {% end %}
+      {% end %}
+    + "}"
+  end
+
+  def self.from_string( str : String ) -> self
+    # parse the string as a key value pair and create a new instance of the class
+    # then create & return a new instance of the class
+  end
+
+  def self.from_json( json : String ) -> self
+    # parse the json as a key value pair and create a new instance of the class
+    # then create & return a new instance of the class
+  end
+
+end
+
+#------------------------------------------------------------------------------
+
+class User
+  name  : String
+  email : String
+  age   : Int32
+
+  def initialize( @name : String, @email : String, @age : Int32 )
+  end
+
+  serializable( [ :name, :email, :age ] )
+end
