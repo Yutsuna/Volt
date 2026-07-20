@@ -2,7 +2,7 @@
 # @mixin Iterable
 # @brief Provides iteration capabilities for collections.
 #}
-mixin Iterable[ T ]
+mixin Iterable<T>
 
   #----------------------------------------------------------------------------
 

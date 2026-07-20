@@ -2,9 +2,9 @@
 # @class Array
 # @brief A fixed-size array
 #}
-class Array[ T ]
+class Array<T>
   include Inspectable
-  include Iterable[ T ]
+  include Iterable<T>
 
   #----------------------------------------------------------------------------
 
@@ -16,7 +16,7 @@ class Array[ T ]
   #{
   # @brief The underlying contiguous buffer.
   #}
-  getter data : Pointer[ T ]
+  getter data : Pointer<T>
 
   #----------------------------------------------------------------------------
 
@@ -27,7 +27,7 @@ class Array[ T ]
   def initialize( size : Int = 0 )
     raise "Array: negative size" if size < 0
     @size = size
-    @data = AlignedAllocator.alloc[ T ]( size < 1 ? 1 : size, 16_u64 )
+    @data = AlignedAllocator.alloc<T>( size < 1 ? 1 : size, 16_u64 )
   end
 
   #{
@@ -181,8 +181,8 @@ class Array[ T ]
   #{
   # @brief Deep copy: a new array owning its own buffer with the same elements.
   #}
-  def copy -> Array[ T ]
-    result = Array[ T ].new( @size )
+  def copy -> Array<T>
+    result = Array<T>.new( @size )
     i = 0
     while i < @size
       result[ i ] = *( @data + i )
@@ -194,7 +194,7 @@ class Array[ T ]
   #{
   # @brief Element-wise equality: same size and equal elements in order.
   #}
-  def ==( other : Array[ T ] ) -> Bool
+  def ==( other : Array<T> ) -> Bool
     return true if @data == other.data
     return false if @size != other.size
 
@@ -225,16 +225,16 @@ class Array[ T ]
   #{
   # @brief Create a slice view of the full array.
   #}
-  def to_slice -> Slice[ T ]
-    Slice[ T ].new( @data, @size )
+  def to_slice -> Slice<T>
+    Slice<T>.new( @data, @size )
   end
 
   #{
   # @brief Create a slice view of a specific portion of the array.
   #}
-  def slice( start : Int, length : Int ) -> Slice[ T ]
+  def slice( start : Int, length : Int ) -> Slice<T>
     raise "Array: slice out of bounds" if start < 0 or length < 0 or start + length > @size
-    Slice[ T ].new( @data + start, length )
+    Slice<T>.new( @data + start, length )
   end
 
   #----------------------------------------------------------------------------
