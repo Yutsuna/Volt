@@ -39,6 +39,17 @@ target_compile_options( VoltCompileOptions INTERFACE
   $<$<CONFIG:RelWithDebInfo>:-O2;-g;-DNDEBUG>
  )
 
+ target_precompile_headers( VoltCompileOptions INTERFACE
+   <vector>
+   <string>
+   <memory>
+   <utility>
+   <cstdint>
+   <cstddef>
+   <algorithm>
+   <functional>
+ )
+
 ###########################################################
 
 if( VOLT_CHECKED_IDS )
