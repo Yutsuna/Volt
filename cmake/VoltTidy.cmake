@@ -1,20 +1,10 @@
 function( volt_tidy_lintable_sources SOURCES_VAR REFLECTION_HEADER )
-
-  get_property( PUBLIC_DIRS GLOBAL PROPERTY VOLT_PUBLIC_DIRS )
-  set( INCLUDES "" )
-  foreach( DIR IN LISTS PUBLIC_DIRS )
-    list( APPEND INCLUDES "-I${DIR}" )
-  endforeach()
-
   set( LINTABLE "" )
   set( SKIPPED 0 )
+
   foreach( SOURCE IN LISTS ${SOURCES_VAR} )
-    execute_process(
-      COMMAND ${CMAKE_CXX_COMPILER} -MM -MG -std=c++${CMAKE_CXX_STANDARD} ${INCLUDES} ${SOURCE}
-      OUTPUT_VARIABLE CLOSURE
-      ERROR_QUIET
-    )
-    if( CLOSURE MATCHES "${REFLECTION_HEADER}" )
+    file( READ "${SOURCE}" CONTENTS )
+    if( CONTENTS MATCHES "#include[ \t]*<[ \t]*meta[ \t]*>" OR CONTENTS MATCHES "#include[ \t]*[\"<][^\">]*${REFLECTION_HEADER}" )
       math( EXPR SKIPPED "${SKIPPED} + 1" )
     else()
       list( APPEND LINTABLE ${SOURCE} )
