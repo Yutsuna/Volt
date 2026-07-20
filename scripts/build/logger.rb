@@ -18,24 +18,30 @@ module Volt::Build
     end
 
     class << self
-      def info( message )
-        puts "#{AnsiColor::GREY}#{message}#{AnsiColor::RESET}"
+      def info( message, prefix: nil )
+        tag = prefix ? "#{AnsiColor::GREY}[Volt:#{prefix}]#{AnsiColor::RESET} " : ""
+        puts "#{tag}#{AnsiColor::GREY}#{message}#{AnsiColor::RESET}"
       end
 
-      def ok( message )
-        log message, " OK ", AnsiColor::GREEN
+      def ok( message, prefix: nil )
+        log message, " OK ", AnsiColor::GREEN, prefix: prefix
       end
 
-      def fatal!( message )
-        log message, " ERR ", AnsiColor::RED
+      def warn( message, prefix: nil )
+        log message, "WARN", AnsiColor::YELLOW, prefix: prefix
+      end
+
+      def fatal!( message, prefix: nil )
+        log message, " ERR ", AnsiColor::RED, prefix: prefix
         exit 84
       end
 
       private
 
-      def log( message, prefix, color = AnsiColor::CYAN )
-        tag = "#{color}#{AnsiColor::BOLD}[#{prefix}]#{AnsiColor::RESET}"
-        puts "#{tag} #{message}"
+      def log( message, label, color = AnsiColor::CYAN, prefix: nil )
+        variant_tag = prefix ? "#{AnsiColor::GREY}[Volt:#{prefix}]#{AnsiColor::RESET} " : ""
+        status_tag = "#{color}#{AnsiColor::BOLD}[#{label}]#{AnsiColor::RESET}"
+        puts "#{variant_tag}#{status_tag} #{message}"
       end
     end
 
