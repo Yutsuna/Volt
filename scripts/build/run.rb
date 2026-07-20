@@ -99,7 +99,7 @@ module Volt
                 job = queue.shift
                 threads = SystemInfo.ninja_threads_per_job( [ queue.size + active_pids.size + 1, max_parallel ].min )
 
-                pid = Process.fork do
+                pid = Volt::ProcessManager.fork_child do
                   pipeline = Pipeline.new( job, threads_per_job: threads )
                   pipeline.execute!
                   exit 0
@@ -112,8 +112,9 @@ module Volt
               end
 
               begin
-                pid, status = Process.wait2( -1, Process::WNOHANG )
-                if pid
+                result = Volt::ProcessManager.wait_any( Process::WNOHANG )
+                if result
+                  pid, status = result
                   finished_job = active_pids.delete( pid )
                   if finished_job && !status.success?
                     failed_variants << finished_job[ :variant_name ]
@@ -129,22 +130,13 @@ module Volt
             Logger.warn "Build interrupted by user. Terminating worker processes..."
             raise
           ensure
-            kill_active_workers( active_pids.keys )
+            Volt::ProcessManager::Termination.terminate_all!
           end
 
           if failed_variants.any?
             Logger.fatal!( "Parallel execution failed for variant(s): #{failed_variants.join( ', ' )}" )
           else
             Logger.ok "All #{jobs.size} parallel jobs completed successfully."
-          end
-        end
-
-        def kill_active_workers( pids )
-          pids.each do |pid|
-            Process.kill( 'TERM', pid ) rescue nil
-          end
-          pids.each do |pid|
-            Process.waitpid( pid, Process::WNOHANG ) rescue nil
           end
         end
       end
