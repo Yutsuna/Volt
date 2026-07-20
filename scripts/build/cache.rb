@@ -8,6 +8,8 @@ module Volt::Build
 
   class Cache
 
+    GLOB_PATTERN = '{CMakeLists.txt,VERSION.md,flake.nix,cmake/**/*,nix/**/*,source/Volt/**/*}'
+
     attr_reader :path
 
     def initialize( build_type, cmake_flags, binary_path, build_dir )
