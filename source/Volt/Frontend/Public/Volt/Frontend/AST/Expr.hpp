@@ -180,6 +180,19 @@ namespace Frontend
         Symbol Name;
     };
 
+    // `Vector<T>` / `alloc<K, V>` in value position — a name explicitly
+    // instantiated with type arguments. Base is whatever the instantiation
+    // applies to (an Identifier, or a Member for `Alloc.alloc<T>`); the call
+    // and member accesses that follow wrap this node, as in
+    // `Call(Member(GenericInst(Vector, [T]), new))`.
+    struct GenericInst
+    {
+
+        Core::SourceRange Loc;
+        ExprId Base;
+        TypeList Args;
+    };
+
     struct SizeOf
     {
 

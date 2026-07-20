@@ -243,6 +243,14 @@ namespace Frontend
                 }
                 Lhs = MakeExpr( std::move( Node ), RangeSince( Begin ) );
             }
+            else if ( AtGenericArgs() )
+            {
+                // Explicit instantiation: `Vector<T>.new`, `alloc<T>( n )`.
+                GenericInst Node;
+                Node.Base = Lhs;
+                Node.Args = ParseGenericArgs();
+                Lhs       = MakeExpr( std::move( Node ), RangeSince( Begin ) );
+            }
             else if ( Accept( TokenKind::LParen ) )
             {
                 Call Node;

@@ -1,6 +1,10 @@
 #include "Volt/Frontend/Parser/Parser.hpp"
 
+#include <cstddef>
 #include <cstdint>
+#include <string>
+#include <string_view>
+#include <utility>
 
 namespace Volt
 {
@@ -14,6 +18,101 @@ namespace Frontend
         Func.Params = std::move( Params );
         Func.Return = ParseType();
         return MakeType( std::move( Func ), RangeSince( Begin ) );
+    }
+
+    bool Parser::AtGenericOpen () const
+    {
+        // A `<` welded to the preceding token opens a generic list; a spaced
+        // `<` is comparison / superclass (`a < b`, `class Vector<T> < Base`).
+        return Check( TokenKind::Lt ) and Pos > 0 and Tokens[Pos - 1].Range.End == Peek().Range.Begin;
+    }
+
+    bool Parser::AtGenericArgs () const
+    {
+        // The type list must start on a type name — in Volt those are always
+        // Constants — which already rejects `count<max`.
+        if ( !AtGenericOpen() or PeekKind( 1 ) != TokenKind::Constant )
+        {
+            return false;
+        }
+
+        // Scan for the matching `>`, allowing only tokens a type list can
+        // contain. Anything else (an operator, a literal, a newline, EOF)
+        // means this was a comparison after all: `x<Foo && y>z`.
+        int Depth = 0;
+        for ( std::size_t Ahead = 0;; ++Ahead )
+        {
+            switch ( PeekKind( Ahead ) )
+            {
+            case TokenKind::Lt:
+                ++Depth;
+                break;
+            case TokenKind::Gt:
+                if ( --Depth == 0 )
+                {
+                    return true;
+                }
+                break;
+            case TokenKind::Shr: // `>>` closes two levels at once
+                Depth -= 2;
+                if ( Depth <= 0 )
+                {
+                    return true;
+                }
+                break;
+            case TokenKind::Constant:
+            case TokenKind::ColonColon:
+            case TokenKind::Comma:
+            case TokenKind::Star:
+            case TokenKind::Question:
+            case TokenKind::Arrow:
+            case TokenKind::LParen:
+            case TokenKind::RParen:
+                break;
+            default:
+                return false;
+            }
+        }
+    }
+
+    bool Parser::AcceptGenericClose ()
+    {
+        if ( Accept( TokenKind::Gt ) )
+        {
+            return true;
+        }
+
+        // `Pointer<Vector<T>>` lexes its tail as one `>>`. Rewrite the token
+        // in place to the second `>` and report the first as consumed, so the
+        // enclosing list still finds a `Gt` waiting for it.
+        if ( Check( TokenKind::Shr ) )
+        {
+            Token &Tok = Tokens[Pos];
+            Tok.Kind   = TokenKind::Gt;
+            Tok.Range.Begin += 1;
+            return true;
+        }
+        return false;
+    }
+
+    void Parser::ExpectGenericClose ( std::string_view Where )
+    {
+        if ( !AcceptGenericClose() )
+        {
+            ReportHere( "expected '>' " + std::string( Where ) );
+        }
+    }
+
+    TypeList Parser::ParseGenericArgs ()
+    {
+        TypeList Args;
+        Expect( TokenKind::Lt, "to open generic arguments" );
+        do
+        {
+            Args.PushBack( ParseType() );
+        } while ( Accept( TokenKind::Comma ) );
+        ExpectGenericClose( "to close generic arguments" );
+        return Args;
     }
 
     bool Parser::AtTypeStart () const
@@ -46,18 +145,11 @@ namespace Frontend
             Ref.Path.PushBack( InternText( Expect( TokenKind::Constant, "in qualified type name" ) ) );
         }
 
-        // Generic arguments `[T, U]` — but `[<int>]` is a fixed-array size,
-        // handled as a postfix in ParseType, so only recurse when the
-        // bracket opens on something type-shaped.
-        if ( Check( TokenKind::LBracket ) &&
-             ( PeekKind( 1 ) == TokenKind::Constant or PeekKind( 1 ) == TokenKind::Arrow or PeekKind( 1 ) == TokenKind::LParen ) )
+        // Generic arguments `<T, U>`. Comparison operators cannot appear in a
+        // type, so here a `<` is never ambiguous and needs no lookahead.
+        if ( Check( TokenKind::Lt ) )
         {
-            Advance();
-            do
-            {
-                Ref.Generics.PushBack( ParseType() );
-            } while ( Accept( TokenKind::Comma ) );
-            Expect( TokenKind::RBracket, "to close generic arguments" );
+            Ref.Generics = ParseGenericArgs();
         }
 
         return MakeType( std::move( Ref ), RangeSince( Begin ) );
