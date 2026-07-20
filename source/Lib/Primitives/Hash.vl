@@ -3,13 +3,13 @@
 # @brief An open-addressing hash map (Crystal-flavoured API).
 #
 # Construction :
-#   scores  = { "Alice" => 10, "Bob" => 15 }     # Hash[String, Int]
-#   options = { :vitesse => 100 }                # Hash[Symbol, Int]
+#   scores  = { "Alice" => 10, "Bob" => 15 }     # Hash<String, Int>
+#   options = { :vitesse => 100 }                # Hash<Symbol, Int>
 #   rapides = { vitesse: 100 }                   # shorthand, same keys
 #   vide    = {} of String => Int32              # empty, explicitly typed
 #
 # The literal is pure syntax : the compiler lowers `{ k => v, ... }` to
-# `Hash[K, V].new` followed by one `[]=` per pair — every method below is
+# `Hash<K, V>.new` followed by one `[]=` per pair — every method below is
 # ordinary Volt, nothing is built into the compiler.
 #
 # Keys are `Hashable` (`Lib/Mixins/Hashable.vl`) : they provide
@@ -28,7 +28,7 @@
 # RAII : the buffers are owned by the instance and released by `finalize`
 # when the hash goes out of scope, same model as `Vector`.
 #}
-class Hash[ K, V ]
+class Hash<K, V>
   include Inspectable
 
   #----------------------------------------------------------------------------
@@ -50,10 +50,10 @@ class Hash[ K, V ]
   # `full + tombstones` — the probe-chain occupancy the load factor must be
   # computed against (a chain only breaks on EMPTY, never on a tombstone).
   used       : Int
-  key_data   : Pointer[ K ]
-  value_data : Pointer[ V ]
-  hash_data  : Pointer[ UInt64 ]
-  state_data : Pointer[ UInt8 ]
+  key_data   : Pointer<K>
+  value_data : Pointer<V>
+  hash_data  : Pointer<UInt64>
+  state_data : Pointer<UInt8>
 
   #----------------------------------------------------------------------------
 
@@ -69,10 +69,10 @@ class Hash[ K, V ]
     end
     @size       = 0
     @used       = 0
-    @key_data   = AlignedAllocator.alloc[ K ]( @capacity, 16_u64 )
-    @value_data = AlignedAllocator.alloc[ V ]( @capacity, 16_u64 )
-    @hash_data  = AlignedAllocator.alloc[ UInt64 ]( @capacity, 16_u64 )
-    @state_data = AlignedAllocator.alloc[ UInt8 ]( @capacity, 16_u64 )
+    @key_data   = AlignedAllocator.alloc<K>( @capacity, 16_u64 )
+    @value_data = AlignedAllocator.alloc<V>( @capacity, 16_u64 )
+    @hash_data  = AlignedAllocator.alloc<UInt64>( @capacity, 16_u64 )
+    @state_data = AlignedAllocator.alloc<UInt8>( @capacity, 16_u64 )
     reset_states
   end
 
@@ -182,8 +182,8 @@ class Hash[ K, V ]
   #{
   # @brief Every key currently stored, in bucket order.
   #}
-  def keys -> Vector[ K ]
-    result = Vector[ K ].new( @size < 1 ? 1 : @size )
+  def keys -> Vector<K>
+    result = Vector<K>.new( @size < 1 ? 1 : @size )
     i = 0
     while i < @capacity
       result.push( *( @key_data + i ) ) if *( @state_data + i ) == 1_u8
@@ -195,8 +195,8 @@ class Hash[ K, V ]
   #{
   # @brief Every value currently stored, in bucket order.
   #}
-  def values -> Vector[ V ]
-    result = Vector[ V ].new( @size < 1 ? 1 : @size )
+  def values -> Vector<V>
+    result = Vector<V>.new( @size < 1 ? 1 : @size )
     i = 0
     while i < @capacity
       result.push( *( @value_data + i ) ) if *( @state_data + i ) == 1_u8
@@ -260,10 +260,10 @@ class Hash[ K, V ]
     old_capacity = @capacity
 
     @capacity   = new_capacity
-    @key_data   = AlignedAllocator.alloc[ K ]( @capacity, 16_u64 )
-    @value_data = AlignedAllocator.alloc[ V ]( @capacity, 16_u64 )
-    @hash_data  = AlignedAllocator.alloc[ UInt64 ]( @capacity, 16_u64 )
-    @state_data = AlignedAllocator.alloc[ UInt8 ]( @capacity, 16_u64 )
+    @key_data   = AlignedAllocator.alloc<K>( @capacity, 16_u64 )
+    @value_data = AlignedAllocator.alloc<V>( @capacity, 16_u64 )
+    @hash_data  = AlignedAllocator.alloc<UInt64>( @capacity, 16_u64 )
+    @state_data = AlignedAllocator.alloc<UInt8>( @capacity, 16_u64 )
     reset_states
     @used = @size
 

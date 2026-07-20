@@ -15,7 +15,7 @@ struct Float include Inspectable
   #}
   def to_string -> String
     return "0.0" if self == 0
-    buf    = Pointer[ UInt8 ].malloc( 32 )
+    buf    = Pointer<UInt8>.malloc( 32 )
     digits = __volt_format_float( self, buf )
     String.new( buf, digits, true )
   end
@@ -33,10 +33,10 @@ struct Float include Inspectable
   end
 
   # Type-puns a `Float64`'s storage into its raw bits : the untyped `Void*`
-  # parameter re-types the address as `Pointer[UInt64]`, and the load reads
+  # parameter re-types the address as `Pointer<UInt64>`, and the load reads
   # the same 8 bytes back unconverted.
   private def bits_of( p : Void* ) -> UInt64
-    q : Pointer[ UInt64 ] = p
+    q : Pointer<UInt64> = p
     *q
   end
 

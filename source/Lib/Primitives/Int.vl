@@ -110,7 +110,7 @@ struct Int
     end
 
     size = negative ? count + 1 : count
-    buf  = Pointer[ UInt8 ].malloc( size )
+    buf  = Pointer<UInt8>.malloc( size )
 
     i = 0
     if negative
