@@ -16,6 +16,7 @@
 
 VOLT_PASS( ScopeResolver, 10, Analysis )
 VOLT_PASS( JsxLowering, 20, Lowering )
+VOLT_PASS( CaseLowering, 22, Lowering )
 VOLT_PASS( TypeChecker, 30, Analysis )
 
 #undef VOLT_PASS
