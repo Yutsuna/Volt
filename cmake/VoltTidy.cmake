@@ -34,7 +34,7 @@ function( volt_enable_tidy )
 
   add_custom_command(
     OUTPUT  ${TIDY_DB}
-    COMMAND sh -c "sed 's/ -freflection//g' '${CMAKE_BINARY_DIR}/compile_commands.json' > '${TIDY_DB}.tmp'"
+    COMMAND sh -c "sed -E 's/ -freflection//g; s/ -Winvalid-pch//g; s/ -include [^ ]*cmake_pch\\.hxx//g' '${CMAKE_BINARY_DIR}/compile_commands.json' > '${TIDY_DB}.tmp'"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TIDY_DB}.tmp ${TIDY_DB}
     DEPENDS ${CMAKE_BINARY_DIR}/compile_commands.json
     COMMENT "[Volt] clang-tidy: refreshing stripped compile database"
