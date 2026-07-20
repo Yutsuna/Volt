@@ -1,0 +1,27 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+mixin Identifiable
+  def id_prefix -> String
+    "ID-"
+  end
+end
+
+class ServiceDevice
+  include Identifiable
+
+  serial : String
+
+  def initialize( @serial : String )
+  end
+
+  def full_id -> String
+    "#{id_prefix}#{@serial}"
+  end
+end
+
+device = ServiceDevice.new( "9901" )
+assert!( device.full_id == "ID-9901" )

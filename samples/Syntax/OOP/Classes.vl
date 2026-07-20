@@ -1,0 +1,23 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+class UserAccount
+  getter name   : String
+  getter email  : String
+  getter role   : String
+
+  def initialize( @name : String, @email : String, @role : String = "user" )
+  end
+
+  def admin?
+    @role == "admin"
+  end
+end
+
+user = UserAccount.new( "Alice", "alice@domain.com", "admin" )
+assert!( user.name == "Alice" )
+assert!( user.email == "alice@domain.com" )
+assert!( user.admin? )

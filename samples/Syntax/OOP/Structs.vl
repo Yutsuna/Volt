@@ -1,0 +1,23 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+struct Point2D
+  getter x : Int32
+  getter y : Int32
+
+  def initialize( @x : Int32, @y : Int32 )
+  end
+
+  def distance_squared( other : Point2D ) -> Int32
+    dx = @x - other.x
+    dy = @y - other.y
+    dx * dx + dy * dy
+  end
+end
+
+p1 = Point2D.new( 0, 0 )
+p2 = Point2D.new( 3, 4 )
+assert!( p1.distance_squared( p2 ) == 25 )
