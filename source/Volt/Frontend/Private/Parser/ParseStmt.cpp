@@ -51,6 +51,8 @@ namespace Frontend
             return ParseIf();
         case TokenKind::KwWhile:
             return ParseWhile();
+        case TokenKind::KwFor:
+            return ParseFor();
         case TokenKind::KwReturn:
             return ApplyModifiers( ParseReturn() );
         default:
@@ -181,6 +183,50 @@ namespace Frontend
         Expect( TokenKind::KwEnd, "to close while loop" );
 
         return MakeStmt( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    StmtId Parser::ParseFor ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwFor, "to begin a for loop" );
+
+        Block BlockNode;
+
+        do
+        {
+            const Token &VarTok = Expect( TokenKind::Identifier, "as a loop variable name" );
+            Param ParamNode;
+            ParamNode.Loc  = VarTok.Range;
+            ParamNode.Name = InternText( VarTok );
+            BlockNode.Params.PushBack( Context.Add( std::move( ParamNode ) ) );
+        } while ( Accept( TokenKind::Comma ) );
+
+        Expect( TokenKind::KwIn, "after for loop variable(s)" );
+
+        const ExprId Iterable = ParseExpr( 0 );
+
+        SkipTerminators();
+
+        ParseStatementBlock( BlockNode.Body );
+
+        Expect( TokenKind::KwEnd, "to close for loop" );
+
+        const Core::SourceRange Span = RangeSince( Begin );
+        const ExprId BlockExpr       = MakeExpr( std::move( BlockNode ), Span );
+
+        Member MemberNode;
+        MemberNode.Object   = Iterable;
+        MemberNode.Name     = Interner.Intern( "each" );
+        const ExprId Callee = MakeExpr( std::move( MemberNode ), Span );
+
+        Call CallNode;
+        CallNode.Callee       = Callee;
+        CallNode.BlockArg     = BlockExpr;
+        const ExprId CallExpr = MakeExpr( std::move( CallNode ), Span );
+
+        ExprStmt Node;
+        Node.Expr = CallExpr;
+        return MakeStmt( std::move( Node ), Span );
     }
 
     StmtId Parser::ParseReturn ()
