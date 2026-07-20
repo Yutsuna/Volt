@@ -52,6 +52,7 @@ VOLT_INFIX( AndAnd, 35, 0 )
 VOLT_INFIX( KwAnd, 35, 0 )
 
 // Equality / comparison.
+VOLT_INFIX( TripleEq, 40, 0 )
 VOLT_INFIX( EqEq, 40, 0 )
 VOLT_INFIX( NotEq, 40, 0 )
 VOLT_INFIX( Lt, 50, 0 )

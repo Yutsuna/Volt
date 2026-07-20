@@ -46,6 +46,8 @@ VOLT_EXPR( Interp )
 VOLT_EXPR( JsxElement )
 VOLT_EXPR( JsxFragment )
 VOLT_EXPR( JsxText )
+VOLT_EXPR( CaseExpr )
+VOLT_EXPR( DotCall )
 
 // --- Statements ------------------------------------------------------------
 VOLT_STMT( ExprStmt )
@@ -53,6 +55,7 @@ VOLT_STMT( If )
 VOLT_STMT( While )
 VOLT_STMT( Return )
 VOLT_STMT( LocalDecl )
+VOLT_STMT( WhenClause )
 
 // --- Declarations ----------------------------------------------------------
 VOLT_DECL( Module )

@@ -217,6 +217,28 @@ namespace Frontend
         ExprList Parts;
     };
 
+    // `.method(args...)` shorthand used in `when .even?` or predicate matching.
+    struct DotCall
+    {
+
+        Core::SourceRange Loc;
+        Symbol Method;
+        ExprList Args;
+        SymbolList ArgNames;
+    };
+
+    // `case [Target] when Pattern1, Pattern2 [then] Body... [else ElseBody...] end`.
+    // Target is invalid for a `case` without target expression (defaults to true matching).
+    // Clauses is a StmtList of StmtIds referring to WhenClause nodes.
+    struct CaseExpr
+    {
+
+        Core::SourceRange Loc;
+        ExprId Target;
+        StmtList Clauses;
+        StmtList ElseBody;
+    };
+
     enum class ExprKind
     {
 

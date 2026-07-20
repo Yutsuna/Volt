@@ -207,6 +207,12 @@ namespace Frontend
         case TokenKind::LBrace:
             return ParsePostfix( ParseHashLiteral() );
 
+        case TokenKind::KwCase:
+            return ParseCaseExpr();
+
+        case TokenKind::Dot:
+            return ParsePostfix( ParseDotCall() );
+
         case TokenKind::Lt:
             if ( AtJsxStart() )
             {
@@ -389,6 +395,106 @@ namespace Frontend
         }
         bNoDoBlock = Saved;
         Expect( Close, "to close block" );
+
+        return MakeExpr( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    ExprId Parser::ParseCaseExpr ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwCase, "to open a case expression" );
+
+        ExprId Target{};
+        SkipNewlines();
+
+        if ( !Check( TokenKind::KwWhen ) and !Check( TokenKind::KwEnd ) )
+        {
+            Target = ParseExpr( 0 );
+            SkipTerminators();
+        }
+
+        StmtList Clauses;
+        StmtList ElseBody;
+
+        while ( Check( TokenKind::KwWhen ) )
+        {
+            const std::uint32_t WhenBegin = Here();
+            Advance(); // consume `when`
+
+            WhenClause Clause;
+            do
+            {
+                SkipNewlines();
+                Clause.Patterns.PushBack( ParseExpr( 0 ) );
+                SkipNewlines();
+            } while ( Accept( TokenKind::Comma ) );
+
+            if ( Accept( TokenKind::KwThen ) )
+            {
+                SkipTerminators();
+            }
+            else
+            {
+                SkipTerminators();
+            }
+
+            ParseStatementBlock( Clause.Body, TokenKind::KwWhen );
+
+            const StmtId ClauseId = MakeStmt( std::move( Clause ), RangeSince( WhenBegin ) );
+            Clauses.PushBack( ClauseId );
+        }
+
+        if ( Accept( TokenKind::KwElse ) )
+        {
+            ParseStatementBlock( ElseBody );
+        }
+
+        Expect( TokenKind::KwEnd, "to close a case expression" );
+
+        CaseExpr Node;
+        Node.Target   = Target;
+        Node.Clauses  = std::move( Clauses );
+        Node.ElseBody = std::move( ElseBody );
+
+        return MakeExpr( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    ExprId Parser::ParseDotCall ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::Dot, "to start a dot-call shorthand" );
+
+        DotCall Node;
+        if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) )
+        {
+            Node.Method = InternText( Advance() );
+        }
+        else
+        {
+            ReportHere( "expected a method name after '.' in dot-call" );
+        }
+
+        if ( Accept( TokenKind::LParen ) )
+        {
+            ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
+        }
+        else if ( CanStartCommandArgument() )
+        {
+            const bool Saved = bNoDoBlock;
+            bNoDoBlock       = true;
+            do
+            {
+                Symbol Name;
+                if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Colon )
+                {
+                    Name = InternText( Advance() );
+                    Advance(); // ':'
+                }
+                Node.Args.PushBack( ParseExpr( 0 ) );
+                Node.ArgNames.PushBack( Name );
+            } while ( Accept( TokenKind::Comma ) );
+            bNoDoBlock = Saved;
+        }
 
         return MakeExpr( std::move( Node ), RangeSince( Begin ) );
     }
