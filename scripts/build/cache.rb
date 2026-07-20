@@ -8,18 +8,19 @@ module Volt::Build
 
   class Cache
 
-    PATH          = 'build/.volt_build_cache.json'
-    GLOB_PATTERN  = '{CMakeLists.txt,VERSION.md,flake.nix,cmake/**/*,nix/**/*,source/Volt/**/*}'
+    attr_reader :path
 
-    def initialize( build_type, cmake_flags, binary_path )
+    def initialize( build_type, cmake_flags, binary_path, build_dir )
       @build_type   = build_type
       @cmake_flags  = cmake_flags
       @binary_path  = binary_path
+      @build_dir    = build_dir
+      @path         = File.join( @build_dir, '.volt_build_cache.json' )
     end
 
     def valid?
-      return false unless File.exist?( PATH ) and File.exist?( @binary_path )
-      cached_state = JSON.parse( File.read( PATH ) ) rescue nil
+      return false unless File.exist?( @path ) and File.exist?( @binary_path )
+      cached_state = JSON.parse( File.read( @path ) ) rescue nil
       return false unless cached_state
       return false if cached_state[ 'build_type' ] != @build_type
       return false if cached_state[ 'cmake_flags' ] != @cmake_flags
@@ -27,11 +28,11 @@ module Volt::Build
     end
 
     def save!
-      File.write( PATH, JSON.pretty_generate( current_state ) )
+      File.write( @path, JSON.pretty_generate( current_state ) )
     end
 
     def save_configure!
-      File.write( PATH, JSON.pretty_generate(
+      File.write( @path, JSON.pretty_generate(
         'build_type'  => @build_type,
         'cmake_flags' => @cmake_flags
       ) )
