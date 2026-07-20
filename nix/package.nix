@@ -19,6 +19,7 @@ gccStdenv.mkDerivation {
     pkg-config
     ccache
     mold
+    autoPatchelfHook
   ];
 
   buildInputs = with llvmAttrs; [
@@ -31,7 +32,15 @@ gccStdenv.mkDerivation {
     "-DVOLT_USE_CCACHE=ON"
     "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold"
     "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=mold"
+    "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+    "-DCMAKE_INSTALL_RPATH=${placeholder "out"}/lib"
   ];
+
+  installPhase = ''
+    mkdir -p $out/bin $out/lib
+    cp bin/Volt $out/bin/
+    cp lib/*.so $out/lib 2>/dev/null || true
+  '';
 
   meta = with pkgs.lib; {
     description = "Volt is a compiled and interpreted programming language";
