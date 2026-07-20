@@ -13,7 +13,7 @@ namespace Frontend
 {
 
     // A named type, possibly qualified and/or generic: `Int32`,
-    // `Core::AppConfig`, `Array[T]`, `Pointer[T]`, `Void`.
+    // `Core::AppConfig`, `Array<T>`, `Pointer<T>`, `Void`.
     struct TypeRef
     {
 

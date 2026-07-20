@@ -98,13 +98,17 @@ namespace Frontend
     SymbolList Parser::ParseGenericParams ()
     {
         SymbolList Generics;
-        if ( Accept( TokenKind::LBracket ) )
+        // `class Vector<T> < Base`: the first `<` is glued to the class name
+        // and opens the parameter list, the second is spaced and introduces
+        // the superclass. AtGenericOpen is what keeps the two apart.
+        if ( AtGenericOpen() )
         {
+            Advance(); // '<'
             do
             {
                 Generics.PushBack( InternText( Expect( TokenKind::Constant, "as a generic parameter" ) ) );
             } while ( Accept( TokenKind::Comma ) );
-            Expect( TokenKind::RBracket, "to close generic parameters" );
+            ExpectGenericClose( "to close generic parameters" );
         }
         return Generics;
     }

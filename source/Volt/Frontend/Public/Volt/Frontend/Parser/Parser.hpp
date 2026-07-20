@@ -208,6 +208,27 @@ namespace Frontend
         [[nodiscard]] TypeId ParseType ();
         [[nodiscard]] TypeId ParseTypePrimary ();
         [[nodiscard]] bool AtTypeStart () const;
+
+        // --- Generic `<...>` lists ---------------------------------------
+        // `<>` is shared by generics, JSX and comparison, so the three
+        // contexts are told apart positionally rather than by the lexer:
+        //   - type context   — unambiguous, a bare `Check(Lt)` is enough;
+        //   - declarations   — `AtGenericOpen`, the no-space rule, so
+        //                      `class Vector<T> < Base` reads both `<`s right;
+        //   - expressions    — `AtGenericArgs`, which additionally scans for
+        //                      the matching `>` so `a<B && c>d` stays a
+        //                      comparison.
+        [[nodiscard]] TypeList ParseGenericArgs ();
+        // True when a `<` is glued to the token before it (no whitespace).
+        [[nodiscard]] bool AtGenericOpen () const;
+        // AtGenericOpen plus a lookahead proving a well-formed type list
+        // follows. Used where `<` could still be the comparison operator.
+        [[nodiscard]] bool AtGenericArgs () const;
+        // Consume the closing `>`. A `>>` closes two nesting levels
+        // (`Pointer<Vector<T>>`): it is split in place into two `Gt`s, the
+        // first of which this call consumes.
+        bool AcceptGenericClose ();
+        void ExpectGenericClose ( std::string_view Where );
         // Shared tail for every FuncType spelling (`-> R`, `(A, B) -> R`,
         // bare `T -> R`): resolve the return type and wrap. The three
         // callers differ only in how `Params` was populated.
