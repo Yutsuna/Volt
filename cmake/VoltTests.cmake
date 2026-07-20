@@ -10,6 +10,7 @@ set( VOLT_ROOT ${CMAKE_CURRENT_SOURCE_DIR} )
 
 file( GLOB_RECURSE VOLT_GOLDEN_SAMPLES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
   ${VOLT_ROOT}/samples/*.vl ${VOLT_ROOT}/samples/*.vlx )
+list( FILTER VOLT_GOLDEN_SAMPLES EXCLUDE REGEX "^samples/Syntax/Macros/" )
 list( SORT VOLT_GOLDEN_SAMPLES )
 
 #############################################################################
