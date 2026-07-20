@@ -1,13 +1,13 @@
-struct Slice[ T ]
+struct Slice<T>
   include Inspectable
-  include Iterable[ T ]
+  include Iterable<T>
 
-  getter data : Pointer[T]
+  getter data : Pointer<T>
   getter size : Int
 
   #----------------------------------------------------------------------------
 
-  def initialize( @data : Pointer[T], @size : Int )
+  def initialize( @data : Pointer<T>, @size : Int )
   end
 
   #----------------------------------------------------------------------------

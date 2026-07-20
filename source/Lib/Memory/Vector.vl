@@ -2,9 +2,9 @@
 # @class Vector
 # @brief A dynamically-sized, heap-allocated growable array
 #}
-class Vector[T]
+class Vector<T>
   include Inspectable
-  include Iterable[T]
+  include Iterable<T>
 
 
   #----------------------------------------------------------------------------
@@ -23,7 +23,7 @@ class Vector[T]
   # @brief The underlying contiguous buffer. Exposed for zero-copy
   #        interoperability with low-level FFI C functions.
   #}
-  getter data : Pointer[T]
+  getter data : Pointer<T>
 
   #{
   # @brief Private attribute to track Memory Alignement
@@ -43,7 +43,7 @@ class Vector[T]
     @capacity   = capacity < 1 ? 1 : capacity
     @size       = 0
     @alignement = alignement
-    @data       = AlignedAllocator.alloc[ T ]( @capacity, @alignement )
+    @data       = AlignedAllocator.alloc<T>( @capacity, @alignement )
   end
 
   #---------------------------------------------------------------------------
@@ -185,7 +185,7 @@ class Vector[T]
 
     if @size == @capacity
       new_capacity = @capacity * 2
-      new_data     = AlignedAllocator.alloc[T]( new_capacity, @alignement )
+      new_data     = AlignedAllocator.alloc<T>( new_capacity, @alignement )
 
       i = 0
       while i < index
@@ -297,7 +297,7 @@ class Vector[T]
   # @brief Appends every element of `other` to this vector.
   # @param other The vector whose elements are copied in.
   #}
-  def concat( other : Vector[T] ) -> Void
+  def concat( other : Vector<T> ) -> Void
     other_size = other.size
     return if other_size == 0
 
@@ -337,8 +337,8 @@ class Vector[T]
   #{
   # @brief Deep copy: a new vector owning its own buffer with the same elements.
   #}
-  def copy -> Vector[T]
-    result = Vector[T].new( @size < 1 ? 1 : @size, @alignement )
+  def copy -> Vector<T>
+    result = Vector<T>.new( @size < 1 ? 1 : @size, @alignement )
     i = 0
     while i < @size
       result.push( *( @data + i ) )
@@ -350,7 +350,7 @@ class Vector[T]
   #{
   # @brief Element-wise equality: same size and equal elements in order.
   #}
-  def ==( other : Vector[T] ) -> Bool
+  def ==( other : Vector<T> ) -> Bool
     return true if @data == other.data
     return false if @size != other.size
 
@@ -381,16 +381,16 @@ class Vector[T]
   #{
   # @brief Create a slice view of the full Vector
   #}
-  def to_slice -> Slice[ T ]
-    Slice[ T ].new( @data, @size )
+  def to_slice -> Slice<T>
+    Slice<T>.new( @data, @size )
   end
 
   #{
   # @brief Create a slice view of a specific portion of the Vector
   #}
-  def slice( start : Int, length : Int ) -> Slice[ T ]
+  def slice( start : Int, length : Int ) -> Slice<T>
     raise "Vector: slice out of bounds" if start < 0 or length < 0 or start + length > @size
-    Slice[ T ].new( @data + start, length )
+    Slice<T>.new( @data + start, length )
   end
 
   #---------------------------------------------------------------------------
@@ -401,7 +401,7 @@ class Vector[T]
   #}
   private def reallocate( new_capacity : Int ) -> Void
     new_capacity = 1 if new_capacity < 1
-    new_data     = AlignedAllocator.alloc[ T ]( new_capacity, @alignement )
+    new_data     = AlignedAllocator.alloc<T>( new_capacity, @alignement )
 
     limit = @size < new_capacity ? @size : new_capacity
     i = 0

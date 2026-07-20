@@ -2,7 +2,7 @@
 # @class SmartPtr
 # @brief A secure, RAII-enforced smart pointer for managing heap-allocated memory.
 #}
-class SmartPtr[T] include Inspectable
+class SmartPtr<T> include Inspectable
 
 
   #----------------------------------------------------------------------------
@@ -12,7 +12,7 @@ class SmartPtr[T] include Inspectable
   #        Exposed as a getter to allow seamless interoperability with
   #        low-level FFI C functions that expect a raw `Void*` or `T*`.
   #}
-  getter ptr : Pointer[T]
+  getter ptr : Pointer<T>
 
 
   #----------------------------------------------------------------------------
@@ -22,7 +22,7 @@ class SmartPtr[T] include Inspectable
   # @param val The initial value to store in the newly allocated heap slot.
   #}
   def initialize( val : T )
-    @ptr  = Pointer[T].malloc( 1_u64 )
+    @ptr  = Pointer<T>.malloc( 1_u64 )
     *@ptr = val
   end
 
@@ -30,7 +30,7 @@ class SmartPtr[T] include Inspectable
   # @brief Takes ownership of an existing raw pointer.
   # @param ptr The dynamically allocated raw pointer to manage.
   #}
-  def initialize( @ptr : Pointer[T] )
+  def initialize( @ptr : Pointer<T> )
   end
 
   #---------------------------------------------------------------------------

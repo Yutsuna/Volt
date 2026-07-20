@@ -16,20 +16,20 @@ class String
 
   #----------------------------------------------------------------------------
 
-  getter data : Pointer[UInt8]
+  getter data : Pointer<UInt8>
   getter size : UInt64
 
   #----------------------------------------------------------------------------
 
   def initialize( str : String )
     @size  = str.size
-    @data  = Pointer[UInt8].malloc( @size + sizeof UInt8 )
+    @data  = Pointer<UInt8>.malloc( @size + sizeof UInt8 )
     memcpy( @data, str.data, @size )
     *( @data + @size ) = 0_u8
     @owned = true
   end
 
-  def initialize( @data : Pointer[UInt8], @size : UInt64, @owned : Bool )
+  def initialize( @data : Pointer<UInt8>, @size : UInt64, @owned : Bool )
   end
 
   def finalize -> Void
@@ -61,7 +61,7 @@ class String
 
   def +( other : String ) -> String
     total = @size + other.size
-    buf   = Pointer[UInt8].malloc( total + 1_u64 )
+    buf   = Pointer<UInt8>.malloc( total + 1_u64 )
     memcpy( buf, @data, @size )
     memcpy( buf + @size, other.data, other.size )
     *( buf + total ) = 0_u8

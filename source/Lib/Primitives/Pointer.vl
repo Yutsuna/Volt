@@ -11,7 +11,7 @@ abstract def __volt_free( ptr : Void* ) -> Void
 abstract def __volt_ptr_address( ptr : Void* ) -> UInt64
 
 
-struct Pointer[ T ] include Inspectable
+struct Pointer<T> include Inspectable
   include Hashable
 
   def null? -> Bool
@@ -32,11 +32,11 @@ struct Pointer[ T ] include Inspectable
     *self
   end
 
-  def self.malloc( size : UInt64 ) -> Pointer[ T ]
+  def self.malloc( size : UInt64 ) -> Pointer<T>
     __volt_calloc( size, sizeof T )
   end
 
-  def realloc(size : UInt64) -> Pointer[ T ]
+  def realloc(size : UInt64) -> Pointer<T>
     __volt_realloc( self, size * sizeof T )
   end
 
