@@ -176,6 +176,7 @@ namespace Frontend
         [[nodiscard]] StmtId ParseIf ();
         [[nodiscard]] StmtId ParseElsif ();
         [[nodiscard]] StmtId ParseWhile ();
+        [[nodiscard]] StmtId ParseFor ();
         [[nodiscard]] StmtId ParseReturn ();
         [[nodiscard]] StmtId ParseExprOrLocalStatement ();
         // `ExtraTerminator` lets a caller stop the block on a token besides
