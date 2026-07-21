@@ -4,3 +4,11 @@
 # to clang tooling until LLVM ships P2996.
 CompileFlags:
   Remove: [-freflection]
+
+If:
+  PathMatch: .*/Meta/.*
+
+Diagnostics:
+  Suppress: "*"
+  ClangTidy:
+    Remove: "*"
