@@ -7,7 +7,6 @@
 
 namespace Volt
 {
-
 namespace Frontend
 {
 
@@ -49,30 +48,30 @@ namespace Frontend
 
     } // namespace
 
-    std::string_view TokenName ( TokenKind Kind )
-    {
-        static constexpr auto Names = BuildNames();
-        const auto Index            = static_cast<std::size_t>( Kind );
-        return Index < Names.size() ? Names[Index] : std::string_view{ "?" };
-    }
-
-    std::string_view TokenSpelling ( TokenKind Kind )
-    {
-        static constexpr auto Spellings = BuildSpellings();
-        const auto Index                = static_cast<std::size_t>( Kind );
-        return Index < Spellings.size() ? Spellings[Index] : std::string_view{};
-    }
-
-    TokenKind KeywordLookup ( std::string_view Text )
-    {
-        const auto &Table = KeywordTable();
-        if ( const auto It = Table.find( Text ); It != Table.end() )
-        {
-            return It->second;
-        }
-        return TokenKind::Identifier;
-    }
-
 } // namespace Frontend
 
 } // namespace Volt
+
+std::string_view Volt::Frontend::TokenName ( TokenKind Kind )
+{
+    static constexpr auto Names = BuildNames();
+    const auto Index            = static_cast<std::size_t>( Kind );
+    return Index < Names.size() ? Names[Index] : std::string_view{ "?" };
+}
+
+std::string_view Volt::Frontend::TokenSpelling ( TokenKind Kind )
+{
+    static constexpr auto Spellings = BuildSpellings();
+    const auto Index                = static_cast<std::size_t>( Kind );
+    return Index < Spellings.size() ? Spellings[Index] : std::string_view{};
+}
+
+Volt::Frontend::TokenKind Volt::Frontend::KeywordLookup ( std::string_view Text )
+{
+    const auto &Table = KeywordTable();
+    if ( const auto It = Table.find( Text ); It != Table.end() )
+    {
+        return It->second;
+    }
+    return TokenKind::Identifier;
+}
