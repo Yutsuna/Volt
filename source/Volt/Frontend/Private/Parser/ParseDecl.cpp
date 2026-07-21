@@ -36,6 +36,7 @@ namespace Frontend
             case TokenKind::KwModule:
             case TokenKind::KwMixin:
             case TokenKind::KwComponent:
+            case TokenKind::KwEnum:
                 return true;
             default:
                 return false;
@@ -83,6 +84,7 @@ namespace Frontend
         case TokenKind::KwInclude:
         case TokenKind::KwComponent:
         case TokenKind::KwCircuit:
+        case TokenKind::KwEnum:
             return true;
         case TokenKind::At:
             return PeekKind( 1 ) == TokenKind::LBracket;
@@ -101,6 +103,8 @@ namespace Frontend
             return ParseClass();
         case TokenKind::KwStruct:
             return ParseStruct();
+        case TokenKind::KwEnum:
+            return ParseEnum();
         case TokenKind::KwMixin:
             return ParseMixin();
         case TokenKind::KwDef:
@@ -222,6 +226,78 @@ namespace Frontend
         SkipTerminators();
         ParseDeclBlock( Node.Body );
         Expect( TokenKind::KwEnd, "to close struct" );
+
+        return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    DeclId Parser::ParseEnum ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwEnum, "to begin an enum" );
+
+        Enum Node;
+        Node.Name     = InternText( Expect( TokenKind::Constant, "as an enum name" ) );
+        Node.Generics = ParseGenericParams();
+        if ( Accept( TokenKind::Colon ) )
+        {
+            Node.Underlying = ParseType();
+        }
+        SkipTerminators();
+        ParseEnumBody( Node.Body );
+        Expect( TokenKind::KwEnd, "to close enum" );
+
+        return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    void Parser::ParseEnumBody ( DeclList &Out )
+    {
+        SkipTerminators();
+        while ( !AtEnd() and !Check( TokenKind::KwEnd ) )
+        {
+            const std::size_t Before = Pos;
+
+            DeclId Decl;
+            if ( Check( TokenKind::Constant ) )
+            {
+                Decl = ParseEnumCase();
+            }
+            else if ( AtDeclaration() )
+            {
+                Decl = ParseDeclaration();
+            }
+            else
+            {
+                ReportHere( "expected an enum case or a member declaration" );
+            }
+
+            if ( Decl.IsValid() )
+            {
+                Out.PushBack( Decl );
+            }
+            if ( Pos == Before )
+            {
+                Advance();
+            }
+            SkipTerminators();
+        }
+    }
+
+    DeclId Parser::ParseEnumCase ()
+    {
+        const std::uint32_t Begin = Here();
+
+        EnumCase Node;
+        Node.Name = InternText( Expect( TokenKind::Constant, "as an enum case name" ) );
+
+        if ( Accept( TokenKind::LParen ) )
+        {
+            ParseParameterList( Node.Payload );
+            Expect( TokenKind::RParen, "to close an enum case payload" );
+        }
+        if ( Accept( TokenKind::Assign ) )
+        {
+            Node.Value = ParseExpr( 0 );
+        }
 
         return MakeDecl( std::move( Node ), RangeSince( Begin ) );
     }

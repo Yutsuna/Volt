@@ -481,6 +481,7 @@ namespace Frontend
         if ( Accept( TokenKind::LParen ) )
         {
             ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
+            Expect( TokenKind::RParen, "to close dot-call arguments" );
         }
         else if ( CanStartCommandArgument() )
         {
