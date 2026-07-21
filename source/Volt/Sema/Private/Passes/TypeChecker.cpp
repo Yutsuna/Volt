@@ -125,12 +125,14 @@ namespace Sema
         }
 
         // A member resolved on a receiver, with its already-instantiated
-        // result type.
+        // result type and (for a method) its already-instantiated parameter
+        // types, in declaration order.
         struct Resolution
         {
 
             const Member *Decl = nullptr;
             SemaTypeId Result;
+            Core::SmallVec<SemaTypeId, 4> Params;
         };
 
         struct Checker
@@ -150,6 +152,13 @@ namespace Sema
             // is ScopeResolver's job; until it publishes a table, a flat
             // per-body map is enough to type what the stdlib writes.
             std::unordered_map<Symbol, SemaTypeId> Locals{};
+
+            // The resolution behind a `receiver.name` expression that turned
+            // out to be a method, keyed by that Member expression's own Id —
+            // filled when it is inferred, read back by the wrapping Call so
+            // arguments can be checked against Member::Params without a
+            // second lookup.
+            std::unordered_map<std::uint32_t, Resolution> CalleeResolution{};
 
             void Report ( Core::SourceRange Loc, std::string Message )
             {
@@ -175,6 +184,17 @@ namespace Sema
                     return "<unresolved>";
                 }
                 return std::string{ Ctx.Types.Text( Ctx.Types.Type( Id ).Name ) };
+            }
+
+            // The printable name of an expression's type, always taken from
+            // the store through the unit's own value table.
+            [[nodiscard]] std::string NameOfValue ( SemaTypeId Id ) const
+            {
+                if ( not Ctx.Values.Has( Id ) )
+                {
+                    return "<unresolved>";
+                }
+                return NameOf( Ctx.Values.Get( Id ).Base );
             }
 
             [[nodiscard]] SemaTypeId MakeType ( NominalId Base, Core::SmallVec<SemaTypeId, 2> Args )
@@ -375,8 +395,23 @@ namespace Sema
                 }
 
                 const std::span<const SemaTypeId> Applied{ Args.begin(), Args.Size() };
+
+                // A `&block` slot binds through the call's trailing block,
+                // never a positional argument, so it is excluded here: the
+                // result lines up one-to-one with Call::Args / DotCall::Args.
+                Core::SmallVec<SemaTypeId, 4> Params;
+                for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
+                {
+                    if ( Index < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[Index] )
+                    {
+                        continue;
+                    }
+                    Params.PushBack( Instantiate( Ctx.Types, Found.Decl->Params[Index], Applied, Ctx.Values ) );
+                }
+
                 return Resolution{ .Decl   = Found.Decl,
-                                   .Result = Instantiate( Ctx.Types, Found.Decl->Result, Applied, Ctx.Values ) };
+                                   .Result = Instantiate( Ctx.Types, Found.Decl->Result, Applied, Ctx.Values ),
+                                   .Params = std::move( Params ) };
             }
 
             // A member access is an implicit call: `10.times` and
@@ -430,7 +465,11 @@ namespace Sema
                             return SemaTypeId{};
                         },
                         [&] ( const Frontend::Member &Expr ) -> SemaTypeId
-                        { return MemberType( InferExpr( Expr.Object ), Ctx.Ast.Text( Expr.Name ) ); },
+                        {
+                            const Resolution Found     = LookupOn( InferExpr( Expr.Object ), Ctx.Ast.Text( Expr.Name ) );
+                            CalleeResolution[Id.Value] = Found;
+                            return Found.Result;
+                        },
                         [&] ( const Frontend::Index &Expr ) -> SemaTypeId
                         {
                             const SemaTypeId Object = InferExpr( Expr.Object );
@@ -471,6 +510,21 @@ namespace Sema
                         },
                         [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Expr ); },
                         [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Expr ); },
+                        // `.method(args)` shorthand: the same call as
+                        // `self.method(args)` — CaseLowering (order 22)
+                        // already rewrites the ones it finds inside a `when`
+                        // pattern, so any that reach here name a method on
+                        // the enclosing type directly.
+                        [&] ( const Frontend::DotCall &Expr ) -> SemaTypeId
+                        {
+                            for ( const Frontend::ExprId Arg : Expr.Args )
+                            {
+                                static_cast<void>( InferExpr( Arg ) );
+                            }
+                            const Resolution Found = LookupOn( SelfValue, Ctx.Ast.Text( Expr.Method ) );
+                            CheckCallArgs( Expr.Loc, Found, Expr.Args );
+                            return Found.Result;
+                        },
                         [&] ( const auto &Expr ) -> SemaTypeId { return LiteralType( Id, Expr ); },
                     },
                     Node );
@@ -487,7 +541,53 @@ namespace Sema
                 // The callee already resolved to the member's result: a call
                 // and a bare member access denote the same thing, so the type
                 // of the call is the type of its callee.
-                return InferExpr( Expr.Callee );
+                const SemaTypeId Result = InferExpr( Expr.Callee );
+
+                // When the callee is a `receiver.name` that resolved to a
+                // method, its Member::Params is the signature this call must
+                // satisfy — arity and per-argument types alike.
+                if ( const auto It = CalleeResolution.find( Expr.Callee.Value ); It != CalleeResolution.end() )
+                {
+                    CheckCallArgs( Expr.Loc, It->second, Expr.Args );
+                }
+
+                return Result;
+            }
+
+            // Arity and per-argument type checking against a resolved
+            // method's already-instantiated Params. Skipped for a field (a
+            // field's *value* being called is not a call this file resolves)
+            // and for anything that failed to resolve at all — neither is a
+            // new diagnostic invented here.
+            void CheckCallArgs ( Core::SourceRange Loc, const Resolution &Found, const Frontend::ExprList &Args )
+            {
+                if ( Found.Decl == nullptr or Found.Decl->Kind != EMemberKind::Method )
+                {
+                    return;
+                }
+
+                const std::string Name = std::string{ Ctx.Types.Text( Found.Decl->Name ) };
+
+                const std::size_t Expected = Found.Params.Size();
+                const std::size_t Given    = Args.Size();
+                if ( Given != Expected )
+                {
+                    Report( Loc, Name + " takes " + std::to_string( Expected ) + " argument(s), but " + std::to_string( Given ) +
+                                     " were given" );
+                    return;
+                }
+
+                for ( std::size_t Index = 0; Index < Given; ++Index )
+                {
+                    const SemaTypeId ArgType   = InferExpr( Args[Index] );
+                    const SemaTypeId ParamType = Found.Params[Index];
+                    if ( ArgType.IsValid() and ParamType.IsValid() and ArgType.Value != ParamType.Value )
+                    {
+                        Report( Frontend::LocOf( Ctx.Ast.Expr( Args[Index] ) ),
+                                "argument " + std::to_string( Index + 1 ) + " to " + Name + " has type " +
+                                    NameOfValue( ArgType ) + ", expected " + NameOfValue( ParamType ) );
+                    }
+                }
             }
 
             [[nodiscard]] SemaTypeId GenericInstType ( const Frontend::GenericInst &Expr )

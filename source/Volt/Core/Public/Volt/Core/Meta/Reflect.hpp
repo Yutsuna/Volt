@@ -7,7 +7,13 @@
 // are structural rather than semantic.
 
 #include <cstddef>
-#include <meta>
+
+#if __has_include( <meta>)
+    #include <meta>
+#else
+    #error "C++26 static reflection support is required for Volt."
+#endif
+
 #include <string_view>
 #include <type_traits>
 #include <variant>
