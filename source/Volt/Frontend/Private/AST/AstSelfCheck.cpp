@@ -55,6 +55,7 @@ namespace Frontend
             Sum.Rhs          = Two;
             const ExprId Add = Ctx.Add( ExprNode{ Sum } );
 
+            // NOLINTNEXTLINE(misc-const-correctness)
             Return Ret;
             Ret.Value            = Add;
             const StmtId RetStmt = Ctx.Add( StmtNode{ Ret } );
