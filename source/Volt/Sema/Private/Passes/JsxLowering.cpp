@@ -109,13 +109,13 @@ namespace Sema
                 RootNode.Name     = Strings.Intern( FacadeRoot );
                 const ExprId Root = Context.Add( ExprNode{ RootNode } );
 
-                Member ModuleNode;
+                Frontend::Member ModuleNode;
                 ModuleNode.Loc      = Loc;
                 ModuleNode.Object   = Root;
                 ModuleNode.Name     = Strings.Intern( FacadeModule );
                 const ExprId Module = Context.Add( ExprNode{ ModuleNode } );
 
-                Member MethodNode;
+                Frontend::Member MethodNode;
                 MethodNode.Loc    = Loc;
                 MethodNode.Object = Module;
                 MethodNode.Name   = Strings.Intern( Method );
