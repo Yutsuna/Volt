@@ -23,10 +23,18 @@ Rules:
 
 ## Two reflexes on every change
 
-1. **Format & lint.** Run `volt-build format` and `volt-build tidy` before you
-   call a task done (Allman style, `SpacesInParens`, column 170) — both are parallel and
-   per-file cached, so they only touch what changed. The build is `-Werror`; warnings are failures.
-   All build, format, tidy, and test tasks must go through `volt-build`.
+1. **Format & build.** Run `volt-build format` then `volt-build` before you call
+   a task done (Allman style, `SpacesInParens`, column 170) — format is parallel and
+   per-file cached, so it only touches what changed. The build is `-Werror`; warnings are failures.
+   All build, format, and test tasks must go through `volt-build`.
+
+   **Never run `volt-build tidy`, and ignore clangd.** Both are clang front-ends,
+   and clang does not implement C++26 static reflection (P2996) yet, so it cannot
+   parse `Meta/Reflect.hpp` — nor most of `Frontend/`, `Sema/` and `Driver/` behind
+   it. Everything they report on those files is a bogus artefact of a failed parse
+   (`No type named 'ExprList'`, `no type named '__index_type'`, …). GCC via
+   `volt-build` is the only ground truth. See
+   [`rules/cpp-style.md`](rules/cpp-style.md).
 2. **Keep the map current.** After a significant architecture change, run
    `graphify update .` (AST-only, no API cost) so `graphify-out/` still reflects
    the code. See [`rules/graphify.md`](rules/graphify.md).
