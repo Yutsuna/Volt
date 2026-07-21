@@ -1,0 +1,48 @@
+Program 'samples/Circuits/TwoDeps/Source/Main.vl'
+├─ Annotation 'Link' @1:1
+│  └─ args
+│     └─ StringLiteral 'Models' @1:8
+├─ Annotation 'Link' @2:1
+│  └─ args
+│     └─ StringLiteral 'Components' @2:8
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Assign '=' @5:6
+│        ├─ target
+│        │  └─ Identifier 'user' @5:1
+│        └─ value
+│           └─ Call @5:24
+│              ├─ callee
+│              │  └─ Member 'new' @5:20
+│              │     └─ object
+│              │        └─ Member 'User' @5:14
+│              │           └─ object
+│              │              └─ Identifier 'Models' @5:8
+│              └─ args
+│                 ├─ IntLiteral '42' @5:26
+│                 └─ StringLiteral 'Yutsuna' @5:30
+├─ ExprStmt @6:1
+│  └─ expr
+│     └─ Assign '=' @6:8
+│        ├─ target
+│        │  └─ Identifier 'logger' @6:1
+│        └─ value
+│           └─ Call @6:36
+│              ├─ callee
+│              │  └─ Member 'new' @6:32
+│              │     └─ object
+│              │        └─ Member 'UserLogger' @6:20
+│              │           └─ object
+│              │              └─ Identifier 'Components' @6:10
+│              └─ args
+│                 └─ StringLiteral '[user]' @6:38
+└─ ExprStmt @7:1
+   └─ expr
+      └─ Call @7:16
+         ├─ callee
+         │  └─ Member 'log_user' @7:7
+         │     └─ object
+         │        └─ Identifier 'logger' @7:1
+         └─ args
+            └─ Identifier 'user' @7:18
+--- exit 0 ---

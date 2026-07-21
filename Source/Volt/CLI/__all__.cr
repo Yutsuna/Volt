@@ -1,6 +1,0 @@
-require "./Logger"
-require "option_parser"
-require "./Diagnostic/**"
-require "./LineEditor/__all__.cr"
-require "./Command/**"
-require "./CLI"

@@ -1,0 +1,11 @@
+circuit "App"
+{
+  runtime "0.1.0"
+
+  modules(
+    "Components"  => "Components",
+    "Models"      => "Models"
+  )
+
+  battery "http", version: "1.0.0"
+}

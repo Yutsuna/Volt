@@ -1,6 +1,0 @@
-require "./ANode"
-require "./TypeNode"
-require "./Expr"
-require "./Decl"
-require "./Program"
-require "./Dump"

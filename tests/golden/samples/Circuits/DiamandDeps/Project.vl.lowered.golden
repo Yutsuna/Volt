@@ -1,0 +1,39 @@
+Program 'samples/Circuits/DiamandDeps/Project.vl'
+└─ Circuit 'DiamonApp' @1:1
+   └─ body
+      ├─ ExprStmt @3:3
+      │  └─ expr
+      │     └─ Call @3:3
+      │        ├─ callee
+      │        │  └─ Identifier 'runtime' @3:3
+      │        └─ args
+      │           └─ StringLiteral '0.1.0' @3:11
+      ├─ ExprStmt @4:3
+      │  └─ expr
+      │     └─ Call @4:3
+      │        ├─ callee
+      │        │  └─ Identifier 'entrypoint' @4:3
+      │        └─ args
+      │           └─ StringLiteral 'Source/Main.vl' @4:14
+      └─ ExprStmt @6:5
+         └─ expr
+            └─ Call @6:12
+               ├─ callee
+               │  └─ Identifier 'modules' @6:5
+               └─ args
+                  ├─ Binary '=>' @7:19
+                  │  ├─ lhs
+                  │  │  └─ StringLiteral 'Core' @7:7
+                  │  └─ rhs
+                  │     └─ StringLiteral 'Source/Core' @7:22
+                  ├─ Binary '=>' @8:19
+                  │  ├─ lhs
+                  │  │  └─ StringLiteral 'Auth' @8:7
+                  │  └─ rhs
+                  │     └─ StringLiteral 'Source/Auth' @8:22
+                  └─ Binary '=>' @9:19
+                     ├─ lhs
+                     │  └─ StringLiteral 'Database' @9:7
+                     └─ rhs
+                        └─ StringLiteral 'Source/Database' @9:22
+--- exit 0 ---

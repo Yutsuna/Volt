@@ -1,0 +1,137 @@
+@[Primitive( "i8", 8 ), Literal( IntLiteral )]
+struct Int8
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int8 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    self
+  end
+
+  def abs -> Int8
+    self >= 0 ? self : -self
+  end
+end
+
+@[Primitive( "i16", 16 ), Literal( IntLiteral )]
+struct Int16
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int16 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    self
+  end
+
+  def abs -> Int16
+    self >= 0 ? self : -self
+  end
+end
+
+@[Primitive( "i32", 32 ), Literal( IntLiteral )]
+struct Int32
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int32 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    h = self
+    h ^= ( h << 13 )
+    h ^= ( h >> 7 )
+    h ^ ( h << 17 )
+  end
+
+  def divisible_by?( divisor : Int32 ) -> Bool
+    divisor != 0 and self % divisor == 0
+  end
+
+  def even? -> Bool
+    divisible_by?( 2 )
+  end
+
+  def odd? -> Bool
+    not even?
+  end
+
+  def abs -> Int32
+    self >= 0 ? self : -self
+  end
+
+  def min( other : Int32 ) -> Int32
+    self < other ? self : other
+  end
+
+  def max( other : Int32 ) -> Int32
+    self > other ? self : other
+  end
+
+  def successor -> Int32
+    self + 1
+  end
+
+  def predecessor -> Int32
+    self - 1
+  end
+
+  def times( &block : Int32 -> Void ) -> Void
+    i = 0
+    while i < self
+      block.call( i )
+      i += 1
+    end
+  end
+end
+
+@[Primitive( "i64", 64 ), Literal( IntLiteral )]
+struct Int64
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int64 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    h = self
+    h ^= ( h << 13 )
+    h ^= ( h >> 7 )
+    h ^ ( h << 17 )
+  end
+
+  def abs -> Int64
+    self >= 0 ? self : -self
+  end
+end

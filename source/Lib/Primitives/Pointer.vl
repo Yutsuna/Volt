@@ -1,0 +1,28 @@
+@[External( "libc" )]
+def malloc( size : UInt64 ) -> Pointer<Void>
+
+@[External( "libc" )]
+def free( ptr : Pointer<Void> ) -> Void
+
+@[Primitive( "ptr", 64 )]
+struct Pointer<T>
+  include Comparable
+
+  def self.malloc( count : UInt64 ) -> Pointer<T>
+    malloc( count * sizeof T )
+  end
+
+  def free -> Void
+    free( self )
+  end
+
+  def <=>( other : Pointer<T> ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+end

@@ -1,0 +1,18 @@
+@[Primitive( "i1", 1 ), Literal( BoolLiteral )]
+struct Bool
+  include Comparable
+
+  def <=>( other : Bool ) -> Int32
+    if self == other
+      0
+    elsif not self and other
+      -1
+    else
+      1
+    end
+  end
+
+  def ! -> Bool
+    self ? false : true
+  end
+end

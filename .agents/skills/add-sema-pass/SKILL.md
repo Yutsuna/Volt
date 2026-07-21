@@ -1,0 +1,39 @@
+---
+name: add-sema-pass
+description: Recipe to add a Volt semantic pass — one PassList.inl line plus a pure function over PassContext, auto-registered and run per file by the Driver. Use when adding scope resolution, type checking, or an AST lowering.
+---
+
+# Add a sema pass
+
+1. **Manifest (1 line).** In
+   `source/Volt/Sema/Public/Volt/Sema/PassList.inl`:
+   ```cpp
+   VOLT_PASS( MyPass, 25 )   // Order: ScopeResolver 10, JsxLowering 20, TypeChecker 30
+   ```
+   The registry is built from this manifest and sorted by Order.
+
+2. **Definition.** In `source/Volt/Sema/Private/Passes/`:
+   ```cpp
+   #include "Volt/Sema/Pass.hpp"
+   namespace Volt { namespace Sema {
+       void MyPass( PassContext& Context )
+       {
+           // Context.Ast   — the file's AstContext
+           // Context.Types — TypeStore (name -> MemoryLayout)
+           // Context.Diags — thread-local diagnostic Bag
+       }
+   } }
+   ```
+   `PassRegistry()` / `RunPasses()` pick it up with no extra wiring; the Driver
+   runs every pass per file across its thread pool.
+
+3. **Walk** with `std::visit(Meta::Overloaded{ [&](Target&){…},
+   [&](auto&){ /* default */ } }, Context.Ast.Expr(Id))`. Report via
+   `Context.Diags` only.
+
+4. **Constraints:** zero-hardcode (resolve via `TypeStore`, never a Volt type
+   name); no shared mutable state — the pass must be safe to run on many files at
+   once.
+
+5. **Finish:** `clang-format -i`, clean build; for concurrency changes, a TSAN
+   Debug build over a multi-file circuit. Then `graphify update source/Volt`.

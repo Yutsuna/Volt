@@ -1,0 +1,48 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def check_if_statement( score : Int32 ) -> Int32
+  if score > 90
+    1
+  elsif score > 50
+    2
+  else
+    3
+  end
+end
+
+def check_ternary_operator( score : Int32 ) -> String
+  score >= 50 ? "pass" : "fail"
+end
+
+def check_inline_if_modifier( amount : Int32, active : Bool ) -> Int32
+  total = 100
+  total += amount if active
+  total
+end
+
+def check_inline_unless_modifier( amount : Int32, disabled : Bool ) -> Int32
+  total = 100
+  total += amount unless disabled
+  total
+end
+
+#------------------------------------------------------------------------------
+
+assert!( check_if_statement( 95 ) == 1 )
+assert!( check_if_statement( 70 ) == 2 )
+assert!( check_if_statement( 30 ) == 3 )
+
+assert!( check_ternary_operator( 75 ) == "pass" )
+assert!( check_ternary_operator( 40 ) == "fail" )
+
+assert!( check_inline_if_modifier( 50, true ) == 150 )
+assert!( check_inline_if_modifier( 50, false ) == 100 )
+
+assert!( check_inline_unless_modifier( 50, false ) == 150 )
+assert!( check_inline_unless_modifier( 50, true ) == 100 )

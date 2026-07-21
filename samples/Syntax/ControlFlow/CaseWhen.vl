@@ -1,0 +1,59 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def categorize_status( code : Int32 ) -> String
+  case code
+  when 200, 201 then "Success"
+  when 400, 404 then "Client Error"
+  when 500, 502 then "Server Error"
+  else "Unknown Status"
+  end
+end
+
+def describe_symbol( sym : Symbol ) -> String
+  case sym
+  when :ok then "Status OK"
+  when :error, :fail then "Status Error"
+  else "Status Other"
+  end
+end
+
+def classify_number( n : Int32 ) -> String
+  case n
+  when .zero? then "zero"
+  when .even? then "even"
+  else "odd"
+  end
+end
+
+def eval_grade( score : Int32 ) -> String
+  case
+  when score >= 90 then "A"
+  when score >= 80 then "B"
+  when score >= 70 then "C"
+  else "F"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+assert!( categorize_status( 200 ) == "Success" )
+assert!( categorize_status( 404 ) == "Client Error" )
+assert!( categorize_status( 500 ) == "Server Error" )
+assert!( categorize_status( 999 ) == "Unknown Status" )
+
+assert!( describe_symbol( :ok ) == "Status OK" )
+assert!( describe_symbol( :error ) == "Status Error" )
+
+assert!( classify_number( 0 ) == "zero" )
+assert!( classify_number( 4 ) == "even" )
+assert!( classify_number( 7 ) == "odd" )
+
+assert!( eval_grade( 95 ) == "A" )
+assert!( eval_grade( 82 ) == "B" )
+assert!( eval_grade( 50 ) == "F" )
