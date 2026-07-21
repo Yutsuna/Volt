@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
@@ -73,14 +74,14 @@ namespace Sema
 #include "Volt/Sema/PassList.inl"
 
     // The manifest passes, sorted ascending by Order (built once, cached).
-    [[nodiscard]] std::span<const PassInfo> PassRegistry ();
+    [[nodiscard]] SEMA_EXPORT std::span<const PassInfo> PassRegistry ();
 
     // Run every registered pass over Context, in Order. Returns the number
     // of passes executed.
-    std::size_t RunPasses ( PassContext &Context );
+    SEMA_EXPORT std::size_t RunPasses ( PassContext &Context );
 
     // Same, restricted to the passes of one Kind (manifest order preserved).
-    std::size_t RunPasses ( PassContext &Context, EPassKind Only );
+    SEMA_EXPORT std::size_t RunPasses ( PassContext &Context, EPassKind Only );
 
 } // namespace Sema
 

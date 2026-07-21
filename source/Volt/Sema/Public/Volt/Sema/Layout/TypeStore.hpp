@@ -67,10 +67,26 @@ namespace Sema
             return std::nullopt;
         }
 
+        // Bind a literal kind (e.g. interned "IntLiteral", "StringLiteral") to its layout.
+        void BindLiteral ( Symbol LiteralKind, LayoutId Layout )
+        {
+            ByLiteral.insert_or_assign( LiteralKind, Layout );
+        }
+
+        [[nodiscard]] std::optional<LayoutId> LookupLiteral ( Symbol LiteralKind ) const
+        {
+            if ( const auto It = ByLiteral.find( LiteralKind ); It != ByLiteral.end() )
+            {
+                return It->second;
+            }
+            return std::nullopt;
+        }
+
     private:
 
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, LayoutId> ByName;
+        std::unordered_map<Symbol, LayoutId> ByLiteral;
     };
 
 } // namespace Sema
