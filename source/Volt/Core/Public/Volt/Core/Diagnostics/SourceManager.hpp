@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core_export.hpp"
 #include "Volt/Core/Diagnostics/SourceLocation.hpp"
 
 #include <cstdint>
@@ -19,7 +20,7 @@ namespace Core
      * @details Files are registered up-front (single-threaded)
      *          After that all lookups are const safe to call from parallel parse threads.
      */
-    class SourceManager
+    class CORE_EXPORT SourceManager
     {
 
     public:
