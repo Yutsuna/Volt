@@ -121,6 +121,15 @@ void RenderOne ( const Volt::Core::SourceManager &Sources,
                  const Volt::Core::SourceRange &Range,
                  const std::string &Message )
 {
+    // A location-less diagnostic is legitimate: a pass may know a fact
+    // without a source range to pin it to. Resolving it would index Files
+    // out of bounds, so degrade to the bare message instead.
+    if ( not Sources.IsValidFile( Range.File ) )
+    {
+        Out << SeverityName( Severity ) << ": " << Message << '\n';
+        return;
+    }
+
     const Volt::Core::LineColumn Where = Sources.Resolve( Range.File, Range.Begin );
 
     Out << Sources.PathOf( Range.File ) << ':' << Where.Line << ':' << Where.Column << ": " << SeverityName( Severity ) << ": "
