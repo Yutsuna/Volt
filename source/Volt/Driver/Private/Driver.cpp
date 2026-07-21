@@ -2,13 +2,10 @@
 
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/Diagnostic.hpp"
-#include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
-#include "Volt/Frontend/AST/Decl.hpp"
-#include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -17,12 +14,10 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
-#include <optional>
 #include <sstream>
 #include <string_view>
 #include <thread>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace fs = std::filesystem;
@@ -285,7 +280,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
     Core::StringInterner ManifestInterner;
     Frontend::AstContext Manifest{ ManifestInterner, ProjectFile };
     {
-        Core::DiagEngine::Bag Bag = Diagnostics.MakeBag();
+        Core::DiagEngine::Bag Bag = Core::DiagEngine::MakeBag();
         Frontend::Lexer Lexer( ProjectFile, ProjectText, ManifestInterner, Bag );
         Frontend::Parser Parser( Lexer.Tokenize(), Manifest, Bag, ProjectText );
         Parser.ParseFile();
