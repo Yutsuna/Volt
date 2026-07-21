@@ -37,18 +37,26 @@ namespace Sema
             Pair.Fields.PushBack( FieldLayout{ Interner.Intern( "next" ), Ptr } );
             const LayoutId Node = Store.AddAggregate( std::move( Pair ) );
 
-            Store.Bind( Interner.Intern( "Node" ), Node );
-            if ( Store.Lookup( Interner.Intern( "Node" ) ) != Node or Store.Size() != 3 )
+            // A type is an identity first; the layout is attached to it.
+            const NominalId Named = Store.DeclareType( "Node", 0, Frontend::DeclId{} );
+            Store.AttachLayout( Named, Node );
+            if ( Store.LookupType( "Node" ) != Named or Store.Size() != 3 )
             {
                 return false;
             }
-            if ( KindOf( Store.Get( Ptr ) ) != LayoutKind::Pointer )
+            if ( Store.Type( Named ).Layout != Node or KindOf( Store.Get( Ptr ) ) != LayoutKind::Pointer )
             {
                 return false;
             }
 
-            Store.BindLiteral( Interner.Intern( "IntLiteral" ), Word );
-            if ( Store.LookupLiteral( Interner.Intern( "IntLiteral" ) ) != Word )
+            // A literal kind resolves to the *type* that claimed it, and a
+            // second claimant must be refused rather than silently winning.
+            if ( not Store.BindLiteral( "IntLiteral", Named ) or Store.LookupLiteral( "IntLiteral" ) != Named )
+            {
+                return false;
+            }
+            const NominalId Other = Store.DeclareType( "Other", 0, Frontend::DeclId{} );
+            if ( Store.BindLiteral( "IntLiteral", Other ) )
             {
                 return false;
             }
