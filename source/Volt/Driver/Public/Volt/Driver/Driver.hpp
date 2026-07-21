@@ -57,6 +57,8 @@ namespace Driver
         bool bComponent = false;
         Core::StringInterner Interner;
         Frontend::AstContext Ast;
+        // Expression types inferred for this unit alone (see SemaType.hpp).
+        Sema::UnitTypes Types;
         Sema::PassStats Stats;
     };
 

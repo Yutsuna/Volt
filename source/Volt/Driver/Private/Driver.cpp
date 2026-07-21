@@ -43,6 +43,7 @@ namespace
 
 } // namespace
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 void Volt::Driver::Driver::ReportDriver ( Core::ESeverity Severity, std::string Message )
 {
     Diagnostics.Report( Core::Diagnostic{ .Severity = Severity,
@@ -89,14 +90,14 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
 {
     // Passes (JsxLowering included) run per file over local state; the
     // published Registry is the only shared input, and it is read-only.
-    Sema::PassContext Context{ Unit.Ast, Types, Bag, Unit.Stats, &Registry };
+    Sema::PassContext Context{ Unit.Ast, Types, Unit.Types, Bag, Unit.Stats, &Registry };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{ Unit.Ast, Types, Bag, Unit.Stats };
+    Sema::PassContext Context{ Unit.Ast, Types, Unit.Types, Bag, Unit.Stats };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
@@ -165,6 +166,15 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
             // cannot be a per-file parallel pass. Once this loop ends the
             // store is frozen and sema reads it without a lock.
             static_cast<void>( Sema::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
+        }
+
+        // Still serial, still the same seam, but a second pass: a signature
+        // may name a type declared in a file that comes later, so every name
+        // must exist before any signature is resolved — otherwise stdlib file
+        // order would silently decide what a member returns.
+        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+        {
+            Sema::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
         }
         Diagnostics.Merge( std::move( SeamBag ) );
 
