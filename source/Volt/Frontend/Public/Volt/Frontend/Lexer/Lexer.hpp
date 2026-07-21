@@ -51,14 +51,14 @@ namespace Frontend
             return Source[Pos++];
         }
 
-        [[nodiscard]] std::uint32_t Offset ( std::size_t Index ) const
+        [[nodiscard]] static std::uint32_t Offset ( std::size_t Index )
         {
             return static_cast<std::uint32_t>( Index );
         }
 
         [[nodiscard]] Core::SourceRange RangeFrom ( std::size_t Start ) const
         {
-            return Core::SourceRange{ File, Offset( Start ), Offset( Pos ) };
+            return Core::SourceRange{ .File = File, .Begin = Offset( Start ), .End = Offset( Pos ) };
         }
 
         [[nodiscard]] Token Make ( TokenKind Kind, std::size_t Start ) const;
