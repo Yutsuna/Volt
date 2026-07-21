@@ -1,18 +1,18 @@
-struct Bool include Inspectable
-  include Hashable
+@[Primitive( "i1", 1 ), Literal( BoolLiteral )]
+struct Bool
+  include Comparable
 
-  #----------------------------------------------------------------------------
-
-  def to_string -> String
-    self ? "true" : "false"
+  def <=>( other : Bool ) -> Int32
+    if self == other
+      0
+    elsif not self and other
+      -1
+    else
+      1
+    end
   end
 
-  #----------------------------------------------------------------------------
-
-  def hash -> UInt64
-    self ? 1_u64 : 0_u64
+  def ! -> Bool
+    self ? false : true
   end
-
-  #----------------------------------------------------------------------------
-
 end

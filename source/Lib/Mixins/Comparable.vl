@@ -1,36 +1,27 @@
 mixin Comparable
+  abstract def <=>( other : self ) -> Int32
 
-  def <( other : Object ) -> Bool
-    comp = self <=> other
-    comp ? comp < 0 : false
+  def ==( other : self ) -> Bool
+    ( self <=> other ) == 0
   end
 
-  def <=( other : Object ) -> Bool
-    comp = self <=> other
-    comp ? comp <= 0 : false
+  def !=( other : self ) -> Bool
+    ( self <=> other ) != 0
   end
 
-  def >( other : Object ) -> Bool
-    comp = self <=> other
-    comp ? comp > 0 : false
+  def <( other : self ) -> Bool
+    ( self <=> other ) < 0
   end
 
-  def >=( other : Object ) -> Bool
-    comp = self <=> other
-    comp ? comp >= 0 : false
+  def <=( other : self ) -> Bool
+    ( self <=> other ) <= 0
   end
 
-  def ==( other : Object ) -> Bool
-    comp = self <=> other
-    comp ? comp == 0 : false
+  def >( other : self ) -> Bool
+    ( self <=> other ) > 0
   end
 
-  #{
-  # @brief Comparison operator
-  # @return 0 if the two objects are equal
-  # @return a negative number if `self` is less than `other`
-  # @return a positive number if `self` is greater than `other`
-  #}
-  abstract def <=>( other : Object ) -> Int
-
+  def >=( other : self ) -> Bool
+    ( self <=> other ) >= 0
+  end
 end
