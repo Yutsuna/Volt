@@ -17,6 +17,7 @@ struct Float32
   end
 end
 
+
 @[Primitive( "f64", 64 ), Literal( FloatLiteral )]
 struct Float64
   include Comparable

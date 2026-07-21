@@ -4,6 +4,7 @@ def memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointe
 @[External( "libc" )]
 def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
 
+
 @[Literal( StringLiteral )]
 struct String
   include Comparable

@@ -4,6 +4,7 @@ def malloc( size : UInt64 ) -> Pointer<Void>
 @[External( "libc" )]
 def free( ptr : Pointer<Void> ) -> Void
 
+
 @[Primitive( "ptr", 64 )]
 struct Pointer<T>
   include Comparable

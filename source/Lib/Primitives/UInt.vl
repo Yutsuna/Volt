@@ -18,6 +18,7 @@ struct UInt8
   end
 end
 
+
 @[Primitive( "u16", 16 ), Literal( IntLiteral )]
 struct UInt16
   include Comparable
@@ -37,6 +38,7 @@ struct UInt16
     self
   end
 end
+
 
 @[Primitive( "u32", 32 ), Literal( IntLiteral )]
 struct UInt32
@@ -60,6 +62,7 @@ struct UInt32
     h ^ ( h << 17 )
   end
 end
+
 
 @[Primitive( "u64", 64 ), Literal( IntLiteral )]
 struct UInt64
