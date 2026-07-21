@@ -35,7 +35,7 @@ namespace Sema
             Aggregate Pair;
             Pair.Fields.PushBack( FieldLayout{ Interner.Intern( "head" ), Word } );
             Pair.Fields.PushBack( FieldLayout{ Interner.Intern( "next" ), Ptr } );
-            const LayoutId Node = Store.AddAggregate( std::move( Pair ) );
+            const LayoutId Node = Store.AddAggregate( Pair );
 
             // A type is an identity first; the layout is attached to it.
             const NominalId Named = Store.DeclareType( "Node", 0, Frontend::DeclId{} );
@@ -51,12 +51,12 @@ namespace Sema
 
             // A literal kind resolves to the *type* that claimed it, and a
             // second claimant must be refused rather than silently winning.
-            if ( not Store.BindLiteral( "IntLiteral", Named ) or Store.LookupLiteral( "IntLiteral" ) != Named )
+            if ( not Store.BindNodeKind( "IntLiteral", Named ) or Store.LookupNodeKind( "IntLiteral" ) != Named )
             {
                 return false;
             }
             const NominalId Other = Store.DeclareType( "Other", 0, Frontend::DeclId{} );
-            if ( Store.BindLiteral( "IntLiteral", Other ) )
+            if ( Store.BindNodeKind( "IntLiteral", Other ) )
             {
                 return false;
             }
@@ -68,9 +68,9 @@ namespace Sema
             {
                 return false;
             }
-            for ( std::size_t I = 1; I < Registry.size(); ++I )
+            for ( std::size_t Idx = 1; Idx < Registry.size(); ++Idx )
             {
-                if ( Registry[I - 1].Order > Registry[I].Order )
+                if ( Registry[Idx - 1].Order > Registry[Idx].Order )
                 {
                     return false;
                 }
@@ -78,9 +78,10 @@ namespace Sema
 
             Frontend::AstContext Ast{ Interner, File };
             Core::DiagEngine Engine;
-            Core::DiagEngine::Bag Bag = Engine.MakeBag();
+            Core::DiagEngine::Bag Bag = Volt::Core::DiagEngine::MakeBag();
             PassStats Stats;
-            PassContext Context{ Ast, Store, Bag, Stats };
+            UnitTypes Values;
+            PassContext Context{ .Ast = Ast, .Types = Store, .Values = Values, .Diags = Bag, .Stats = Stats };
             const std::size_t Ran = RunPasses( Context );
 
             return Ran == Registry.size() and Bag.Errors() == 0;
