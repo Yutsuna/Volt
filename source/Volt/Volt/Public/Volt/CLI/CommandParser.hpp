@@ -35,10 +35,12 @@ namespace CLI
          * @brief Parses command-line arguments and options.
          * @param InArgs A span of string views representing the command-line arguments.
          * @param InOptions A span of FOption representing the available options for the command.
+         * @param InMaxPositionals Maximum number of positional arguments allowed (defaults to 1).
          * @return The positional arguments (and whether `-h`/`--help` was seen, which is
          *         recognised for every command) on success, or an error message on failure.
          */
-        FParseResult Parse ( std::span<const std::string_view> InArgs, std::span<const FOption> InOptions );
+        FParseResult
+        Parse ( std::span<const std::string_view> InArgs, std::span<const FOption> InOptions, std::size_t InMaxPositionals = 1 );
 
         /**
          * @brief Renders an OptionParser-style usage block: banner, then aligned options.
