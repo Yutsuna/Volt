@@ -51,6 +51,7 @@ Checks: >
   -readability-use-concise-preprocessor-directives,
   -readability-avoid-const-params-in-decls,
   -readability-redundant-access-specifiers,
+  -readability-convert-member-functions-to-static,
   -cert-err33-c
 
 WarningsAsErrors: "*"
