@@ -61,6 +61,14 @@ function( VoltModule )
     DEBUG_POSTFIX "_d"
   )
 
+  get_property( PCH_TARGET GLOBAL PROPERTY VOLT_PCH_PRIMARY_TARGET )
+  if( NOT PCH_TARGET )
+    set_property( GLOBAL PROPERTY VOLT_PCH_PRIMARY_TARGET ${M_NAME} )
+    target_precompile_headers( ${M_NAME} PRIVATE ${VOLT_PCH_HEADERS} )
+  else()
+    target_precompile_headers( ${M_NAME} REUSE_FROM ${PCH_TARGET} )
+  endif()
+
   #############################################################################
 
   target_include_directories( ${M_NAME} PUBLIC

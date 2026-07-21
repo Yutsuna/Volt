@@ -4,12 +4,8 @@ require 'etc'
 require 'fileutils'
 require 'json'
 
-
 module Volt::Build
-
-
   class Pipeline
-
     FEATURE_BIN_NAMES = {
       'VOLT_ENABLE_ASAN'    => 'Volt_asan',
       'VOLT_ENABLE_TSAN'    => 'Volt_tsan',
@@ -27,10 +23,16 @@ module Volt::Build
     end
 
     def execute!
+      setup_cache_env!
       steps.each { |step| break if send( step ) == :halt }
     end
 
     private
+
+    def setup_cache_env!
+      ENV[ 'CCACHE_SLOPPINESS' ] ||= 'pch_defines,time_macros,file_stat_matches'
+      ENV[ 'CCACHE_COMPRESS' ]   ||= '1'
+    end
 
     def steps
       return [ :clean ] if @options[ :clean ]
@@ -38,7 +40,7 @@ module Volt::Build
       pipeline_steps = []
 
       if @options[ :actions ].any? { |a| %i[build format tidy test run].include?( a ) }
-        pipeline_steps.concat( [ :validate, :configure, :build, :persist ] )
+        pipeline_steps.concat( [ :configure, :build, :persist ] )
       end
 
       pipeline_steps << :format if @options[ :actions ].include?( :format )
@@ -51,14 +53,6 @@ module Volt::Build
       Logger.info "Cleaning build directory...", prefix: @variant_name
       FileUtils.rm_rf( 'build' )
       :halt
-    end
-
-    def validate
-      return :continue unless @cache.valid?
-
-      Logger.ok "No changes detected for variant '#{@variant_name}'. Build is up-to-date (Cached).", prefix: @variant_name
-      update_symlinks
-      :continue
     end
 
     def format
@@ -77,12 +71,12 @@ module Volt::Build
     end
 
     def configure
-      return :continue unless configure_required?
+      return :continue if @cache.valid?
 
       Logger.info "Configuring CMake (Mode: #{@options[:build_type]}, Variant: #{@variant_name})...", prefix: @variant_name
       FileUtils.mkdir_p( @build_dir )
 
-      cc = ENV[ 'CC' ] || 'gcc'
+      cc  = ENV[ 'CC' ] || 'gcc'
       cxx = ENV[ 'CXX' ] || 'g++'
       definitions = @options[ :cmake_flags ].map { |k, v| "-D#{k}=#{v}" }.join( ' ' )
       cmd = "cmake -B #{@build_dir} -G Ninja -DCMAKE_C_COMPILER=#{cc} -DCMAKE_CXX_COMPILER=#{cxx} -DCMAKE_BUILD_TYPE=#{@options[:build_type]} #{definitions}"
@@ -164,17 +158,5 @@ module Volt::Build
       postfix = @options[ :build_type ] == 'Debug' ? '_d' : ''
       File.join( @build_dir, 'bin', "Volt#{postfix}" )
     end
-
-    def configure_required?
-      return true unless File.exist?( File.join( @build_dir, 'CMakeCache.txt' ) )
-      return true unless File.exist?( @cache.path )
-
-      cached_state = JSON.parse( File.read( @cache.path ) ) rescue nil
-      return true unless cached_state
-
-      cached_state[ 'build_type' ] != @options[ :build_type ] or cached_state[ 'cmake_flags' ] != @options[ :cmake_flags ]
-    end
   end
-
-
 end
