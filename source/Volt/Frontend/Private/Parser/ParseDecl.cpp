@@ -15,6 +15,33 @@ namespace Frontend
     namespace
     {
 
+        // Keywords that open a block closed by `end`, for the raw-capture scan
+        // of a macro body. `{% for %}` / `{% if %}` template directives close
+        // with `{% end %}`, so their keywords stay balanced too. Known limits
+        // of the token-level count (not used by the current samples): postfix
+        // modifiers (`x if cond`) and body-less `abstract def`.
+        [[nodiscard]] bool IsBlockOpener ( TokenKind Kind )
+        {
+            switch ( Kind )
+            {
+            case TokenKind::KwDef:
+            case TokenKind::KwDo:
+            case TokenKind::KwIf:
+            case TokenKind::KwUnless:
+            case TokenKind::KwWhile:
+            case TokenKind::KwFor:
+            case TokenKind::KwCase:
+            case TokenKind::KwClass:
+            case TokenKind::KwStruct:
+            case TokenKind::KwModule:
+            case TokenKind::KwMixin:
+            case TokenKind::KwComponent:
+                return true;
+            default:
+                return false;
+            }
+        }
+
         [[nodiscard]] bool IsOperatorMethodStart ( TokenKind Kind )
         {
             switch ( Kind )
@@ -51,6 +78,7 @@ namespace Frontend
         case TokenKind::KwStruct:
         case TokenKind::KwMixin:
         case TokenKind::KwDef:
+        case TokenKind::KwMacro:
         case TokenKind::KwAbstract:
         case TokenKind::KwInclude:
         case TokenKind::KwComponent:
@@ -77,6 +105,8 @@ namespace Frontend
             return ParseMixin();
         case TokenKind::KwDef:
             return ParseMethod( false );
+        case TokenKind::KwMacro:
+            return ParseMacro();
         case TokenKind::KwAbstract:
             Advance();
             return ParseMethod( true );
@@ -127,7 +157,9 @@ namespace Frontend
             }
             else if ( Check( TokenKind::Identifier ) )
             {
-                Decl = ParseFieldOrMember();
+                // `name( ... )` in declaration position is a macro invocation;
+                // a field never opens a parenthesis after its name.
+                Decl = PeekKind( 1 ) == TokenKind::LParen ? ParseMacroInvoke() : ParseFieldOrMember();
             }
             else
             {
@@ -343,6 +375,67 @@ namespace Frontend
             Node.Default = ParseExpr( 0 );
         }
         return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    DeclId Parser::ParseMacro ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwMacro, "to begin a macro" );
+        Expect( TokenKind::KwDef, "after 'macro'" );
+
+        MacroDef Node;
+        Node.Name = InternText( Expect( TokenKind::Identifier, "as a macro name" ) );
+        if ( Accept( TokenKind::LParen ) )
+        {
+            ParseParameterList( Node.Params );
+            Expect( TokenKind::RParen, "to close macro parameters" );
+        }
+        SkipTerminators();
+
+        // The body is not parsed: capture the raw source slice up to the
+        // matching `end`, tracking block-opener nesting at token level.
+        const std::uint32_t BodyBegin = Here();
+        std::uint32_t BodyEnd         = BodyBegin;
+        int Depth                     = 0;
+        while ( !AtEnd() )
+        {
+            const TokenKind Kind = PeekKind();
+            if ( IsBlockOpener( Kind ) )
+            {
+                ++Depth;
+            }
+            else if ( Kind == TokenKind::KwEnd )
+            {
+                if ( Depth == 0 )
+                {
+                    break;
+                }
+                --Depth;
+            }
+            BodyEnd = Advance().Range.End;
+        }
+        Node.BodyText = Interner.Intern( Source.substr( BodyBegin, BodyEnd - BodyBegin ) );
+        Expect( TokenKind::KwEnd, "to close macro" );
+
+        return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    DeclId Parser::ParseMacroInvoke ()
+    {
+        const std::uint32_t Begin = Here();
+
+        MacroInvoke Node;
+        Node.Name = InternText( Expect( TokenKind::Identifier, "as a macro name" ) );
+        Expect( TokenKind::LParen, "to open macro arguments" );
+        ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
+        Expect( TokenKind::RParen, "to close macro arguments" );
+
+        return MakeDecl( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    void Parser::ParseMemberBlock ( DeclList &Out )
+    {
+        ParseDeclBlock( Out );
     }
 
     DeclId Parser::ParseInclude ()

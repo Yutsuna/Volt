@@ -133,6 +133,14 @@ namespace Frontend
         const std::uint32_t Begin = Here();
 
         TypeRef Ref;
+
+        // `-> self` — the enclosing type, spelled with the keyword.
+        if ( Check( TokenKind::KwSelf ) )
+        {
+            Ref.Path.PushBack( InternText( Advance() ) );
+            return MakeType( std::move( Ref ), RangeSince( Begin ) );
+        }
+
         if ( !Check( TokenKind::Constant ) )
         {
             ReportHere( "expected a type name" );

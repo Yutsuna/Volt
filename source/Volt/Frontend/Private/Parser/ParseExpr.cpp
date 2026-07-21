@@ -72,6 +72,10 @@ namespace Frontend
 
             const std::uint32_t Begin = Peek().Range.Begin;
             Advance(); // operator
+            // A trailing infix operator continues the expression on the next
+            // line (`"{" +` <newline> `"..."`); nothing else can legally
+            // follow an operator, so this is unambiguous.
+            SkipNewlines();
 
             if ( Op == TokenKind::Question )
             {
@@ -687,6 +691,12 @@ namespace Frontend
             return Result;
         }
         return MakeExpr( NilLiteral{}, Range );
+    }
+
+    ExprId Parser::ParseExpression ()
+    {
+        SkipNewlines();
+        return ParseExpr( 0 );
     }
 
 } // namespace Frontend
