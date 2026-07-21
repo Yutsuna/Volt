@@ -36,6 +36,7 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -misc-include-cleaner,
   -misc-header-include-cycle,
+  -misc-no-recursion,
   modernize-*,
   -modernize-loop-convert,
   -modernize-use-trailing-return-type,
