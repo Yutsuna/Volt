@@ -8,7 +8,7 @@ struct HashEntry<K, V>
 end
 
 
-@[Literal( HashLiteral )]
+@[Literal( HashLit )]
 struct Hash<K, V>
   getter entries : Array<HashEntry<K, V>>
   getter size : UInt64
