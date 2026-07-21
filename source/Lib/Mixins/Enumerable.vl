@@ -1,0 +1,25 @@
+mixin Enumerable
+  abstract def each( &block : self -> Void ) -> Void
+
+  def any?( &block : self -> Bool ) -> Bool
+    found = false
+    each do | item |
+      if block.call( item )
+        found = true
+        break
+      end
+    end
+    found
+  end
+
+  def all?( &block : self -> Bool ) -> Bool
+    ok = true
+    each do | item |
+      if not block.call( item )
+        ok = false
+        break
+      end
+    end
+    ok
+  end
+end

@@ -1,42 +1,9 @@
-struct Int
-  include Inspectable
+@[Primitive( "i8", 8 ), Literal( IntLiteral )]
+struct Int8
   include Comparable
   include Hashable
 
-  # alias Signed = Int8 | Int16 | Int32 | Int64
-  # alias Unsigned = UInt8 | UInt16 | UInt32 | UInt64
-
-  # NOTE: unsafe should be macro'd aand dynamic depending on the target of Int
-  # MIN_64 : Int = -9223372036854775808
-  # MAX_32 : Int = 9223372036854775807
-
-  #----------------------------------------------------------------------------
-
-  #{
-  # @brief Executes the block 'self' times, yielding the index (zero-allocation).
-  #}
-  def times -> Void
-    i = 0
-    while i < self
-      yield i
-      i += 1
-    end
-  end
-
-  #{
-  # @brief Executes the closure 'self' times, passing the index (explicit closure).
-  #}
-  def times( &block : Int -> Void ) -> Void
-    i = 0
-    while i < self
-      block.call( i )
-      i += 1
-    end
-  end
-
-  #----------------------------------------------------------------------------
-
-  def <=>( other : Int ) -> Int
+  def <=>( other : Int8 ) -> Int32
     if self < other
       -1
     elsif self > other
@@ -46,42 +13,54 @@ struct Int
     end
   end
 
-  #----------------------------------------------------------------------------
+  def hash -> UInt64
+    self
+  end
 
-  def abs -> Int
+  def abs -> Int8
     self >= 0 ? self : -self
   end
+end
 
-  def min( other : Int ) -> Int
-   self < other ? self : other
+@[Primitive( "i16", 16 ), Literal( IntLiteral )]
+struct Int16
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int16 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
   end
 
-  def divisible_by?( other : Int ) -> Bool
-    other != 0 && self % other == 0
+  def hash -> UInt64
+    self
   end
 
-  def even? -> Bool
-    divisible_by? 2
+  def abs -> Int16
+    self >= 0 ? self : -self
+  end
+end
+
+@[Primitive( "i32", 32 ), Literal( IntLiteral )]
+struct Int32
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int32 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
   end
 
-  def odd? -> Bool
-    !even?
-  end
-
-  def successor -> Int
-    self + 1
-  end
-
-  def predecessor -> Int
-    self - 1
-  end
-
-  #----------------------------------------------------------------------------
-
-  #{
-  # @brief xorshift64 mix of the value, used by `Hash` to spread consecutive
-  #        integer keys across buckets.
-  #}
   def hash -> UInt64
     h = self
     h ^= ( h << 13 )
@@ -89,45 +68,70 @@ struct Int
     h ^ ( h << 17 )
   end
 
-  #----------------------------------------------------------------------------
-
-  # Digits are peeled off into a fixed-size stack array : the only heap allocation left is
-  # the final `String`'s own backing buffer, which every `String` owns by
-  # construction (`String#+` allocates one the same way).
-  def to_string -> String
-    return "0" if self == 0
-
-    negative = self < 0
-    n        = negative ? -self : self
-
-    digits : UInt8[ 20 ]
-    count = 0
-
-    while n > 0
-      digits[ count ] = 48 + ( n % 10 )
-      n = n / 10
-      count += 1
-    end
-
-    size = negative ? count + 1 : count
-    buf  = Pointer<UInt8>.malloc( size )
-
-    i = 0
-    if negative
-      *buf = 45
-      i = 1
-    end
-
-    j = count - 1
-    while j >= 0
-      *( buf + i ) = digits[ j ]
-      i += 1
-      j -= 1
-    end
-
-    String.new( buf, size, true )
+  def divisible_by?( divisor : Int32 ) -> Bool
+    divisor != 0 and self % divisor == 0
   end
 
-  #----------------------------------------------------------------------------
+  def even? -> Bool
+    divisible_by?( 2 )
+  end
 
+  def odd? -> Bool
+    not even?
+  end
+
+  def abs -> Int32
+    self >= 0 ? self : -self
+  end
+
+  def min( other : Int32 ) -> Int32
+    self < other ? self : other
+  end
+
+  def max( other : Int32 ) -> Int32
+    self > other ? self : other
+  end
+
+  def successor -> Int32
+    self + 1
+  end
+
+  def predecessor -> Int32
+    self - 1
+  end
+
+  def times( &block : Int32 -> Void ) -> Void
+    i = 0
+    while i < self
+      block.call( i )
+      i += 1
+    end
+  end
+end
+
+@[Primitive( "i64", 64 ), Literal( IntLiteral )]
+struct Int64
+  include Comparable
+  include Hashable
+
+  def <=>( other : Int64 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    h = self
+    h ^= ( h << 13 )
+    h ^= ( h >> 7 )
+    h ^ ( h << 17 )
+  end
+
+  def abs -> Int64
+    self >= 0 ? self : -self
+  end
 end
