@@ -92,7 +92,7 @@ namespace Sema
                         {
                             const DotCall &Dot = std::get<DotCall>( Context.Expr( PatternId ) );
 
-                            Member Mem;
+                            Frontend::Member Mem;
                             Mem.Loc            = Dot.Loc;
                             Mem.Object         = bHasTarget ? TargetId : SelfTarget;
                             Mem.Name           = Dot.Method;
