@@ -22,8 +22,9 @@ namespace Sema
     struct PassStats
     {
 
-        std::size_t JsxLowered  = 0;
-        std::size_t CaseLowered = 0;
+        std::size_t JsxLowered     = 0;
+        std::size_t CaseLowered    = 0;
+        std::size_t MacrosExpanded = 0;
     };
 
     class InterfaceRegistry;
