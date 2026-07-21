@@ -156,16 +156,28 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
     switch ( Kind )
     {
     case TokenKind::IntLiteral:
-        return ParsePostfix( MakeExpr( IntLiteral{ {}, InternText( Advance() ) }, RangeSince( Begin ) ) );
+    {
+        const Symbol Text = InternText( Advance() );
+        return ParsePostfix( MakeExpr( IntLiteral{ {}, Text }, RangeSince( Begin ) ) );
+    }
 
     case TokenKind::FloatLiteral:
-        return ParsePostfix( MakeExpr( FloatLiteral{ {}, InternText( Advance() ) }, RangeSince( Begin ) ) );
+    {
+        const Symbol Text = InternText( Advance() );
+        return ParsePostfix( MakeExpr( FloatLiteral{ {}, Text }, RangeSince( Begin ) ) );
+    }
 
     case TokenKind::CharLiteral:
-        return ParsePostfix( MakeExpr( CharLiteral{ {}, InternText( Advance() ) }, RangeSince( Begin ) ) );
+    {
+        const Symbol Text = InternText( Advance() );
+        return ParsePostfix( MakeExpr( CharLiteral{ {}, Text }, RangeSince( Begin ) ) );
+    }
 
     case TokenKind::SymbolLiteral:
-        return ParsePostfix( MakeExpr( SymbolLiteral{ {}, InternText( Advance() ) }, RangeSince( Begin ) ) );
+    {
+        const Symbol Text = InternText( Advance() );
+        return ParsePostfix( MakeExpr( SymbolLiteral{ {}, Text }, RangeSince( Begin ) ) );
+    }
 
     case TokenKind::StringLiteral:
     {
@@ -199,11 +211,15 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
     }
 
     case TokenKind::InstanceVar:
-        return ParsePostfix( MakeExpr( InstanceVar{ {}, InternText( Advance() ) }, RangeSince( Begin ) ) );
+    {
+        const Symbol Text = InternText( Advance() );
+        return ParsePostfix( MakeExpr( InstanceVar{ {}, Text }, RangeSince( Begin ) ) );
+    }
 
     case TokenKind::Identifier:
     {
-        const ExprId Ident = MakeExpr( Identifier{ {}, InternText( Advance() ) }, RangeSince( Begin ) );
+        const Symbol Text  = InternText( Advance() );
+        const ExprId Ident = MakeExpr( Identifier{ {}, Text }, RangeSince( Begin ) );
         // Paren-less command call: `raise "x"`, `divisible_by? 2`.
         if ( CanStartCommandArgument() )
         {
@@ -213,7 +229,10 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
     }
 
     case TokenKind::Constant:
-        return ParsePostfix( MakeExpr( Identifier{ {}, InternText( Advance() ) }, RangeSince( Begin ) ) );
+    {
+        const Symbol Text = InternText( Advance() );
+        return ParsePostfix( MakeExpr( Identifier{ {}, Text }, RangeSince( Begin ) ) );
+    }
 
     case TokenKind::LParen:
         return ParsePostfix( ParseParenOrGroup() );

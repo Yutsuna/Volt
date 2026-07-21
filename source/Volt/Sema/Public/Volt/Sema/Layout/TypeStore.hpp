@@ -66,7 +66,12 @@ namespace Sema
         Frontend::DeclId Decl;               // its declaration, inside `Unit`
         SigTypeId Result;                    // field type / method return type
         Core::SmallVec<SigTypeId, 4> Params; // methods only
-        bool bSelf = false;                  // `def self.malloc`
+        // Parallel to Params: whether that slot is a `&block` parameter —
+        // it binds through a call's trailing `do ... end` / BlockArg, never
+        // through the positional argument list, so callers matching Params
+        // against Args must skip it.
+        Core::SmallVec<bool, 4> ParamIsBlock;
+        bool bSelf = false; // `def self.malloc`
     };
 
     // One type as the compiler knows it: a name, where it was declared, and

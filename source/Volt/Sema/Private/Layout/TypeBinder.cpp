@@ -410,15 +410,18 @@ namespace Sema
                                 SigSink Sink{ Store };
                                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Generics, Sink, Entry.ReturnType );
                                 Core::SmallVec<SigTypeId, 4> Params;
+                                Core::SmallVec<bool, 4> ParamIsBlock;
                                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                                 {
-                                    Params.PushBack(
-                                        ResolveTypeExpr( Ast, Store, Generics, Sink, Ast.GetParam( ParamRef ).DeclType ) );
+                                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                                    Params.PushBack( ResolveTypeExpr( Ast, Store, Generics, Sink, ParamNode.DeclType ) );
+                                    ParamIsBlock.PushBack( ParamNode.bIsBlock );
                                 }
                                 if ( Member *Slot = Store.MemberByDecl( Id, Child ) )
                                 {
-                                    Slot->Result = Result;
-                                    Slot->Params = std::move( Params );
+                                    Slot->Result       = Result;
+                                    Slot->Params       = std::move( Params );
+                                    Slot->ParamIsBlock = std::move( ParamIsBlock );
                                     ++Resolved;
                                 }
                             },
