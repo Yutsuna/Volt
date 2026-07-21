@@ -1,6 +1,5 @@
 #pragma once
 
-#include <compare>
 #include <cstdint>
 #include <functional>
 
@@ -62,10 +61,8 @@ namespace Core
 
 } // namespace Volt
 
-namespace std
-{
-
-template <typename Tag> struct hash<Volt::Core::TypedId<Tag>>
+// NOLINTNEXTLINE(cert-dcl58-cpp)
+template <typename Tag> struct std::hash<Volt::Core::TypedId<Tag>>
 {
 
     std::size_t operator()( const Volt::Core::TypedId<Tag> &Id ) const noexcept
@@ -73,5 +70,3 @@ template <typename Tag> struct hash<Volt::Core::TypedId<Tag>>
         return std::hash<std::uint32_t>{}( Id.Value );
     }
 };
-
-} // namespace std
