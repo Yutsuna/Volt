@@ -80,7 +80,7 @@ namespace Core
         // blocks that are never released before the interner dies, so every
         // string_view handed out stays valid — without one heap node per
         // string as the previous std::deque<std::string> storage had.
-        std::pmr::monotonic_buffer_resource Buffer{ 64 * 1024 };
+        std::pmr::monotonic_buffer_resource Buffer{ 64UL * 1024UL };
         std::vector<std::string_view> Views;
         std::unordered_map<std::string_view, Symbol> Lookup;
     };

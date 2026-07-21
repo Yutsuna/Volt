@@ -22,6 +22,7 @@ struct Int8
   end
 end
 
+
 @[Primitive( "i16", 16 ), Literal( IntLiteral )]
 struct Int16
   include Comparable
@@ -45,6 +46,7 @@ struct Int16
     self >= 0 ? self : -self
   end
 end
+
 
 @[Primitive( "i32", 32 ), Literal( IntLiteral )]
 struct Int32
@@ -108,6 +110,7 @@ struct Int32
     end
   end
 end
+
 
 @[Primitive( "i64", 64 ), Literal( IntLiteral )]
 struct Int64
