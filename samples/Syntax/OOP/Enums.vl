@@ -1,0 +1,86 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+enum Color
+  Red
+  Green
+  Blue
+end
+
+#------------------------------------------------------------------------------
+
+enum UserRole : UInt8
+  Guest
+  Member
+  Moderator
+  Admin
+end
+
+#------------------------------------------------------------------------------
+
+enum HttpStatus : Int32
+  Ok          = 200
+  Created     = 201
+  BadRequest  = 400
+  NotFound    = 404
+  InternalErr = 500
+end
+
+#------------------------------------------------------------------------------
+
+enum TaskStatus
+  Todo
+  InProgress
+  Done
+
+  def next_step -> self
+    case self
+    when .Todo       then TaskStatus::InProgress
+    when .InProgress then TaskStatus::Done
+    when .Done       then TaskStatus::Done
+    end
+  end
+end
+
+#------------------------------------------------------------------------------
+
+enum Optional<T>
+  None
+  Some( value : T )
+
+  def value_or( default_val : T ) -> T
+    case self
+    when .Some(val) then val
+    when .None      then default_val
+    end
+  end
+end
+
+#------------------------------------------------------------------------------
+
+color_red = Color::Red
+color_blue = Color::Blue
+assert!( color_red.to_value == 0 )
+assert!( color_blue.to_value == 2 )
+
+role = UserRole::Moderator
+assert!( role.to_value == 2 )
+
+status_ok = HttpStatus::Ok
+status_not_found = HttpStatus::NotFound
+assert!( status_ok.to_value == 200 )
+assert!( status_not_found.to_value == 404 )
+
+task = TaskStatus::Todo
+assert!( task.next_step == TaskStatus::InProgress )
+
+maybe_name : Optional<String> = Optional::Some( "Yutsuna" )
+maybe_age : Optional<Int32> = Optional::None
+
+assert!( maybe_name.value_or( "Inconnu" ) == "Yutsuna" )
+assert!( maybe_age.value_or( 18 ) == 18 )
