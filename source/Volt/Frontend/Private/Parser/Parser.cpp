@@ -3,7 +3,8 @@
 #include <string>
 #include <utility>
 
-Volt::Frontend::Parser::Parser ( std::vector<Token> &InTokens,
+// NOLINTNEXTLINE
+Volt::Frontend::Parser::Parser ( std::vector<Token> InTokens,
                                  AstContext &InContext,
                                  Core::DiagEngine::Bag &InDiagnostics,
                                  std::string_view InSource )
