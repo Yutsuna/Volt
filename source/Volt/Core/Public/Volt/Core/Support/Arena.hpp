@@ -83,21 +83,25 @@ namespace Core
             Storage.reserve( Capacity );
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] auto begin ()
         {
             return Storage.begin();
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] auto end ()
         {
             return Storage.end();
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] auto begin () const
         {
             return Storage.begin();
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] auto end () const
         {
             return Storage.end();

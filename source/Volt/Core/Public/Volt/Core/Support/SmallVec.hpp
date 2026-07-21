@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
 #include <initializer_list>
 #include <memory>
@@ -70,10 +71,6 @@ namespace Core
             if ( this != &Other )
             {
                 Destroy();
-                Data     = InlineData();
-                Count    = 0;
-                Capacity = N;
-                bHeap    = false;
                 MoveFrom( std::move( Other ) );
             }
             return *this;
@@ -131,21 +128,25 @@ namespace Core
             return Count == 0;
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] T *begin ()
         {
             return Data;
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] T *end ()
         {
             return Data + Count;
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] const T *begin () const
         {
             return Data;
         }
 
+        // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] const T *end () const
         {
             return Data + Count;
@@ -177,10 +178,7 @@ namespace Core
 
         void Grow ( SizeType NewCapacity )
         {
-            if ( NewCapacity < N )
-            {
-                NewCapacity = N;
-            }
+            NewCapacity = std::max( NewCapacity, N );
 
             T *NewData = static_cast<T *>( ::operator new[]( NewCapacity * sizeof( T ), std::align_val_t{ alignof( T ) } ) );
 
