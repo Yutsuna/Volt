@@ -15,4 +15,9 @@ struct Bool
   def ! -> Bool
     self ? false : true
   end
+
+  def to_string -> String
+    self ? "true" : "false"
+  end
+
 end

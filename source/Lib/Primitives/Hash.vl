@@ -7,6 +7,7 @@ struct HashEntry<K, V>
   end
 end
 
+
 @[Literal( HashLiteral )]
 struct Hash<K, V>
   getter entries : Array<HashEntry<K, V>>
