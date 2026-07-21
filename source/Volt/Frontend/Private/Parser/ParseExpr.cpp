@@ -272,7 +272,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
             Expect( TokenKind::RBracket, "to close index" );
             Lhs = MakeExpr( Node, RangeSince( Begin ) );
         }
-        else if ( ( ( Check( TokenKind::KwDo ) and notbNoDoBlock ) or Check( TokenKind::LBrace ) ) and
+        else if ( ( ( Check( TokenKind::KwDo ) and not bNoDoBlock ) or Check( TokenKind::LBrace ) ) and
                   IsBlockAttachable( KindOf( Context.Expr( Lhs ) ) ) )
         {
             // Trailing `do |x| ... end` / `{ |x| ... }` block — same
