@@ -210,11 +210,19 @@ namespace Frontend
         [[nodiscard]] DeclId ParseEnumCase ();
         void ParseEnumBody ( DeclList &Out );
         [[nodiscard]] DeclId ParseMixin ();
-        [[nodiscard]] DeclId ParseMethod ( bool bAbstract );
+        [[nodiscard]] DeclId ParseMethod ( bool bAbstract, bool bExternal );
         [[nodiscard]] DeclId ParseInclude ();
         [[nodiscard]] DeclId ParseComponent ();
         [[nodiscard]] DeclId ParseCircuit ();
         [[nodiscard]] DeclId ParseAnnotation ();
+
+        // `@[Primitive( "i32", 32 ), Literal( IntLiteral )]` is a *group*: one
+        // `Annotation` decl per entry, so consumers keep matching a single
+        // shape. ParseAnnotation returns the first and parks the rest here;
+        // every declaration-collecting loop drains them right after.
+        DeclList AnnotationOverflow;
+        void DrainAnnotations ( DeclList &Out );
+        void DrainAnnotations ( std::vector<DeclId> &Out );
         [[nodiscard]] DeclId ParseMacro ();
         [[nodiscard]] DeclId ParseMacroInvoke ();
         [[nodiscard]] DeclId ParseFieldOrMember ();
