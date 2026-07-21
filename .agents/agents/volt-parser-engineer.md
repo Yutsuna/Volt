@@ -26,4 +26,4 @@ must parse. Sweep both after a change:
 When a construct is genuinely old-Volt (not in the new grammar), fix the stdlib
 file instead — but never break the mixin syntax (`include X`, `struct … include …`).
 
-Finish with `clang-format -i`, clean `-Werror` build, and `graphify update source/Volt`.
+Finish with `volt-build format`, clean `-Werror` build via `volt-build build`, and `graphify update source/Volt`.
