@@ -1,4 +1,4 @@
-@[Primitive( "f32", 32 ), Literal( FloatLiteral )]
+@[Primitive( "f32", 32 )]
 struct Float32
   include Comparable
 
