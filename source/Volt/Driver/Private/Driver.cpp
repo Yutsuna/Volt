@@ -184,6 +184,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
     for ( const CompileUnit &Unit : Units )
     {
         Result.JsxLowered += Unit.Stats.JsxLowered;
+        Result.PipelinesLowered += Unit.Stats.PipelinesLowered;
     }
     return Result;
 }
