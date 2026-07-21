@@ -35,5 +35,5 @@ description: Recipe to add a Volt semantic pass — one PassList.inl line plus a
    name); no shared mutable state — the pass must be safe to run on many files at
    once.
 
-5. **Finish:** `clang-format -i`, clean build; for concurrency changes, a TSAN
+5. **Finish:** `volt-build format`, clean `volt-build build`; for concurrency changes, a TSAN
    Debug build over a multi-file circuit. Then `graphify update source/Volt`.
