@@ -1,0 +1,66 @@
+@[External( "libc" )]
+def memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
+
+@[External( "libc" )]
+def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
+
+@[Literal( StringLiteral )]
+struct String
+  include Comparable
+  include Hashable
+
+  getter data : Pointer<UInt8>
+  getter size : UInt64
+
+  def initialize( @data : Pointer<UInt8>, @size : UInt64 )
+  end
+
+  def empty? -> Bool
+    @size == 0
+  end
+
+  def []( index : UInt64 ) -> UInt8
+    *( @data + index )
+  end
+
+  def []=( index : UInt64, value : UInt8 ) -> Void
+    *( @data + index ) = value
+  end
+
+  def <=>( other : String ) -> Int32
+    min_size = @size < other.size ? @size : other.size
+    cmp = memcmp( @data, other.data, min_size )
+    return cmp unless cmp == 0
+
+    if @size < other.size
+      -1
+    elsif @size > other.size
+      1
+    else
+      0
+    end
+  end
+
+  def +( other : String ) -> String
+    total = @size + other.size
+    buf = Pointer<UInt8>.malloc( total + 1_u64 )
+    memcpy( buf, @data, @size )
+    memcpy( buf + @size, other.data, other.size )
+    *( buf + total ) = 0_u8
+    String.new( buf, total )
+  end
+
+  def hash -> UInt64
+    h = 5381
+    i = 0_u64
+    while i < @size
+      h = ( ( h << 5 ) + h + *( @data + i ) ) & 72057594037927935
+      i += 1
+    end
+    h
+  end
+
+  def to_string -> String
+    self
+  end
+end

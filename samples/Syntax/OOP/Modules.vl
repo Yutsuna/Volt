@@ -1,0 +1,18 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+module MathUtils
+  def self.square( n : Int32 ) -> Int32
+    n * n
+  end
+
+  def self.cube( n : Int32 ) -> Int32
+    n * n * n
+  end
+end
+
+assert!( MathUtils.square( 4 ) == 16 )
+assert!( MathUtils.cube( 3 ) == 27 )

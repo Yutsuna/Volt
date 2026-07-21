@@ -1,6 +1,0 @@
-@[External("libc")]
-def exit(status : Int32) -> Nil
-
-
-EXIT_ERROR=84
-exit(EXIT_ERROR)

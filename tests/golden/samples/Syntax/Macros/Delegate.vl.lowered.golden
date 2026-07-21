@@ -1,0 +1,64 @@
+Program 'samples/Syntax/Macros/Delegate.vl'
+├─ MacroDef 'delegate' '{% for method in methods %}
+    def {{ method }}
+      {{ to_field }}.{{ method }}
+    end
+  {% end %}
+
+' @7:1
+│  └─ params
+│     ├─ Param 'methods'
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Array' @7:31
+│     │        └─ generics
+│     │           └─ TypeRef 'Symbol' @7:37
+│     └─ Param 'to_field'
+│        └─ decl_type
+│           └─ TypeRef 'Symbol' @7:57
+├─ Class 'User' @19:1
+│  └─ body
+│     ├─ Field 'name' @20:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @20:11
+│     ├─ Field 'email' @21:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @21:11
+│     ├─ Field 'age' @22:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @22:11
+│     └─ Method 'initialize' @24:3
+│        └─ params
+│           ├─ Param 'name' instance_var
+│           │  └─ decl_type
+│           │     └─ TypeRef 'String' @24:27
+│           ├─ Param 'email' instance_var
+│           │  └─ decl_type
+│           │     └─ TypeRef 'String' @24:44
+│           └─ Param 'age' instance_var
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @24:59
+└─ Class 'Session' @30:1
+   └─ body
+      ├─ Field 'user' getter @31:3
+      │  └─ decl_type
+      │     └─ TypeRef 'User' @31:17
+      ├─ Method 'initialize' @33:3
+      │  └─ params
+      │     └─ Param 'user' instance_var
+      │        └─ decl_type
+      │           └─ TypeRef 'User' @33:27
+      ├─ Method 'name' @2:3
+      │  └─ body
+      │     └─ ExprStmt @2:18
+      │        └─ expr
+      │           └─ Member 'name' @3:4
+      │              └─ object
+      │                 └─ Identifier 'user' @2:18
+      └─ Method 'email' @3:25
+         └─ body
+            └─ ExprStmt @3:41
+               └─ expr
+                  └─ Member 'email' @3:45
+                     └─ object
+                        └─ Identifier 'user' @3:41
+--- exit 0 ---

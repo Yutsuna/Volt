@@ -1,0 +1,16 @@
+@[External("libc")]
+abstract def write( fd : Int64, buf : UInt8*, count : UInt64 ) -> Int64
+
+
+def print( str : String ) -> Int64
+  write( 1, str.data, str.size )
+end
+
+# TODO: in the futuren puts will take T
+# if typeof T is a class | struct | Object
+# or if T has the method `to_string` defined
+# then puts will ALWAYS try to call `to_string` on T and print the result
+# else, simply try to "#{T}" to force it as a string.
+def puts( str : String ) -> Int64
+  print( str + "\n" )
+end

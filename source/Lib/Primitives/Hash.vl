@@ -1,0 +1,52 @@
+struct HashEntry<K, V>
+  getter key : K
+  getter value : V
+  getter used : Bool
+
+  def initialize( @key : K, @value : V, @used : Bool = true )
+  end
+end
+
+@[Literal( HashLiteral )]
+struct Hash<K, V>
+  getter entries : Array<HashEntry<K, V>>
+  getter size : UInt64
+
+  def initialize
+    @size = 0
+    @entries = Array<HashEntry<K, V>>.new( 16 )
+  end
+
+  def empty? -> Bool
+    @size == 0
+  end
+
+  def []=( key : K, value : V ) -> Void
+    idx = key.hash % @entries.capacity
+    @entries.push( HashEntry<K, V>.new( key, value, true ) )
+    @size += 1
+  end
+
+  def []( key : K ) -> V
+    i = 0_u64
+    while i < @entries.size
+      entry = @entries[ i ]
+      if entry.used and entry.key == key
+        return entry.value
+      end
+      i += 1
+    end
+  end
+
+  def contains?( key : K ) -> Bool
+    i = 0_u64
+    while i < @entries.size
+      entry = @entries[ i ]
+      if entry.used and entry.key == key
+        return true
+      end
+      i += 1
+    end
+    false
+  end
+end

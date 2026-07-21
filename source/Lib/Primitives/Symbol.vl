@@ -1,0 +1,24 @@
+@[Literal( SymbolLiteral )]
+struct Symbol
+  include Comparable
+  include Hashable
+
+  getter id : UInt64
+
+  def initialize( @id : UInt64 )
+  end
+
+  def <=>( other : Symbol ) -> Int32
+    if @id < other.id
+      -1
+    elsif @id > other.id
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    @id
+  end
+end

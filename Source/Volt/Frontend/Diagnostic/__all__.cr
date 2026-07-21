@@ -1,7 +1,0 @@
-require "./Severity"
-require "./Label"
-require "./Diagnostic"
-require "./DiagnosticBag"
-require "./CompilationError"
-require "./Suggest"
-require "./Catalog"
