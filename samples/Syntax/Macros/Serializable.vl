@@ -6,20 +6,19 @@
 macro def serializable( fields : Array<Symbol> )
 
   def to_string -> String
-    "User(#{
+    "User(" +
       {% for field, index in fields %}
-        "{{ field }}: #{@{{ field }}.to_string}"
+        "{{ field }}: #{@{{ field }}.to_string}" + {% if index < fields.size - 1 %} ", " + {% end %}
       {% end %}
-    })"
+    ")"
   end
 
   def to_json -> String
     "{" +
       {% for field, index in fields %}
-        "\"{{ field }}\": " + @{{ field }}.to_json
-        {% if index < fields.size - 1 %} + ", " + {% end %}
+        "\"{{ field }}\": " + @{{ field }}.to_json + {% if index < fields.size - 1 %} ", " + {% end %}
       {% end %}
-    + "}"
+    "}"
   end
 
   def self.from_string( str : String ) -> self
