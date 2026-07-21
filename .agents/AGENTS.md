@@ -53,3 +53,8 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   `check`, `version`, `help`, `circuit`, then `build`, `format`) and their
   options are specified once in [`rules/cli-surface.md`](rules/cli-surface.md);
   `Main.cpp` stays a thin command table over `Driver`.
+- **Symbols crossing a `.so` boundary must be exported.** Modules build with
+  `-fvisibility=hidden`; anything a *different* module calls needs the
+  generated `<MODULE>_EXPORT` macro, or `VOLT_BUILD_SHARED=ON` link-fails late
+  with a wall of mold `undefined symbol` errors. See
+  [`rules/shared-lib-exports.md`](rules/shared-lib-exports.md).
