@@ -8,6 +8,7 @@
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Driver/CircuitGraph.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Sema/Layout/TypeBinder.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Link/InterfaceRegistry.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -56,7 +57,6 @@ namespace Driver
         bool bComponent = false;
         Core::StringInterner Interner;
         Frontend::AstContext Ast;
-        Sema::TypeStore Types;
         Sema::PassStats Stats;
     };
 
@@ -110,6 +110,13 @@ namespace Driver
         [[nodiscard]] const Sema::InterfaceRegistry &Interfaces () const
         {
             return Registry;
+        }
+
+        // The layouts bound from the stdlib's annotations (empty before
+        // compilation). Read-only for callers.
+        [[nodiscard]] const Sema::TypeStore &Layouts () const
+        {
+            return Types;
         }
 
         [[nodiscard]] bool HasErrors () const
@@ -185,6 +192,10 @@ namespace Driver
         Core::DiagEngine Diagnostics;
         CircuitGraph Circuit;
         Sema::InterfaceRegistry Registry;
+        // One store for the whole build, not one per unit: `Int32` is declared
+        // in source/Lib/ and used everywhere, and a unit's Symbols mean
+        // nothing outside it. Filled serially, then read-only.
+        Sema::TypeStore Types;
         std::deque<CompileUnit> Units;
         Core::FileId DriverFile;
     };

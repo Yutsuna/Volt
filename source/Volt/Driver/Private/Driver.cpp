@@ -89,14 +89,14 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
 {
     // Passes (JsxLowering included) run per file over local state; the
     // published Registry is the only shared input, and it is read-only.
-    Sema::PassContext Context{ Unit.Ast, Unit.Types, Bag, Unit.Stats, &Registry };
+    Sema::PassContext Context{ Unit.Ast, Types, Bag, Unit.Stats, &Registry };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{ Unit.Ast, Unit.Types, Bag, Unit.Stats };
+    Sema::PassContext Context{ Unit.Ast, Types, Bag, Unit.Stats };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
@@ -156,10 +156,17 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
         // serial: publish each unit's top-level interface. This is
         // the cross-unit seam — after this point the Registry is frozen and
         // sema may read any unit's exported declarations without locks.
+        Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
         for ( std::size_t Index = 0; Index < Units.size(); ++Index )
         {
-            static_cast<void>( Sema::PublishUnitInterface( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Registry ) );
+            const auto Ordinal = static_cast<std::uint32_t>( Index );
+            static_cast<void>( Sema::PublishUnitInterface( Units[Index].Ast, Ordinal, Registry ) );
+            // Same seam, same reason: type binding is cross-unit, so it
+            // cannot be a per-file parallel pass. Once this loop ends the
+            // store is frozen and sema reads it without a lock.
+            static_cast<void>( Sema::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
         }
+        Diagnostics.Merge( std::move( SeamBag ) );
 
         // parallel: run the sema passes over every parsed unit.
         ForEachUnitParallel( &Driver::RunSemaOne );
