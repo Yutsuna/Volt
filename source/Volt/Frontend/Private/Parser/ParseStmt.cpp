@@ -55,6 +55,10 @@ namespace Frontend
             return ParseFor();
         case TokenKind::KwReturn:
             return ApplyModifiers( ParseReturn() );
+        case TokenKind::KwBreak:
+            return ApplyModifiers( ParseBreak() );
+        case TokenKind::KwNext:
+            return ApplyModifiers( ParseNext() );
         default:
             return ApplyModifiers( ParseExprOrLocalStatement() );
         }
@@ -238,6 +242,34 @@ namespace Frontend
         // A bare `return` is followed by a terminator, `end`, or a trailing
         // statement modifier (`return if c` / `return unless c`); only parse
         // a value when none of those come next.
+        if ( !Check( TokenKind::Newline ) and !Check( TokenKind::Semicolon ) and !Check( TokenKind::Eof ) &&
+             !Check( TokenKind::KwEnd ) and !Check( TokenKind::KwIf ) and !Check( TokenKind::KwUnless ) )
+        {
+            Node.Value = ParseExpr( 0 );
+        }
+        return MakeStmt( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    StmtId Parser::ParseBreak ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwBreak, "to begin a break statement" );
+
+        Break Node;
+        if ( !Check( TokenKind::Newline ) and !Check( TokenKind::Semicolon ) and !Check( TokenKind::Eof ) &&
+             !Check( TokenKind::KwEnd ) and !Check( TokenKind::KwIf ) and !Check( TokenKind::KwUnless ) )
+        {
+            Node.Value = ParseExpr( 0 );
+        }
+        return MakeStmt( std::move( Node ), RangeSince( Begin ) );
+    }
+
+    StmtId Parser::ParseNext ()
+    {
+        const std::uint32_t Begin = Here();
+        Expect( TokenKind::KwNext, "to begin a next statement" );
+
+        Next Node;
         if ( !Check( TokenKind::Newline ) and !Check( TokenKind::Semicolon ) and !Check( TokenKind::Eof ) &&
              !Check( TokenKind::KwEnd ) and !Check( TokenKind::KwIf ) and !Check( TokenKind::KwUnless ) )
         {
