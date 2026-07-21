@@ -1,6 +1,6 @@
 ---
 name: format-and-check
-description: The finishing checklist for any Volt change — volt-build format, a clean -Werror volt-build build, volt-build tidy, volt-build test, and a graphify refresh. Use before calling a compiler change done.
+description: The finishing checklist for any Volt change — volt-build format, a clean -Werror volt-build build, volt-build test, and a graphify refresh. Use before calling a compiler change done. Never run volt-build tidy; clang cannot parse this codebase.
 ---
 
 # Format & check
@@ -18,15 +18,8 @@ re-runs only touch what changed.
    ```sh
    volt-build                     # zero warnings, zero errors → build/bin/Volt_d
    ```
-3. **Lint**: resolve or justify every diagnostic on
-   touched files:
-   ```sh
-   volt-build tidy
-   ```
-   The target already handles the toolchain gaps: the compile database is
-   republished without GCC's `-freflection`, and TUs whose include closure
-   reaches `Meta/Reflect.hpp` are skipped automatically — no manual `sed`, no justification needed for
-   those.
+3. **Do _not_ lint.** `volt-build tidy` is **not** part of this checklist — see
+   "Why there is no lint step" below. Skip it, and ignore clangd too.
 4. **Test suite** — golden sweep + stdlib corpus + zero-hardcode guard:
    ```sh
    volt-build test                # implies VOLT_ENABLE_TESTING=ON, ctest in parallel
@@ -42,3 +35,27 @@ re-runs only touch what changed.
    ```sh
    graphify update .              # AST-only, no API cost
    ```
+
+## Why there is no lint step
+
+`clang-tidy` and `clangd` are **clang** front-ends. Volt is a **GCC** codebase:
+the AST, the printers and every generic walk are built on C++26 static
+reflection (P2996) — `#include <meta>`, `^^T`,
+`std::meta::nonstatic_data_members_of`, `template for`. GCC implements that
+today; **clang does not**, so it cannot parse `Meta/Reflect.hpp`, and therefore
+cannot parse any TU whose include closure reaches it — which is most of
+`Frontend/`, `Sema/` and `Driver/`.
+
+What you see instead is a flood of **bogus** diagnostics from a failed parse:
+
+```
+No type named 'ExprList' in namespace 'Volt::Frontend'
+no type named '__index_type' in 'std::__detail::__variant::_Variant_base<…>'
+no member named '_M_u' in 'std::variant<…>'
+```
+
+None of these are real. Do not "fix" them, do not work around them, and do not
+treat them as regressions of your change.
+
+**`volt-build` (GCC, `-Werror`) is the only ground truth.** Revisit this step
+once clang ships P2996.
