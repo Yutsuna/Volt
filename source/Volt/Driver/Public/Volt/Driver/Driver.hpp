@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Driver_export.hpp"
 #include "Volt/Core/Container/NonCopyable.hpp"
 #include "Volt/Core/Container/NonMovable.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
@@ -36,7 +37,7 @@ namespace Driver
     //
     // Non-movable on purpose: the AstContext caches `&Interner`, so a unit
     // must stay put. std::deque gives us stable addresses without moves.
-    class CompileUnit : public FNonMovable, FNonCopyable
+    class DRIVER_EXPORT CompileUnit : public FNonMovable, FNonCopyable
     {
 
     public:
@@ -71,7 +72,7 @@ namespace Driver
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and
     // gathers every diagnostic into one thread-safe engine.
-    class Driver
+    class DRIVER_EXPORT Driver
     {
 
     public:
@@ -173,6 +174,9 @@ namespace Driver
         // Populate Circuit from the parsed units' top-level `@[Link]`
         // annotations and report any dependency cycle.
         void BuildLinkGraph ( const std::string &RootModule );
+
+        // Discover and append stdlib sources from source/Lib/ if present.
+        void LoadStdLib ( std::vector<SourceRef> &Refs );
 
         // Report a file-less, driver-level diagnostic against <driver>.
         void ReportDriver ( Core::ESeverity Severity, std::string Message );
