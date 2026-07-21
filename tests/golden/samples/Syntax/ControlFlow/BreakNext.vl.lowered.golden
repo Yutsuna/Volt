@@ -1,0 +1,101 @@
+Program 'samples/Syntax/ControlFlow/BreakNext.vl'
+├─ Method 'test_loop_control' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:26
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'i' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @2:7
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @3:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @3:9
+│     ├─ While @4:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @4:11
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'i' @4:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '10' @4:13
+│     │  └─ body
+│     │     ├─ ExprStmt @5:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '+=' @5:7
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'i' @5:5
+│     │     │        └─ value
+│     │     │           └─ IntLiteral '1' @5:10
+│     │     ├─ If @6:10
+│     │     │  ├─ cond
+│     │     │  │  └─ Binary '==' @6:19
+│     │     │  │     ├─ lhs
+│     │     │  │     │  └─ Binary '%' @6:15
+│     │     │  │     │     ├─ lhs
+│     │     │  │     │     │  └─ Identifier 'i' @6:13
+│     │     │  │     │     └─ rhs
+│     │     │  │     │        └─ IntLiteral '2' @6:17
+│     │     │  │     └─ rhs
+│     │     │  │        └─ IntLiteral '0' @6:22
+│     │     │  └─ then
+│     │     │     └─ Next @6:5
+│     │     ├─ If @7:11
+│     │     │  ├─ cond
+│     │     │  │  └─ Binary '>' @7:16
+│     │     │  │     ├─ lhs
+│     │     │  │     │  └─ Identifier 'i' @7:14
+│     │     │  │     └─ rhs
+│     │     │  │        └─ IntLiteral '7' @7:18
+│     │     │  └─ then
+│     │     │     └─ Break @7:5
+│     │     └─ ExprStmt @8:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @8:9
+│     │              ├─ target
+│     │              │  └─ Identifier 'sum' @8:5
+│     │              └─ value
+│     │                 └─ Identifier 'i' @8:12
+│     └─ ExprStmt @10:3
+│        └─ expr
+│           └─ Identifier 'sum' @10:3
+└─ Method 'test_break_with_value' @13:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @13:30
+   └─ body
+      ├─ ExprStmt @14:3
+      │  └─ expr
+      │     └─ Call @14:3
+      │        ├─ callee
+      │        │  └─ Member 'each' @14:3
+      │        │     └─ object
+      │        │        └─ ArrayLit @14:12
+      │        │           └─ elements
+      │        │              ├─ IntLiteral '10' @14:14
+      │        │              ├─ IntLiteral '20' @14:18
+      │        │              └─ IntLiteral '30' @14:22
+      │        └─ block_arg
+      │           └─ Block @14:3
+      │              ├─ params
+      │              │  └─ Param 'x' @14:7
+      │              └─ body
+      │                 └─ If @15:13
+      │                    ├─ cond
+      │                    │  └─ Binary '==' @15:18
+      │                    │     ├─ lhs
+      │                    │     │  └─ Identifier 'x' @15:16
+      │                    │     └─ rhs
+      │                    │        └─ IntLiteral '20' @15:21
+      │                    └─ then
+      │                       └─ Break @15:5
+      │                          └─ value
+      │                             └─ Identifier 'x' @15:11
+      └─ ExprStmt @17:3
+         └─ expr
+            └─ IntLiteral '0' @17:3
+--- exit 0 ---
