@@ -72,6 +72,8 @@ VOLT_DECL( Circuit )
 VOLT_DECL( Annotation )
 VOLT_DECL( MacroDef )
 VOLT_DECL( MacroInvoke )
+VOLT_DECL( Enum )
+VOLT_DECL( EnumCase )
 
 // --- Types -----------------------------------------------------------------
 VOLT_TYPE( TypeRef )

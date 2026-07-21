@@ -134,6 +134,29 @@ namespace Frontend
         SymbolList ArgNames;
     };
 
+    // `enum Name[Generics] [: Underlying] ... end`. Underlying is invalid when
+    // omitted — resolved later from stdlib annotations, never guessed in C++.
+    struct Enum
+    {
+
+        Core::SourceRange Loc;
+        Symbol Name;
+        SymbolList Generics;
+        TypeId Underlying;
+        DeclList Body;
+    };
+
+    // `Name[( params )] [= expr]` — a single enum member, optionally carrying a
+    // payload (`Some( value : T )`) and/or an explicit value (`Ok = 200`).
+    struct EnumCase
+    {
+
+        Core::SourceRange Loc;
+        Symbol Name;
+        ParamList Payload;
+        ExprId Value;
+    };
+
     enum class DeclKind
     {
 
