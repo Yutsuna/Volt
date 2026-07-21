@@ -438,9 +438,9 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseCaseExpr ()
     Expect( TokenKind::KwEnd, "to close a case expression" );
 
     CaseExpr Node;
-    Node.Target      = Target;
-    Node.Clauses     = std::move(Clauses);
-    Node.ElseBody    = std::move(ElseBody);
+    Node.Target   = Target;
+    Node.Clauses  = std::move( Clauses );
+    Node.ElseBody = std::move( ElseBody );
 
     return MakeExpr( Node, RangeSince( Begin ) );
 }
