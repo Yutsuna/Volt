@@ -55,6 +55,16 @@ namespace Core
         /** @brief Gets the number of files */
         [[nodiscard]] std::size_t FileCount () const noexcept;
 
+        /**
+         * @brief Whether File actually indexes a registered file.
+         *
+         * Every other accessor indexes `Files` unchecked, so a default or
+         * foreign FileId is a wild read. A diagnostic may legitimately carry
+         * no location (a pass that knows a fact but not where it came from),
+         * so renderers must ask this before resolving.
+         */
+        [[nodiscard]] bool IsValidFile ( FileId File ) const noexcept;
+
     private:
 
         [[nodiscard]] const FileEntry &EntryOf ( FileId File ) const;
