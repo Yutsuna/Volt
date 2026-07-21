@@ -1,33 +1,10 @@
 #include "Volt/CLI/Commands/HelpCommand.hpp"
+#include "Volt/CLI/CommandColor.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 
-#include <algorithm>
 #include <iostream>
-#include <string>
 #include <string_view>
-
-/**
- * Private helpers
- */
-
-namespace
-{
-
-constexpr std::string_view AnsiReset      = "\x1b[0m";
-constexpr std::string_view AnsiYellowBold = "\x1b[1;33m";
-constexpr std::string_view AnsiGreen      = "\x1b[32m";
-
-[[nodiscard]] std::string Paint ( std::string_view Code, std::string_view Text, bool bColor )
-{
-    if ( !bColor )
-    {
-        return std::string( Text );
-    }
-    return std::string( Code ) + std::string( Text ) + std::string( AnsiReset );
-}
-
-} // namespace
 
 /**
  * Public
