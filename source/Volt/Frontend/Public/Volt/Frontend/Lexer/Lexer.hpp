@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frontend_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/SourceLocation.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
@@ -20,7 +21,7 @@ namespace Frontend
     /// newline-terminated language) and emitted as Newline tokens; runs of
     /// blank lines collapse into one. String interpolation is left intact in
     /// the lexeme and expanded later by the parser.
-    class Lexer
+    class FRONTEND_EXPORT Lexer
     {
 
     public:
