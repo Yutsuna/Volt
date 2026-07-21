@@ -2,12 +2,8 @@
 
 require 'set'
 
-
 module Volt::Build
-
-
   class Options
-
     BUILD_TYPES   = %w[debug release].freeze
     TOOL_ACTIONS  = %w[format tidy test].freeze
     FLAGS_MAP     = {
@@ -19,25 +15,36 @@ module Volt::Build
     SANITIZERS    = %w[VOLT_ENABLE_ASAN VOLT_ENABLE_TSAN VOLT_ENABLE_UBSAN].freeze
 
     def self.parse( args = ARGV )
-      return { help: true } if ( args & %w[help -h --help] ).any?
+      args_copy = args.dup
+      run_args = []
+
+      if ( dash_idx = args_copy.index( '--' ) )
+        run_args = args_copy[ ( dash_idx + 1 )..-1 ] || []
+        args_copy = args_copy[ 0...dash_idx ]
+      end
+
+      return { help: true } if ( args_copy & %w[help -h --help] ).any?
 
       jobs = []
       clean_first = false
+      has_explicit_token = false
       current_job = new_job_spec
-      args_copy = args.dup
 
       until args_copy.empty?
         arg = args_copy.shift.downcase
-
-        if arg == '--'
-          current_job[ :run_args ].concat( args_copy )
-          break
-        end
 
         if arg == 'clean'
           clean_first = true
           next
         end
+
+        unless valid_token?( arg )
+          puts "\x1b[31mError:\x1b[0m Unknown option or command '\x1b[1m#{arg}\x1b[0m'."
+          puts "Run 'volt-build help' for usage instructions."
+          exit 1
+        end
+
+        has_explicit_token = true
 
         if should_split_job?( current_job, arg )
           jobs << current_job
@@ -47,45 +54,56 @@ module Volt::Build
         apply_token!( current_job, arg )
       end
 
+      current_job[ :run_args ].concat( run_args )
+
+      if clean_first && !has_explicit_token && !current_job[ :run ] && current_job[ :actions ] == Set.new( [ :build ] )
+        return { only_clean: true, help: false }
+      end
+
       jobs << current_job unless job_empty?( current_job ) && jobs.any?
       jobs = [ new_job_spec ] if jobs.empty?
+      jobs.each { |j| j[ :run_args ].concat( run_args ) if j[ :run_args ].empty? }
 
       jobs.each { |j| finalize_job!( j ) }
 
       { jobs: jobs, clean_first: clean_first, help: false }
     end
 
+    def self.valid_token?( arg )
+      BUILD_TYPES.include?( arg ) || TOOL_ACTIONS.include?( arg ) || FLAGS_MAP.key?( arg ) || arg == 'run'
+    end
+
     def self.show_usage
       puts <<~USAGE
-        Volt Build Tool
+        \x1b[1;33mVolt Build Tool\x1b[0m
 
-        Usage: volt-build [options] [-- [run_args]]
+        \x1b[1mUsage:\x1b[0m volt-build [options] [-- [run_args]]
 
-        Commands:
-          clean         Clean the build directory and cache before building.
+        \x1b[1mCommands:\x1b[0m
+          clean         Clean the build directory before building.
           format        Format all source files using clang-format (parallel, cached).
           tidy          Run parallel and cached clang-tidy on source files.
           test          Build then run the ctest suites in parallel (implies testing).
           help, -h      Show this help message.
 
-        Build Types:
+        \x1b[1mBuild Types:\x1b[0m
           debug         Build in Debug mode (default, executable: Volt_d).
           release       Build in Release mode (executable: Volt).
 
-        Sanitizers & Features:
+        \x1b[1mSanitizers & Features:\x1b[0m
           asan          Enable AddressSanitizer (VOLT_ENABLE_ASAN=ON).
           ubsan         Enable UndefinedBehaviorSanitizer (VOLT_ENABLE_UBSAN=ON).
           tsan          Enable ThreadSanitizer (VOLT_ENABLE_TSAN=ON).
           testing       Enable Testing (VOLT_ENABLE_TESTING=ON).
 
-        Execution:
+        \x1b[1mExecution:\x1b[0m
           run           Run the built binary after a successful build.
           --            Pass all subsequent arguments directly to the Volt binary.
 
-        Examples:
+        \x1b[1mExamples:\x1b[0m
           volt-build clean
           volt-build format tidy
-          volt-build release run
+          volt-build release run -- --help
           volt-build asan tsan ubsan
           volt-build debug release format
       USAGE
@@ -130,8 +148,6 @@ module Volt::Build
         job[ :actions ] << :run
       when *FLAGS_MAP.keys
         job[ :cmake_flags ][ FLAGS_MAP[ arg ] ] = 'ON'
-      else
-        job[ :run_args ] << arg
       end
     end
 
@@ -154,8 +170,5 @@ module Volt::Build
     def self.active_sanitizers( job )
       active_flags( job ) & SANITIZERS
     end
-
   end
-
-
 end

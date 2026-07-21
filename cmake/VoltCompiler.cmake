@@ -44,7 +44,7 @@ target_compile_options( VoltCompileOptions INTERFACE
   $<$<CONFIG:RelWithDebInfo>:-O2;-g;-DNDEBUG>
  )
 
-target_precompile_headers( VoltCompileOptions INTERFACE
+set( VOLT_PCH_HEADERS
   <vector>
   <string>
   <string_view>
