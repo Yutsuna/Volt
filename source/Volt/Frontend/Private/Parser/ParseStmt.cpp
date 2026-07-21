@@ -64,7 +64,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseExprOrLocalStatement ()
     // `name : Type [= init]` — a typed local declaration.
     if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Colon )
     {
-        const LocalDecl Node;
+        LocalDecl Node;
         Node.Name = InternText( Advance() );
         Advance(); // ':'
         Node.DeclType = ParseType();
@@ -75,7 +75,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseExprOrLocalStatement ()
         return MakeStmt( Node, RangeSince( Begin ) );
     }
 
-    const ExprStmt Node;
+    ExprStmt Node;
     Node.Expr = ParseExpr( 0 );
     return MakeStmt( Node, RangeSince( Begin ) );
 }
@@ -91,7 +91,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ApplyModifiers ( StmtId Inner )
 
     if ( Accept( TokenKind::KwIf ) )
     {
-        const If Node;
+        If Node;
         Node.Cond = ParseExpr( 0 );
         Node.Then.PushBack( Inner );
         return MakeStmt( Node, RangeSince( Begin ) );
@@ -103,7 +103,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ApplyModifiers ( StmtId Inner )
         Unary Negated;
         Negated.Op      = TokenKind::Bang;
         Negated.Operand = Cond;
-        const If Node;
+        If Node;
         Node.Cond = MakeExpr( Negated, RangeSince( Begin ) );
         Node.Then.PushBack( Inner );
         return MakeStmt( Node, RangeSince( Begin ) );
@@ -117,7 +117,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseIf ()
     const std::uint32_t Begin = Here();
     Expect( TokenKind::KwIf, "to begin an if statement" );
 
-    const If Node;
+    If Node;
     Node.Cond = ParseExpr( 0 );
     SkipTerminators();
     ParseStatementBlock( Node.Then );
@@ -146,7 +146,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseElsif ()
     const std::uint32_t Begin = Here();
     Expect( TokenKind::KwElsif, "to begin an elsif clause" );
 
-    const If Node;
+    If Node;
     Node.Cond = ParseExpr( 0 );
     SkipTerminators();
     ParseStatementBlock( Node.Then );
@@ -174,7 +174,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseWhile ()
     const std::uint32_t Begin = Here();
     Expect( TokenKind::KwWhile, "to begin a while loop" );
 
-    const While Node;
+    While Node;
     Node.Cond = ParseExpr( 0 );
     SkipTerminators();
     ParseStatementBlock( Node.Body );
