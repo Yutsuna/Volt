@@ -1,0 +1,37 @@
+@[Primitive( "f32", 32 ), Literal( FloatLiteral )]
+struct Float32
+  include Comparable
+
+  def <=>( other : Float32 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def abs -> Float32
+    self >= 0.0 ? self : -self
+  end
+end
+
+@[Primitive( "f64", 64 ), Literal( FloatLiteral )]
+struct Float64
+  include Comparable
+
+  def <=>( other : Float64 ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def abs -> Float64
+    self >= 0.0 ? self : -self
+  end
+end

@@ -1,0 +1,6 @@
+# clang-tools (clangd / clang-tidy via clangd) cannot parse GCC 16's
+# -freflection or <meta>;
+# TUs including Volt/Core/Meta/Reflect.hpp stay opaque
+# to clang tooling until LLVM ships P2996.
+CompileFlags:
+  Remove: [-freflection]

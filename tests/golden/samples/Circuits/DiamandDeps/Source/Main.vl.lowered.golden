@@ -1,0 +1,69 @@
+Program 'samples/Circuits/DiamandDeps/Source/Main.vl'
+├─ Annotation 'Link' @1:1
+│  └─ args
+│     └─ StringLiteral 'Auth' @1:8
+├─ Annotation 'Link' @2:1
+│  └─ args
+│     └─ StringLiteral 'Database' @2:8
+├─ Annotation 'Link' @3:1
+│  └─ args
+│     └─ StringLiteral 'Core' @3:8
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Assign '=' @5:8
+│        ├─ target
+│        │  └─ Identifier 'config' @5:1
+│        └─ value
+│           └─ Call @5:29
+│              ├─ callee
+│              │  └─ Member 'new' @5:25
+│              │     └─ object
+│              │        └─ Member 'AppConfig' @5:14
+│              │           └─ object
+│              │              └─ Identifier 'Core' @5:10
+│              └─ args
+│                 ├─ IntLiteral '5432' @5:31
+│                 └─ Member 'data' @5:55
+│                    └─ object
+│                       └─ StringLiteral 'super-secret-key' @5:37
+├─ ExprStmt @6:1
+│  └─ expr
+│     └─ Assign '=' @6:4
+│        ├─ target
+│        │  └─ Identifier 'db' @6:1
+│        └─ value
+│           └─ Call @6:28
+│              ├─ callee
+│              │  └─ Member 'new' @6:24
+│              │     └─ object
+│              │        └─ Member 'DbClient' @6:14
+│              │           └─ object
+│              │              └─ Identifier 'Database' @6:6
+│              └─ args
+│                 └─ Identifier 'config' @6:30
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Assign '=' @7:6
+│        ├─ target
+│        │  └─ Identifier 'auth' @7:1
+│        └─ value
+│           └─ Call @7:29
+│              ├─ callee
+│              │  └─ Member 'new' @7:25
+│              │     └─ object
+│              │        └─ Member 'AuthService' @7:12
+│              │           └─ object
+│              │              └─ Identifier 'Auth' @7:8
+│              └─ args
+│                 └─ Identifier 'config' @7:31
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Member 'connect' @9:3
+│        └─ object
+│           └─ Identifier 'db' @9:1
+└─ ExprStmt @10:1
+   └─ expr
+      └─ Member 'verify_token' @10:5
+         └─ object
+            └─ Identifier 'auth' @10:1
+--- exit 0 ---

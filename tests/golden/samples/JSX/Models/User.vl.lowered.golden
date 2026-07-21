@@ -1,0 +1,41 @@
+Program 'samples/JSX/Models/User.vl'
+└─ Class 'User' @1:1
+   └─ body
+      ├─ Field 'name' @3:3
+      │  └─ decl_type
+      │     └─ TypeRef 'String' @3:13
+      ├─ Field 'email' @4:3
+      │  └─ decl_type
+      │     └─ TypeRef 'String' @4:13
+      ├─ Field 'admin' @5:3
+      │  └─ decl_type
+      │     └─ TypeRef 'Bool' @5:13
+      ├─ Method 'initialize' @7:3
+      │  └─ params
+      │     ├─ Param 'name' instance_var
+      │     │  └─ decl_type
+      │     │     └─ TypeRef 'String' @7:27
+      │     ├─ Param 'email' instance_var
+      │     │  └─ decl_type
+      │     │     └─ TypeRef 'String' @7:44
+      │     └─ Param 'admin' instance_var
+      │        ├─ decl_type
+      │        │  └─ TypeRef 'Bool' @7:61
+      │        └─ default
+      │           └─ BoolLiteral false @7:68
+      ├─ Method 'admin?' @10:3
+      │  └─ body
+      │     └─ ExprStmt @11:5
+      │        └─ expr
+      │           └─ InstanceVar '@admin' @11:5
+      └─ Method 'inspect' @14:3
+         └─ body
+            └─ ExprStmt @15:5
+               └─ expr
+                  └─ Interp @15:5
+                     └─ parts
+                        ├─ InstanceVar '@name' @1:1
+                        ├─ StringLiteral ' <' @15:5
+                        ├─ InstanceVar '@email' @1:1
+                        └─ StringLiteral '>' @15:5
+--- exit 0 ---

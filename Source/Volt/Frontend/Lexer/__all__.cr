@@ -1,2 +1,0 @@
-require "./Token"
-require "./Lexer"

@@ -1,0 +1,63 @@
+@[Literal( ArrayLiteral )]
+struct Array<T>
+  include Enumerable
+
+  getter buffer : Pointer<T>
+  getter size : UInt64
+  getter capacity : UInt64
+
+  def initialize( initial_capacity : UInt64 = 8 )
+    @size = 0
+    @capacity = initial_capacity
+    @buffer = Pointer<T>.malloc( @capacity )
+  end
+
+  def empty? -> Bool
+    @size == 0
+  end
+
+  def []( index : UInt64 ) -> T
+    *( @buffer + index )
+  end
+
+  def []=( index : UInt64, value : T ) -> Void
+    *( @buffer + index ) = value
+  end
+
+  def push( value : T ) -> Void
+    if @size >= @capacity
+      new_cap = @capacity == 0 ? 8 : @capacity * 2
+      new_buf = Pointer<T>.malloc( new_cap )
+      i = 0_u64
+      while i < @size
+        *( new_buf + i ) = *( @buffer + i )
+        i += 1
+      end
+      @buffer.free
+      @buffer = new_buf
+      @capacity = new_cap
+    end
+
+    *( @buffer + @size ) = value
+    @size += 1
+  end
+
+  def pop -> T
+    if @size > 0
+      @size -= 1
+      *( @buffer + @size )
+    end
+  end
+
+  def each( &block : T -> Void ) -> Void
+    i = 0_u64
+    while i < @size
+      block.call( *( @buffer + i ) )
+      i += 1
+    end
+  end
+
+  def clear -> Void
+    @size = 0
+  end
+end

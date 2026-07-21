@@ -2,35 +2,31 @@
   description = "Volt is a compiled and interpreted programming language";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
-    flake-parts.url = "github:hercules-ci/flake-parts";
-    krystal-app = {
-      url = "github:Yutsuna/Krystal";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    llm-agents.url = "github:numtide/llm-agents.nix";
   };
 
   outputs =
     inputs@{
       self,
       nixpkgs,
-      flake-parts,
       ...
     }:
-    flake-parts.lib.mkFlake { inherit inputs; } {
-      systems = [
+    let
+      allSystems = [
         "x86_64-linux"
         "aarch64-linux"
         "x86_64-darwin"
         "aarch64-darwin"
       ];
-
-      perSystem = { pkgs, inputs', ... }: {
-        devShells.default = pkgs.callPackage ./Nix/Shell.nix { inherit inputs'; };
-
-        packages.default = pkgs.callPackage ./Nix/Package.nix {
-          krystal = inputs'.krystal-app.packages.default;
-        };
-      };
+      forAllSystems = f: nixpkgs.lib.genAttrs allSystems (system: f (import nixpkgs { inherit system; }));
+    in
+    {
+      packages = forAllSystems (pkgs: {
+        default = pkgs.callPackage ./nix/package.nix { inherit inputs; };
+      });
+      devShells = forAllSystems (pkgs: {
+        default = pkgs.callPackage ./nix/shell.nix { inherit inputs; };
+      });
     };
 }

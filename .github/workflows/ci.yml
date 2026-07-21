@@ -1,5 +1,4 @@
-name: Volt CI
-
+name: CI
 
 on:
   push:
@@ -7,33 +6,30 @@ on:
   pull_request:
     branches: [ main ]
 
-jobs:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
-  build:
+jobs:
+  build-and-test:
+    name: Build & Test
     runs-on: ubuntu-latest
-    container:
-      image: crystallang/crystal:latest
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      - name: Checkout Volt
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Checkout Krystal
-        uses: actions/checkout@v4
-        with:
-            repository: Yutsuna/Krystal
-            path: Krystal-Source
+      - name: Install Nix (Determinate)
+        uses: DeterminateSystems/determinate-nix-action@v3
 
-      - name: Build Krystal
-        run: |
-          cd Krystal-Source
-          crystal run Source/Krystal.cr
-          mv bin/krystal /usr/local/bin/krystal
+      - name: Magic Nix Cache
+        uses: DeterminateSystems/magic-nix-cache-action@v8
 
-      - name: Build Volt
-        run: |
-          krystal
+      - name: Check Formatting
+        run: nix develop --command volt-build format
 
-      - name: Run Tests
-        run: |
-          krystal --spec
+      - name: Build & Test Suite
+        run: nix develop --command volt-build test

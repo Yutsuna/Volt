@@ -1,0 +1,15 @@
+Program 'samples/JSX/Components/Header.vlx'
+└─ Component 'Header' @1:1
+   ├─ params
+   │  └─ Param 'title'
+   │     └─ decl_type
+   │        └─ TypeRef 'String' @1:27
+   └─ body
+      └─ ExprStmt @3:3
+         └─ expr
+            └─ JsxElement 'header' @3:3
+               └─ children
+                  └─ JsxElement 'h1' @4:5
+                     └─ children
+                        └─ Identifier 'title' @4:10
+--- exit 0 ---

@@ -1,0 +1,24 @@
+Program 'samples/Circuits/DiamandDeps/Source/Core/Config.vl'
+└─ Module 'Core' @1:1
+   └─ body
+      └─ Struct 'AppConfig' @4:3
+         └─ body
+            ├─ Field 'port' @5:5
+            │  └─ decl_type
+            │     └─ TypeRef 'Int32' @5:12
+            ├─ Field 'secret' @6:5
+            │  └─ decl_type
+            │     └─ PointerType @6:14
+            │        └─ pointee
+            │           └─ TypeRef 'UInt8' @6:14
+            └─ Method 'initialize' @8:5
+               └─ params
+                  ├─ Param 'port' instance_var
+                  │  └─ decl_type
+                  │     └─ TypeRef 'Int32' @8:29
+                  └─ Param 'ecret' instance_var
+                     └─ decl_type
+                        └─ PointerType @8:45
+                           └─ pointee
+                              └─ TypeRef 'UInt8' @8:45
+--- exit 0 ---

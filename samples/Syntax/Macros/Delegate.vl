@@ -1,0 +1,37 @@
+#{
+  @macro delegate
+  @brief Delegates methods to a specified field of the class.
+  @param methods An Array<Symbol> containing the names of the methods to delegate.
+  @param to_field A Symbol representing the field to which the methods will be delegated.
+#}
+macro def delegate( methods : Array<Symbol>, to_field : Symbol )
+
+  {% for method in methods %}
+    def {{ method }}
+      {{ to_field }}.{{ method }}
+    end
+  {% end %}
+
+end
+
+#------------------------------------------------------------------------------
+
+class User
+  name  : String
+  email : String
+  age   : Int32
+
+  def initialize( @name : String, @email : String, @age : Int32 )
+  end
+end
+
+#------------------------------------------------------------------------------
+
+class Session
+  getter user : User
+
+  def initialize( @user : User )
+  end
+
+  delegate( methods: [ :name, :email ], to_field: :user )
+end
