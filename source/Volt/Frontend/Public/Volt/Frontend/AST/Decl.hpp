@@ -110,6 +110,30 @@ namespace Frontend
         ExprList Args;
     };
 
+    // `macro def Name(Params) ... end`. The body is not parsed: it is the raw
+    // source slice between the header and the matching `end`, interned as-is.
+    // The MacroExpansion pass evaluates its {% %} / {{ }} template tags at
+    // compile time and re-parses the generated text.
+    struct MacroDef
+    {
+
+        Core::SourceRange Loc;
+        Symbol Name;
+        ParamList Params;
+        Symbol BodyText;
+    };
+
+    // `name( args... )` in declaration position — a compile-time macro
+    // invocation whose expansion replaces this slot in the enclosing body.
+    struct MacroInvoke
+    {
+
+        Core::SourceRange Loc;
+        Symbol Name;
+        ExprList Args;
+        SymbolList ArgNames;
+    };
+
     enum class DeclKind
     {
 
