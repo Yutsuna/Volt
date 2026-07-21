@@ -5,7 +5,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
-#include <utility>
 #include <variant>
 
 namespace Volt

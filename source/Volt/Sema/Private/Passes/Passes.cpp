@@ -20,14 +20,6 @@ namespace Sema
         static_cast<void>( Context );
     }
 
-    // Order 30 — resolve every type annotation to a MemoryLayout and check
-    // assignability. Skeleton: the TypeStore is threaded through so the full
-    // pass drops in without touching the Driver.
-    void TypeChecker ( PassContext &Context )
-    {
-        static_cast<void>( Context );
-    }
-
 } // namespace Sema
 
 } // namespace Volt

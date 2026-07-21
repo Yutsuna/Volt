@@ -15,6 +15,7 @@
 #endif
 
 VOLT_PASS( ScopeResolver, 10, Analysis )
+VOLT_PASS( StdLibBinder, 11, Analysis )
 VOLT_PASS( EnumLowering, 12, Lowering )
 VOLT_PASS( MacroExpansion, 15, Lowering )
 VOLT_PASS( JsxLowering, 20, Lowering )
