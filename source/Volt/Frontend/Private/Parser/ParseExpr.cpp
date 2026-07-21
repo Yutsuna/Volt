@@ -57,6 +57,17 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
 
     for ( ;; )
     {
+        // Support multiline pipelines where |> is at the start of a newline.
+        std::size_t Ahead = 0;
+        while ( PeekKind( Ahead ) == TokenKind::Newline )
+        {
+            ++Ahead;
+        }
+        if ( PeekKind( Ahead ) == TokenKind::PipeGreater )
+        {
+            SkipNewlines();
+        }
+
         const TokenKind Op    = PeekKind();
         const BindingPower Bp = InfixBinding( Op );
         if ( Bp.Left == 0 or Bp.Left < MinBindingPower )
@@ -87,6 +98,13 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
             Node.Target = Lhs;
             Node.Value  = ParseExpr( Bp.Right );
             Lhs         = MakeExpr( Node, RangeSince( Begin ) );
+        }
+        else if ( Op == TokenKind::PipeGreater )
+        {
+            Pipeline Node;
+            Node.Lhs = Lhs;
+            Node.Rhs = ParseExpr( Bp.Right );
+            Lhs      = MakeExpr( Node, RangeSince( Begin ) );
         }
         else
         {
