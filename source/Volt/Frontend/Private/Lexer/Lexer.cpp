@@ -1,10 +1,8 @@
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 
 #include <algorithm>
-#include <cctype>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 namespace Volt
