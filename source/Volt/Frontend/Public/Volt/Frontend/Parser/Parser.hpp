@@ -205,6 +205,9 @@ namespace Frontend
         [[nodiscard]] DeclId ParseModule ();
         [[nodiscard]] DeclId ParseClass ();
         [[nodiscard]] DeclId ParseStruct ();
+        [[nodiscard]] DeclId ParseEnum ();
+        [[nodiscard]] DeclId ParseEnumCase ();
+        void ParseEnumBody ( DeclList &Out );
         [[nodiscard]] DeclId ParseMixin ();
         [[nodiscard]] DeclId ParseMethod ( bool bAbstract );
         [[nodiscard]] DeclId ParseInclude ();
