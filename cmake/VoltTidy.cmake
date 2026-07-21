@@ -34,9 +34,9 @@ function( volt_enable_tidy )
 
   add_custom_command(
     OUTPUT  ${TIDY_DB}
-    COMMAND sh -c "sed -E 's/ -freflection//g; s/ -Winvalid-pch//g; s/ -include [^ ]*cmake_pch\\.hxx//g' '${CMAKE_BINARY_DIR}/compile_commands.json' > '${TIDY_DB}.tmp'"
+    COMMAND ${CMAKE_COMMAND} -E env ruby "${CMAKE_SOURCE_DIR}/scripts/build/expand_tidy_db.rb" "${CMAKE_BINARY_DIR}/compile_commands.json" "${TIDY_DB}.tmp" "${CMAKE_SOURCE_DIR}"
     COMMAND ${CMAKE_COMMAND} -E copy_if_different ${TIDY_DB}.tmp ${TIDY_DB}
-    DEPENDS ${CMAKE_BINARY_DIR}/compile_commands.json
+    DEPENDS ${CMAKE_BINARY_DIR}/compile_commands.json ${CMAKE_SOURCE_DIR}/scripts/build/expand_tidy_db.rb
     COMMENT "[Volt] clang-tidy: refreshing stripped compile database"
     VERBATIM
   )
