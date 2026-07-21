@@ -1,5 +1,6 @@
 #include "Volt/CLI/Commands/VersionCommand.hpp"
 #include "Volt/CLI/CommandColor.hpp"
+#include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
 #include "Volt/CLI/Version.hpp"
 #include "Volt/Core/Log/Logger.hpp"
@@ -33,7 +34,21 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FVersionCommand::GetOptions ()
 
 std::int32_t Volt::CLI::FVersionCommand::Execute ( std::span<const std::string_view> InArgs )
 {
-    static_cast<void>( InArgs );
+    const std::vector<FOption> Options = GetOptions();
+    const auto Result                  = CommandParser::Parse( InArgs, Options, 0 );
+    if ( not Result.has_value() )
+    {
+        Core::FLogger::Error( Result.error() );
+        Core::FLogger::Flush();
+        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
+        return ExitFailure;
+    }
+    if ( Result->bHelpRequested )
+    {
+        Core::FLogger::Flush();
+        CommandParser::PrintUsage( std::cout, GetUsage(), Options );
+        return ExitSuccess;
+    }
 
     const bool bColor = Core::FLogger::StdOutIsTerminal();
 

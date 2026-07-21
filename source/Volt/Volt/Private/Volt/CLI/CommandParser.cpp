@@ -42,28 +42,6 @@ const Volt::CLI::FOption *FindOption ( const std::span<const Volt::CLI::FOption>
     return nullptr;
 }
 
-std::expected<void, std::string>
-ValidateOptionValue ( const Volt::CLI::FOption &InOpt, const std::span<const std::string_view> InArgs, std::size_t &InOutIdx )
-{
-    if ( InOpt.HasValue() )
-    {
-        if ( InOutIdx + 1 < InArgs.size() )
-        {
-            ++InOutIdx;
-            InOpt.Callback( InArgs[InOutIdx] );
-        }
-        else
-        {
-            return MakeMissingValueError( std::string( InOpt.LongName ) );
-        }
-    }
-    else
-    {
-        InOpt.Callback( "" );
-    }
-    return {};
-}
-
 /// The flags column of one usage row: "-i INPUT, --input INPUT".
 std::string FormatFlags ( const Volt::CLI::FOption &InOpt )
 {
@@ -94,34 +72,83 @@ std::string FormatFlags ( const Volt::CLI::FOption &InOpt )
  */
 
 Volt::CLI::CommandParser::FParseResult Volt::CLI::CommandParser::Parse ( std::span<const std::string_view> InArgs,
-                                                                         std::span<const FOption> InOptions )
+                                                                         std::span<const FOption> InOptions,
+                                                                         const std::size_t InMaxPositionals )
 {
     FParsedArgs Parsed;
     const std::size_t ArgCount = InArgs.size();
+    bool bParsingOptions       = true;
 
     for ( std::size_t Idx = 0; Idx < ArgCount; ++Idx )
     {
         const std::string_view Arg = InArgs[Idx];
 
-        if ( Arg == "-h" or Arg == "--help" )
+        if ( bParsingOptions and Arg == "--" )
+        {
+            bParsingOptions = false;
+            continue;
+        }
+
+        if ( bParsingOptions and ( Arg == "-h" or Arg == "--help" ) )
         {
             Parsed.bHelpRequested = true;
         }
-        else if ( Arg.starts_with( '-' ) )
+        else if ( bParsingOptions and Arg.starts_with( '-' ) )
         {
-            const FOption *Opt = FindOption( InOptions, Arg );
+            std::string_view OptName = Arg;
+            std::string_view InlineValue;
+            bool bHasInlineValue = false;
+
+            const std::size_t EqPos = Arg.find( '=' );
+            if ( EqPos != std::string_view::npos )
+            {
+                OptName         = Arg.substr( 0, EqPos );
+                InlineValue     = Arg.substr( EqPos + 1 );
+                bHasInlineValue = true;
+            }
+
+            const FOption *Opt = FindOption( InOptions, OptName );
             if ( Opt == nullptr )
             {
-                return MakeUnknownOptionError( std::string( Arg ) );
+                return MakeUnknownOptionError( std::string( OptName ) );
             }
-            const auto Result = ValidateOptionValue( *Opt, InArgs, Idx );
-            if ( not Result )
+
+            if ( Opt->HasValue() )
             {
-                return MakeUnexpected( Result.error() );
+                if ( bHasInlineValue )
+                {
+                    Opt->Callback( InlineValue );
+                }
+                else if ( Idx + 1 < ArgCount )
+                {
+                    const std::string_view NextArg = InArgs[Idx + 1];
+                    if ( NextArg.starts_with( '-' ) )
+                    {
+                        return MakeMissingValueError( std::string( OptName ) );
+                    }
+                    ++Idx;
+                    Opt->Callback( NextArg );
+                }
+                else
+                {
+                    return MakeMissingValueError( std::string( OptName ) );
+                }
+            }
+            else
+            {
+                if ( bHasInlineValue )
+                {
+                    return MakeUnexpected( "Option '" + std::string( OptName ) + "' does not take a value" );
+                }
+                Opt->Callback( "" );
             }
         }
         else
         {
+            if ( Parsed.Positionals.size() >= InMaxPositionals )
+            {
+                return MakeUnexpected( "Unexpected argument: " + std::string( Arg ) );
+            }
             Parsed.Positionals.push_back( Arg );
         }
     }

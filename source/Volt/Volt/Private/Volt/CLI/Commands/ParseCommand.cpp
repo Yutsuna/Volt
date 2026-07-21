@@ -86,6 +86,13 @@ std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_vie
     {
         Input = Result->Positionals.front();
     }
+    else if ( not Input.empty() and not Result->Positionals.empty() )
+    {
+        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ) );
+        Core::FLogger::Flush();
+        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
+        return ExitFailure;
+    }
     if ( Input.empty() )
     {
         Core::FLogger::Error( "Missing input file" );

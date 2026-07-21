@@ -123,6 +123,13 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     {
         Input = Result->Positionals.front();
     }
+    else if ( not Input.empty() and not Result->Positionals.empty() )
+    {
+        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ), "check" );
+        Core::FLogger::Flush();
+        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
+        return ExitFailure;
+    }
     if ( Input.empty() )
     {
         // Bare `volt check` inside a project directory checks that project.
