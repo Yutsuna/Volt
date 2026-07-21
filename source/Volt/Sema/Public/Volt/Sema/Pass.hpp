@@ -3,6 +3,7 @@
 #include "Sema_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 
 #include <cstddef>
@@ -46,6 +47,9 @@ namespace Sema
         // unit's types serially first, so passes read it without a lock.
         // const is the enforcement, not a convention.
         const TypeStore &Types;
+        // The unit's own inferred expression types. Per-file mutable state,
+        // so writing it keeps the parallel phase lock-free.
+        UnitTypes &Values;
         Core::DiagEngine::Bag &Diags;
         PassStats &Stats;
         const InterfaceRegistry *Globals = nullptr;
