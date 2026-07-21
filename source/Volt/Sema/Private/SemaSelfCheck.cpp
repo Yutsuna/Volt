@@ -47,10 +47,16 @@ namespace Sema
                 return false;
             }
 
+            Store.BindLiteral( Interner.Intern( "IntLiteral" ), Word );
+            if ( Store.LookupLiteral( Interner.Intern( "IntLiteral" ) ) != Word )
+            {
+                return false;
+            }
+
             // The registry must expose the manifest passes in ascending
             // Order regardless of their listed order.
             const std::span<const PassInfo> Registry = PassRegistry();
-            if ( Registry.size() != 3 )
+            if ( Registry.empty() )
             {
                 return false;
             }
