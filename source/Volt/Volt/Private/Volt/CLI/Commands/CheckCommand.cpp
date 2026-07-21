@@ -193,7 +193,12 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     {
         Summary += ", " + std::to_string( Compiled.JsxLowered ) + " jsx node(s) lowered";
     }
+    if ( Compiled.PipelinesLowered > 0 )
+    {
+        Summary += ", " + std::to_string( Compiled.PipelinesLowered ) + " pipeline operator(s) lowered";
+    }
     if ( TheDriver.Graph().ModuleCount() > 0 )
+
     {
         Summary += ", " + std::to_string( TheDriver.Graph().ModuleCount() ) + " module(s) in circuit `" +
                    TheDriver.Graph().NameOf( 0 ) + "`";
