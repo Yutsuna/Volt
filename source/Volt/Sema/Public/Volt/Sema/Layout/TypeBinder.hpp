@@ -26,6 +26,15 @@ namespace Sema
     SEMA_EXPORT std::size_t
     BindUnitTypes ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags );
 
+    /// Second serial phase, over the same units: now that every name exists,
+    /// resolve what the declarations *said* — each member's signature, plus
+    /// `< Super` and `include`. Split from BindUnitTypes because a signature
+    /// routinely names a type declared in a later file, and file order must
+    /// never decide what a member returns. Returns the number of signatures
+    /// resolved.
+    SEMA_EXPORT std::size_t
+    ResolveUnitSignatures ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags );
+
 } // namespace Sema
 
 } // namespace Volt
