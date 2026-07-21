@@ -58,7 +58,6 @@ if( UPDATE )
   file( GLOB_RECURSE SAMPLES RELATIVE
     ${ROOT} ${ROOT}/samples/*.vl ${ROOT}/samples/*.vlx
   )
-  list( FILTER SAMPLES EXCLUDE REGEX "^samples/Syntax/Macros/" )
   list( SORT SAMPLES )
 
   #############################################################################
