@@ -1,4 +1,4 @@
-@[Primitive( "i8", 8 ), Literal( IntLiteral )]
+@[Primitive( "i8", 8 )]
 struct Int8
   include Comparable
   include Hashable
@@ -23,7 +23,7 @@ struct Int8
 end
 
 
-@[Primitive( "i16", 16 ), Literal( IntLiteral )]
+@[Primitive( "i16", 16 )]
 struct Int16
   include Comparable
   include Hashable
@@ -112,7 +112,7 @@ struct Int32
 end
 
 
-@[Primitive( "i64", 64 ), Literal( IntLiteral )]
+@[Primitive( "i64", 64 )]
 struct Int64
   include Comparable
   include Hashable
