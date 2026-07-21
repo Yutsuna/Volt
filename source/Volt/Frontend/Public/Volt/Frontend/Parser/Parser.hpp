@@ -188,6 +188,8 @@ namespace Frontend
         [[nodiscard]] StmtId ParseWhile ();
         [[nodiscard]] StmtId ParseFor ();
         [[nodiscard]] StmtId ParseReturn ();
+        [[nodiscard]] StmtId ParseBreak ();
+        [[nodiscard]] StmtId ParseNext ();
         [[nodiscard]] StmtId ParseExprOrLocalStatement ();
         // `ExtraTerminator` lets a caller stop the block on a token besides
         // `end`/`else`/`elsif` (e.g. `}` for a brace block). `Eof` is a safe
