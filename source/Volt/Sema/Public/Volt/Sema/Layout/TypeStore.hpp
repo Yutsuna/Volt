@@ -11,6 +11,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace Volt
 {
@@ -24,6 +25,49 @@ namespace Sema
     };
 
     using NominalId = Core::TypedId<NominalTag>;
+
+    // A type *as declared in a signature*. Unlike an expression's type it may
+    // still reference a generic parameter of the type that carries it:
+    // `def push( value : T )` on `Array<T>` stores ParamIndex = 0, not a
+    // NominalId, because there is no such thing as "the" T. Instantiate()
+    // turns one of these into a concrete per-unit type once a receiver
+    // supplies the arguments.
+    struct SigTypeTag
+    {
+    };
+
+    using SigTypeId = Core::TypedId<SigTypeTag>;
+
+    struct SigType
+    {
+
+        NominalId Base;               // invalid when ParamIndex >= 0
+        std::int32_t ParamIndex = -1; // >= 0 => reference to a generic parameter
+        Core::SmallVec<SigTypeId, 2> Args;
+    };
+
+    enum class EMemberKind : std::uint8_t
+    {
+
+        Field,
+        Method,
+    };
+
+    // One entry of a type's interface, published by the serial binder so that
+    // a parallel pass in *another* unit can resolve `x.foo` without ever
+    // touching that unit's AstContext — a DeclId is only meaningful inside
+    // the arena that minted it, so the store keeps the resolved signature.
+    struct Member
+    {
+
+        Symbol Name; // interned in the store
+        EMemberKind Kind   = EMemberKind::Field;
+        std::uint32_t Unit = 0;              // ordinal of the declaring unit
+        Frontend::DeclId Decl;               // its declaration, inside `Unit`
+        SigTypeId Result;                    // field type / method return type
+        Core::SmallVec<SigTypeId, 4> Params; // methods only
+        bool bSelf = false;                  // `def self.malloc`
+    };
 
     // One type as the compiler knows it: a name, where it was declared, and
     // — only once resolved — the memory layout it collapses to.
@@ -41,10 +85,25 @@ namespace Sema
         std::uint32_t Unit = 0; // ordinal of the declaring CompileUnit
         Frontend::DeclId Decl;  // its declaration, for member lookup
         LayoutId Layout;        // invalid until resolved
+
+        // Generic parameter names in declaration order; a SigType's
+        // ParamIndex indexes into this.
+        Core::SmallVec<Symbol, 2> Params;
+        // The declared interface: fields and methods of the body itself.
+        std::vector<Member> Members;
+        NominalId Super;                       // resolved `class X < Y`
+        Core::SmallVec<NominalId, 2> Includes; // resolved mixins
+
+        // Per generic parameter, the AST field names feeding it when a node
+        // kind is lowered to this type. Empty = the default convention (the
+        // node's expression-bearing fields, in declaration order). Filled
+        // from the extra arguments of `@[Literal( Kind, Field, ... )]`, so a
+        // future sugar node costs zero C++.
+        std::vector<Core::SmallVec<Symbol, 2>> LiteralSlots;
     };
 
     // Owns every declared type, the layouts they resolve to, and the
-    // literal-kind bindings that give an untyped `10` a type. Deliberately
+    // node-kind bindings that give an untyped `10` a type. Deliberately
     // empty at construction: there are no built-in types baked into C++ —
     // `Int32`, `String`, `Array[T]` all arrive from the Volt stdlib through
     // DeclareType() + the `@[Primitive]` / `@[Literal]` annotations.
@@ -83,9 +142,111 @@ namespace Sema
                 return It->second;
             }
 
-            const NominalId Id = Types.Add( NominalType{ .Name = Key, .Unit = Unit, .Decl = Decl, .Layout = LayoutId{} } );
+            NominalType Fresh;
+            Fresh.Name         = Key;
+            Fresh.Unit         = Unit;
+            Fresh.Decl         = Decl;
+            const NominalId Id = Types.Add( std::move( Fresh ) );
             ByName.emplace( Key, Id );
             return Id;
+        }
+
+        // --- Interface, filled by the serial binder ------------------------
+
+        void SetParams ( NominalId Id, Core::SmallVec<Symbol, 2> Names )
+        {
+            Types.Get( Id ).Params = std::move( Names );
+        }
+
+        void SetLiteralSlots ( NominalId Id, std::vector<Core::SmallVec<Symbol, 2>> Slots )
+        {
+            Types.Get( Id ).LiteralSlots = std::move( Slots );
+        }
+
+        void SetSuper ( NominalId Id, NominalId Super )
+        {
+            Types.Get( Id ).Super = Super;
+        }
+
+        void AddInclude ( NominalId Id, NominalId Mixin )
+        {
+            Types.Get( Id ).Includes.PushBack( Mixin );
+        }
+
+        void AddMember ( NominalId Id, Member Entry )
+        {
+            Types.Get( Id ).Members.push_back( std::move( Entry ) );
+        }
+
+        // The member declared by `Decl` inside `Id`'s own body, mutable so the
+        // signature phase can fill in what the declaration phase could not yet
+        // resolve. A DeclId is unique within its unit, so this is exact even
+        // for overloaded names.
+        [[nodiscard]] Member *MemberByDecl ( NominalId Id, Frontend::DeclId Decl )
+        {
+            for ( Member &Entry : Types.Get( Id ).Members )
+            {
+                if ( Entry.Decl == Decl )
+                {
+                    return &Entry;
+                }
+            }
+            return nullptr;
+        }
+
+        // A member found on a type, together with the type that actually
+        // declares it — an inherited signature's ParamIndex counts against
+        // the *owner*'s parameters, not the receiver's.
+        struct MemberRef
+        {
+
+            const Member *Decl = nullptr;
+            NominalId Owner;
+        };
+
+        // Own body first, then mixins, then the superclass — transitively.
+        // Depth is bounded so a malformed cyclic hierarchy cannot hang sema.
+        [[nodiscard]] MemberRef LookupMember ( NominalId Id, std::string_view Name, std::uint32_t Depth = 0 ) const
+        {
+            if ( not Id.IsValid() or Depth > 16 )
+            {
+                return MemberRef{};
+            }
+
+            const auto Key = Strings.Find( Name );
+            if ( not Key )
+            {
+                return MemberRef{};
+            }
+
+            const NominalType &Type = Types.Get( Id );
+            for ( const Member &Entry : Type.Members )
+            {
+                if ( Entry.Name == *Key )
+                {
+                    return MemberRef{ .Decl = &Entry, .Owner = Id };
+                }
+            }
+            for ( const NominalId Mixin : Type.Includes )
+            {
+                if ( const MemberRef Found = LookupMember( Mixin, Name, Depth + 1 ); Found.Decl != nullptr )
+                {
+                    return Found;
+                }
+            }
+            return LookupMember( Type.Super, Name, Depth + 1 );
+        }
+
+        // --- Signature types ----------------------------------------------
+
+        [[nodiscard]] SigTypeId AddSig ( SigType Value )
+        {
+            return Sigs.Add( std::move( Value ) );
+        }
+
+        [[nodiscard]] const SigType &Sig ( SigTypeId Id ) const
+        {
+            return Sigs.Get( Id );
         }
 
         void AttachLayout ( NominalId Id, LayoutId Layout )
@@ -108,30 +269,37 @@ namespace Sema
             return Types.Size();
         }
 
-        // --- Literals ----------------------------------------------------
+        // --- Node kinds --------------------------------------------------
 
-        // Bind a literal kind ("IntLiteral", "StringLiteral", ...) to the
-        // type that wraps it. `10` is an Int32 because Int32 — and only
-        // Int32 — carries `@[Literal( IntLiteral )]`. The C++ side never
-        // learns what "Int32" means, only that this type claimed that kind.
+        // Bind an *AST node name* ("IntLiteral", "ArrayLit", "PointerType",
+        // ...) to the type that wraps it. `10` is an Int32 because Int32 —
+        // and only Int32 — carries `@[Literal( IntLiteral )]`. The C++ side
+        // never learns what "Int32" means, only that this type claimed that
+        // node kind.
+        //
+        // The key is whatever `Frontend::NodeName()` reflects off the node,
+        // so a new node in Nodes.inl becomes typeable with one `@[Literal]`
+        // in the stdlib and no C++ change at all. This is also how type
+        // sugar binds: `T*` is a PointerType node, and the stdlib's
+        // `Pointer<T>` claims it.
         //
         // Returns false when the kind was already claimed by a *different*
         // type, so the binder can report the ambiguity instead of letting
         // stdlib file order silently decide the type of every integer.
-        bool BindLiteral ( std::string_view LiteralKind, NominalId Type )
+        bool BindNodeKind ( std::string_view NodeKind, NominalId Type )
         {
-            const Symbol Key = Strings.Intern( LiteralKind );
-            if ( const auto It = ByLiteral.find( Key ); It != ByLiteral.end() )
+            const Symbol Key = Strings.Intern( NodeKind );
+            if ( const auto It = ByNodeKind.find( Key ); It != ByNodeKind.end() )
             {
                 return It->second == Type;
             }
-            ByLiteral.emplace( Key, Type );
+            ByNodeKind.emplace( Key, Type );
             return true;
         }
 
-        [[nodiscard]] std::optional<NominalId> LookupLiteral ( std::string_view LiteralKind ) const
+        [[nodiscard]] std::optional<NominalId> LookupNodeKind ( std::string_view NodeKind ) const
         {
-            return Find( ByLiteral, LiteralKind );
+            return Find( ByNodeKind, NodeKind );
         }
 
         // --- Layouts -----------------------------------------------------
@@ -182,9 +350,10 @@ namespace Sema
 
         Core::StringInterner Strings;
         Core::Arena<NominalType, NominalId> Types;
+        Core::Arena<SigType, SigTypeId> Sigs;
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, NominalId> ByName;
-        std::unordered_map<Symbol, NominalId> ByLiteral;
+        std::unordered_map<Symbol, NominalId> ByNodeKind;
     };
 
 } // namespace Sema
