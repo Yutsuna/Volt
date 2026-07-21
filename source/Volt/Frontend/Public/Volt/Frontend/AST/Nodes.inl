@@ -68,6 +68,8 @@ VOLT_DECL( Include )
 VOLT_DECL( Component )
 VOLT_DECL( Circuit )
 VOLT_DECL( Annotation )
+VOLT_DECL( MacroDef )
+VOLT_DECL( MacroInvoke )
 
 // --- Types -----------------------------------------------------------------
 VOLT_TYPE( TypeRef )

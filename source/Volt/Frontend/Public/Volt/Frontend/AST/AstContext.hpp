@@ -127,6 +127,12 @@ namespace Frontend
             return Exprs.Size();
         }
 
+        /// Number of declaration slots, for the same by-index pass iteration.
+        [[nodiscard]] std::size_t DeclCount () const
+        {
+            return Decls.Size();
+        }
+
         // --- Top-level items ---------------------------------------------
 
         std::vector<DeclId> TopDecls;
