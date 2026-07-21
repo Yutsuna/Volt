@@ -188,10 +188,28 @@ namespace Driver
         return Result;
     }
 
+    void Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
+    {
+        const fs::path LibDir = "source/Lib";
+        std::error_code Ec;
+        if ( !fs::is_directory( LibDir, Ec ) )
+        {
+            return;
+        }
+        for ( const fs::directory_entry &It : fs::recursive_directory_iterator( LibDir, Ec ) )
+        {
+            if ( It.is_regular_file() and IsSourceFile( It.path() ) )
+            {
+                Refs.push_back( SourceRef{ It.path().string(), "Core", IsComponentPath( It.path().string() ) } );
+            }
+        }
+    }
+
     CompileResult Driver::CompileFiles ( const std::vector<std::string> &Paths )
     {
         std::vector<SourceRef> Refs;
-        Refs.reserve( Paths.size() );
+        LoadStdLib( Refs );
+        Refs.reserve( Refs.size() + Paths.size() );
         for ( const std::string &Path : Paths )
         {
             Refs.push_back( SourceRef{ Path, std::string{}, IsComponentPath( Path ) } );
