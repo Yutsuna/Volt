@@ -41,7 +41,7 @@ const std::vector<PunctEntry> &PunctTable ()
     static const std::vector<PunctEntry> Table = []
     {
         std::vector<PunctEntry> Entries = {
-#define VOLT_PUNCT( Name, Spelling ) PunctEntry{ Spelling, TokenKind::Name },
+#define VOLT_PUNCT( Name, Spelling ) PunctEntry{ Spelling, Volt::Frontend::TokenKind::Name },
 #include "Volt/Frontend/Lexer/TokenKind.inl"
         };
         std::ranges::stable_sort( Entries, [] ( const PunctEntry &A, const PunctEntry &B )
@@ -61,7 +61,7 @@ Volt::Frontend::Lexer::Lexer ( Core::FileId InFile,
 {
 }
 
-Volt::Frontend::Token Lexer::Make ( TokenKind Kind, std::size_t Start ) const
+Volt::Frontend::Token Volt::Frontend::Lexer::Make ( TokenKind Kind, std::size_t Start ) const
 {
     Token Result;
     Result.Kind  = Kind;
@@ -69,7 +69,7 @@ Volt::Frontend::Token Lexer::Make ( TokenKind Kind, std::size_t Start ) const
     return Result;
 }
 
-Volt::Frontend::Token Lexer::MakeText ( TokenKind Kind, std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::MakeText ( TokenKind Kind, std::size_t Start )
 {
     Token Result;
     Result.Kind   = Kind;
@@ -78,7 +78,7 @@ Volt::Frontend::Token Lexer::MakeText ( TokenKind Kind, std::size_t Start )
     return Result;
 }
 
-Volt::Frontend::void Lexer::SkipInlineWhitespace ()
+void Volt::Frontend::Lexer::SkipInlineWhitespace ()
 {
     while ( not AtEnd() )
     {
@@ -94,7 +94,7 @@ Volt::Frontend::void Lexer::SkipInlineWhitespace ()
     }
 }
 
-Volt::Frontend::bool Lexer::SkipCommentOrDoc ()
+bool Volt::Frontend::Lexer::SkipCommentOrDoc ()
 {
     if ( Peek() != '#' )
     {
@@ -129,7 +129,7 @@ Volt::Frontend::bool Lexer::SkipCommentOrDoc ()
     return true;
 }
 
-Volt::Frontend::Token Lexer::LexNewline ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexNewline ( std::size_t Start )
 {
     // Collapse a run of newlines (and interspersed inline whitespace /
     // comments) into a single Newline token.
@@ -151,7 +151,7 @@ Volt::Frontend::Token Lexer::LexNewline ( std::size_t Start )
     return Make( TokenKind::Newline, Start );
 }
 
-Volt::Frontend::Token Lexer::LexIdentifier ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexIdentifier ( std::size_t Start )
 {
     const bool bConstant = Source[Start] >= 'A' and Source[Start] <= 'Z';
 
@@ -177,7 +177,7 @@ Volt::Frontend::Token Lexer::LexIdentifier ( std::size_t Start )
     return MakeText( bConstant ? TokenKind::Constant : TokenKind::Identifier, Start );
 }
 
-Volt::Frontend::Token Lexer::LexNumber ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexNumber ( std::size_t Start )
 {
     bool bFloat = false;
 
@@ -250,7 +250,7 @@ Volt::Frontend::Token Lexer::LexNumber ( std::size_t Start )
     return MakeText( bFloat ? TokenKind::FloatLiteral : TokenKind::IntLiteral, Start );
 }
 
-Volt::Frontend::Token Lexer::LexString ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexString ( std::size_t Start )
 {
     ++Pos; // opening quote
     bool bInterpolation = false;
@@ -305,7 +305,7 @@ Volt::Frontend::Token Lexer::LexString ( std::size_t Start )
     return Result;
 }
 
-Volt::Frontend::Token Lexer::LexChar ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexChar ( std::size_t Start )
 {
     ++Pos; // opening quote
     if ( Peek() == '\\' )
@@ -332,7 +332,7 @@ Volt::Frontend::Token Lexer::LexChar ( std::size_t Start )
     return Result;
 }
 
-Volt::Frontend::Token Lexer::LexSymbolOrColon ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexSymbolOrColon ( std::size_t Start )
 {
     if ( Peek( 1 ) == ':' )
     {
@@ -361,7 +361,7 @@ Volt::Frontend::Token Lexer::LexSymbolOrColon ( std::size_t Start )
     return Make( TokenKind::Colon, Start );
 }
 
-Volt::Frontend::Token Lexer::LexPunct ( std::size_t Start )
+Volt::Frontend::Token Volt::Frontend::Lexer::LexPunct ( std::size_t Start )
 {
     const std::string_view Rest = Source.substr( Start );
     for ( const PunctEntry &Entry : PunctTable() )
@@ -379,7 +379,7 @@ Volt::Frontend::Token Lexer::LexPunct ( std::size_t Start )
     return Make( TokenKind::Error, Start );
 }
 
-Volt::Frontend::Token Lexer::Next ()
+Volt::Frontend::Token Volt::Frontend::Lexer::Next ()
 {
     for ( ;; )
     {
