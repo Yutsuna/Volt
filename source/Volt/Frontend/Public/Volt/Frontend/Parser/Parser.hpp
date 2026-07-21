@@ -38,6 +38,14 @@ namespace Frontend
         /// Parse a `.vlx` component file (JSX-aware top level).
         void ParseComponentFile ();
 
+        /// Parse a run of member declarations until Eof. Entry point for
+        /// re-parsing macro-generated text into an enclosing decl body.
+        void ParseMemberBlock ( DeclList &Out );
+
+        /// Parse one expression until Eof. Entry point for evaluating the
+        /// contents of a macro template tag at expansion time.
+        [[nodiscard]] ExprId ParseExpression ();
+
     private:
 
         // --- Token cursor ------------------------------------------------
@@ -201,6 +209,8 @@ namespace Frontend
         [[nodiscard]] DeclId ParseComponent ();
         [[nodiscard]] DeclId ParseCircuit ();
         [[nodiscard]] DeclId ParseAnnotation ();
+        [[nodiscard]] DeclId ParseMacro ();
+        [[nodiscard]] DeclId ParseMacroInvoke ();
         [[nodiscard]] DeclId ParseFieldOrMember ();
         void ParseDeclBlock ( DeclList &Out );
         void ParseParameterList ( ParamList &Out );
