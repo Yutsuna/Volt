@@ -367,6 +367,13 @@ std::int32_t Volt::CLI::FCircuitCommand::Execute ( std::span<const std::string_v
     {
         ProjectDirectory = Result->Positionals.front();
     }
+    else if ( not ProjectDirectory.empty() and not Result->Positionals.empty() )
+    {
+        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ), "circuit" );
+        Core::FLogger::Flush();
+        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
+        return ExitFailure;
+    }
 
     std::error_code Ec;
     const fs::path Root = fs::absolute( ProjectDirectory.empty() ? "." : ProjectDirectory, Ec ).lexically_normal();
