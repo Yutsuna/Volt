@@ -41,7 +41,10 @@ namespace Sema
     {
 
         Frontend::AstContext &Ast;
-        TypeStore &Types;
+        // Frozen before the parallel sema phase: the Driver binds every
+        // unit's types serially first, so passes read it without a lock.
+        // const is the enforcement, not a convention.
+        const TypeStore &Types;
         Core::DiagEngine::Bag &Diags;
         PassStats &Stats;
         const InterfaceRegistry *Globals = nullptr;
