@@ -37,6 +37,7 @@ Checks: >
   -misc-include-cleaner,
   -misc-header-include-cycle,
   -misc-no-recursion,
+  -misc-const-correctness,
   modernize-*,
   -modernize-loop-convert,
   -modernize-use-trailing-return-type,
