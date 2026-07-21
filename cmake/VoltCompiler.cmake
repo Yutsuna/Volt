@@ -34,21 +34,35 @@ target_compile_options( VoltCompileOptions INTERFACE
  )
 
 target_compile_options( VoltCompileOptions INTERFACE
+  -fvisibility=hidden
+  -fvisibility-inlines-hidden
+ )
+
+target_compile_options( VoltCompileOptions INTERFACE
   $<$<CONFIG:Debug>:-Og;-g3;-fno-omit-frame-pointer>
   $<$<CONFIG:Release>:-O3;-DNDEBUG>
   $<$<CONFIG:RelWithDebInfo>:-O2;-g;-DNDEBUG>
  )
 
- target_precompile_headers( VoltCompileOptions INTERFACE
-   <vector>
-   <string>
-   <memory>
-   <utility>
-   <cstdint>
-   <cstddef>
-   <algorithm>
-   <functional>
- )
+target_precompile_headers( VoltCompileOptions INTERFACE
+  <vector>
+  <string>
+  <string_view>
+  <memory>
+  <utility>
+  <cstdint>
+  <cstddef>
+  <algorithm>
+  <functional>
+  <variant>
+  <optional>
+  <unordered_map>
+  <span>
+  <concepts>
+  <type_traits>
+  <initializer_list>
+  <array>
+)
 
 ###########################################################
 
