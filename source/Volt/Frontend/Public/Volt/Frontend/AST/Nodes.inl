@@ -54,6 +54,8 @@ VOLT_STMT( ExprStmt )
 VOLT_STMT( If )
 VOLT_STMT( While )
 VOLT_STMT( Return )
+VOLT_STMT( Break )
+VOLT_STMT( Next )
 VOLT_STMT( LocalDecl )
 VOLT_STMT( WhenClause )
 

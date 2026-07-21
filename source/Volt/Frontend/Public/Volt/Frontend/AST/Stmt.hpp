@@ -46,6 +46,22 @@ namespace Frontend
         ExprId Value;
     };
 
+    // `break [Value]` — Value is invalid for a bare `break`.
+    struct Break
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+    };
+
+    // `next [Value]` — Value is invalid for a bare `next`.
+    struct Next
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+    };
+
     // `Name : DeclType = Init` — DeclType and/or Init may be invalid.
     struct LocalDecl
     {
