@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frontend_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
@@ -22,7 +23,7 @@ namespace Frontend
     /// token stream and populates a single AstContext. Newlines are
     /// significant terminators; the parser is resilient (reports, then
     /// recovers to the next statement) so one error does not cascade.
-    class Parser
+    class FRONTEND_EXPORT Parser
     {
 
     public:
