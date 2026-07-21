@@ -56,6 +56,7 @@ namespace Sema
                         [&] ( const Frontend::Struct &Node ) { Export( Node.Name, Frontend::DeclKind::Struct, Id ); },
                         [&] ( const Frontend::Mixin &Node ) { Export( Node.Name, Frontend::DeclKind::Mixin, Id ); },
                         [&] ( const Frontend::Component &Node ) { Export( Node.Name, Frontend::DeclKind::Component, Id ); },
+                        [&] ( const Frontend::Enum &Node ) { Export( Node.Name, Frontend::DeclKind::Enum, Id ); },
                         [&] ( const Frontend::Method &Node ) { Export( Node.Name, Frontend::DeclKind::Method, Id ); },
                         [] ( const auto & ) {},
                     },
