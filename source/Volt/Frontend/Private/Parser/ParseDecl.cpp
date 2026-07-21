@@ -42,6 +42,7 @@ namespace
     {
     case Volt::Frontend::TokenKind::LBracket:
     case Volt::Frontend::TokenKind::Spaceship:
+    case Volt::Frontend::TokenKind::Bang:
     case Volt::Frontend::TokenKind::Plus:
     case Volt::Frontend::TokenKind::Minus:
     case Volt::Frontend::TokenKind::Star:
@@ -74,6 +75,7 @@ bool Volt::Frontend::Parser::AtDeclaration () const
     case TokenKind::KwDef:
     case TokenKind::KwMacro:
     case TokenKind::KwAbstract:
+    case TokenKind::KwExternal:
     case TokenKind::KwInclude:
     case TokenKind::KwComponent:
     case TokenKind::KwCircuit:
@@ -101,12 +103,15 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseDeclaration ()
     case TokenKind::KwMixin:
         return ParseMixin();
     case TokenKind::KwDef:
-        return ParseMethod( false );
+        return ParseMethod( false, false );
     case TokenKind::KwMacro:
         return ParseMacro();
     case TokenKind::KwAbstract:
         Advance();
-        return ParseMethod( true );
+        return ParseMethod( true, false );
+    case TokenKind::KwExternal:
+        Advance();
+        return ParseMethod( false, true );
     case TokenKind::KwInclude:
         return ParseInclude();
     case TokenKind::KwComponent:
@@ -167,6 +172,7 @@ void Volt::Frontend::Parser::ParseDeclBlock ( DeclList &Out )
         {
             Out.PushBack( Decl );
         }
+        DrainAnnotations( Out );
         if ( Pos == Before )
         {
             Advance();
@@ -267,6 +273,7 @@ void Volt::Frontend::Parser::ParseEnumBody ( DeclList &Out )
         {
             Out.PushBack( Decl );
         }
+        DrainAnnotations( Out );
         if ( Pos == Before )
         {
             Advance();
@@ -352,13 +359,14 @@ void Volt::Frontend::Parser::ParseParameterList ( ParamList &Out )
     SkipNewlines();
 }
 
-Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract )
+Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, bool bExternal )
 {
     const std::uint32_t Begin = Here();
     Expect( TokenKind::KwDef, "to begin a method" );
 
     Method Node;
     Node.bAbstract = bAbstract;
+    Node.bExternal = bExternal;
 
     if ( Accept( TokenKind::KwSelf ) )
     {
@@ -402,7 +410,9 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract )
         Node.ReturnType = ParseType();
     }
 
-    if ( not bAbstract )
+    // `abstract` and `external` are the two body-less forms: the first has
+    // no implementation yet, the second has one outside Volt.
+    if ( not bAbstract and not bExternal )
     {
         SkipTerminators();
         ParseStatementBlock( Node.Body );
@@ -517,31 +527,71 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseInclude ()
     return MakeDecl( Node, RangeSince( Begin ) );
 }
 
+void Volt::Frontend::Parser::DrainAnnotations ( DeclList &Out )
+{
+    for ( const DeclId Id : AnnotationOverflow )
+    {
+        Out.PushBack( Id );
+    }
+    AnnotationOverflow.Clear();
+}
+
+void Volt::Frontend::Parser::DrainAnnotations ( std::vector<DeclId> &Out )
+{
+    for ( const DeclId Id : AnnotationOverflow )
+    {
+        Out.push_back( Id );
+    }
+    AnnotationOverflow.Clear();
+}
+
 Volt::Frontend::DeclId Volt::Frontend::Parser::ParseAnnotation ()
 {
-    const std::uint32_t Begin = Here();
+    // The group's `@[` anchors the first entry, so a lone `@[Name]` keeps the
+    // exact range it always had; later entries anchor on their own name.
+    const std::uint32_t GroupBegin = Here();
     Expect( TokenKind::At, "to begin an annotation" );
     Expect( TokenKind::LBracket, "to open an annotation" );
 
-    Annotation Node;
-    if ( Check( TokenKind::Constant ) or Check( TokenKind::Identifier ) )
+    // A group is a comma-separated list: `@[Primitive( "i32", 32 ), Literal( IntLiteral )]`.
+    // Each entry becomes its own Annotation decl; the first is returned and
+    // the rest wait in AnnotationOverflow for the caller's drain.
+    DeclId First;
+    do
     {
-        Node.Name = InternText( Advance() );
-    }
-    else
-    {
-        ReportHere( "expected an annotation name" );
-    }
+        const std::uint32_t EntryBegin = First.IsValid() ? Here() : GroupBegin;
 
-    if ( Accept( TokenKind::LParen ) )
-    {
-        SymbolList Ignored;
-        ParseCallArguments( Node.Args, Ignored, TokenKind::RParen );
-        Expect( TokenKind::RParen, "to close annotation arguments" );
-    }
+        Annotation Node;
+        if ( Check( TokenKind::Constant ) or Check( TokenKind::Identifier ) )
+        {
+            Node.Name = InternText( Advance() );
+        }
+        else
+        {
+            ReportHere( "expected an annotation name" );
+        }
+
+        if ( Accept( TokenKind::LParen ) )
+        {
+            SymbolList Ignored;
+            ParseCallArguments( Node.Args, Ignored, TokenKind::RParen );
+            Expect( TokenKind::RParen, "to close annotation arguments" );
+        }
+
+        const DeclId Entry = MakeDecl( Node, RangeSince( EntryBegin ) );
+        if ( First.IsValid() )
+        {
+            AnnotationOverflow.PushBack( Entry );
+        }
+        else
+        {
+            First = Entry;
+        }
+    } while ( Accept( TokenKind::Comma ) );
+
     Expect( TokenKind::RBracket, "to close annotation" );
 
-    return MakeDecl( Node, RangeSince( Begin ) );
+    return First;
 }
 
 Volt::Frontend::DeclId Volt::Frontend::Parser::ParseCircuit ()

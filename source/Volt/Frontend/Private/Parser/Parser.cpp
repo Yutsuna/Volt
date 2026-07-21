@@ -103,6 +103,7 @@ void Volt::Frontend::Parser::ParseFile ()
             {
                 Context.TopDecls.push_back( Decl );
             }
+            DrainAnnotations( Context.TopDecls );
         }
         else
         {
