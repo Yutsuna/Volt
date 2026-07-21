@@ -376,6 +376,9 @@ namespace Sema
                     case DeclKind::Mixin:
                         Expanded += ExpandIn<Mixin>( Id );
                         break;
+                    case DeclKind::Enum:
+                        Expanded += ExpandIn<Enum>( Id );
+                        break;
                     default:
                         break;
                     }
