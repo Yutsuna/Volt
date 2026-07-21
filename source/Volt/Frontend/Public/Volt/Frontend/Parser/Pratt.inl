@@ -38,6 +38,8 @@ VOLT_ASSIGN( ShrEq, 10, 1 )
 // Ternary `?:` is handled specially in ParseExpr but needs a binding power.
 VOLT_INFIX( Question, 15, 1 )
 
+VOLT_INFIX( PipeGreater, 18, 0 )
+
 // Key/value pair (`k => v`) — used in hash literals and DSL calls.
 VOLT_INFIX( FatArrow, 12, 0 )
 

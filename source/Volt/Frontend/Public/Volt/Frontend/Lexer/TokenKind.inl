@@ -86,7 +86,6 @@ VOLT_PUNCT( Question, "?" )
 VOLT_PUNCT( Assign, "=" )
 VOLT_PUNCT( At, "@" )
 
-
 // --- Keywords --------------------------------------------------------------
 VOLT_KEYWORD( KwCase, "case" )
 VOLT_KEYWORD( KwWhen, "when" )
