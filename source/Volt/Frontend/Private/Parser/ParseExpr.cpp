@@ -134,6 +134,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
     const std::uint32_t Begin = Here();
     const TokenKind Kind      = PeekKind();
 
+    // NOLINTBEGIN (bugprone-branch-clone)
     switch ( Kind )
     {
     case TokenKind::IntLiteral:
@@ -223,6 +224,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
         Advance();
         return MakeExpr( NilLiteral{}, RangeSince( Begin ) );
     }
+    // NOLINTEND (bugprone-branch-clone)
 }
 
 Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
