@@ -64,6 +64,10 @@ set( VOLT_PCH_HEADERS
   <array>
 )
 
+add_library( VoltPCH INTERFACE )
+add_library( Volt::PCH ALIAS VoltPCH )
+target_precompile_headers( VoltPCH INTERFACE ${VOLT_PCH_HEADERS} )
+
 ###########################################################
 
 if( VOLT_CHECKED_IDS )

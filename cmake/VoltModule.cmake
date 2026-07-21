@@ -44,13 +44,21 @@ function( VoltModule )
   if( TYPE STREQUAL "executable" )
     add_executable( ${M_NAME} ${ALL_SOURCES} )
     add_executable( Volt::${M_NAME} ALIAS ${M_NAME} )
+
   elseif( TYPE MATCHES "^static" )
     add_library( ${M_NAME} STATIC ${ALL_SOURCES} )
     add_library( Volt::${M_NAME} ALIAS ${M_NAME} )
+
   elseif( TYPE MATCHES "^shared" )
     add_library( ${M_NAME} SHARED ${ALL_SOURCES} )
     set_target_properties( ${M_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON )
     add_library( Volt::${M_NAME} ALIAS ${M_NAME} )
+    generate_export_header( ${M_NAME}
+      BASE_NAME ${M_NAME}
+      EXPORT_FILE_NAME "${CMAKE_CURRENT_BINARY_DIR}/Public/${M_NAME}_export.hpp"
+    )
+    target_include_directories( ${M_NAME} PUBLIC "${CMAKE_CURRENT_BINARY_DIR}/Public" )
+
   else()
     message( FATAL_ERROR "[Volt] Module: ${M_NAME} has an invalid TYPE: ${M_TYPE}" )
   endif()
@@ -63,13 +71,7 @@ function( VoltModule )
     DEBUG_POSTFIX "_d"
   )
 
-  get_property( PCH_TARGET GLOBAL PROPERTY VOLT_PCH_PRIMARY_TARGET )
-  if( NOT PCH_TARGET )
-    set_property( GLOBAL PROPERTY VOLT_PCH_PRIMARY_TARGET ${M_NAME} )
-    target_precompile_headers( ${M_NAME} PRIVATE ${VOLT_PCH_HEADERS} )
-  else()
-    target_precompile_headers( ${M_NAME} REUSE_FROM ${PCH_TARGET} )
-  endif()
+  target_link_libraries( ${M_NAME} PRIVATE Volt::PCH )
 
   #############################################################################
 
@@ -97,15 +99,6 @@ function( VoltModule )
       target_link_libraries( ${M_NAME} PUBLIC Volt::${DEP} )
     endif()
   endforeach()
-
-  #############################################################################
-
-  #TODO: add functional testing on
-  # Module/
-  # |-- Public/
-  # |-- Private/
-  # |-- Tests/      <<there
-  # |-- Benchmarks/ <<there
 
   #############################################################################
 
