@@ -1,82 +1,55 @@
-@[External("libc")]
-abstract def memcpy( dest : Void*, src : Void*, size : UInt64 ) -> Void*
+@[External( "libc" )]
+def memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
 
-@[External("libc")]
-abstract def memcmp( a : Void*, b : Void*, size : UInt64 ) -> Int32
+@[External( "libc" )]
+def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
 
-
-#{
-# @class String
-# @brief A mutable string class that manages a buffer of bytes and provides common string operations.
-#}
-class String
-  include Inspectable
+@[Literal( StringLiteral )]
+struct String
   include Comparable
   include Hashable
-
-  #----------------------------------------------------------------------------
 
   getter data : Pointer<UInt8>
   getter size : UInt64
 
-  #----------------------------------------------------------------------------
-
-  def initialize( str : String )
-    @size  = str.size
-    @data  = Pointer<UInt8>.malloc( @size + sizeof UInt8 )
-    memcpy( @data, str.data, @size )
-    *( @data + @size ) = 0_u8
-    @owned = true
+  def initialize( @data : Pointer<UInt8>, @size : UInt64 )
   end
 
-  def initialize( @data : Pointer<UInt8>, @size : UInt64, @owned : Bool )
+  def empty? -> Bool
+    @size == 0
   end
 
-  def finalize -> Void
-    @data.free if @owned
+  def []( index : UInt64 ) -> UInt8
+    *( @data + index )
   end
 
-  #----------------------------------------------------------------------------
-
-  def to_string -> String
-    self
+  def []=( index : UInt64, value : UInt8 ) -> Void
+    *( @data + index ) = value
   end
-
-  #----------------------------------------------------------------------------
 
   def <=>( other : String ) -> Int32
-     min_size = @size < other.size ? @size : other.size
-     cmp      = memcmp( @data, other.data, min_size )
-     return cmp unless cmp == 0
-      if @size < other.size
-        -1_i32
-      elsif @size > other.size
-        1_i32
-      else
-        0_i32
-      end
-   end
+    min_size = @size < other.size ? @size : other.size
+    cmp = memcmp( @data, other.data, min_size )
+    return cmp unless cmp == 0
 
-  #----------------------------------------------------------------------------
+    if @size < other.size
+      -1
+    elsif @size > other.size
+      1
+    else
+      0
+    end
+  end
 
   def +( other : String ) -> String
     total = @size + other.size
-    buf   = Pointer<UInt8>.malloc( total + 1_u64 )
+    buf = Pointer<UInt8>.malloc( total + 1_u64 )
     memcpy( buf, @data, @size )
     memcpy( buf + @size, other.data, other.size )
     *( buf + total ) = 0_u8
-    String.new( buf, total, true )
+    String.new( buf, total )
   end
 
-  def matches?( other : Regex ) -> Bool
-    __volt_regex_match( other, @data, @size ) != 0
-  end
-
-  #----------------------------------------------------------------------------
-
-  #{
-  # @brief djb2 hash over the raw bytes, folded to 56 bits each round.
-  #}
   def hash -> UInt64
     h = 5381
     i = 0_u64
@@ -87,16 +60,7 @@ class String
     h
   end
 
-  #----------------------------------------------------------------------------
-
-  def []( index : UInt64 ) -> UInt8
-    *( @data + index )
+  def to_string -> String
+    self
   end
-
-  def []=( index : UInt64, value : UInt8 ) -> Void
-    *( @data + index ) = value
-  end
-
-  #----------------------------------------------------------------------------
-
 end
