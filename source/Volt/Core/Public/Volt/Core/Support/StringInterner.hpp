@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstring>
 #include <memory_resource>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -51,6 +52,17 @@ namespace Core
             const Symbol Handle{ Index };
             Lookup.emplace( In, Handle );
             return Handle;
+        }
+
+        /// The Symbol for Text if it was already interned, without adding it.
+        /// Lets read-only lookups miss without growing the table.
+        [[nodiscard]] std::optional<Symbol> Find ( std::string_view Text ) const
+        {
+            if ( const auto It = Lookup.find( Text ); It != Lookup.end() )
+            {
+                return It->second;
+            }
+            return std::nullopt;
         }
 
         [[nodiscard]] std::string_view Resolve ( Symbol Handle ) const
