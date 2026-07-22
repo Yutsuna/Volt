@@ -57,13 +57,13 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
 
     for ( ;; )
     {
-        // Support multiline pipelines where |> is at the start of a newline.
+        // Support multiline pipelines where |> or <| is at the start of a newline.
         std::size_t Ahead = 0;
         while ( PeekKind( Ahead ) == TokenKind::Newline )
         {
             ++Ahead;
         }
-        if ( PeekKind( Ahead ) == TokenKind::PipeGreater )
+        if ( PeekKind( Ahead ) == TokenKind::PipeGreater or PeekKind( Ahead ) == TokenKind::LessPipe )
         {
             SkipNewlines();
         }
@@ -101,9 +101,20 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
         }
         else if ( Op == TokenKind::PipeGreater )
         {
+            // `a |> f` — Lhs is the piped value, Rhs is the function it feeds.
             Pipeline Node;
             Node.Lhs = Lhs;
             Node.Rhs = ParseExpr( Bp.Right );
+            Lhs      = MakeExpr( Node, RangeSince( Begin ) );
+        }
+        else if ( Op == TokenKind::LessPipe )
+        {
+            // `f <| a` — mirror of `|>`: the function is on the left, the
+            // value being fed is on the right, so swap into the same
+            // Pipeline shape (Lhs = value, Rhs = function) for lowering.
+            Pipeline Node;
+            Node.Rhs = Lhs;
+            Node.Lhs = ParseExpr( Bp.Right );
             Lhs      = MakeExpr( Node, RangeSince( Begin ) );
         }
         else
