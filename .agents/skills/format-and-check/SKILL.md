@@ -9,22 +9,21 @@ Run these before finishing a change. Any failure means the change is not done.
 Every step goes through `volt-build`; the tooling targets are parallel and per-file cached, so
 re-runs only touch what changed.
 
-1. **Format**:
+1. **Format, Build & Test** (preferred single-command execution):
+   ```sh
+   volt-build format test         # Formats, builds -Werror and runs tests in one pass
+   ```
+   *Note: `volt-build` orchestrates all actions in a single pipeline. Prefer `volt-build format test` over chaining multiple commands with `&&`.*
+
+2. **Individual steps** (if running separately):
    ```sh
    volt-build format              # Allman, SpacesInParens, col 170
-   ```
-   Covers `.cpp` + `.hpp` + `.inl`; the manifests are protected by format off guards.
-2. **Build clean** under `-Werror`:
-   ```sh
-   volt-build                     # zero warnings, zero errors → build/bin/Volt_d
+   volt-build                     # Zero warnings, zero errors → build/bin/Volt_d
+   volt-build test                # Implies VOLT_ENABLE_TESTING=ON, ctest in parallel
    ```
 3. **Do _not_ lint.** `volt-build tidy` is **not** part of this checklist — see
    "Why there is no lint step" below. Skip it, and ignore clangd too.
-4. **Test suite** — golden sweep + stdlib corpus + zero-hardcode guard:
-   ```sh
-   volt-build test                # implies VOLT_ENABLE_TESTING=ON, ctest in parallel
-   ```
-   An intended AST-output change means regenerating the goldens, then re-running:
+4. **Regenerating goldens** (if AST output changes intentionally):
    ```sh
    cmake -DUPDATE=1 -P tests/GoldenTest.cmake   # or the `golden-update` target
    ```
