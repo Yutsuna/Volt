@@ -10,7 +10,8 @@ module Volt::Build
       'asan'    => 'VOLT_ENABLE_ASAN',
       'ubsan'   => 'VOLT_ENABLE_UBSAN',
       'tsan'    => 'VOLT_ENABLE_TSAN',
-      'testing' => 'VOLT_ENABLE_TESTING'
+      'testing' => 'VOLT_ENABLE_TESTING',
+      'unity'   => 'VOLT_UNITY_BUILD'
     }.freeze
     SANITIZERS    = %w[VOLT_ENABLE_ASAN VOLT_ENABLE_TSAN VOLT_ENABLE_UBSAN].freeze
 
@@ -95,6 +96,7 @@ module Volt::Build
           ubsan         Enable UndefinedBehaviorSanitizer (VOLT_ENABLE_UBSAN=ON).
           tsan          Enable ThreadSanitizer (VOLT_ENABLE_TSAN=ON).
           testing       Enable Testing (VOLT_ENABLE_TESTING=ON).
+          unity         Enable Unity Build (VOLT_UNITY_BUILD=ON).
 
         \x1b[1mExecution:\x1b[0m
           run           Run the built binary after a successful build.
