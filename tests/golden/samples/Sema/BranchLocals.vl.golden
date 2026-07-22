@@ -1,0 +1,54 @@
+Program 'samples/Sema/BranchLocals.vl'
+├─ Method 'branch_locals' @1:1
+│  ├─ params
+│  │  └─ Param 'flag'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:27
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:37
+│  └─ body
+│     ├─ LocalDecl 'result' @2:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @2:12
+│     │  └─ init
+│     │     └─ IntLiteral '0' @2:20
+│     ├─ If @3:3
+│     │  ├─ cond
+│     │  │  └─ Identifier 'flag' @3:6
+│     │  ├─ then
+│     │  │  ├─ LocalDecl 'tally' @4:5
+│     │  │  │  ├─ decl_type
+│     │  │  │  │  └─ TypeRef 'Int32' @4:13
+│     │  │  │  └─ init
+│     │  │  │     └─ IntLiteral '1' @4:21
+│     │  │  └─ ExprStmt @5:5
+│     │  │     └─ expr
+│     │  │        └─ Assign '=' @5:12
+│     │  │           ├─ target
+│     │  │           │  └─ Identifier 'result' @5:5
+│     │  │           └─ value
+│     │  │              └─ Identifier 'tally' @5:14
+│     │  └─ else
+│     │     ├─ LocalDecl 'tally' @7:5
+│     │     │  ├─ decl_type
+│     │     │  │  └─ TypeRef 'Int32' @7:13
+│     │     │  └─ init
+│     │     │     └─ IntLiteral '2' @7:21
+│     │     └─ ExprStmt @8:5
+│     │        └─ expr
+│     │           └─ Assign '=' @8:12
+│     │              ├─ target
+│     │              │  └─ Identifier 'result' @8:5
+│     │              └─ value
+│     │                 └─ Identifier 'tally' @8:14
+│     └─ ExprStmt @10:3
+│        └─ expr
+│           └─ Identifier 'result' @10:3
+└─ ExprStmt @13:1
+   └─ expr
+      └─ Call @13:14
+         ├─ callee
+         │  └─ Identifier 'branch_locals' @13:1
+         └─ args
+            └─ BoolLiteral true @13:16
+--- exit 0 ---

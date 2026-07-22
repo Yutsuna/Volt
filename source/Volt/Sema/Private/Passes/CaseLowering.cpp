@@ -92,18 +92,18 @@ namespace Sema
                         {
                             const DotCall &Dot = std::get<DotCall>( Context.Expr( PatternId ) );
 
-                            Member Mem;
+                            Frontend::Member Mem;
                             Mem.Loc            = Dot.Loc;
                             Mem.Object         = bHasTarget ? TargetId : SelfTarget;
                             Mem.Name           = Dot.Method;
-                            const ExprId MemId = Context.Add( ExprNode{ std::move( Mem ) } );
+                            const ExprId MemId = Context.Add( ExprNode{ Mem } );
 
                             Call CallNode;
                             CallNode.Loc      = Dot.Loc;
                             CallNode.Callee   = MemId;
                             CallNode.Args     = Dot.Args;
                             CallNode.ArgNames = Dot.ArgNames;
-                            ProcessedPattern  = Context.Add( ExprNode{ std::move( CallNode ) } );
+                            ProcessedPattern  = Context.Add( ExprNode{ CallNode } );
                         }
                         else if ( bHasTarget )
                         {
@@ -127,7 +127,7 @@ namespace Sema
                             TripleEqNode.Op  = TokenKind::TripleEq;
                             TripleEqNode.Lhs = PatternId;
                             TripleEqNode.Rhs = TargetId;
-                            ProcessedPattern = Context.Add( ExprNode{ std::move( TripleEqNode ) } );
+                            ProcessedPattern = Context.Add( ExprNode{ TripleEqNode } );
                         }
 
                         DesugaredPatterns.PushBack( ProcessedPattern );

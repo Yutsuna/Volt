@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frontend_export.hpp"
 #include "Volt/Core/Diagnostics/SourceLocation.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
 
@@ -25,13 +26,13 @@ namespace Frontend
     };
 
     /// The enum identifier as text ("KwClass"), for diagnostics/debugging.
-    [[nodiscard]] std::string_view TokenName ( TokenKind Kind );
+    [[nodiscard]] FRONTEND_EXPORT std::string_view TokenName ( TokenKind Kind );
 
     /// The fixed spelling ("class", "->") or "" for dynamic-lexeme tokens.
-    [[nodiscard]] std::string_view TokenSpelling ( TokenKind Kind );
+    [[nodiscard]] FRONTEND_EXPORT std::string_view TokenSpelling ( TokenKind Kind );
 
     /// If Text is a reserved word, its keyword TokenKind; else Identifier.
-    [[nodiscard]] TokenKind KeywordLookup ( std::string_view Text );
+    [[nodiscard]] FRONTEND_EXPORT TokenKind KeywordLookup ( std::string_view Text );
 
     [[nodiscard]] constexpr bool IsKeyword ( TokenKind Kind )
     {

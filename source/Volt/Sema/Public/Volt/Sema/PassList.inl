@@ -5,6 +5,11 @@
 // a manifest sidesteps the static-init-order and dead-strip footguns that bite
 // inline self-registration inside a static/shared lib.
 //
+// Type *binding* is deliberately absent here: it is cross-unit (a user file's
+// `10` resolves to the Int32 declared in source/Lib/), so it cannot be a
+// per-file parallel pass. The Driver calls Sema::BindUnitTypes serially in the
+// same seam that publishes interfaces — see Layout/TypeBinder.hpp.
+//
 // Kind (EPassKind) marks what a pass does to the AST, so tools can run a
 // subset: `volt parse --lowered` runs only the Lowering passes, and
 // `check --type` will build on the same axis.
@@ -14,8 +19,10 @@
     #define VOLT_PASS( Name, Order, Kind )
 #endif
 
+VOLT_PASS( PipelineLowering, 8, Lowering )
 VOLT_PASS( ScopeResolver, 10, Analysis )
 VOLT_PASS( EnumLowering, 12, Lowering )
+
 VOLT_PASS( MacroExpansion, 15, Lowering )
 VOLT_PASS( JsxLowering, 20, Lowering )
 VOLT_PASS( CaseLowering, 22, Lowering )

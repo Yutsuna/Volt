@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core_export.hpp"
 #include "Volt/Core/Diagnostics/SourceLocation.hpp"
 
 #include <cstdint>
@@ -19,7 +20,7 @@ namespace Core
      * @details Files are registered up-front (single-threaded)
      *          After that all lookups are const safe to call from parallel parse threads.
      */
-    class SourceManager
+    class CORE_EXPORT SourceManager
     {
 
     public:
@@ -53,6 +54,16 @@ namespace Core
 
         /** @brief Gets the number of files */
         [[nodiscard]] std::size_t FileCount () const noexcept;
+
+        /**
+         * @brief Whether File actually indexes a registered file.
+         *
+         * Every other accessor indexes `Files` unchecked, so a default or
+         * foreign FileId is a wild read. A diagnostic may legitimately carry
+         * no location (a pass that knows a fact but not where it came from),
+         * so renderers must ask this before resolving.
+         */
+        [[nodiscard]] bool IsValidFile ( FileId File ) const noexcept;
 
     private:
 

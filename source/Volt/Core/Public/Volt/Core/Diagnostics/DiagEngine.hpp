@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core_export.hpp"
 #include "Volt/Core/Container/NonCopyable.hpp"
 #include "Volt/Core/Diagnostics/Diagnostic.hpp"
 
@@ -24,7 +25,7 @@ namespace Core
      *          then Merge it under one lock at the end of a pass.
      *          Direct Report() is also available for single-threaded use.
      */
-    class DiagEngine
+    class CORE_EXPORT DiagEngine
     {
 
     public:
@@ -33,7 +34,7 @@ namespace Core
          * @class Bag
          * @brief Lock-free per-thread accumulator for diagnostics.
          */
-        class Bag : public FNonCopyable
+        class CORE_EXPORT Bag : public FNonCopyable
         {
 
         public:

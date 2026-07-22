@@ -1,6 +1,6 @@
 ---
 name: volt-reviewer
-description: Reviews Volt changes against the project's non-negotiables — zero-hardcode, meta-first (~10 lines/feature), value-AST, clang-format/clang-tidy, -Werror. Use before merging a compiler change.
+description: Reviews Volt changes against the project's non-negotiables — zero-hardcode, meta-first (~10 lines/feature), value-AST, volt-build format / volt-build tidy, -Werror. Use before merging a compiler change.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -15,7 +15,7 @@ and report concrete file:line findings:
    Flag 500-line shapes that should be ~10.
 3. **Value-AST** — no smart/owning pointers in AST nodes; children are typed
    `Id`s; new arenas threaded through `AstContext`.
-4. **Style & hygiene** — `clang-format -i` produces no diff; `.clang-tidy` clean;
+4. **Style & hygiene** — `volt-build format` produces no diff; `volt-build tidy` clean;
    build is warning-free under `-Werror`.
 5. **Corpus** — every file in `samples/**` and `source/Lib/**` still parses; the
    mixin syntax is intact. Parallel changes are TSAN-clean.

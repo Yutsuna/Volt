@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frontend_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/SourceLocation.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
@@ -20,7 +21,7 @@ namespace Frontend
     /// newline-terminated language) and emitted as Newline tokens; runs of
     /// blank lines collapse into one. String interpolation is left intact in
     /// the lexeme and expanded later by the parser.
-    class Lexer
+    class FRONTEND_EXPORT Lexer
     {
 
     public:
@@ -51,14 +52,14 @@ namespace Frontend
             return Source[Pos++];
         }
 
-        [[nodiscard]] std::uint32_t Offset ( std::size_t Index ) const
+        [[nodiscard]] static std::uint32_t Offset ( std::size_t Index )
         {
             return static_cast<std::uint32_t>( Index );
         }
 
         [[nodiscard]] Core::SourceRange RangeFrom ( std::size_t Start ) const
         {
-            return Core::SourceRange{ File, Offset( Start ), Offset( Pos ) };
+            return Core::SourceRange{ .File = File, .Begin = Offset( Start ), .End = Offset( Pos ) };
         }
 
         [[nodiscard]] Token Make ( TokenKind Kind, std::size_t Start ) const;

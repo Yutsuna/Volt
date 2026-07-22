@@ -23,6 +23,7 @@ namespace Frontend
         static_assert( std::variant_size_v<DeclNode> >= 2 );
         static_assert( std::variant_size_v<TypeNode> >= 2 );
 
+#if VOLT_HAS_REFLECTION
         // P2996 reflection walks the structs directly, so a field can no
         // longer desynchronise from a manifest. Spot-check the Loc-skipping
         // convention instead: every field except the leading Loc is visited.
@@ -34,6 +35,7 @@ namespace Frontend
         static_assert( Meta::FieldCount<CaseExpr>() == 3 );
         static_assert( Meta::EnumName( ExprKind::IntLiteral ) == "IntLiteral" );
         static_assert( Meta::EnumName( ExprKind::CaseExpr ) == "CaseExpr" );
+#endif
 
         // Kind aligns with the manifest order (monostate = None = 0).
         // Only nodes without SmallVec members are constexpr-constructible;
@@ -46,8 +48,8 @@ namespace Frontend
             AstContext Ctx{ Interner, File };
 
             // 1 + 2
-            const ExprId One = Ctx.Add( IntLiteral{ {}, Interner.Intern( "1" ) } );
-            const ExprId Two = Ctx.Add( IntLiteral{ {}, Interner.Intern( "2" ) } );
+            const ExprId One = Ctx.Add( IntLiteral{ .Loc = {}, .Raw = Interner.Intern( "1" ) } );
+            const ExprId Two = Ctx.Add( IntLiteral{ .Loc = {}, .Raw = Interner.Intern( "2" ) } );
 
             Binary Sum;
             Sum.Op           = TokenKind::Plus;
@@ -55,13 +57,14 @@ namespace Frontend
             Sum.Rhs          = Two;
             const ExprId Add = Ctx.Add( ExprNode{ Sum } );
 
+            // NOLINTNEXTLINE(misc-const-correctness)
             Return Ret;
             Ret.Value            = Add;
             const StmtId RetStmt = Ctx.Add( StmtNode{ Ret } );
 
             Method M;
             M.Name       = Interner.Intern( "answer" );
-            M.ReturnType = Ctx.Add( TypeNode{ TypeRef{ {}, { Interner.Intern( "Int32" ) }, {} } } );
+            M.ReturnType = Ctx.Add( TypeNode{ TypeRef{ .Loc = {}, .Path = { Interner.Intern( "Int32" ) }, .Generics = {} } } );
             M.Body.PushBack( RetStmt );
             const DeclId Def = Ctx.Add( DeclNode{ M } );
 

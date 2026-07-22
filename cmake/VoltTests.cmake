@@ -47,6 +47,28 @@ endforeach()
 
 #############################################################################
 
+# Sema samples run the full check pipeline (parse + interfaces + passes),
+# not just parse: scoping/typing diagnostics only exist there. A sample
+# listed in VOLT_CHECK_EXPECT_FAIL asserts that check *rejects* it.
+file( GLOB_RECURSE VOLT_CHECK_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
+  ${VOLT_ROOT}/samples/Sema/*.vl )
+list( SORT VOLT_CHECK_SOURCES )
+
+set( VOLT_CHECK_EXPECT_FAIL samples/Sema/RedeclareSameScope.vl )
+
+foreach( SOURCE IN LISTS VOLT_CHECK_SOURCES )
+  add_test(
+    NAME              Check.${SOURCE}
+    COMMAND           $<TARGET_FILE:Volt> check -i ${SOURCE}
+    WORKING_DIRECTORY ${VOLT_ROOT}
+  )
+  if( SOURCE IN_LIST VOLT_CHECK_EXPECT_FAIL )
+    set_tests_properties( Check.${SOURCE} PROPERTIES WILL_FAIL TRUE )
+  endif()
+endforeach()
+
+#############################################################################
+
 add_test(
   NAME    ZeroHardcode
   COMMAND ${CMAKE_COMMAND} -P ${VOLT_ROOT}/tests/ZeroHardcode.cmake

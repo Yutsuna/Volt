@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Driver_export.hpp"
 #include "Volt/Core/Container/NonCopyable.hpp"
 #include "Volt/Core/Container/NonMovable.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
@@ -7,6 +8,7 @@
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Driver/CircuitGraph.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Sema/Layout/TypeBinder.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Link/InterfaceRegistry.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -36,7 +38,7 @@ namespace Driver
     //
     // Non-movable on purpose: the AstContext caches `&Interner`, so a unit
     // must stay put. std::deque gives us stable addresses without moves.
-    class CompileUnit : public FNonMovable, FNonCopyable
+    class DRIVER_EXPORT CompileUnit : public FNonMovable, FNonCopyable
     {
 
     public:
@@ -55,23 +57,28 @@ namespace Driver
         bool bComponent = false;
         Core::StringInterner Interner;
         Frontend::AstContext Ast;
-        Sema::TypeStore Types;
+        // Expression types inferred for this unit alone (see SemaType.hpp).
+        Sema::UnitTypes Types;
+        // Lexical scopes + name bindings resolved for this unit alone
+        // (see Scope/ScopeTable.hpp).
+        Sema::ScopeTable Scopes;
         Sema::PassStats Stats;
     };
 
     struct CompileResult
     {
 
-        std::size_t Files      = 0;
-        std::size_t JsxLowered = 0;
-        std::size_t Errors     = 0;
-        bool bCycle            = false;
+        std::size_t Files            = 0;
+        std::size_t JsxLowered       = 0;
+        std::size_t PipelinesLowered = 0;
+        std::size_t Errors           = 0;
+        bool bCycle                  = false;
     };
 
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and
     // gathers every diagnostic into one thread-safe engine.
-    class Driver
+    class DRIVER_EXPORT Driver
     {
 
     public:
@@ -109,6 +116,13 @@ namespace Driver
         [[nodiscard]] const Sema::InterfaceRegistry &Interfaces () const
         {
             return Registry;
+        }
+
+        // The layouts bound from the stdlib's annotations (empty before
+        // compilation). Read-only for callers.
+        [[nodiscard]] const Sema::TypeStore &Layouts () const
+        {
+            return Types;
         }
 
         [[nodiscard]] bool HasErrors () const
@@ -174,6 +188,9 @@ namespace Driver
         // annotations and report any dependency cycle.
         void BuildLinkGraph ( const std::string &RootModule );
 
+        // Discover and append stdlib sources from source/Lib/ if present.
+        void LoadStdLib ( std::vector<SourceRef> &Refs );
+
         // Report a file-less, driver-level diagnostic against <driver>.
         void ReportDriver ( Core::ESeverity Severity, std::string Message );
 
@@ -181,6 +198,10 @@ namespace Driver
         Core::DiagEngine Diagnostics;
         CircuitGraph Circuit;
         Sema::InterfaceRegistry Registry;
+        // One store for the whole build, not one per unit: `Int32` is declared
+        // in source/Lib/ and used everywhere, and a unit's Symbols mean
+        // nothing outside it. Filled serially, then read-only.
+        Sema::TypeStore Types;
         std::deque<CompileUnit> Units;
         Core::FileId DriverFile;
     };

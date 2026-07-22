@@ -42,6 +42,12 @@ target_compile_options( VoltCompileOptions INTERFACE
   $<$<CONFIG:Debug>:-Og;-g3;-fno-omit-frame-pointer>
   $<$<CONFIG:Release>:-O3;-DNDEBUG>
   $<$<CONFIG:RelWithDebInfo>:-O2;-g;-DNDEBUG>
+
+  $<$<AND:$<CXX_COMPILER_ID:GNU>,$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>>:-gsplit-dwarf;-fdebug-types-section>
+ )
+
+ target_link_options( VoltCompileOptions INTERFACE
+   $<$<AND:$<CXX_COMPILER_ID:GNU>,$<OR:$<CONFIG:Debug>,$<CONFIG:RelWithDebInfo>>>:-Wl,--gdb-index>
  )
 
 set( VOLT_PCH_HEADERS
@@ -63,6 +69,10 @@ set( VOLT_PCH_HEADERS
   <initializer_list>
   <array>
 )
+
+add_library( VoltPCH INTERFACE )
+add_library( Volt::PCH ALIAS VoltPCH )
+target_precompile_headers( VoltPCH INTERFACE ${VOLT_PCH_HEADERS} )
 
 ###########################################################
 
@@ -108,9 +118,15 @@ if( VOLT_ENABLE_LTO )
   include( CheckIPOSupported )
   check_ipo_supported( RESULT IPO_OK OUTPUT IPO_ERR )
   if( IPO_OK )
-    set_property( TARGET VoltCompileOptions PROPERTY
-    INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE )
-    message( STATUS "[Volt] LTO: enabled" )
+    if( CMAKE_CXX_COMPILER_ID STREQUAL "GNU" )
+      set( CMAKE_CXX_COMPILE_OPTIONS_IPO "-flto=auto" )
+      set( CMAKE_CXX_LINK_OPTIONS_IPO "-flto=auto" )
+      set( CMAKE_C_COMPILE_OPTIONS_IPO "-flto=auto" )
+      set( CMAKE_C_LINK_OPTIONS_IPO "-flto=auto" )
+    endif()
+
+    set( CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE )
+    message( STATUS "[Volt] LTO: enabled globally for Release (parallel)" )
   else()
     message( WARNING "[Volt] LTO requested but not supported: ${IPO_ERR}" )
   endif()

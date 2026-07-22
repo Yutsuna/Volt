@@ -1,4 +1,4 @@
-@[Primitive( "u8", 8 ), Literal( IntLiteral )]
+@[Primitive( "u8", 8 )]
 struct UInt8
   include Comparable
   include Hashable
@@ -18,7 +18,8 @@ struct UInt8
   end
 end
 
-@[Primitive( "u16", 16 ), Literal( IntLiteral )]
+
+@[Primitive( "u16", 16 )]
 struct UInt16
   include Comparable
   include Hashable
@@ -38,7 +39,8 @@ struct UInt16
   end
 end
 
-@[Primitive( "u32", 32 ), Literal( IntLiteral )]
+
+@[Primitive( "u32", 32 )]
 struct UInt32
   include Comparable
   include Hashable
@@ -61,7 +63,8 @@ struct UInt32
   end
 end
 
-@[Primitive( "u64", 64 ), Literal( IntLiteral )]
+
+@[Primitive( "u64", 64 )]
 struct UInt64
   include Comparable
   include Hashable
