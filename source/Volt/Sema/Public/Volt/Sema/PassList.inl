@@ -19,7 +19,8 @@
     #define VOLT_PASS( Name, Order, Kind )
 #endif
 
-VOLT_PASS( PipelineLowering, 8, Lowering )
+VOLT_PASS( FunctionalLowering, 8, Lowering )
+VOLT_PASS( PipelineLowering, 9, Lowering )
 VOLT_PASS( ScopeResolver, 10, Analysis )
 VOLT_PASS( EnumLowering, 12, Lowering )
 
