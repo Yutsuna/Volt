@@ -41,7 +41,7 @@ namespace Sema
         {
 
             Symbol Name;
-            Frontend::ExprList Args{};
+            Frontend::ExprList Args;
             Core::SourceRange Loc;
         };
 
