@@ -110,24 +110,9 @@ Implémenté dans `TypeChecker.cpp` :
 
 ## 4. `MemberByDecl` ne discrimine pas par unité
 
-**Statut : identifié, pas creusé en détail, pas implémenté.**
+**Statut : ✅ Terminé & validé (2026-07-22)**
 
-`TypeStore.hpp:190` (`MemberByDecl`) compare seulement `Entry.Decl == Decl`,
-jamais `Entry.Unit`. `DeclareType` documente explicitement que redéclarer un
-nom de type dans deux fichiers est supporté ("last stdlib definition wins",
-`TypeStore.hpp:136-138`). Si un même nom de type est un jour redéclaré dans
-deux unités, la phase A empile les `Members` des deux unités sur le même
-`NominalId` sans jamais vider l'ancienne liste, et deux `DeclId` de valeur
-identique (normal — chaque unité renumérote depuis 0) peuvent alors se
-confondre dans `MemberByDecl`.
-
-Latent, inoffensif tant que la stdlib ne redéclare pas un nom sous le même
-identifiant — mais bug réel si le cas se présente. Correction probable :
-ajouter `Unit` à la comparaison dans `MemberByDecl`, en passant l'unité
-appelante en paramètre (elle est disponible partout où `MemberByDecl` est
-actuellement appelé, à vérifier).
-
-Hors périmètre de la relance en cours.
+`MemberByDecl` dans `TypeStore.hpp` prend désormais `std::uint32_t Unit` en paramètre et compare à la fois `Entry.Unit == Unit` et `Entry.Decl == Decl`. Les appels dans `TypeBinder.cpp` ont été mis à jour pour transmettre `Unit`. Validé par build et tests (77/77).
 
 ## 5. `Checker::Locals` — table plate, dette assumée
 
@@ -165,7 +150,6 @@ n'existe pas.
 
 1. ✅ **Terminé** : points 1 et 2 (vérifiés et validés par `volt-reviewer`).
 2. ✅ **Terminé** : point 3 (`bSelf` - statique vs instance validé, 77/77 tests passés).
-3. Ensuite : point 4 (MemberByDecl par unité) — bug latent, faible urgence tant
-   que la stdlib ne redéclare pas de nom.
+3. ✅ **Terminé** : point 4 (`MemberByDecl` par unité validé, build & 77/77 tests passés).
 4. Point 5 : ne pas toucher (dette documentée, attend `ScopeResolver`).
 5. Point 6 : à refaire systématiquement à la fin de chaque point ci-dessus.

@@ -23,10 +23,11 @@ Rules:
 
 ## Two reflexes on every change
 
-1. **Format & build.** Run `volt-build format` then `volt-build` before you call
+1. **Format & build.** Run `volt-build format test` before you call
    a task done (Allman style, `SpacesInParens`, column 170) — format is parallel and
    per-file cached, so it only touches what changed. The build is `-Werror`; warnings are failures.
-   All build, format, and test tasks must go through `volt-build`.
+   All build, format, and test tasks must go through `volt-build`. Prefer single-command
+   invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`.
 
    **Never run `volt-build tidy`, and ignore clangd.** Both are clang front-ends,
    and clang does not implement C++26 static reflection (P2996) yet, so it cannot
