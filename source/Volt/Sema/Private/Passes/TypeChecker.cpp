@@ -25,6 +25,7 @@
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
+#include <unordered_set>
 #include <variant>
 #include <vector>
 
@@ -140,6 +141,8 @@ namespace Sema
 
             PassContext &Ctx;
             std::vector<bool> Metadata;
+            std::unordered_set<std::uint32_t> NakedTypeExprs{};
+            bool bStaticContext = false;
 
             // The type whose body we are inside, and the AST symbols of its
             // generic parameters (matched by ResolveTypeExpr, which reads
@@ -243,6 +246,8 @@ namespace Sema
             {
                 std::unordered_map<Symbol, SemaTypeId> Outer;
                 Outer.swap( Locals );
+                const bool bOuterStatic = bStaticContext;
+                bStaticContext          = Node.bSelf;
 
                 for ( const Frontend::ParamId Id : Node.Params )
                 {
@@ -253,6 +258,7 @@ namespace Sema
                 }
                 WalkStmts( Node.Body );
 
+                bStaticContext = bOuterStatic;
                 Locals.swap( Outer );
             }
 
@@ -414,12 +420,55 @@ namespace Sema
                                    .Params = std::move( Params ) };
             }
 
+            void CheckMemberSelf ( Core::SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType )
+            {
+                if ( Found.Decl == nullptr )
+                {
+                    return;
+                }
+
+                const bool bMemberIsStatic = Found.Decl->bSelf;
+                const std::string Name     = std::string{ Ctx.Types.Text( Found.Decl->Name ) };
+
+                if ( bReceiverIsNakedType and not bMemberIsStatic )
+                {
+                    Report( Loc, "instance member " + Name + " cannot be accessed on a type" );
+                }
+                else if ( not bReceiverIsNakedType and bMemberIsStatic )
+                {
+                    Report( Loc, "static member " + Name + " cannot be accessed on an instance" );
+                }
+            }
+
+            void CheckDotCallSelf ( Core::SourceRange Loc, const Resolution &Found )
+            {
+                if ( Found.Decl == nullptr )
+                {
+                    return;
+                }
+
+                const bool bMemberIsStatic = Found.Decl->bSelf;
+                const std::string Name     = std::string{ Ctx.Types.Text( Found.Decl->Name ) };
+
+                if ( bStaticContext and not bMemberIsStatic )
+                {
+                    Report( Loc, "instance member " + Name + " cannot be accessed from a static context" );
+                }
+                else if ( not bStaticContext and bMemberIsStatic )
+                {
+                    Report( Loc, "static member " + Name + " cannot be accessed from an instance context" );
+                }
+            }
+
             // A member access is an implicit call: `10.times` and
             // `"x".to_string` name the method and evaluate to what it
             // returns, exactly as they read.
-            [[nodiscard]] SemaTypeId MemberType ( SemaTypeId Receiver, std::string_view Name )
+            [[nodiscard]] SemaTypeId
+            MemberType ( Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
             {
-                return LookupOn( Receiver, Name ).Result;
+                const Resolution Found = LookupOn( Receiver, Name );
+                CheckMemberSelf( Loc, Found, bReceiverIsNakedType );
+                return Found.Result;
             }
 
             // --- Expressions ------------------------------------------------
@@ -448,7 +497,10 @@ namespace Sema
                     Meta::Overloaded{
                         [&] ( const Frontend::SelfExpr & ) -> SemaTypeId { return SelfValue; },
                         [&] ( const Frontend::InstanceVar &Expr ) -> SemaTypeId
-                        { return MemberType( SelfValue, Ctx.Ast.Text( Expr.Name ) ); },
+                        {
+                            return MemberType( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), SelfValue, bStaticContext,
+                                               Ctx.Ast.Text( Expr.Name ) );
+                        },
                         [&] ( const Frontend::Identifier &Expr ) -> SemaTypeId
                         {
                             if ( const auto It = Locals.find( Expr.Name ); It != Locals.end() )
@@ -460,6 +512,7 @@ namespace Sema
                             // type itself, un-instantiated.
                             if ( const auto Named = Ctx.Types.LookupType( Ctx.Ast.Text( Expr.Name ) ) )
                             {
+                                NakedTypeExprs.insert( Id.Value );
                                 return MakeType( *Named, {} );
                             }
                             return SemaTypeId{};
@@ -468,6 +521,8 @@ namespace Sema
                         {
                             const Resolution Found     = LookupOn( InferExpr( Expr.Object ), Ctx.Ast.Text( Expr.Name ) );
                             CalleeResolution[Id.Value] = Found;
+                            CheckMemberSelf( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Found,
+                                             NakedTypeExprs.contains( Expr.Object.Value ) );
                             return Found.Result;
                         },
                         [&] ( const Frontend::Index &Expr ) -> SemaTypeId
@@ -477,7 +532,8 @@ namespace Sema
                             {
                                 static_cast<void>( InferExpr( Arg ) );
                             }
-                            return MemberType( Object, IndexOperator );
+                            return MemberType( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Object,
+                                               NakedTypeExprs.contains( Expr.Object.Value ), IndexOperator );
                         },
                         // An operator is a method: the spelling comes from the
                         // token (an AST property), the method from source/Lib/.
@@ -485,10 +541,15 @@ namespace Sema
                         {
                             const SemaTypeId Lhs = InferExpr( Expr.Lhs );
                             static_cast<void>( InferExpr( Expr.Rhs ) );
-                            return MemberType( Lhs, Frontend::TokenSpelling( Expr.Op ) );
+                            return MemberType( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Lhs,
+                                               NakedTypeExprs.contains( Expr.Lhs.Value ), Frontend::TokenSpelling( Expr.Op ) );
                         },
                         [&] ( const Frontend::Unary &Expr ) -> SemaTypeId
-                        { return MemberType( InferExpr( Expr.Operand ), Frontend::TokenSpelling( Expr.Op ) ); },
+                        {
+                            return MemberType( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), InferExpr( Expr.Operand ),
+                                               NakedTypeExprs.contains( Expr.Operand.Value ),
+                                               Frontend::TokenSpelling( Expr.Op ) );
+                        },
                         [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
                         {
                             const SemaTypeId Value = InferExpr( Expr.Value );
@@ -509,7 +570,7 @@ namespace Sema
                             return Then.IsValid() ? Then : Else;
                         },
                         [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Expr ); },
-                        [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Expr ); },
+                        [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Id, Expr ); },
                         // `.method(args)` shorthand: the same call as
                         // `self.method(args)` — CaseLowering (order 22)
                         // already rewrites the ones it finds inside a `when`
@@ -522,6 +583,7 @@ namespace Sema
                                 static_cast<void>( InferExpr( Arg ) );
                             }
                             const Resolution Found = LookupOn( SelfValue, Ctx.Ast.Text( Expr.Method ) );
+                            CheckDotCallSelf( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Found );
                             CheckCallArgs( Expr.Loc, Found, Expr.Args );
                             return Found.Result;
                         },
@@ -590,9 +652,13 @@ namespace Sema
                 }
             }
 
-            [[nodiscard]] SemaTypeId GenericInstType ( const Frontend::GenericInst &Expr )
+            [[nodiscard]] SemaTypeId GenericInstType ( Frontend::ExprId Id, const Frontend::GenericInst &Expr )
             {
                 const SemaTypeId Base = InferExpr( Expr.Base );
+                if ( NakedTypeExprs.contains( Expr.Base.Value ) )
+                {
+                    NakedTypeExprs.insert( Id.Value );
+                }
                 if ( not Ctx.Values.Has( Base ) )
                 {
                     return SemaTypeId{};
