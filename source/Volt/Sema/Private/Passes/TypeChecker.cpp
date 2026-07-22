@@ -19,7 +19,9 @@
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 #include "Volt/Sema/Pass.hpp"
 
-#include <meta>
+#if VOLT_HAS_REFLECTION
+    #include <meta>
+#endif
 #include <span>
 #include <string>
 #include <string_view>
@@ -49,6 +51,7 @@ namespace Sema
         // absence from the node-kind table is simply not a literal.
         template <typename NodeType> [[nodiscard]] consteval bool HasChildNodes ()
         {
+#if VOLT_HAS_REFLECTION
             for ( const auto Field : std::meta::nonstatic_data_members_of( ^^NodeType, std::meta::access_context::unchecked() ) )
             {
                 const auto FieldType = std::meta::dealias( std::meta::type_of( Field ) );
@@ -64,6 +67,9 @@ namespace Sema
                 }
             }
             return false;
+#else
+            return false;
+#endif
         }
 
         // Annotation arguments are compile-time metadata, not program values:
@@ -155,6 +161,9 @@ namespace Sema
             // is ScopeResolver's job; until it publishes a table, a flat
             // per-body map is enough to type what the stdlib writes.
             std::unordered_map<Symbol, SemaTypeId> Locals{};
+            std::unordered_set<std::uint32_t> UnconstrainedLiterals{};
+            std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
+            SemaTypeId CurrentMethodReturnType{};
 
             // The resolution behind a `receiver.name` expression that turned
             // out to be a method, keyed by that Member expression's own Id —
@@ -167,6 +176,53 @@ namespace Sema
             {
                 Ctx.Diags.Report( Core::Diagnostic{
                     .Severity = Core::ESeverity::Error, .Range = Loc, .Message = std::move( Message ), .Notes = {} } );
+            }
+
+            void ConstrainExprType ( Frontend::ExprId Expr, SemaTypeId TargetType )
+            {
+                if ( not Expr.IsValid() or not TargetType.IsValid() )
+                {
+                    return;
+                }
+
+                if ( UnconstrainedLiterals.contains( Expr.Value ) )
+                {
+                    Ctx.Values.SetExprType( Expr, TargetType );
+                    UnconstrainedLiterals.erase( Expr.Value );
+                    return;
+                }
+
+                const auto &Node = Ctx.Ast.Expr( Expr );
+
+                if ( const auto *IdNode = std::get_if<Frontend::Identifier>( &Node ) )
+                {
+                    Ctx.Values.SetExprType( Expr, TargetType );
+                    if ( const auto It = UnconstrainedVarInitializers.find( IdNode->Name );
+                         It != UnconstrainedVarInitializers.end() )
+                    {
+                        const Frontend::ExprId InitExpr = It->second;
+                        UnconstrainedVarInitializers.erase( It );
+                        Locals[IdNode->Name] = TargetType;
+                        ConstrainExprType( InitExpr, TargetType );
+                    }
+                    return;
+                }
+
+                if ( const auto *Ternary = std::get_if<Frontend::Ternary>( &Node ) )
+                {
+                    ConstrainExprType( Ternary->Then, TargetType );
+                    ConstrainExprType( Ternary->Else, TargetType );
+                    Ctx.Values.SetExprType( Expr, TargetType );
+                    return;
+                }
+
+                if ( const auto *Binary = std::get_if<Frontend::Binary>( &Node ) )
+                {
+                    ConstrainExprType( Binary->Lhs, TargetType );
+                    ConstrainExprType( Binary->Rhs, TargetType );
+                    Ctx.Values.SetExprType( Expr, TargetType );
+                    return;
+                }
             }
 
             [[nodiscard]] std::span<const Symbol> Generics () const
@@ -244,22 +300,33 @@ namespace Sema
 
             void EnterMethod ( const Frontend::Method &Node )
             {
-                std::unordered_map<Symbol, SemaTypeId> Outer;
-                Outer.swap( Locals );
+                std::unordered_map<Symbol, SemaTypeId> OuterLocals;
+                OuterLocals.swap( Locals );
+                std::unordered_set<std::uint32_t> OuterUnconstrainedLiterals;
+                OuterUnconstrainedLiterals.swap( UnconstrainedLiterals );
+                std::unordered_map<Symbol, Frontend::ExprId> OuterUnconstrainedVarInitializers;
+                OuterUnconstrainedVarInitializers.swap( UnconstrainedVarInitializers );
+                const SemaTypeId OuterReturnType = CurrentMethodReturnType;
+
+                UnitSink Sink{ Ctx.Values };
+                CurrentMethodReturnType = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Node.ReturnType );
+
                 const bool bOuterStatic = bStaticContext;
                 bStaticContext          = Node.bSelf;
 
                 for ( const Frontend::ParamId Id : Node.Params )
                 {
                     const Frontend::Param &Entry = Ctx.Ast.GetParam( Id );
-                    UnitSink Sink{ Ctx.Values };
-                    Locals[Entry.Name] = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
+                    Locals[Entry.Name]           = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
                     InferExpr( Entry.Default );
                 }
                 WalkStmts( Node.Body );
 
-                bStaticContext = bOuterStatic;
-                Locals.swap( Outer );
+                bStaticContext          = bOuterStatic;
+                CurrentMethodReturnType = OuterReturnType;
+                Locals.swap( OuterLocals );
+                UnconstrainedLiterals.swap( OuterUnconstrainedLiterals );
+                UnconstrainedVarInitializers.swap( OuterUnconstrainedVarInitializers );
             }
 
             void WalkDecl ( Frontend::DeclId Id )
@@ -318,10 +385,26 @@ namespace Sema
                     Meta::Overloaded{
                         [&] ( const Frontend::LocalDecl &Node )
                         {
-                            const SemaTypeId Init = InferExpr( Node.Init );
                             UnitSink Sink{ Ctx.Values };
                             const SemaTypeId Written = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Node.DeclType );
-                            Locals[Node.Name]        = Written.IsValid() ? Written : Init;
+                            if ( Written.IsValid() and Node.Init.IsValid() )
+                            {
+                                ConstrainExprType( Node.Init, Written );
+                            }
+                            const SemaTypeId Init = InferExpr( Node.Init );
+                            Locals[Node.Name]     = Written.IsValid() ? Written : Init;
+                            if ( not Written.IsValid() and Node.Init.IsValid() )
+                            {
+                                UnconstrainedVarInitializers[Node.Name] = Node.Init;
+                            }
+                        },
+                        [&] ( const Frontend::Return &Node )
+                        {
+                            if ( Node.Value.IsValid() and CurrentMethodReturnType.IsValid() )
+                            {
+                                ConstrainExprType( Node.Value, CurrentMethodReturnType );
+                            }
+                            WalkChildren( Node );
                         },
                         [&] ( const auto &Node ) { WalkChildren( Node ); },
                     },
@@ -540,8 +623,16 @@ namespace Sema
                         [&] ( const Frontend::Binary &Expr ) -> SemaTypeId
                         {
                             const SemaTypeId Lhs = InferExpr( Expr.Lhs );
-                            static_cast<void>( InferExpr( Expr.Rhs ) );
-                            return MemberType( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Lhs,
+                            const SemaTypeId Rhs = InferExpr( Expr.Rhs );
+                            if ( Lhs.IsValid() and not UnconstrainedLiterals.contains( Expr.Lhs.Value ) )
+                            {
+                                ConstrainExprType( Expr.Rhs, Lhs );
+                            }
+                            else if ( Rhs.IsValid() and not UnconstrainedLiterals.contains( Expr.Rhs.Value ) )
+                            {
+                                ConstrainExprType( Expr.Lhs, Rhs );
+                            }
+                            return MemberType( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), InferExpr( Expr.Lhs ),
                                                NakedTypeExprs.contains( Expr.Lhs.Value ), Frontend::TokenSpelling( Expr.Op ) );
                         },
                         [&] ( const Frontend::Unary &Expr ) -> SemaTypeId
@@ -553,11 +644,17 @@ namespace Sema
                         [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
                         {
                             const SemaTypeId Value = InferExpr( Expr.Value );
-                            // `x = expr` on a not-yet-known name introduces it.
-                            if ( const auto *Target = std::get_if<Frontend::Identifier>( &Ctx.Ast.Expr( Expr.Target ) );
-                                 Target != nullptr and not Locals.contains( Target->Name ) )
+                            if ( const auto *Target = std::get_if<Frontend::Identifier>( &Ctx.Ast.Expr( Expr.Target ) ) )
                             {
-                                Locals[Target->Name] = Value;
+                                if ( const auto It = Locals.find( Target->Name ); It != Locals.end() and It->second.IsValid() )
+                                {
+                                    ConstrainExprType( Expr.Value, It->second );
+                                }
+                                else
+                                {
+                                    Locals[Target->Name]                       = Value;
+                                    UnconstrainedVarInitializers[Target->Name] = Expr.Value;
+                                }
                             }
                             static_cast<void>( InferExpr( Expr.Target ) );
                             return Value;
@@ -641,8 +738,12 @@ namespace Sema
 
                 for ( std::size_t Index = 0; Index < Given; ++Index )
                 {
-                    const SemaTypeId ArgType   = InferExpr( Args[Index] );
                     const SemaTypeId ParamType = Found.Params[Index];
+                    if ( ParamType.IsValid() )
+                    {
+                        ConstrainExprType( Args[Index], ParamType );
+                    }
+                    const SemaTypeId ArgType = InferExpr( Args[Index] );
                     if ( ArgType.IsValid() and ParamType.IsValid() and ArgType.Value != ParamType.Value )
                     {
                         Report( Frontend::LocOf( Ctx.Ast.Expr( Args[Index] ) ),
@@ -709,7 +810,11 @@ namespace Sema
                 else
                 {
                     const std::string_view Kind = Meta::TypeName<NodeType>();
-                    const auto Base             = Ctx.Types.LookupNodeKind( Kind );
+                    if ( Kind == "IntLiteral" )
+                    {
+                        UnconstrainedLiterals.insert( Id.Value );
+                    }
+                    const auto Base = Ctx.Types.LookupNodeKind( Kind );
                     if ( not Base )
                     {
                         // A written value with no type to wrap it means the
