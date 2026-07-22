@@ -8,10 +8,11 @@
 
 #include <cstddef>
 
-#if __has_include( <meta>)
+#if __has_include( <meta> ) && defined( __cpp_expansion_statements )
     #include <meta>
+    #define VOLT_HAS_REFLECTION 1
 #else
-    #error "C++26 static reflection support is required for Volt."
+    #define VOLT_HAS_REFLECTION 0
 #endif
 
 #include <string_view>
@@ -43,6 +44,7 @@ namespace Meta
     /// no per-node code, and a field can no longer be forgotten.
     template <Reflected T, typename Fn> constexpr void ForEachField ( T &Object, Fn &&Callback )
     {
+#if VOLT_HAS_REFLECTION
         using Bare = std::remove_cvref_t<T>;
         static constexpr auto Members = std::define_static_array( std::meta::nonstatic_data_members_of( ^^Bare, std::meta::access_context::unchecked() ) );
         template for ( constexpr auto Member : Members )
@@ -52,11 +54,16 @@ namespace Meta
                 Callback( std::define_static_string( std::meta::identifier_of( Member ) ), Object.[:Member:] );
             }
         }
+#else
+        static_cast<void>( Object );
+        static_cast<void>( Callback );
+#endif
     }
 
     /// Number of semantic fields ForEachField will visit.
     template <Reflected T> [[nodiscard]] consteval std::size_t FieldCount ()
     {
+#if VOLT_HAS_REFLECTION
         std::size_t Count = 0;
         for ( const auto Member : std::meta::nonstatic_data_members_of( ^^std::remove_cvref_t<T>, std::meta::access_context::unchecked() ) )
         {
@@ -66,6 +73,9 @@ namespace Meta
             }
         }
         return Count;
+#else
+        return 0;
+#endif
     }
 
     /// Enumerator name of Value, or "<unknown>" for out-of-range values.
@@ -73,6 +83,7 @@ namespace Meta
         requires std::is_enum_v<E>
     [[nodiscard]] constexpr std::string_view EnumName ( E Value )
     {
+#if VOLT_HAS_REFLECTION
         template for ( constexpr auto Enumerator : std::define_static_array( std::meta::enumerators_of( ^^E ) ) )
         {
             if ( Value == [:Enumerator:] )
@@ -81,17 +92,26 @@ namespace Meta
             }
         }
         return "<unknown>";
+#else
+        static_cast<void>( Value );
+        return "<unknown>";
+#endif
     }
 
     /// Unqualified type name of T ("Binary", "Method"), aliases resolved.
     template <typename T> [[nodiscard]] constexpr std::string_view TypeName ()
     {
+#if VOLT_HAS_REFLECTION
         return std::meta::identifier_of( std::meta::dealias( ^^std::remove_cvref_t<T> ) );
+#else
+        return "Unknown";
+#endif
     }
 
     /// Type name of the active alternative of a variant (monostate → "None").
     template <typename... Alts> [[nodiscard]] constexpr std::string_view ActiveName ( const std::variant<Alts...> &Node )
     {
+#if VOLT_HAS_REFLECTION
         return std::visit(
             [] ( const auto &Alt ) -> std::string_view
             {
@@ -107,6 +127,10 @@ namespace Meta
                 }
             },
             Node );
+#else
+        static_cast<void>( Node );
+        return "Unknown";
+#endif
     }
 
     // clang-format on
