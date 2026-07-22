@@ -46,8 +46,8 @@ namespace Frontend
             AstContext Ctx{ Interner, File };
 
             // 1 + 2
-            const ExprId One = Ctx.Add( IntLiteral{ {}, Interner.Intern( "1" ) } );
-            const ExprId Two = Ctx.Add( IntLiteral{ {}, Interner.Intern( "2" ) } );
+            const ExprId One = Ctx.Add( IntLiteral{ .Loc = {}, .Raw = Interner.Intern( "1" ) } );
+            const ExprId Two = Ctx.Add( IntLiteral{ .Loc = {}, .Raw = Interner.Intern( "2" ) } );
 
             Binary Sum;
             Sum.Op           = TokenKind::Plus;
@@ -62,7 +62,7 @@ namespace Frontend
 
             Method M;
             M.Name       = Interner.Intern( "answer" );
-            M.ReturnType = Ctx.Add( TypeNode{ TypeRef{ {}, { Interner.Intern( "Int32" ) }, {} } } );
+            M.ReturnType = Ctx.Add( TypeNode{ TypeRef{ .Loc = {}, .Path = { Interner.Intern( "Int32" ) }, .Generics = {} } } );
             M.Body.PushBack( RetStmt );
             const DeclId Def = Ctx.Add( DeclNode{ M } );
 
