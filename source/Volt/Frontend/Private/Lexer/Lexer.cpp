@@ -1,6 +1,7 @@
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
 
+#include <algorithm>
 #include <string_view>
 #include <vector>
 
