@@ -236,6 +236,12 @@ namespace Sema
                                 WalkStmt( Child, Inner );
                             }
                         },
+                        [&] ( const Frontend::Lambda &Node )
+                        {
+                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
+                            WalkParams( Node.Params, Inner );
+                            WalkExpr( Node.Body, Inner );
+                        },
                         [&] ( const auto &Node ) { WalkFields( Node, Current ); },
                     },
                     Context.Ast.Expr( Id ) );
