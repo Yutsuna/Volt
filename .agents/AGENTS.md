@@ -65,3 +65,4 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   generated `<MODULE>_EXPORT` macro, or `VOLT_BUILD_SHARED=ON` link-fails late
   with a wall of mold `undefined symbol` errors. See
   [`rules/shared-lib-exports.md`](rules/shared-lib-exports.md).
+- **Dual-mode build performance strategy.** Non-unity by default for instant 1s incremental local edits; `unity` flag for clean CI/Release builds. See [`rules/build-performance.md`](rules/build-performance.md).
