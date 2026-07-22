@@ -90,15 +90,21 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
 {
     // Passes (JsxLowering included) run per file over local state; the
     // published Registry is the only shared input, and it is read-only.
-    Sema::PassContext Context{
-        .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Diags = Bag, .Stats = Unit.Stats, .Globals = &Registry };
+    Sema::PassContext Context{ .Ast     = Unit.Ast,
+                               .Types   = Types,
+                               .Values  = Unit.Types,
+                               .Scopes  = Unit.Scopes,
+                               .Diags   = Bag,
+                               .Stats   = Unit.Stats,
+                               .Globals = &Registry };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{ .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Diags = Bag, .Stats = Unit.Stats };
+    Sema::PassContext Context{
+        .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Scopes = Unit.Scopes, .Diags = Bag, .Stats = Unit.Stats };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
