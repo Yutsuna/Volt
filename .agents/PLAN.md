@@ -46,34 +46,34 @@ Ce document recense le bilan complet des travaux d'analyse sémantique réalisé
 ### Point 5 : `Checker::Locals` — Table plate par corps de méthode
 * **Description :** Actuellement, `Checker::Locals` dans `TypeChecker.cpp` est une simple `std::unordered_map<Symbol, SemaTypeId>` à plat par corps de méthode.
 * **Impact :** Elle ne gère pas l'empilement de portées lexicales (*scope stack*), le masquage de variables (*shadowing*) dans des blocs imbriqués (`if`, `while`, `block`), ni les captures de closures.
-* **Justification de l'état actuel :** C'est un raccourci temporaire documenté (*"until ScopeResolver publishes a table"*). Il est suffisant pour le typage actuel de `source/Lib/` car la stdlib n'utilise pas de shadowing ambigu dans ses méthodes.
+* **Justification de l'état actuel :** C'est un raccourci temporaire documenté (*"until ScopeResolver publishes a table"*). Il est suffisant pour le typage actuel de `source/Lib/` car la stdlib n'utilise pas de shadowing ambigu dans ses méthodes.50: 
+51: ---
+52: 
+53: ## III. Implémentation Complétée : Passe `ScopeResolver` (Order 10)
+54: 
+55: La passe **`ScopeResolver`** (Order 10 dans [PassList.inl](file:///home/Yutsuna/Volt/source/Volt/Sema/Public/Volt/Sema/PassList.inl)) a été entièrement implémentée et validée (2026-07-22).
+56: 
+57: ### ✅ Bilan des réalisations (`ScopeResolver`) :
+58: 1. **`ScopeTable.hpp` & `ScopeResolver.cpp` :** Implémentation complète de l'arène de portées lexicales (`ScopeTable`), traversal récursif par réflexion `Overloaded` + `Meta::ForEachField` sans aucun `switch` sur les node kinds.
+59: 2. **Migration `TypeChecker` (Élimination du Point 5) :** `Checker::Locals` a été remplacé par `LocalTypes` indexé structurellement par `BindingSite` (`StmtId`/`ParamId`), résolvant le bug latent des collisions de symboles entre branches frères.
+60: 3. **Diagnostics & Couverture de tests :** Redéclaration dans la même portée lexicale diagnostiquée ; masquage imbriqué (*shadowing*) autorisé et validé (88/88 tests verts).
+61: 4. **Fix d'inclusion autonome :** `ScopeTable.hpp` inclut désormais explicitement `StringInterner.hpp` et `using Core::Symbol;`.
+62: 
+63: ---
+64: 
+65: ## IV. Dette Technique Résiduelle & Prochaines Étapes
+66: 
+67: ### 🟡 Dette technique résiduelle (Mineure & Documentée)
+68: 1. **Identifiants créés après Order 10 (`MacroExpansion` / `CaseLowering`) :**
+69:    - `ScopeResolver` s'exécute à l'Order 10. `ScopeTable` reste incrémentale (`Declare`/`BindUse` publiques) pour permettre une repasse légère si ces lowerings génèrent de nouveaux identifiants non résolus.
+70: 2. **Alimentation des `DeclId` (Membres) dans `BindingSite` :**
+71:    - Réservé pour l'unification complète des membres d'instance/classe dans la table de portées.
+72: 
+73: ### 🟢 Prochaines étapes prioritaires
+74: 1. **Captures de closures / Lambdas / Blocs (`do |x| ... end`) :**
+75:    - Exploitation de la hiérarchie `Scope::Parent` pour analyser les captures lexicales.
+76: 2. **Génération de code (Backend / Codegen) :**
+77:    - Exploitation de `ScopeTable` pour dériver les durées de vie et allocations sur la pile (*stack frames*).
+78: 3. **Commit Git :**
+79:    - Validation et commit des modifications actuelles sur la branche `Feat/Add-Semantic`.
 
----
-
-## III. Prochaine Étape Prioritaire : Option 1 — `ScopeResolver` (Passe Order 10)
-
-La prochaine étape prioritaire absolue de développement est l'implémentation complète de la passe **`ScopeResolver`** (Order 10 dans [PassList.inl](file:///home/Yutsuna/Volt/source/Volt/Sema/Public/Volt/Sema/PassList.inl)).
-
-### Pourquoi faire `ScopeResolver` D'ABORD (avant le Backend / Codegen) ?
-
-1. **La génération de code (Backend) a un besoin vital des portées :**
-   Que l'on génère du LLVM IR, du C ou du Bytecode, le backend doit savoir à chaque instruction de quelle variable stack/frame il s'agit (gestion fine des durées de vie, allocations sur la pile, portée des temporaires, réutilisation d'emplacements et masquage). Construire un backend sur une table d'allocations plates incomplète rendrait la génération de code extrêmement fragile dès qu'il y a des boucles ou des blocs `if`/`else` imbriqués.
-
-2. **Clôture définitive du chantier Sema :**
-   En implémentant `ScopeResolver` (Passe Order 10), on élimine la dernière dette technique documentée (`Checker::Locals` - Point 5). La phase d'analyse sémantique (`Sema`) devient alors 100 % complète, propre et rigoureuse.
-
-3. **Préparation du support des closures / Lambdas / Blocs :**
-   Le style fonctionnel de Volt (closures, lambdas, blocs `do/end` passés via `&block`) repose intégralement sur la capacité du compilateur à analyser la capture de portées lexicales (*lexical closure captures*). C'est précisément la responsabilité architecturale de `ScopeResolver`.
-
----
-
-## IV. Plan d'Action pour `ScopeResolver`
-
-1. **Conception du Scope Tree dans `PassContext` :**
-   - Définir la structure des portées lexicales (`Scope`, `ScopeId`, liens parent-enfant) dans `Sema`.
-2. **Implémentation de `ScopeResolver` ([Passes.cpp](file:///home/Yutsuna/Volt/source/Volt/Sema/Private/Passes/Passes.cpp)) :**
-   - Parcourir l'AST et enregistrer la déclaration et l'utilisation de chaque identifiant dans son nœud de portée exact.
-3. **Migration de `TypeChecker.cpp` :**
-   - Remplacer l'usage de la table plate `Checker::Locals` par l'interrogation de la table de portées publiée par `ScopeResolver`.
-4. **Validation :**
-   - Exécution de `volt-build format test` et `volt check source/Lib/`.
