@@ -49,6 +49,9 @@ VOLT_EXPR( JsxText )
 VOLT_EXPR( CaseExpr )
 VOLT_EXPR( DotCall )
 VOLT_EXPR( Pipeline )
+VOLT_EXPR( Lambda )
+VOLT_EXPR( Section )
+VOLT_EXPR( Composition )
 
 // --- Statements ------------------------------------------------------------
 VOLT_STMT( ExprStmt )
