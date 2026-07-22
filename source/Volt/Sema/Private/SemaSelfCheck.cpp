@@ -33,8 +33,8 @@ namespace Sema
             const LayoutId Ptr  = Store.AddPointer( Word );
 
             Aggregate Pair;
-            Pair.Fields.PushBack( FieldLayout{ Interner.Intern( "head" ), Word } );
-            Pair.Fields.PushBack( FieldLayout{ Interner.Intern( "next" ), Ptr } );
+            Pair.Fields.PushBack( FieldLayout{ .Name = Interner.Intern( "head" ), .Type = Word } );
+            Pair.Fields.PushBack( FieldLayout{ .Name = Interner.Intern( "next" ), .Type = Ptr } );
             const LayoutId Node = Store.AddAggregate( Pair );
 
             // A type is an identity first; the layout is attached to it.
