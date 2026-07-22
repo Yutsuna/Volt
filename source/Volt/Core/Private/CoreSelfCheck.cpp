@@ -98,7 +98,7 @@ namespace Core
                 std::visit( Meta::Overloaded{ [] ( int ) { return false; }, [] ( double ) { return true; } }, Variant );
 
             int Reflected = 0;
-            Sample S{ 7, 1.5 };
+            Sample S{ .A = 7, .B = 1.5 };
             Meta::ForEachField( S, [&] ( const char *, auto & ) { ++Reflected; } );
 
             return bIsDouble and Reflected == 2;
