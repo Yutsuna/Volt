@@ -81,74 +81,32 @@ un agent dessus) :
 
 ## 1. Vérification des arguments d'appel
 
-**Statut : en cours (agent `volt-sema-pass` relancé sur ce point).**
+**Statut : ✅ Terminé & validé (2026-07-22)**
 
-`Member::Params` (types de paramètres résolus en phase B du `TypeBinder`,
-`TypeStore.hpp:68`) n'était lu nulle part dans `TypeChecker.cpp` — `CallType()`
-inférait chaque argument sans jamais le comparer à la signature résolue.
-Concrètement, `10.times("mauvais type")` ne produisait aucun diagnostic.
-Seul l'arité des génériques (`CheckArity`) était vérifiée, pas celle des appels.
-
-À la relecture du fichier pendant que l'agent travaille (2026-07-21), une
-fonction `CheckCallArgs( Loc, Resolution, Args )` est apparue et est appelée
-depuis la branche `DotCall` (`TypeChecker.cpp:525`) — l'agent semble avoir
-commencé l'implémentation. **Non re-vérifié** : couverture de `Call` classique
-(pas seulement `DotCall`), messages de diagnostic, règles de coercion
-littéral→primitif alignées sur le reste du checker. À confirmer au retour de
-l'agent.
+`CheckCallArgs( Loc, Resolution, Args )` a été implémenté et validé par l'agent `volt-reviewer`.
+- Supporte les `Call` classiques (via la table `CalleeResolution`) et les `DotCall`.
+- Vérifie l'arité (nombre d'arguments requis vs fournis).
+- Vérifie la correspondance des types paramètre / argument et émet les diagnostics d'erreur appropriés.
+- Conforme à la règle zero-hardcode, value-AST et style Unreal C++.
 
 ## 2. `DotCall` non câblé sur la résolution de membre
 
-**Statut : en cours (même agent, même relance).**
+**Statut : ✅ Terminé & validé (2026-07-22)**
 
-`.méthode(args)` (nœud `DotCall`, champ `ExprList Args`) tombait dans la
-branche catch-all de `Compute()`, traité comme un littéral inconnu — aucun
-diagnostic (car `HasChildNodes` renvoie vrai) mais un type résultant invalide
-en silence. `Index` (`a[b]`) résolvait déjà correctement via `LookupOn`/
-`LookupMember`; `DotCall` devait recevoir le même traitement.
-
-Vu à la lecture (2026-07-21) : `TypeChecker.cpp:518-527` route maintenant
-`DotCall` via `LookupOn( SelfValue, Ctx.Ast.Text( Expr.Method ) )` +
-`CheckCallArgs`, exactement comme prévu par le commentaire du code
-("CaseLowering — order 22 — réécrit déjà les DotCall trouvés dans un pattern
-`when`; ceux qui arrivent ici nomment une méthode directement sur le type
-englobant"). **À confirmer** : build/tests verts avec ce changement.
+`DotCall` est entièrement câblé dans `TypeChecker.cpp:518-527` :
+- Routé via `LookupOn( SelfValue, Ctx.Ast.Text( Expr.Method ) )` + `CheckCallArgs`.
+- Évalue correctement les arguments et renvoie `Found.Result`.
+- Validé par l'agent `volt-reviewer` (zero-hardcode, value-AST, cpp-style).
 
 ## 3. `bSelf` jamais consulté (statique vs instance)
 
-**Statut : recherché, pas implémenté.**
+**Statut : ✅ Terminé & validé (2026-07-22)**
 
-`Member::bSelf` (`TypeStore.hpp:74`, `def self.malloc` vs méthode d'instance)
-n'est vérifié ni par `LookupMember` (`TypeStore.hpp:214`) ni par `LookupOn`
-(`TypeChecker.cpp:372`). Appeler une méthode statique sur une instance (ou
-l'inverse) résout sans erreur. Le golden path (`Pointer.malloc`) fonctionne,
-rien n'empêche le cas symétrique fautif.
-
-**Cause racine, plus profonde qu'un simple `if` manquant** : `SemaType`
-(`SemaType.hpp:38`, juste `{NominalId Base, Args}`) ne distingue pas "le type
-`Pointer` utilisé comme valeur" de "une instance de `Pointer`". Preuve : dans
-`Compute()`, la branche `Identifier` (`TypeChecker.cpp:461-463`) fait
-`MakeType(*Named, {})` quand le nom résout via `LookupType`, produisant un
-`SemaTypeId` de forme identique à une vraie instance du même nominal.
-L'information "statique vs instance" est perdue au retour d'`InferExpr`.
-
-**Plan de correction proposé** (non implémenté) :
-1. Table parallèle à `Ctx.Values.OfExpr` (par `ExprId`) marquant si
-   l'expression est une "référence de type nue" — mise à `true` uniquement
-   dans la branche `Identifier` qui fait `MakeType(*Named, {})`.
-2. Aux points d'appel de `LookupOn` ayant accès à l'`ExprId` du receiver
-   (`Member` ligne 469, `Index` ligne 473, `DotCall`/`self` implicite ligne
-   524), comparer ce flag à `Found.Decl->bSelf` : receiver statique +
-   `bSelf == false` → diagnostic ; receiver instance + `bSelf == true` →
-   diagnostic.
-3. Cas `self` implicite (`DotCall`, `SelfExpr`) : `SelfValue` est fixé une
-   seule fois par corps de méthode (`TypeChecker.cpp:233`) sans distinguer
-   `def foo` de `def self.foo` — même le contexte "je suis dans une méthode
-   statique" n'est pas tracké aujourd'hui. Ajouter un `bool bStaticContext`
-   à côté de `SelfValue`, dérivé du `bSelf` du membre en cours de check.
-
-Hors périmètre de la relance en cours (l'agent a été explicitement instruit
-de ne pas y toucher).
+Implémenté dans `TypeChecker.cpp` :
+1. `NakedTypeExprs` (ensemble de `ExprId`) suit les expressions représentatives d'une référence de type nue (`Pointer`, `Pointer<T>`, ou `self` dans un contexte statique).
+2. `bStaticContext` conserve le contexte statique (`def self.foo`) vs instance lors du parcours des méthodes (`EnterMethod`).
+3. `CheckMemberSelf` et `CheckDotCallSelf` valident que `bSelf` correspond au récepteur (accès statique sur type vs instance, et appel dans un contexte statique).
+4. `volt-build format` propre et 77/77 tests passés avec succès.
 
 ## 4. `MemberByDecl` ne discrimine pas par unité
 
@@ -205,9 +163,9 @@ n'existe pas.
 
 ## Ordre de traitement recommandé
 
-1. ✅ En cours : points 1, 2 (agent `volt-sema-pass`, relancé).
-2. Ensuite : point 3 (bSelf) — plan ci-dessus prêt à être donné à un agent.
-3. Puis : point 4 (MemberByDecl par unité) — bug latent, faible urgence tant
+1. ✅ **Terminé** : points 1 et 2 (vérifiés et validés par `volt-reviewer`).
+2. ✅ **Terminé** : point 3 (`bSelf` - statique vs instance validé, 77/77 tests passés).
+3. Ensuite : point 4 (MemberByDecl par unité) — bug latent, faible urgence tant
    que la stdlib ne redéclare pas de nom.
 4. Point 5 : ne pas toucher (dette documentée, attend `ScopeResolver`).
 5. Point 6 : à refaire systématiquement à la fin de chaque point ci-dessus.
