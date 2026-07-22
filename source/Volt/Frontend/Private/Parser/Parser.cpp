@@ -13,7 +13,7 @@ Volt::Frontend::Parser::Parser ( std::vector<Token> InTokens,
 {
     if ( Tokens.empty() )
     {
-        Tokens.push_back( Token{ TokenKind::Eof, {}, {}, false } );
+        Tokens.push_back( Token{ .Kind = TokenKind::Eof, .Range = {}, .Lexeme = {}, .bHasInterpolation = false } );
     }
 }
 
