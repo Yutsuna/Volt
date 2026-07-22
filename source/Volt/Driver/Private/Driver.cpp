@@ -90,14 +90,15 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
 {
     // Passes (JsxLowering included) run per file over local state; the
     // published Registry is the only shared input, and it is read-only.
-    Sema::PassContext Context{ Unit.Ast, Types, Unit.Types, Bag, Unit.Stats, &Registry };
+    Sema::PassContext Context{
+        .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Diags = Bag, .Stats = Unit.Stats, .Globals = &Registry };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{ Unit.Ast, Types, Unit.Types, Bag, Unit.Stats };
+    Sema::PassContext Context{ .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Diags = Bag, .Stats = Unit.Stats };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
@@ -211,7 +212,8 @@ void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
     {
         if ( It.is_regular_file() and IsSourceFile( It.path() ) )
         {
-            Refs.push_back( SourceRef{ It.path().string(), "Core", IsComponentPath( It.path().string() ) } );
+            Refs.push_back(
+                SourceRef{ .Path = It.path().string(), .Module = "Core", .bComponent = IsComponentPath( It.path().string() ) } );
         }
     }
 }
@@ -382,7 +384,8 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
         {
             if ( It.is_regular_file() and IsSourceFile( It.path() ) )
             {
-                Refs.push_back( SourceRef{ It.path().string(), ModName, IsComponentPath( It.path().string() ) } );
+                Refs.push_back( SourceRef{
+                    .Path = It.path().string(), .Module = ModName, .bComponent = IsComponentPath( It.path().string() ) } );
             }
         }
     }
