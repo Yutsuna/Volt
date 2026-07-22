@@ -23,6 +23,7 @@ namespace Frontend
         static_assert( std::variant_size_v<DeclNode> >= 2 );
         static_assert( std::variant_size_v<TypeNode> >= 2 );
 
+#if VOLT_HAS_REFLECTION
         // P2996 reflection walks the structs directly, so a field can no
         // longer desynchronise from a manifest. Spot-check the Loc-skipping
         // convention instead: every field except the leading Loc is visited.
@@ -34,6 +35,7 @@ namespace Frontend
         static_assert( Meta::FieldCount<CaseExpr>() == 3 );
         static_assert( Meta::EnumName( ExprKind::IntLiteral ) == "IntLiteral" );
         static_assert( Meta::EnumName( ExprKind::CaseExpr ) == "CaseExpr" );
+#endif
 
         // Kind aligns with the manifest order (monostate = None = 0).
         // Only nodes without SmallVec members are constexpr-constructible;
