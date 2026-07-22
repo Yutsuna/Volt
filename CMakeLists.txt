@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 4.0)
 
+set( CMAKE_CXX_SCAN_FOR_MODULES OFF )
+
 project(
   Volt
   VERSION 0.1.0
