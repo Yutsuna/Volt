@@ -59,6 +59,9 @@ namespace Driver
         Frontend::AstContext Ast;
         // Expression types inferred for this unit alone (see SemaType.hpp).
         Sema::UnitTypes Types;
+        // Lexical scopes + name bindings resolved for this unit alone
+        // (see Scope/ScopeTable.hpp).
+        Sema::ScopeTable Scopes;
         Sema::PassStats Stats;
     };
 
