@@ -63,7 +63,8 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
         {
             ++Ahead;
         }
-        if ( PeekKind( Ahead ) == TokenKind::PipeGreater or PeekKind( Ahead ) == TokenKind::LessPipe or PeekKind( Ahead ) == TokenKind::Shr )
+        if ( PeekKind( Ahead ) == TokenKind::PipeGreater or PeekKind( Ahead ) == TokenKind::LessPipe or
+             PeekKind( Ahead ) == TokenKind::Shr )
         {
             SkipNewlines();
         }
