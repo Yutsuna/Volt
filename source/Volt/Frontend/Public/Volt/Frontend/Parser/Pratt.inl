@@ -88,6 +88,7 @@ VOLT_PREFIX( Bang )
 VOLT_PREFIX( Tilde )
 VOLT_PREFIX( KwNot )
 VOLT_PREFIX( Amp )
+VOLT_PREFIX( AmpDot )
 
 #undef VOLT_INFIX
 #undef VOLT_ASSIGN

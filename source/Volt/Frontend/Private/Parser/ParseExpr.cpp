@@ -63,7 +63,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
         {
             ++Ahead;
         }
-        if ( PeekKind( Ahead ) == TokenKind::PipeGreater or PeekKind( Ahead ) == TokenKind::LessPipe )
+        if ( PeekKind( Ahead ) == TokenKind::PipeGreater or PeekKind( Ahead ) == TokenKind::LessPipe or PeekKind( Ahead ) == TokenKind::Shr )
         {
             SkipNewlines();
         }
@@ -117,6 +117,29 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseExpr ( int MinBindingPower )
             Node.Lhs = ParseExpr( Bp.Right );
             Lhs      = MakeExpr( Node, RangeSince( Begin ) );
         }
+        else if ( Op == TokenKind::Shr )
+        {
+            SkipNewlines();
+            const ExprId RhsId  = ParseExpr( Bp.Right );
+            const ExprKind LhsK = KindOf( Context.Expr( Lhs ) );
+            const ExprKind RhsK = KindOf( Context.Expr( RhsId ) );
+            if ( LhsK == ExprKind::Section or LhsK == ExprKind::Lambda or LhsK == ExprKind::Composition or
+                 RhsK == ExprKind::Section or RhsK == ExprKind::Lambda or RhsK == ExprKind::Composition )
+            {
+                Composition Node;
+                Node.Lhs = Lhs;
+                Node.Rhs = RhsId;
+                Lhs      = MakeExpr( Node, RangeSince( Begin ) );
+            }
+            else
+            {
+                Binary Node;
+                Node.Op  = Op;
+                Node.Lhs = Lhs;
+                Node.Rhs = RhsId;
+                Lhs      = MakeExpr( Node, RangeSince( Begin ) );
+            }
+        }
         else
         {
             Binary Node;
@@ -134,6 +157,71 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
 {
     const std::uint32_t Begin = Here();
     const TokenKind Kind      = PeekKind();
+
+    if ( Kind == TokenKind::AmpDot )
+    {
+        Advance();
+        Section Node;
+        Node.Loc = RangeSince( Begin );
+
+        const TokenKind TargetKind = PeekKind();
+        if ( TargetKind == TokenKind::Identifier or TargetKind == TokenKind::Constant )
+        {
+            Node.Kind   = ESectionKind::InstanceMethod;
+            Node.Target = InternText( Advance() );
+
+            // Check for optional trailing args: &.prefix("usr_")
+            if ( Check( TokenKind::LParen ) )
+            {
+                Advance();
+                ExprList Args;
+                SymbolList ArgNames;
+                ParseCallArguments( Args, ArgNames, TokenKind::RParen );
+                Expect( TokenKind::RParen, "to close section call arguments" );
+                Node.Args = std::move( Args );
+            }
+        }
+        else
+        {
+            // Operator section: &.+ 5 or &.* 2
+            Node.Kind   = ESectionKind::Operator;
+            Node.Target = InternText( Advance() );
+            if ( CanStartCommandArgument() or Check( TokenKind::IntLiteral ) or Check( TokenKind::FloatLiteral ) or
+                 Check( TokenKind::StringLiteral ) )
+            {
+                const ExprId ArgId = ParseExpr( 65 );
+                if ( ArgId.IsValid() )
+                {
+                    Node.Args.PushBack( ArgId );
+                }
+            }
+        }
+
+        if ( Accept( TokenKind::Dot ) )
+        {
+            if ( Accept( TokenKind::Bang ) )
+            {
+                Node.bNegated = true;
+            }
+        }
+
+        return ParsePostfix( MakeExpr( Node, RangeSince( Begin ) ) );
+    }
+
+    if ( Kind == TokenKind::Amp )
+    {
+        // Check if followed by identifier/constant/member (Static capture: &Math.square)
+        if ( Pos + 1 < Tokens.size() and
+             ( Tokens[Pos + 1].Kind == TokenKind::Identifier or Tokens[Pos + 1].Kind == TokenKind::Constant ) )
+        {
+            Advance();
+            Section Node;
+            Node.Loc        = RangeSince( Begin );
+            Node.Kind       = ESectionKind::StaticCapture;
+            Node.TargetExpr = ParseExpr( 90 );
+            return ParsePostfix( MakeExpr( Node, RangeSince( Begin ) ) );
+        }
+    }
 
     // Every VOLT_PREFIX row of Pratt.inl lowers to a Unary node here; a
     // new prefix operator is one manifest line, never a new case.
@@ -571,8 +659,54 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseCommandCallArgs ( ExprId Cal
 
 Volt::Frontend::ExprId Volt::Frontend::Parser::ParseParenOrGroup ()
 {
+    const std::uint32_t Begin = Here();
     Expect( TokenKind::LParen, "to open a parenthesised expression" );
     SkipNewlines();
+
+    // Disambiguate lambda parameter list `(x : T, y) => ...` or `() => ...` vs grouped expression `(x + 1)`
+    bool bIsLambda        = false;
+    std::size_t Lookahead = Pos;
+    if ( Lookahead < Tokens.size() and Tokens[Lookahead].Kind == TokenKind::RParen )
+    {
+        if ( Lookahead + 1 < Tokens.size() and Tokens[Lookahead + 1].Kind == TokenKind::FatArrow )
+        {
+            bIsLambda = true;
+        }
+    }
+    else
+    {
+        while ( Lookahead < Tokens.size() and Tokens[Lookahead].Kind != TokenKind::RParen and
+                Tokens[Lookahead].Kind != TokenKind::Eof )
+        {
+            ++Lookahead;
+        }
+        if ( Lookahead < Tokens.size() and Tokens[Lookahead].Kind == TokenKind::RParen )
+        {
+            if ( Lookahead + 1 < Tokens.size() and Tokens[Lookahead + 1].Kind == TokenKind::FatArrow )
+            {
+                bIsLambda = true;
+            }
+        }
+    }
+
+    if ( bIsLambda )
+    {
+        ParamList Params;
+        ParseParameterList( Params );
+        Expect( TokenKind::RParen, "to close lambda parameters" );
+        SkipNewlines();
+        Expect( TokenKind::FatArrow, "to open lambda body" );
+        SkipNewlines();
+
+        const ExprId Body = ParseExpr( 0 );
+
+        Lambda LNode;
+        LNode.Loc    = RangeSince( Begin );
+        LNode.Params = std::move( Params );
+        LNode.Body   = Body;
+        return MakeExpr( LNode, RangeSince( Begin ) );
+    }
+
     // Parens delimit a fresh expression context: `do` may attach again.
     const bool Saved   = bNoDoBlock;
     bNoDoBlock         = false;
@@ -615,27 +749,56 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseArrayLiteral ()
 Volt::Frontend::ExprId Volt::Frontend::Parser::ParseHashLiteral ()
 {
     const std::uint32_t Begin = Here();
-    Expect( TokenKind::LBrace, "to open a hash literal" );
+    Expect( TokenKind::LBrace, "to open a hash literal or block expression" );
+
+    // Disambiguate block `{ expr }` / `{ stmt; stmt }` vs `{ key => value }` hash literal.
+    // If empty `{}` -> HashLiteral.
+    SkipNewlines();
+    if ( Check( TokenKind::RBrace ) )
+    {
+        Advance();
+        return MakeExpr( HashLit{}, RangeSince( Begin ) );
+    }
+
+    // Lookahead: parse key expression. If next token is NOT FatArrow `=>`, this is a block `{ expr }`.
+    std::size_t Lookahead = Pos;
+    bool bHasFatArrow     = false;
+    while ( Lookahead < Tokens.size() and Tokens[Lookahead].Kind != TokenKind::RBrace and
+            Tokens[Lookahead].Kind != TokenKind::Newline and Tokens[Lookahead].Kind != TokenKind::Eof )
+    {
+        if ( Tokens[Lookahead].Kind == TokenKind::FatArrow )
+        {
+            bHasFatArrow = true;
+            break;
+        }
+        ++Lookahead;
+    }
+
+    if ( not bHasFatArrow )
+    {
+        // Single block expression or statement list: `{ expr }`
+        const bool Saved  = bNoDoBlock;
+        bNoDoBlock        = false;
+        const ExprId Body = ParseExpr( 0 );
+        bNoDoBlock        = Saved;
+        SkipNewlines();
+        Expect( TokenKind::RBrace, "to close block expression" );
+        return Body;
+    }
 
     HashLit Node;
-    SkipNewlines();
-    if ( not Check( TokenKind::RBrace ) )
+    do
     {
-        do
+        SkipNewlines();
+        if ( Check( TokenKind::RBrace ) )
         {
-            SkipNewlines();
-            if ( Check( TokenKind::RBrace ) )
-            {
-                break;
-            }
-            // Parse the key above `=>`'s binding power so the Pratt loop
-            // leaves the arrow for the explicit Expect below.
-            Node.Keys.PushBack( ParseExpr( InfixBinding( TokenKind::FatArrow ).Left + 1 ) );
-            Expect( TokenKind::FatArrow, "between hash key and value" );
-            Node.Values.PushBack( ParseExpr( 0 ) );
-            SkipNewlines();
-        } while ( Accept( TokenKind::Comma ) );
-    }
+            break;
+        }
+        Node.Keys.PushBack( ParseExpr( InfixBinding( TokenKind::FatArrow ).Left + 1 ) );
+        Expect( TokenKind::FatArrow, "between hash key and value" );
+        Node.Values.PushBack( ParseExpr( 0 ) );
+        SkipNewlines();
+    } while ( Accept( TokenKind::Comma ) );
     Expect( TokenKind::RBrace, "to close a hash literal" );
 
     if ( Accept( TokenKind::KwOf ) )
