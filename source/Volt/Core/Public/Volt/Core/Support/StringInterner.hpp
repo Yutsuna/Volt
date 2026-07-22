@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstring>
 #include <memory_resource>
+#include <optional>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -53,6 +54,17 @@ namespace Core
             return Handle;
         }
 
+        /// The Symbol for Text if it was already interned, without adding it.
+        /// Lets read-only lookups miss without growing the table.
+        [[nodiscard]] std::optional<Symbol> Find ( std::string_view Text ) const
+        {
+            if ( const auto It = Lookup.find( Text ); It != Lookup.end() )
+            {
+                return It->second;
+            }
+            return std::nullopt;
+        }
+
         [[nodiscard]] std::string_view Resolve ( Symbol Handle ) const
         {
             return Views[Handle.Value];
@@ -80,7 +92,7 @@ namespace Core
         // blocks that are never released before the interner dies, so every
         // string_view handed out stays valid — without one heap node per
         // string as the previous std::deque<std::string> storage had.
-        std::pmr::monotonic_buffer_resource Buffer{ 64 * 1024 };
+        std::pmr::monotonic_buffer_resource Buffer{ 64UL * 1024UL };
         std::vector<std::string_view> Views;
         std::unordered_map<std::string_view, Symbol> Lookup;
     };

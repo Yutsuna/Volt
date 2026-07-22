@@ -1,8 +1,9 @@
 @[External( "libc" )]
-def memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
+external def memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
 
 @[External( "libc" )]
-def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
+external def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
+
 
 @[Literal( StringLiteral )]
 struct String

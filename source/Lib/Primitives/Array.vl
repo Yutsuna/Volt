@@ -1,4 +1,4 @@
-@[Literal( ArrayLiteral )]
+@[Literal( ArrayLit )]
 struct Array<T>
   include Enumerable
 

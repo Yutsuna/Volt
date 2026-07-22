@@ -477,7 +477,7 @@ namespace Sema
                     if ( Name.IsValid() )
                     {
                         const std::string_view Text = Ast.Text( Name );
-                        if ( std::find( ParamNames.begin(), ParamNames.end(), Text ) == ParamNames.end() )
+                        if ( std::ranges::find( ParamNames, Text ) == ParamNames.end() )
                         {
                             Context.Diags.Error( Invoke.Loc, "macro '" + std::string( Ast.Text( Def.Name ) ) +
                                                                  "' has no parameter '" + std::string( Text ) + "'" );

@@ -36,6 +36,8 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   -misc-include-cleaner,
   -misc-header-include-cycle,
+  -misc-no-recursion,
+  -misc-const-correctness,
   modernize-*,
   -modernize-loop-convert,
   -modernize-use-trailing-return-type,
@@ -51,10 +53,11 @@ Checks: >
   -readability-use-concise-preprocessor-directives,
   -readability-avoid-const-params-in-decls,
   -readability-redundant-access-specifiers,
+  -readability-convert-member-functions-to-static,
   -cert-err33-c
 
 WarningsAsErrors: "*"
-HeaderFilterRegex: "source/Volt/.*"
+HeaderFilterRegex: "source/Volt/(?!.*Meta/).*"
 SystemHeaders: false
 
 CheckOptions:

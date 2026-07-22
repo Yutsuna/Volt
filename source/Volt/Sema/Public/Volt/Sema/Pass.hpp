@@ -1,8 +1,11 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -22,10 +25,15 @@ namespace Sema
     struct PassStats
     {
 
-        std::size_t JsxLowered     = 0;
-        std::size_t CaseLowered    = 0;
-        std::size_t MacrosExpanded = 0;
-        std::size_t EnumsLowered   = 0;
+        std::size_t JsxLowered       = 0;
+        std::size_t CaseLowered      = 0;
+        std::size_t MacrosExpanded   = 0;
+        std::size_t EnumsLowered     = 0;
+        std::size_t PipelinesLowered = 0;
+        std::size_t ScopesResolved   = 0;
+        // Not errors: a name ScopeResolver could not bind may be a type or a
+        // member — TypeChecker decides later, with type context in hand.
+        std::size_t UnresolvedIdentifiers = 0;
     };
 
     class InterfaceRegistry;
@@ -40,7 +48,16 @@ namespace Sema
     {
 
         Frontend::AstContext &Ast;
-        TypeStore &Types;
+        // Frozen before the parallel sema phase: the Driver binds every
+        // unit's types serially first, so passes read it without a lock.
+        // const is the enforcement, not a convention.
+        const TypeStore &Types;
+        // The unit's own inferred expression types. Per-file mutable state,
+        // so writing it keeps the parallel phase lock-free.
+        UnitTypes &Values;
+        // The unit's lexical scopes and name bindings. Written once by
+        // ScopeResolver, then a read-only O(1) lookup for later passes.
+        ScopeTable &Scopes;
         Core::DiagEngine::Bag &Diags;
         PassStats &Stats;
         const InterfaceRegistry *Globals = nullptr;
@@ -73,14 +90,14 @@ namespace Sema
 #include "Volt/Sema/PassList.inl"
 
     // The manifest passes, sorted ascending by Order (built once, cached).
-    [[nodiscard]] std::span<const PassInfo> PassRegistry ();
+    [[nodiscard]] SEMA_EXPORT std::span<const PassInfo> PassRegistry ();
 
     // Run every registered pass over Context, in Order. Returns the number
     // of passes executed.
-    std::size_t RunPasses ( PassContext &Context );
+    SEMA_EXPORT std::size_t RunPasses ( PassContext &Context );
 
     // Same, restricted to the passes of one Kind (manifest order preserved).
-    std::size_t RunPasses ( PassContext &Context, EPassKind Only );
+    SEMA_EXPORT std::size_t RunPasses ( PassContext &Context, EPassKind Only );
 
 } // namespace Sema
 

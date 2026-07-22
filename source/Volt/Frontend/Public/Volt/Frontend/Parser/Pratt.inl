@@ -38,6 +38,11 @@ VOLT_ASSIGN( ShrEq, 10, 1 )
 // Ternary `?:` is handled specially in ParseExpr but needs a binding power.
 VOLT_INFIX( Question, 15, 1 )
 
+// Pipes: `a |> f` is left-associative (`a |> f |> g` == `g(f(a))`); the
+// mirrored `f <| a` is right-associative (`f <| g <| a` == `f(g(a))`).
+VOLT_INFIX( PipeGreater, 18, 0 )
+VOLT_INFIX( LessPipe, 18, 1 )
+
 // Key/value pair (`k => v`) — used in hash literals and DSL calls.
 VOLT_INFIX( FatArrow, 12, 0 )
 

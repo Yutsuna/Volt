@@ -227,6 +227,15 @@ namespace Frontend
         SymbolList ArgNames;
     };
 
+    // `Lhs |> Rhs`
+    struct Pipeline
+    {
+
+        Core::SourceRange Loc;
+        ExprId Lhs;
+        ExprId Rhs;
+    };
+
     // `case [Target] when Pattern1, Pattern2 [then] Body... [else ElseBody...] end`.
     // Target is invalid for a `case` without target expression (defaults to true matching).
     // Clauses is a StmtList of StmtIds referring to WhenClause nodes.

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 
@@ -33,7 +34,7 @@ namespace Sema
         Frontend::DeclId Decl;       // into that unit's AstContext
     };
 
-    class InterfaceRegistry
+    class SEMA_EXPORT InterfaceRegistry
     {
 
     public:
@@ -71,7 +72,8 @@ namespace Sema
     /// Walk Ast's top-level declarations (recursing through `module` nesting)
     /// and publish every named declaration under its qualified name. Returns
     /// the number of declarations published.
-    std::size_t PublishUnitInterface ( const Frontend::AstContext &Ast, std::uint32_t Unit, InterfaceRegistry &Registry );
+    SEMA_EXPORT std::size_t
+    PublishUnitInterface ( const Frontend::AstContext &Ast, std::uint32_t Unit, InterfaceRegistry &Registry );
 
 } // namespace Sema
 

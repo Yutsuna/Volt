@@ -27,4 +27,4 @@ description: Recipe to add a Volt grammar rule — a Pratt parselet / binding-po
 
 - Reproduce with `./build/bin/Volt <file>` before and after.
 - Sweep the corpus — every `samples/**` and `source/Lib/**` file must still parse.
-- `clang-format -i`, clean `-Werror` build, `graphify update source/Volt`.
+- `volt-build format`, clean `-Werror` build via `volt-build build`, `graphify update source/Volt`.

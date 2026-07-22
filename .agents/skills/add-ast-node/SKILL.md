@@ -34,5 +34,5 @@ Goal: a new node with **no** hand-written visitor.
 4. **Do not** edit `AstPrinter`, add a `switch`, or write a walk — `ForEachField`
    covers it. Extend `AstSelfCheck.cpp` if you want a smoke assertion.
 
-5. **Finish:** `clang-format -i` the touched files, `ninja -C build` clean, then
+5. **Finish:** `volt-build format` the touched files, `volt-build build` clean, then
    `graphify update source/Volt`.
