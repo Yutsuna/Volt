@@ -23,10 +23,17 @@ Rules:
 
 ## Two reflexes on every change
 
-1. **Format & lint.** Run `volt-build format` and `volt-build tidy` before you
-   call a task done (repo `.clang-format`: LLVM/Allman, `SpacesInParens`,
-   column 170) — both are parallel and per-file cached, so they only touch what
-   changed. The build is `-Werror`; warnings are failures.
+1. **Format & build.** Run `volt-build format test` before you call
+   a task done (Allman style, `SpacesInParens`, column 170) — format is parallel and
+   per-file cached, so it only touches what changed. The build is `-Werror`; warnings are failures.
+   All build, format, and test tasks must go through `volt-build`. Prefer single-command
+   invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`.
+
+   **Run `volt-build format test` (and `volt-build tidy`).** Format is parallel and
+   per-file cached, so it only touches what changed. The build is `-Werror`; warnings are failures.
+   All build, format, tidy, and test tasks must go through `volt-build`. Prefer single-command
+   invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`. See
+   [`rules/cpp-style.md`](rules/cpp-style.md).
 2. **Keep the map current.** After a significant architecture change, run
    `graphify update .` (AST-only, no API cost) so `graphify-out/` still reflects
    the code. See [`rules/graphify.md`](rules/graphify.md).
@@ -53,3 +60,9 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   `check`, `version`, `help`, `circuit`, then `build`, `format`) and their
   options are specified once in [`rules/cli-surface.md`](rules/cli-surface.md);
   `Main.cpp` stays a thin command table over `Driver`.
+- **Symbols crossing a `.so` boundary must be exported.** Modules build with
+  `-fvisibility=hidden`; anything a *different* module calls needs the
+  generated `<MODULE>_EXPORT` macro, or `VOLT_BUILD_SHARED=ON` link-fails late
+  with a wall of mold `undefined symbol` errors. See
+  [`rules/shared-lib-exports.md`](rules/shared-lib-exports.md).
+- **Dual-mode build performance strategy.** Non-unity by default for instant 1s incremental local edits; `unity` flag for clean CI/Release builds. See [`rules/build-performance.md`](rules/build-performance.md).

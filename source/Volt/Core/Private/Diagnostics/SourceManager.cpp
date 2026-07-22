@@ -98,3 +98,8 @@ std::size_t Volt::Core::SourceManager::FileCount () const noexcept
 {
     return Files.size();
 }
+
+bool Volt::Core::SourceManager::IsValidFile ( FileId File ) const noexcept
+{
+    return File.IsValid() and File.Value < Files.size();
+}

@@ -20,6 +20,27 @@ namespace Frontend
     // tooling, future checks) would otherwise re-write by hand: matching one
     // more shape stays a one-liner at the call site.
 
+    /// The source range of any node, whatever its category. Every node
+    /// struct opens with a `Loc` field by convention (the one field
+    /// reflection skips), so this needs no per-kind switch and cannot fall
+    /// behind the manifest. A valueless variant yields an invalid range.
+    template <typename NodeVariant> [[nodiscard]] Core::SourceRange LocOf ( const NodeVariant &Node )
+    {
+        return std::visit(
+            [] ( const auto &Concrete ) -> Core::SourceRange
+            {
+                if constexpr ( requires { Concrete.Loc; } )
+                {
+                    return Concrete.Loc;
+                }
+                else
+                {
+                    return Core::SourceRange{};
+                }
+            },
+            Node );
+    }
+
     /// The text of a StringLiteral expression, if that is what Id points at.
     /// The view lives as long as the context's interner.
     [[nodiscard]] inline std::optional<std::string_view> AsStringText ( const AstContext &Ast, ExprId Id )

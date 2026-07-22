@@ -18,7 +18,7 @@ You keep the build correct and reproducible.
   `direnv` loads the dev shell. Warnings/`-Werror`, sanitizers and LLVM live in
   `cmake/VoltCompiler.cmake`, `cmake/VoltOptions.cmake`, `cmake/VoltLLVM.cmake`.
 - **Build**: `volt-build` from the dev shell (Nix-wrapped `scripts/build.rb`;
-  `ruby` is not on PATH — never raw cmake/ninja, see skill `build`). Sanitizers
+  `ruby` is not on PATH — all build/test operations go through `volt-build`). Sanitizers
   are opt-in and Debug-only; TSAN and ASan are mutually exclusive — for a TSAN
   build pass `-DVOLT_ENABLE_ASAN=OFF`.
 - **Tooling targets**: `format` / `tidy` are stamp-based per-file CMake targets

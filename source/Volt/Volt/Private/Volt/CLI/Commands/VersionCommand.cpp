@@ -5,6 +5,7 @@
 #include "Volt/CLI/Version.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 
+#include <iostream>
 #include <print>
 #include <string_view>
 

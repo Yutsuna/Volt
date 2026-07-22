@@ -1,0 +1,67 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+def double(x : Int32) -> Int32
+  x * 2
+end
+
+def add_three(x : Int32) -> Int32
+  x + 3
+end
+
+def scale(x : Int32, factor : Int32, offset : Int32) -> Int32
+  (x * factor) + offset
+end
+
+
+module MathHelper
+
+
+  def self.square(x : Int32) -> Int32
+    x * x
+  end
+
+  def self.add_constant(x : Int32, const : Int32) -> Int32
+    x + const
+  end
+
+
+end
+
+
+# double(add_three(5)) => double(8) => 16
+res_no_parens = 5 |> add_three |> double
+assert!(res_no_parens == 16)
+
+
+# (1 + 2) |> double => double(3) = 6
+res_precedence = 1 + 2 |> double
+assert!(res_precedence == 6)
+
+
+# x = (5 |> double) => 10
+x = 5 |> double
+assert!(x == 10)
+
+
+# scale(10, 3, 5) => (10 * 3) + 5 = 35
+res_multi_args = 10 |> scale(3, 5)
+assert!(res_multi_args == 35)
+
+
+# MathHelper.add_constant(MathHelper.square(4), 10) => 26
+res_module = 4
+  |> MathHelper.square
+  |> MathHelper.add_constant(10)
+assert!(res_module == 26)
+
+
+# ((2 |> double) |> add_three) => add_three(double(2)) => add_three(4) => 7
+res_multiline = 2
+  |> double
+  |> add_three
+assert!(res_multiline == 7)

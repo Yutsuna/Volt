@@ -1,4 +1,4 @@
-@[Primitive( "f32", 32 ), Literal( FloatLiteral )]
+@[Primitive( "f32", 32 )]
 struct Float32
   include Comparable
 
@@ -16,6 +16,7 @@ struct Float32
     self >= 0.0 ? self : -self
   end
 end
+
 
 @[Primitive( "f64", 64 ), Literal( FloatLiteral )]
 struct Float64

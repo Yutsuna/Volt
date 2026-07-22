@@ -58,8 +58,14 @@ namespace Frontend
         ParamList Params;
         TypeId ReturnType;
         StmtList Body;
-        bool bSelf     = false; // `def self.name`
+        bool bSelf = false; // `def self.name`
+        // A contract a including type must honour (`mixin` member). Nobody
+        // implements it here, and the type checker requires an override.
         bool bAbstract = false;
+        // Declared here, implemented outside Volt — the `@[External(...)]`
+        // annotation names the symbol to link against. Body-less like an
+        // abstract method, but the opposite resolution: never overridden.
+        bool bExternal = false;
     };
 
     // Instance-variable / accessor declaration: `x : T`, `getter x : T`,

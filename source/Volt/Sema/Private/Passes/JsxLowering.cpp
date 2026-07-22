@@ -20,7 +20,6 @@
 #include <cstddef>
 #include <string_view>
 #include <utility>
-#include <variant>
 
 namespace Volt
 {
@@ -41,12 +40,12 @@ namespace Sema
         constexpr std::string_view TextMethod   = "text";
         constexpr std::string_view FragmentMeth = "fragment";
 
-        class Rewriter
+        class JsxRewriter
         {
 
         public:
 
-            explicit Rewriter ( AstContext &InContext ) : Context( InContext )
+            explicit JsxRewriter ( AstContext &InContext ) : Context( InContext )
             {
             }
 
@@ -110,13 +109,13 @@ namespace Sema
                 RootNode.Name     = Strings.Intern( FacadeRoot );
                 const ExprId Root = Context.Add( ExprNode{ RootNode } );
 
-                Member ModuleNode;
+                Frontend::Member ModuleNode;
                 ModuleNode.Loc      = Loc;
                 ModuleNode.Object   = Root;
                 ModuleNode.Name     = Strings.Intern( FacadeModule );
                 const ExprId Module = Context.Add( ExprNode{ ModuleNode } );
 
-                Member MethodNode;
+                Frontend::Member MethodNode;
                 MethodNode.Loc    = Loc;
                 MethodNode.Object = Module;
                 MethodNode.Name   = Strings.Intern( Method );
@@ -207,7 +206,7 @@ namespace Sema
     // before type checking so later passes never see a JSX node.
     void JsxLowering ( PassContext &Context )
     {
-        Context.Stats.JsxLowered += Rewriter( Context.Ast ).Run();
+        Context.Stats.JsxLowered += JsxRewriter( Context.Ast ).Run();
     }
 
 } // namespace Sema

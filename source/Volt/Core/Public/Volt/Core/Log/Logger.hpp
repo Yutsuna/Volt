@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Core_export.hpp"
 #include "Volt/Core/Container/NonCopyable.hpp"
 #include "Volt/Core/Container/NonMovable.hpp"
 
@@ -35,7 +36,7 @@ namespace Core
      *          line that survives interleaved normal records until it is finished.
      *          Colors are ANSI, enabled automatically when the stream is a TTY.
      */
-    class FLogger
+    class CORE_EXPORT FLogger
     {
 
     public:

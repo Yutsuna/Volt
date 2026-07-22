@@ -1,0 +1,30 @@
+Program 'samples/Sema/RedeclareSameScope.vl'
+├─ Method 'redeclare_twice' @1:1
+│  ├─ params
+│  │  └─ Param 'seed'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @1:29
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:40
+│  └─ body
+│     ├─ LocalDecl 'count' @2:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @2:11
+│     │  └─ init
+│     │     └─ Identifier 'seed' @2:19
+│     ├─ LocalDecl 'count' @3:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @3:11
+│     │  └─ init
+│     │     └─ IntLiteral '2' @3:19
+│     └─ ExprStmt @4:3
+│        └─ expr
+│           └─ Identifier 'count' @4:3
+└─ ExprStmt @7:1
+   └─ expr
+      └─ Call @7:16
+         ├─ callee
+         │  └─ Identifier 'redeclare_twice' @7:1
+         └─ args
+            └─ IntLiteral '1' @7:18
+--- exit 0 ---
