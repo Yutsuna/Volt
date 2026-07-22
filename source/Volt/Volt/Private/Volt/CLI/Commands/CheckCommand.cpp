@@ -29,7 +29,7 @@ namespace fs = std::filesystem;
 
     while ( !Dir.empty() )
     {
-        const fs::path Candidate = Dir / Volt::Driver::WellKnown::ManifestName;
+        fs::path Candidate = Dir / Volt::Driver::WellKnown::ManifestName;
         if ( fs::is_regular_file( Candidate, Ec ) )
         {
             return Candidate;
