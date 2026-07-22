@@ -185,13 +185,13 @@ namespace Sema
 
         // The member declared by `Decl` inside `Id`'s own body, mutable so the
         // signature phase can fill in what the declaration phase could not yet
-        // resolve. A DeclId is unique within its unit, so this is exact even
-        // for overloaded names.
-        [[nodiscard]] Member *MemberByDecl ( NominalId Id, Frontend::DeclId Decl )
+        // resolve. A DeclId is unique within its unit, so matching both Unit and
+        // Decl is exact even across units.
+        [[nodiscard]] Member *MemberByDecl ( NominalId Id, std::uint32_t Unit, Frontend::DeclId Decl )
         {
             for ( Member &Entry : Types.Get( Id ).Members )
             {
-                if ( Entry.Decl == Decl )
+                if ( Entry.Unit == Unit and Entry.Decl == Decl )
                 {
                     return &Entry;
                 }
