@@ -1,0 +1,13 @@
+def branch_locals( flag : Bool ) -> Int32
+  result : Int32 = 0
+  if flag
+    tally : Int32 = 1
+    result = tally
+  else
+    tally : Int32 = 2
+    result = tally
+  end
+  result
+end
+
+branch_locals( true )

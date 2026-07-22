@@ -1,0 +1,7 @@
+def redeclare_twice( seed : Int32 ) -> Int32
+  count : Int32 = seed
+  count : Int32 = 2
+  count
+end
+
+redeclare_twice( 1 )

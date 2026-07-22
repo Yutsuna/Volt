@@ -1,0 +1,11 @@
+def shadow_in_nested_if( flag : Bool, x : Int32 ) -> Int32
+  if flag
+    x : Int32 = 0
+    if x > 1
+      x : Int32 = 2
+    end
+  end
+  x
+end
+
+shadow_in_nested_if( true, 5 )
