@@ -81,7 +81,8 @@ namespace Sema
             Core::DiagEngine::Bag Bag = Volt::Core::DiagEngine::MakeBag();
             PassStats Stats;
             UnitTypes Values;
-            PassContext Context{ .Ast = Ast, .Types = Store, .Values = Values, .Diags = Bag, .Stats = Stats };
+            ScopeTable Scopes;
+            PassContext Context{ .Ast = Ast, .Types = Store, .Values = Values, .Scopes = Scopes, .Diags = Bag, .Stats = Stats };
             const std::size_t Ran = RunPasses( Context );
 
             return Ran == Registry.size() and Bag.Errors() == 0;

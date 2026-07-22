@@ -22,6 +22,7 @@
 #if VOLT_HAS_REFLECTION
     #include <meta>
 #endif
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -157,9 +158,13 @@ namespace Sema
             const Frontend::SymbolList *SelfGenerics = nullptr;
             SemaTypeId SelfValue{};
 
-            // Locals of the method body being walked. Scope resolution proper
-            // is ScopeResolver's job; until it publishes a table, a flat
-            // per-body map is enough to type what the stdlib writes.
+            // Locals of the method body being walked, keyed by the
+            // declaration site ScopeResolver published: structural keys, so
+            // two locals in sibling scopes can never collide.
+            std::unordered_map<BindingSite, SemaTypeId, BindingSiteHash> LocalTypes{};
+            // Legacy name-keyed fallback, kept for the identifiers the
+            // ScopeTable cannot know: nodes materialised after Order 10
+            // (MacroExpansion, CaseLowering) and implicit `x = 5` assigns.
             std::unordered_map<Symbol, SemaTypeId> Locals{};
             std::unordered_set<std::uint32_t> UnconstrainedLiterals{};
             std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
@@ -176,6 +181,38 @@ namespace Sema
             {
                 Ctx.Diags.Report( Core::Diagnostic{
                     .Severity = Core::ESeverity::Error, .Range = Loc, .Message = std::move( Message ), .Notes = {} } );
+            }
+
+            // The type a used identifier resolved to, if any: the site-keyed
+            // table when ScopeResolver bound the use (structurally exact,
+            // sibling scopes never collide), the legacy name map otherwise.
+            // An engaged-but-invalid result means "declared, type unknown" —
+            // distinct from "no local of that name".
+            [[nodiscard]] std::optional<SemaTypeId> FindLocal ( Frontend::ExprId Use, Symbol Name ) const
+            {
+                if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
+                {
+                    if ( const auto It = LocalTypes.find( Bound->Site ); It != LocalTypes.end() )
+                    {
+                        return It->second;
+                    }
+                }
+                if ( const auto It = Locals.find( Name ); It != Locals.end() )
+                {
+                    return It->second;
+                }
+                return std::nullopt;
+            }
+
+            // Both tables move together: the site key when ScopeResolver
+            // bound this use, the name key always (legacy fallback path).
+            void WriteLocal ( Frontend::ExprId Use, Symbol Name, SemaTypeId Type )
+            {
+                if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
+                {
+                    LocalTypes[Bound->Site] = Type;
+                }
+                Locals[Name] = Type;
             }
 
             void ConstrainExprType ( Frontend::ExprId Expr, SemaTypeId TargetType )
@@ -202,7 +239,7 @@ namespace Sema
                     {
                         const Frontend::ExprId InitExpr = It->second;
                         UnconstrainedVarInitializers.erase( It );
-                        Locals[IdNode->Name] = TargetType;
+                        WriteLocal( Expr, IdNode->Name, TargetType );
                         ConstrainExprType( InitExpr, TargetType );
                     }
                     return;
@@ -300,6 +337,8 @@ namespace Sema
 
             void EnterMethod ( const Frontend::Method &Node )
             {
+                std::unordered_map<BindingSite, SemaTypeId, BindingSiteHash> OuterLocalTypes;
+                OuterLocalTypes.swap( LocalTypes );
                 std::unordered_map<Symbol, SemaTypeId> OuterLocals;
                 OuterLocals.swap( Locals );
                 std::unordered_set<std::uint32_t> OuterUnconstrainedLiterals;
@@ -316,14 +355,17 @@ namespace Sema
 
                 for ( const Frontend::ParamId Id : Node.Params )
                 {
-                    const Frontend::Param &Entry = Ctx.Ast.GetParam( Id );
-                    Locals[Entry.Name]           = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
+                    const Frontend::Param &Entry  = Ctx.Ast.GetParam( Id );
+                    const SemaTypeId ParamType    = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
+                    LocalTypes[BindingSite{ Id }] = ParamType;
+                    Locals[Entry.Name]            = ParamType;
                     InferExpr( Entry.Default );
                 }
                 WalkStmts( Node.Body );
 
                 bStaticContext          = bOuterStatic;
                 CurrentMethodReturnType = OuterReturnType;
+                LocalTypes.swap( OuterLocalTypes );
                 Locals.swap( OuterLocals );
                 UnconstrainedLiterals.swap( OuterUnconstrainedLiterals );
                 UnconstrainedVarInitializers.swap( OuterUnconstrainedVarInitializers );
@@ -391,8 +433,12 @@ namespace Sema
                             {
                                 ConstrainExprType( Node.Init, Written );
                             }
-                            const SemaTypeId Init = InferExpr( Node.Init );
-                            Locals[Node.Name]     = Written.IsValid() ? Written : Init;
+                            const SemaTypeId Init  = InferExpr( Node.Init );
+                            const SemaTypeId Bound = Written.IsValid() ? Written : Init;
+                            // The declaration is its own binding site — the
+                            // one ScopeResolver bound every in-scope use to.
+                            LocalTypes[BindingSite{ Id }] = Bound;
+                            Locals[Node.Name]             = Bound;
                             if ( not Written.IsValid() and Node.Init.IsValid() )
                             {
                                 UnconstrainedVarInitializers[Node.Name] = Node.Init;
@@ -586,9 +632,9 @@ namespace Sema
                         },
                         [&] ( const Frontend::Identifier &Expr ) -> SemaTypeId
                         {
-                            if ( const auto It = Locals.find( Expr.Name ); It != Locals.end() )
+                            if ( const std::optional<SemaTypeId> Local = FindLocal( Id, Expr.Name ) )
                             {
-                                return It->second;
+                                return *Local;
                             }
                             // A bare name may also be a type used as a value
                             // (`Pointer.malloc`); the receiver is then the
@@ -646,13 +692,14 @@ namespace Sema
                             const SemaTypeId Value = InferExpr( Expr.Value );
                             if ( const auto *Target = std::get_if<Frontend::Identifier>( &Ctx.Ast.Expr( Expr.Target ) ) )
                             {
-                                if ( const auto It = Locals.find( Target->Name ); It != Locals.end() and It->second.IsValid() )
+                                const std::optional<SemaTypeId> Known = FindLocal( Expr.Target, Target->Name );
+                                if ( Known.has_value() and Known->IsValid() )
                                 {
-                                    ConstrainExprType( Expr.Value, It->second );
+                                    ConstrainExprType( Expr.Value, *Known );
                                 }
                                 else
                                 {
-                                    Locals[Target->Name]                       = Value;
+                                    WriteLocal( Expr.Target, Target->Name, Value );
                                     UnconstrainedVarInitializers[Target->Name] = Expr.Value;
                                 }
                             }

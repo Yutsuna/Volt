@@ -5,6 +5,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -29,6 +30,10 @@ namespace Sema
         std::size_t MacrosExpanded   = 0;
         std::size_t EnumsLowered     = 0;
         std::size_t PipelinesLowered = 0;
+        std::size_t ScopesResolved   = 0;
+        // Not errors: a name ScopeResolver could not bind may be a type or a
+        // member — TypeChecker decides later, with type context in hand.
+        std::size_t UnresolvedIdentifiers = 0;
     };
 
     class InterfaceRegistry;
@@ -50,6 +55,9 @@ namespace Sema
         // The unit's own inferred expression types. Per-file mutable state,
         // so writing it keeps the parallel phase lock-free.
         UnitTypes &Values;
+        // The unit's lexical scopes and name bindings. Written once by
+        // ScopeResolver, then a read-only O(1) lookup for later passes.
+        ScopeTable &Scopes;
         Core::DiagEngine::Bag &Diags;
         PassStats &Stats;
         const InterfaceRegistry *Globals = nullptr;
