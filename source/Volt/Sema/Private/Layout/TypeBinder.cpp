@@ -399,7 +399,7 @@ namespace Sema
                             {
                                 SigSink Sink{ Store };
                                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Generics, Sink, Entry.DeclType );
-                                if ( Member *Slot = Store.MemberByDecl( Id, Child ) )
+                                if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
                                 {
                                     Slot->Result = Result;
                                     ++Resolved;
@@ -417,7 +417,7 @@ namespace Sema
                                     Params.PushBack( ResolveTypeExpr( Ast, Store, Generics, Sink, ParamNode.DeclType ) );
                                     ParamIsBlock.PushBack( ParamNode.bIsBlock );
                                 }
-                                if ( Member *Slot = Store.MemberByDecl( Id, Child ) )
+                                if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
                                 {
                                     Slot->Result       = Result;
                                     Slot->Params       = std::move( Params );
