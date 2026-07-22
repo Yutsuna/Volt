@@ -76,7 +76,7 @@ namespace Sema
 
                 if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Node ) )
                 {
-                    Pending.push_back( PendingAnnotation{ Anno->Name, Anno->Args, Anno->Loc } );
+                    Pending.push_back( PendingAnnotation{ .Name = Anno->Name, .Args = Anno->Args, .Loc = Anno->Loc } );
                     continue;
                 }
 
@@ -88,14 +88,29 @@ namespace Sema
                         [&] ( const Frontend::Module &Nested ) { ForEachTypeDecl( Ast, Nested.Body, Visit ); },
                         [&] ( const Frontend::Struct &Type )
                         {
-                            Visit( TypeDecl{ Ast.Text( Type.Name ), Id, &Type.Generics, &Type.Body, Frontend::TypeId{} },
+                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
+                                             .Id       = Id,
+                                             .Generics = &Type.Generics,
+                                             .Body     = &Type.Body,
+                                             .Super    = Frontend::TypeId{} },
                                    Pending );
                         },
                         [&] ( const Frontend::Class &Type )
-                        { Visit( TypeDecl{ Ast.Text( Type.Name ), Id, &Type.Generics, &Type.Body, Type.Super }, Pending ); },
+                        {
+                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
+                                             .Id       = Id,
+                                             .Generics = &Type.Generics,
+                                             .Body     = &Type.Body,
+                                             .Super    = Type.Super },
+                                   Pending );
+                        },
                         [&] ( const Frontend::Mixin &Type )
                         {
-                            Visit( TypeDecl{ Ast.Text( Type.Name ), Id, &Type.Generics, &Type.Body, Frontend::TypeId{} },
+                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
+                                             .Id       = Id,
+                                             .Generics = &Type.Generics,
+                                             .Body     = &Type.Body,
+                                             .Super    = Frontend::TypeId{} },
                                    Pending );
                         },
                         [] ( const auto & ) {},
@@ -174,8 +189,8 @@ namespace Sema
                 {
                     if ( const auto *Field = std::get_if<Frontend::Field>( &Ast.Decl( Id ) ) )
                     {
-                        Agg.Fields.PushBack( FieldLayout{ Store.Intern( Ast.Text( Field->Name ) ),
-                                                          FieldLayoutOf( Ast, Store, Field->DeclType ) } );
+                        Agg.Fields.PushBack( FieldLayout{ .Name = Store.Intern( Ast.Text( Field->Name ) ),
+                                                          .Type = FieldLayoutOf( Ast, Store, Field->DeclType ) } );
                     }
                 }
                 return Store.AddAggregate( std::move( Agg ) );
