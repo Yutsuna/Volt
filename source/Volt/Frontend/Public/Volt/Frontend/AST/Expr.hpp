@@ -248,6 +248,42 @@ namespace Frontend
         StmtList ElseBody;
     };
 
+    enum class ESectionKind : std::uint8_t
+    {
+
+        InstanceMethod,
+        Operator,
+        StaticCapture
+    };
+
+    struct Lambda
+    {
+        using Self = Lambda;
+        Core::SourceRange Loc;
+        ParamList Params;
+        ExprId ReturnType;
+        ExprId Body;
+    };
+
+    struct Section
+    {
+        using Self = Section;
+        Core::SourceRange Loc;
+        ESectionKind Kind;
+        Symbol Target;
+        ExprId TargetExpr;
+        ExprList Args;
+        bool bNegated;
+    };
+
+    struct Composition
+    {
+        using Self = Composition;
+        Core::SourceRange Loc;
+        ExprId Lhs;
+        ExprId Rhs;
+    };
+
     enum class ExprKind
     {
 

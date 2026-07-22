@@ -9,6 +9,7 @@
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/AST/Type.hpp"
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -44,6 +45,12 @@ namespace Frontend
         [[nodiscard]] std::string_view Text ( Symbol Handle ) const
         {
             return Interner->Resolve( Handle );
+        }
+
+        [[nodiscard]] Symbol MakeUniqueSymbol ( std::string_view Prefix )
+        {
+            const std::string Name = std::string( Prefix ) + "_" + std::to_string( SymCounter++ );
+            return Interner->Intern( Name );
         }
 
         // --- Node creation (overloaded on the category variant) ----------
@@ -148,6 +155,8 @@ namespace Frontend
         Core::Arena<DeclNode, DeclId> Decls;
         Core::Arena<TypeNode, TypeId> Types;
         Core::Arena<Param, ParamId> Params;
+
+        std::size_t SymCounter = 0;
     };
 
 } // namespace Frontend
