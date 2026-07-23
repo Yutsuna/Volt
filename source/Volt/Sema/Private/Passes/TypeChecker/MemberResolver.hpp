@@ -9,6 +9,12 @@ namespace Volt::Sema::TypeCheckerPass
 
 constexpr std::string_view IndexOperator = "[]";
 
+// `T.new( ... )` is spelled one way and declared another: the call site says
+// `new`, the body says `initialize`. Both are Volt *syntax*, not type names,
+// so naming them here is not a hardcoded type.
+constexpr std::string_view ConstructorCall = "new";
+constexpr std::string_view ConstructorName = "initialize";
+
 [[nodiscard]] Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name );
 
 void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType );
