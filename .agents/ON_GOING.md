@@ -1,8 +1,8 @@
 # ON_GOING — Mixins & méthodes d'ordre supérieur (dernière étape du MiddleEnd)
 
 **Branche :** `Feat/Finish-Frontend`
-**Dernier point de contrôle :** phases 0 à 7 **terminées et validées**. Le chantier est clos ; ce qui suit sert de mémoire et liste les questions restées ouvertes.
-**État build/tests :** `volt-build format test` **107/107**, `volt-build tidy` propre, `volt check source/Lib/` **0 erreur**.
+**Dernier point de contrôle :** phases 0 à 8 **terminées et validées**. Le chantier est clos ; ce qui suit sert de mémoire et liste les questions restées ouvertes.
+**État build/tests :** `volt-build format test` **110/110**, `volt-build tidy` propre, `volt check source/Lib/` **0 erreur**.
 
 > **Convention de travail (importante).** Ne pas `git commit` de sa propre initiative. Le chantier se laisse dans le working tree ; c'est l'utilisateur qui découpe et rédige ses commits.
 
@@ -101,33 +101,53 @@ Les phases 0 et 1 sont décrites dans l'historique git (commits jusqu'à `ddfe2f
 
 ---
 
+### Phase 8 — diagnostic strict sur `&block` non inféré, et couverture de la phase 7
+
+Le point 1 de l'ancien §3 (ci-dessous) n'était pas qu'une limite connue : c'était une **régression de diagnostic** introduite par la phase 7. Avant, `numbers.map( transform )` sortait une erreur d'arité (aucun `&block` fourni). Après la phase 7, `numbers.map( &transform )` avec `transform` non annoté passait le contrôle sans rien dire et rendait un `Array<?>`. Décision tranchée avec l'utilisateur : **diagnostic d'inférence**, pas de typage bidirectionnel inter-instructions (le second exigerait un solveur de contraintes complet — dette assumée, cf. point 1 du §3 actualisé).
+
+**`IsBlockResultInferred`** (`ExprInferencer.cpp`, namespace anonyme), consommé par `CallType` juste après le typage de `Expr.BlockArg` sous `ExpectedClosure`. Ne vérifie **que `Args[0]`** (le `Result` du nominal `Lambda`/`Block`, cf. `ClosureType`), et **seulement quand `Expr.BlockArg` est un nœud `Frontend::Lambda`** — jamais un `Frontend::Block`. Les deux raisons sont liées :
+
+- Un `do | x | … end` (`Block`) est une séquence d'instructions le plus souvent sans expression finale (`each do | item | … end` n'en type jamais), et ses paramètres sont légitimement invalides quand on type le **corps d'une définition générique** elle-même — `T` à l'intérieur de `Enumerable<T>` est un espace réservé non résolu (`UnitSink::Param` renvoie toujours `IdType{}`), pas un échec. Ni son `Result` ni ses paramètres ne sont un signal fiable ; `Block` est donc ignoré entièrement.
+- Tout `&expr` est réécrit en `Lambda` par `FunctionalLowering` (`(fn_tmp) => expr(fn_tmp)`) **avant** que cette passe ne tourne (Order 8 < Order 30) — donc `&transform` comme `&.+ 10` arrivent tous deux en `Lambda` ici. Le paramètre `fn_tmp` d'une `Lambda` se résout toujours mécaniquement depuis le slot `Expected` de l'appelant, quel que soit `expr` — le vérifier aurait redéclenché le même faux positif que sur les corps génériques. Ce qui manque réellement quand `expr` (ex. une closure locale déclarée sans annotation) n'a jamais été résolue, c'est le **`Result`** : exactement ce qui alimente le `U` d'un `map<U>`, et exactement ce qui produisait `Array<?>` en silence.
+
+Message : `cannot infer block parameter types for '<nom du membre appelé>' — please add explicit type annotations`. Vérifié qu'il **ne** se déclenche **pas** sur `Enumerable.vl` (ses six `each do | item | … end` internes), ni sur `&annotated`, ni sur `do | x | … end` littéral, ni sur le point-free inline `numbers.map( &( &.+ 10 ) )` — seulement sur `numbers.map( &transform )` avec `transform` non annoté.
+
+**Deux trous de couverture fermés :**
+- `samples/Sema/CallableArgs.vl` — valide `Parser::PromoteCapturedBlock` (un `&add_one` non nommé en dernière position migre vers `BlockArg`) et `LookupApplyOn` (`add_one( 10 )` et `add_one.call( 10 )` doivent typer pareil).
+- `samples/Sema/BlockParamTypes.vl` — bloc à deux paramètres sur `items.each_with_index do | item, index | … end`, verrouillant l'arité multiple de bloc (seul point que la phase 3 n'avait jamais sondé).
+
+Goldens régénérés (`cmake -DUPDATE=1 -P tests/GoldenTest.cmake`), `volt-build format test` **110/110**, `volt-build tidy` propre, `graphify update .` refait.
+
+---
+
 ## 3. Ce qui reste ouvert
 
-1. **Une lambda à paramètres non annotés, sans type attendu, reste non typée.** C'est le blocage restant du point-free, et il est en amont de tout ce qui précède :
+1. **Une lambda à paramètres non annotés, sans type attendu, reste non typée — par choix, pas par oubli.** C'est le blocage de fond du point-free, en amont de tout ce qui précède :
    ```volt
    add10 = ( &.+ 10 )     # lowering → ( fn_tmp ) => fn_tmp + 10
    add10( 5 )             # non inféré : rien ne donne son type à fn_tmp
    ```
-   Un `&block` passé à `map` hérite bien de `ExpectedClosure`, mais une section **stockée dans un local** n'a pas de type attendu. Conséquence concrète : `numbers.map( &transform )` type sans erreur mais rend un `Array<?>` — **silencieusement**, ce qui est pire qu'un diagnostic. Le combler demande soit d'annoter (`( x : Int32 ) => …` marche déjà), soit une inférence depuis le site d'usage — un vrai chantier, pas un correctif.
+   Un `&block` passé à `map` hérite bien de `ExpectedClosure`, mais une section **stockée dans un local** n'a pas de type attendu au moment de sa propre définition. Depuis la phase 8, le cas `numbers.map( &transform )` avec `transform` non annoté **ne compile plus silencieusement** — il est rejeté avec un diagnostic explicite au lieu de rendre un `Array<?>` fantôme. Le combler pour de vrai (faire marcher `add10( 5 )`, ou accepter `numbers.map( &transform )`) demande soit d'annoter (`( x : Int32 ) => …` marche déjà), soit une inférence depuis le site d'usage — un vrai chantier de solveur bidirectionnel, pas un correctif.
 2. **`FunctionalSpec.vl` — 6 erreurs restantes.** `:50` attend maintenant le `&` (`numbers.map( &( … ) )`) ; les quatre `Proc has no member '=='` restants passent par `|>` (`2 |> calc_pointfree == 24`) et relèvent du point 1 ; `String` n'a toujours pas de `trim`.
 3. **Pas de table de fonctions libres.** `TypeStore` ne connaît que des types nominaux ; un appel de fonction libre ne résout donc rien et ne diagnostique rien. C'est ce qui oblige la branche `Identifier` à rester silencieuse en dernier recours.
 4. **`&` est devenu positionnellement significatif.** Une méthode qui voudrait un `Proc` positionnel *en dernière position* et un bloc n'a plus d'échappatoire — sauf à nommer l'argument (`f( fn: &g )`, qui n'est pas promu). Dette assumée.
+5. **`numbers.map( &.+ 10 )` sans composition ni parenthèses supplémentaires échoue en arité** (`map takes 0 argument(s), but 1 were given`), alors que `numbers.map( ( &.+ 10 ) >> ( &.* 2 ) )` (composition) et `numbers.map( transform )` (local nommé) fonctionnent. Repéré en sondant la phase 8, non investigué — pas dans le périmètre du diagnostic ; probablement une interaction de précédence Pratt entre `&` et `.` dans `ParseCommandCallArgs`/l'appel parenthésé.
 
 ---
 
 ## 4. Clôture (faite)
 
 ```sh
-volt-build format test          # 107/107
+volt-build format test          # 110/110
 volt-build tidy                 # propre
 volt check source/Lib/          # 0 erreur
-graphify update .               # TypeResolve, Method::Generics, IsBuiltinOpOn, SourceRange::Head
+graphify update .               # TypeResolve, Method::Generics, IsBuiltinOpOn, SourceRange::Head, IsBlockResultInferred
 ```
 
-Regénération des goldens (pas de tâche `volt-build` dédiée) :
+Regénération des goldens (`volt-build` n'a pas de tâche dédiée pour ça — c'est le seul appel `cmake` direct toléré, documenté dans la skill `format-and-check`) :
 
 ```sh
-cmake -DVOLT_BIN=build/debug-testing/bin/Volt_d -DUPDATE=1 -P tests/GoldenTest.cmake
+cmake -DUPDATE=1 -P tests/GoldenTest.cmake
 ```
 
 `PLAN.md` est à jour : §VI items 2 et 5 → FAIT, §VII.1 → FAIT, la prochaine étape est §VII.2 (codegen / `volt run`).
@@ -145,3 +165,5 @@ cmake -DVOLT_BIN=build/debug-testing/bin/Volt_d -DUPDATE=1 -P tests/GoldenTest.c
 - **Les diagnostics clang-tidy remontés par l'IDE** sur la pass `TypeChecker` (`readability-redundant-member-init`, `modernize-use-designated-initializers`, `misc-use-internal-linkage`, `modernize-use-ranges`) sont **préexistants ou hors configuration** appliquée par `volt-build tidy`. Ne pas les traiter comme des régressions.
 - **`-Wmissing-designated-field-initializers` est fatal** (`-Werror`). Toute construction de `Resolution{ .Decl = …, … }` doit lister **tous** les champs.
 - **ZeroHardcode (`tests/ZeroHardcode.cmake`) scanne aussi les identifiants C++**, pas seulement les chaînes : la liste inclut `Char`, `Int`, `Bool`, `Hash`, `Nil`… Une variable locale nommée `Char` fait échouer le test.
+- **Un `SemaTypeId` invalide est un sentinel surchargé** (phase 8) : `UnitSink::Param` (`TypeResolve.hpp`) renvoie `IdType{}` aussi bien pour « générique non substitué, en train de typer la définition elle-même » (`T` dans le corps de `Enumerable<T>`) que pour « inférence réellement échouée ». Les deux sont indiscernables par simple `IsValid()`. Toute nouvelle vérification de validité sur un type dérivé d'un corps potentiellement générique doit soit se limiter à un slot qui ne peut *que* venir d'un échec réel (ici : `Result` d'une `Lambda`, jamais ses paramètres, et jamais un `Block`), soit être explicitement désactivée à l'intérieur d'un corps générique — sinon chaque appel interne d'un mixin/type générique à lui-même redevient un faux positif.
+- **`volt-build` est déjà sur le PATH de cette session** — pas besoin de `nix develop --command volt-build …`. L'appeler nu.
