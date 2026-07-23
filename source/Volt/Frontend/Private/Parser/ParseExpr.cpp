@@ -479,8 +479,8 @@ void Volt::Frontend::Parser::PromoteCapturedBlock ( Call &Node )
         return;
     }
 
-    const Section *Captured = std::get_if<Section>( &Context.Expr( Node.Args[Last] ) );
-    if ( Captured == nullptr or Captured->Kind != ESectionKind::StaticCapture )
+    const ExprKind Kind = KindOf( Context.Expr( Node.Args[Last] ) );
+    if ( Kind != ExprKind::Section and Kind != ExprKind::Composition and Kind != ExprKind::Lambda )
     {
         return;
     }
