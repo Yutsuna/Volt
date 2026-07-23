@@ -1,11 +1,79 @@
 #include "DeclStmtWalker.hpp"
 
+#include "MemberResolver.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
+
+#include <algorithm>
+#include <vector>
+
+namespace
+{
+
+using namespace Volt;
+using namespace Volt::Sema;
+
+// Every mixin reachable through `include`, transitively and without
+// repeats. The superclass is deliberately not followed: whatever it
+// includes, it was itself required to implement.
+void CollectIncludes ( const TypeStore &Store, NominalId Id, std::vector<NominalId> &Out, std::uint32_t Depth )
+{
+    if ( not Id.IsValid() or Depth > 16 )
+    {
+        return;
+    }
+
+    for ( const SigTypeId Mixin : Store.Type( Id ).Includes )
+    {
+        const NominalId Base = Store.BaseOf( Mixin );
+        if ( not Base.IsValid() or std::find( Out.begin(), Out.end(), Base ) != Out.end() )
+        {
+            continue;
+        }
+        Out.push_back( Base );
+        CollectIncludes( Store, Base, Out, Depth + 1 );
+    }
+}
+
+// Every `abstract def` an included mixin declares must resolve, from
+// this type, onto something that actually has a body. Resolution goes
+// through the ordinary member lookup, so an implementation inherited
+// from a superclass or supplied by another mixin counts.
+void CheckAbstractConformance ( TypeCheckerPass::TypeCheckerContext &Context, NominalId Id, Core::SourceRange Loc )
+{
+    std::vector<NominalId> Mixins;
+    CollectIncludes( Context.Ctx.Types, Id, Mixins, 0 );
+
+    for ( const NominalId Mixin : Mixins )
+    {
+        for ( const Member &Entry : Context.Ctx.Types.Type( Mixin ).Members )
+        {
+            if ( not Entry.bAbstract )
+            {
+                continue;
+            }
+
+            const std::string_view Name = Context.Ctx.Types.Text( Entry.Name );
+            const InstantiatedMember Found =
+                LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Context.SelfValue, Context.SelfValue, Name );
+            if ( Found.Decl != nullptr and not Found.Decl->bAbstract )
+            {
+                continue;
+            }
+
+            Context.Report( Loc, "type " + Context.NameOf( Id ) + " does not implement abstract member '" + std::string{ Name } +
+                                     "' required by mixin " + Context.NameOf( Mixin ) );
+        }
+    }
+}
+
+} // namespace
 
 void Volt::Sema::TypeCheckerPass::EnterType ( TypeCheckerContext &Context,
                                               NominalId Id,
                                               const Frontend::SymbolList &Params,
-                                              const Frontend::DeclList &Body )
+                                              const Frontend::DeclList &Body,
+                                              Core::SourceRange Loc,
+                                              bool bConcrete )
 {
     const NominalId OuterType                 = Context.SelfType;
     const Frontend::SymbolList *OuterGenerics = Context.SelfGenerics;
@@ -20,6 +88,11 @@ void Volt::Sema::TypeCheckerPass::EnterType ( TypeCheckerContext &Context,
         Args.PushBack( SemaTypeId{} );
     }
     Context.SelfValue = Context.MakeType( Id, std::move( Args ) );
+
+    if ( bConcrete )
+    {
+        CheckAbstractConformance( Context, Id, Loc );
+    }
 
     WalkDecls( Context, Body );
 
@@ -79,17 +152,17 @@ void Volt::Sema::TypeCheckerPass::WalkDecl ( TypeCheckerContext &Context, Fronte
             [&] ( const Frontend::Struct &Node )
             {
                 EnterType( Context, Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Node.Name ) ).value_or( NominalId{} ),
-                           Node.Generics, Node.Body );
+                           Node.Generics, Node.Body, Node.Loc, true );
             },
             [&] ( const Frontend::Class &Node )
             {
                 EnterType( Context, Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Node.Name ) ).value_or( NominalId{} ),
-                           Node.Generics, Node.Body );
+                           Node.Generics, Node.Body, Node.Loc, true );
             },
             [&] ( const Frontend::Mixin &Node )
             {
                 EnterType( Context, Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Node.Name ) ).value_or( NominalId{} ),
-                           Node.Generics, Node.Body );
+                           Node.Generics, Node.Body, Node.Loc, false );
             },
             [&] ( const Frontend::Method &Node ) { EnterMethod( Context, Node ); },
             [] ( const Frontend::Annotation & ) {},

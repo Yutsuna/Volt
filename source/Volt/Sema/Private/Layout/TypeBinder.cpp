@@ -231,12 +231,13 @@ namespace Sema
                             [&] ( const Frontend::Method &Entry )
                             {
                                 Member Slot;
-                                Slot.Name   = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind   = EMemberKind::Method;
-                                Slot.Unit   = Unit;
-                                Slot.Decl   = Child;
-                                Slot.bSelf  = Entry.bSelf;
-                                Slot.bApply = bApply;
+                                Slot.Name      = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind      = EMemberKind::Method;
+                                Slot.Unit      = Unit;
+                                Slot.Decl      = Child;
+                                Slot.bSelf     = Entry.bSelf;
+                                Slot.bApply    = bApply;
+                                Slot.bAbstract = Entry.bAbstract;
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [] ( const auto & ) {},
