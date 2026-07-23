@@ -1,5 +1,6 @@
 #include "DeclStmtWalker.hpp"
 
+#include "MemberResolver.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
 #include <algorithm>
@@ -52,6 +53,15 @@ void CheckAbstractConformance ( TypeCheckerPass::TypeCheckerContext &Context, No
             }
 
             const std::string_view Name = Context.Ctx.Types.Text( Entry.Name );
+
+            // On a primitive, `+` is a machine instruction, not a body the
+            // stdlib could ever write. Same exemption as the unknown-member
+            // diagnostic, through the same predicate.
+            if ( TypeCheckerPass::IsBuiltinOpOn( Context, Id, Name ) )
+            {
+                continue;
+            }
+
             const InstantiatedMember Found =
                 LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Context.SelfValue, Context.SelfValue, Name );
             if ( Found.Decl != nullptr and not Found.Decl->bAbstract )
@@ -59,8 +69,8 @@ void CheckAbstractConformance ( TypeCheckerPass::TypeCheckerContext &Context, No
                 continue;
             }
 
-            Context.Report( Loc, "type " + Context.NameOf( Id ) + " does not implement abstract member '" + std::string{ Name } +
-                                     "' required by mixin " + Context.NameOf( Mixin ) );
+            Context.Report( Loc.Head(), "type " + Context.NameOf( Id ) + " does not implement abstract member '" +
+                                            std::string{ Name } + "' required by mixin " + Context.NameOf( Mixin ) );
         }
     }
 }
