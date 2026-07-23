@@ -1,0 +1,17 @@
+# The type of anything callable: a written signature `( A, B ) -> R`, a lambda
+# `( x ) => x`, and a trailing `do | x | ... end` block all denote the same
+# thing, so one type claims the three node kinds.
+#
+# Arguments are the parameters followed by the return type — `Proc<Int32, Bool>`
+# is a function of one Int32 returning a Bool — which is exactly the order the
+# FuncType node reflects its fields in, so the binding needs no @[Literal] slots.
+
+@[Literal( FuncType ), Literal( Lambda ), Literal( Block )]
+struct Proc<R>
+
+  # Invoking a callable: `@[Apply]` says the signature is the receiver's own
+  # arguments, since a Proc's arity is carried by its type, not by this line.
+  @[Apply]
+  abstract def call -> R
+
+end
