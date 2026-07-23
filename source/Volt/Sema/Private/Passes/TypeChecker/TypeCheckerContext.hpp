@@ -24,6 +24,12 @@ struct Resolution
     const Member *Decl = nullptr;
     SemaTypeId Result;
     Core::SmallVec<SemaTypeId, 4> Params;
+    // The instantiated `&block` slot, kept out of Params because it binds
+    // through the call's trailing `do ... end` rather than positionally.
+    // This is what gives a block's parameters their types: `each` on an
+    // `Array<Int32>` declares `&block : T -> Void`, so the `| i |` of
+    // `arr.each do | i |` is an Int32 without anyone writing it down.
+    SemaTypeId BlockParam;
 };
 
 struct TypeCheckerContext
@@ -58,6 +64,12 @@ struct TypeCheckerContext
     // arguments can be checked against Member::Params without a
     // second lookup.
     std::unordered_map<std::uint32_t, Resolution> CalleeResolution{};
+
+    // The `&block` slot the call currently being typed expects, handed
+    // down to the trailing block's parameters. Set by CallType around
+    // the BlockArg and consumed — once — by BindClosureParams, so a
+    // closure nested deeper cannot inherit it by accident.
+    SemaTypeId ExpectedClosure{};
 
     explicit TypeCheckerContext ( PassContext &InCtx, std::vector<bool> InMetadata );
 
