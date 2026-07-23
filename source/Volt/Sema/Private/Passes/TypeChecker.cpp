@@ -514,8 +514,13 @@ namespace Sema
                     return Resolution{};
                 }
 
-                const NominalId Base = Ctx.Values.Get( Receiver ).Base;
-                const auto Found     = Ctx.Types.LookupMember( Base, Name );
+                const NominalId Base             = Ctx.Values.Get( Receiver ).Base;
+                const std::string_view CleanName = Name.starts_with( '@' ) ? Name.substr( 1 ) : Name;
+                auto Found                       = Ctx.Types.LookupMember( Base, CleanName );
+                if ( Found.Decl == nullptr and CleanName == "new" )
+                {
+                    Found = Ctx.Types.LookupMember( Base, "initialize" );
+                }
                 if ( Found.Decl == nullptr )
                 {
                     return Resolution{};
@@ -562,7 +567,7 @@ namespace Sema
                 const bool bMemberIsStatic = Found.Decl->bSelf;
                 const std::string Name     = std::string{ Ctx.Types.Text( Found.Decl->Name ) };
 
-                if ( bReceiverIsNakedType and not bMemberIsStatic )
+                if ( bReceiverIsNakedType and not bMemberIsStatic and Name != "initialize" )
                 {
                     Report( Loc, "instance member " + Name + " cannot be accessed on a type" );
                 }
@@ -592,6 +597,20 @@ namespace Sema
                 }
             }
 
+            [[nodiscard]] static bool IsBuiltinPrimitiveOp ( std::string_view Name )
+            {
+                if ( Name.empty() )
+                {
+                    return false;
+                }
+                if ( Name == "and" or Name == "or" or Name == "not" )
+                {
+                    return true;
+                }
+                const char c = Name[0];
+                return not( ( c >= 'a' and c <= 'z' ) or ( c >= 'A' and c <= 'Z' ) or c == '_' );
+            }
+
             // A member access is an implicit call: `10.times` and
             // `"x".to_string` name the method and evaluate to what it
             // returns, exactly as they read.
@@ -599,6 +618,25 @@ namespace Sema
             MemberType ( Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
             {
                 const Resolution Found = LookupOn( Receiver, Name );
+                if ( Ctx.Values.Has( Receiver ) and Found.Decl == nullptr )
+                {
+                    bool bIsBuiltinOp          = false;
+                    const NominalId Base       = Ctx.Values.Get( Receiver ).Base;
+                    const NominalType &Nominal = Ctx.Types.Type( Base );
+                    if ( Nominal.Layout.IsValid() )
+                    {
+                        const LayoutKind Kind = KindOf( Ctx.Types.Get( Nominal.Layout ) );
+                        if ( ( Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer ) and IsBuiltinPrimitiveOp( Name ) )
+                        {
+                            bIsBuiltinOp = true;
+                        }
+                    }
+
+                    if ( not bIsBuiltinOp )
+                    {
+                        Report( Loc, "type " + NameOfValue( Receiver ) + " has no member '" + std::string( Name ) + "'" );
+                    }
+                }
                 CheckMemberSelf( Loc, Found, bReceiverIsNakedType );
                 return Found.Result;
             }
@@ -651,8 +689,15 @@ namespace Sema
                         },
                         [&] ( const Frontend::Member &Expr ) -> SemaTypeId
                         {
-                            const Resolution Found     = LookupOn( InferExpr( Expr.Object ), Ctx.Ast.Text( Expr.Name ) );
+                            const SemaTypeId Object    = InferExpr( Expr.Object );
+                            const Resolution Found     = LookupOn( Object, Ctx.Ast.Text( Expr.Name ) );
                             CalleeResolution[Id.Value] = Found;
+                            if ( Ctx.Values.Has( Object ) and Found.Decl == nullptr )
+                            {
+                                Report( Frontend::LocOf( Ctx.Ast.Expr( Id ) ),
+                                        "type " + NameOfValue( Object ) + " has no member '" +
+                                            std::string{ Ctx.Ast.Text( Expr.Name ) } + "'" );
+                            }
                             CheckMemberSelf( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Found,
                                              NakedTypeExprs.contains( Expr.Object.Value ) );
                             return Found.Result;
@@ -730,6 +775,12 @@ namespace Sema
                                 static_cast<void>( InferExpr( Arg ) );
                             }
                             const Resolution Found = LookupOn( SelfValue, Ctx.Ast.Text( Expr.Method ) );
+                            if ( Ctx.Values.Has( SelfValue ) and Found.Decl == nullptr )
+                            {
+                                Report( Frontend::LocOf( Ctx.Ast.Expr( Id ) ),
+                                        "type " + NameOfValue( SelfValue ) + " has no member '" +
+                                            std::string{ Ctx.Ast.Text( Expr.Method ) } + "'" );
+                            }
                             CheckDotCallSelf( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Found );
                             CheckCallArgs( Expr.Loc, Found, Expr.Args );
                             return Found.Result;
