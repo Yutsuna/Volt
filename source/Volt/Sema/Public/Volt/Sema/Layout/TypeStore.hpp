@@ -2,7 +2,7 @@
 
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
-#include "Volt/Frontend/AST/Decl.hpp"
+#include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Layout/MemoryLayout.hpp"
 
 #include <cstddef>
@@ -305,6 +305,62 @@ namespace Sema
             return LookupMember( BaseOf( Type.Super ), Name, Depth + 1 );
         }
 
+        // --- Free (top-level) functions ------------------------------------
+
+        // A `def` declared directly in a module, not inside any type — its
+        // own namespace, so a free function and a type may share a spelling
+        // without colliding. Modelled as a `Member` (Kind == Method) so the
+        // call-checking machinery built for methods (Resolution,
+        // CheckCallArgs, Reinstantiate) applies unchanged: a free function is
+        // simply a method with no receiver.
+        [[nodiscard]] Member *DeclareFunction ( std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+        {
+            const Symbol Key = Strings.Intern( Name );
+            if ( const auto It = FunctionByName.find( Key ); It != FunctionByName.end() )
+            {
+                Member &Existing = Functions[It->second];
+                Existing.Unit    = Unit;
+                Existing.Decl    = Decl;
+                return &Existing;
+            }
+
+            Member Fresh;
+            Fresh.Name              = Key;
+            Fresh.Kind              = EMemberKind::Method;
+            Fresh.Unit              = Unit;
+            Fresh.Decl              = Decl;
+            const std::size_t Index = Functions.size();
+            Functions.push_back( std::move( Fresh ) );
+            FunctionByName.emplace( Key, Index );
+            return &Functions[Index];
+        }
+
+        // The function declared by `Decl` inside `Unit`, mutable so the
+        // signature phase can fill in what the declaration phase could not
+        // yet resolve — mirrors MemberByDecl.
+        [[nodiscard]] Member *FunctionByDecl ( std::uint32_t Unit, Frontend::DeclId Decl )
+        {
+            for ( Member &Entry : Functions )
+            {
+                if ( Entry.Unit == Unit and Entry.Decl == Decl )
+                {
+                    return &Entry;
+                }
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
+        {
+            const auto Known = Strings.Find( Name );
+            if ( not Known )
+            {
+                return nullptr;
+            }
+            const auto It = FunctionByName.find( *Known );
+            return It != FunctionByName.end() ? &Functions[It->second] : nullptr;
+        }
+
         // --- Signature types ----------------------------------------------
 
         [[nodiscard]] SigTypeId AddSig ( SigType Value )
@@ -374,7 +430,7 @@ namespace Sema
 
         [[nodiscard]] LayoutId AddPrimitive ( Symbol Spelling, std::uint32_t Bits )
         {
-            return Layouts.Add( LayoutNode{ Primitive{ Spelling, Bits } } );
+            return Layouts.Add( LayoutNode{ Primitive{ .Spelling = Spelling, .Bits = Bits } } );
         }
 
         [[nodiscard]] LayoutId AddPointer ( LayoutId Pointee )
@@ -422,6 +478,13 @@ namespace Sema
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, NominalId> ByName;
         std::unordered_map<Symbol, NominalId> ByNodeKind;
+        // Free functions: not owned by any NominalId, so a plain vector +
+        // name index rather than the Members arrays. Never reallocated once
+        // the serial TypeBinder seam ends, so the raw Member* handed out by
+        // Resolution (TypeCheckerContext.hpp) stays valid through every
+        // (parallel, read-only) TypeChecker run.
+        std::vector<Member> Functions;
+        std::unordered_map<Symbol, std::size_t> FunctionByName;
     };
 
 } // namespace Sema
