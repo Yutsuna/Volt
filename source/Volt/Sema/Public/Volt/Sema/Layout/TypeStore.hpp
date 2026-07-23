@@ -41,8 +41,14 @@ namespace Sema
     struct SigType
     {
 
-        NominalId Base;               // invalid when ParamIndex >= 0
-        std::int32_t ParamIndex = -1; // >= 0 => reference to a generic parameter
+        // `self` in a signature is not a type but a *deferred* one: the
+        // receiver's, whatever it turns out to be. `Comparable#<( other : self )`
+        // must mean `Int32` on an Int32 and `String` on a String, so it cannot
+        // resolve to a nominal at declaration time any more than `T` can.
+        static constexpr std::int32_t SelfParam = -2;
+
+        NominalId Base;               // invalid when ParamIndex != -1
+        std::int32_t ParamIndex = -1; // >= 0 => a generic parameter; SelfParam => `self`
         Core::SmallVec<SigTypeId, 2> Args;
     };
 
@@ -72,6 +78,13 @@ namespace Sema
         // against Args must skip it.
         Core::SmallVec<bool, 4> ParamIsBlock;
         bool bSelf = false; // `def self.malloc`
+        // `@[Apply]`: the member's signature *is* the receiver's type
+        // arguments — result first, then parameters — rather than what it
+        // wrote down. This is how a callable is invoked without the compiler
+        // knowing what a callable is: the stdlib type claiming the FuncType
+        // node marks its own `call`, and arity follows the receiver, which no
+        // fixed declaration could express.
+        bool bApply = false;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
