@@ -439,14 +439,30 @@ namespace Sema
                             },
                             [&] ( const Frontend::Method &Entry )
                             {
+                                // One parameter space, the type's followed by
+                                // the method's: `def map<U>` on `Array<T>`
+                                // resolves T to index 0 and U to index 1, so
+                                // a single ParamIndex addresses both and
+                                // Instantiate needs no second concept.
+                                Core::SmallVec<Symbol, 4> Space;
+                                for ( const Symbol Name : *Decl.Generics )
+                                {
+                                    Space.PushBack( Name );
+                                }
+                                for ( const Symbol Name : Entry.Generics )
+                                {
+                                    Space.PushBack( Name );
+                                }
+                                const std::span<const Symbol> Scope{ Space.begin(), Space.Size() };
+
                                 SigSink Sink{ Store };
-                                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Generics, Sink, Entry.ReturnType );
+                                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
                                 Core::SmallVec<SigTypeId, 4> Params;
                                 Core::SmallVec<bool, 4> ParamIsBlock;
                                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                                 {
                                     const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
-                                    Params.PushBack( ResolveTypeExpr( Ast, Store, Generics, Sink, ParamNode.DeclType ) );
+                                    Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
                                     ParamIsBlock.PushBack( ParamNode.bIsBlock );
                                 }
                                 if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
@@ -454,6 +470,7 @@ namespace Sema
                                     Slot->Result       = Result;
                                     Slot->Params       = std::move( Params );
                                     Slot->ParamIsBlock = std::move( ParamIsBlock );
+                                    Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
                                     ++Resolved;
                                 }
                             },
