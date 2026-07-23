@@ -8,8 +8,6 @@
 #include "Volt/Frontend/Lexer/Token.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
-#include <algorithm>
-
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
     if ( not Id.IsValid() or ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] ) )
@@ -29,11 +27,14 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerConte
 namespace
 {
 
-// A closure type is fully inferred once its result and every parameter slot
-// (`Args[0]` and `Args[1:]` of the `Lambda`/`Block` nominal, see ClosureType)
-// carries a valid SemaTypeId. A point-free value passed as `&block` has
-// nothing but the call site to take a type from — if that call site cannot
-// supply one either (an unannotated local, not a literal block under an
+// A closure type's parameter slots are fully inferred once every entry past
+// `Args[0]` (the `Lambda`/`Block` nominal's Result, see ClosureType) carries
+// a valid SemaTypeId. Result is excluded: a block whose body is all
+// statements — `each do |item| ... end` — never types a trailing expression,
+// so an invalid Result there is the ordinary Void case, not a failure to
+// infer. A point-free value passed as `&block` has nothing but the call site
+// to take a *parameter* type from — if that call site cannot supply one
+// either (an unannotated local, not a literal block under an
 // `ExpectedClosure` slot), the slot stays open and must be reported, not
 // silently handed through as `Array<?>`.
 [[nodiscard]] bool IsBlockFullyInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
@@ -44,7 +45,14 @@ namespace
         return false;
     }
     const auto &Slots = Context.Ctx.Values.Get( BlockType ).Args;
-    return std::ranges::all_of( Slots, []( const Volt::Sema::SemaTypeId Slot ) { return Slot.IsValid(); } );
+    for ( std::size_t Index = 1; Index < Slots.Size(); ++Index )
+    {
+        if ( not Slots[Index].IsValid() )
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace
