@@ -12,28 +12,23 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         return Resolution{};
     }
 
-    const NominalId Base             = Context.Ctx.Values.Get( Receiver ).Base;
     const std::string_view CleanName = Name.starts_with( '@' ) ? Name.substr( 1 ) : Name;
-    auto Found                       = Context.Ctx.Types.LookupMember( Base, CleanName );
-    if ( Found.Decl == nullptr and CleanName == "new" )
+    auto Found                       = LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Receiver, Receiver, CleanName );
+
+    // `T.new` runs `initialize` but does not *evaluate* to what it returns:
+    // a constructor yields the thing constructed. Its declared result is the
+    // Void every initializer writes, so the receiver has to be substituted
+    // back in, or `Array<U>.new` would be untyped.
+    bool bConstructor = false;
+    if ( Found.Decl == nullptr and CleanName == ConstructorCall )
     {
-        Found = Context.Ctx.Types.LookupMember( Base, "initialize" );
+        Found        = LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Receiver, Receiver, ConstructorName );
+        bConstructor = Found.Decl != nullptr;
     }
     if ( Found.Decl == nullptr )
     {
         return Resolution{};
     }
-
-    Core::SmallVec<SemaTypeId, 2> Args;
-    if ( Found.Owner == Base )
-    {
-        for ( const SemaTypeId Arg : Context.Ctx.Values.Get( Receiver ).Args )
-        {
-            Args.PushBack( Arg );
-        }
-    }
-
-    const std::span<const SemaTypeId> Applied{ Args.begin(), Args.Size() };
 
     if ( Found.Decl->bApply )
     {
@@ -47,6 +42,14 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
             .Decl = Found.Decl, .Result = Signature.IsEmpty() ? SemaTypeId{} : Signature[0], .Params = std::move( Params ) };
     }
 
+    // A signature's ParamIndex counts against the type that *declares* it,
+    // and LookupMemberOn already made that owner concrete: `each` reached
+    // from `Array<Int32>` is owned by `Enumerable<Int32>`, so its parameter
+    // 0 is Int32. `Self` stays the receiver — a mixin's `self` means the
+    // type that included it, never the mixin.
+    const Core::SmallVec<SemaTypeId, 2> OwnerArgs = Context.Ctx.Values.Get( Found.Owner ).Args;
+    const std::span<const SemaTypeId> Applied{ OwnerArgs.begin(), OwnerArgs.Size() };
+
     Core::SmallVec<SemaTypeId, 4> Params;
     for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
     {
@@ -57,9 +60,10 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         Params.PushBack( Instantiate( Context.Ctx.Types, Found.Decl->Params[Index], Applied, Receiver, Context.Ctx.Values ) );
     }
 
-    return Resolution{ .Decl   = Found.Decl,
-                       .Result = Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Receiver, Context.Ctx.Values ),
-                       .Params = std::move( Params ) };
+    const SemaTypeId Result =
+        bConstructor ? Receiver : Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Receiver, Context.Ctx.Values );
+
+    return Resolution{ .Decl = Found.Decl, .Result = Result, .Params = std::move( Params ) };
 }
 
 void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
@@ -75,7 +79,7 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
     const bool bMemberIsStatic = Found.Decl->bSelf;
     const std::string Name     = std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) };
 
-    if ( bReceiverIsNakedType and not bMemberIsStatic and Name != "initialize" )
+    if ( bReceiverIsNakedType and not bMemberIsStatic and Name != ConstructorName )
     {
         Context.Report( Loc, "instance member " + Name + " cannot be accessed on a type" );
     }
