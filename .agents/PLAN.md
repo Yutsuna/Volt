@@ -87,16 +87,59 @@ Le typage sémantique des closures et le calcul de leurs structures de pile (`Cl
 
 ---
 
-## V. Dette Technique Résiduelle & Prochaines Étapes
+## V. Strictification & Diagnostic des Membres (Passé au Vert - 2026-07-23)
 
-### Dette technique résiduelle (Mineure & Documentée)
-1. **Identifiants créés après Order 10 (`MacroExpansion` / `CaseLowering`) :**
+### Point 7 : Strictification du diagnostic d'accès aux membres inconnus & Support des opérateurs de bits
+* **Problème résolu :** Dans `TypeChecker.cpp`, `LookupOn` et `MemberType` faisaient un `return` silencieux sans émettre de rapport sémantique (`Report`) lorsqu'une méthode ou un membre n'existait pas (`Found.Decl == nullptr`). De plus, le parseur (`IsOperatorMethodStart` dans `ParseDecl.cpp`) ne reconnaissait pas les opérateurs de bits `&`, `|`, `^`, `~` après `def`.
+* **Implémentation dans TypeChecker.cpp & ParseDecl.cpp :**
+  - **Diagnostic strict :** Ajout de la vérification `Ctx.Values.Has(Receiver)` et émission du rapport `Report(Loc, "type " + NameOfValue(Receiver) + " has no member '" + std::string(Name) + "'")` pour tout membre nommé non déclaré sur une instance typée.
+  - **Filtre des opérateurs natifs :** `IsBuiltinPrimitiveOp` autorise les opérateurs natifs bas niveau sur les types de layout primitifs/pointeurs sans lever de faux diagnostic.
+  - **Support des opérateurs de bits après `def` :** Ajout des jetons `Amp`, `Pipe`, `Caret`, `Tilde` dans `IsOperatorMethodStart` ([ParseDecl.cpp](file:///home/Yutsuna/Projects/VoltLang/Volt/source/Volt/Frontend/Private/Parser/ParseDecl.cpp)).
+  - **Sûreté de la stdlib & Mixin Arithmetic :** Ajout de `include Comparable` dans [source/Lib/Mixins/Arithmetic.vl](file:///home/Yutsuna/Projects/VoltLang/Volt/source/Lib/Mixins/Arithmetic.vl), passage au vert de la stdlib et de tous les tests (97/97 tests CTest verts).
+
+---
+
+## VI. Dette Technique Résiduelle du MiddleEnd & Feuille de Route
+
+Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts) et rejette désormais strictement les accès aux membres inconnus. Les dettes résiduelles du MiddleEnd s'articulent ainsi :
+
+### Dette technique résiduelle (Identifiée & Structurée)
+
+1. **[FAIT - 2026-07-23] Diagnostic d'absence de membre (`LookupOn` & `MemberType` strict) :**
+   - **Statut :** RÉALISÉ & VALIDÉ. Les appels à des méthodes inconnues (`numbers.map`, `s.trim`, `w.invalid_method`) sont désormais strictly rejetés avec des diagnostics clairs.
+
+2. **Support des Mixins & Méthodes d'ordre supérieur (`Mixin` / `Include` / `Enumerable`) :**
+   - Le Frontend parse les nœuds `Mixin` et `Include`. Le MiddleEnd doit désormais finaliser l'injection automatique des méthodes de mixins génériques dans les types récepteurs (ex: mixin `Enumerable` apportant `.map` et `.filter` à `Array`), et la résolution de leurs conflits de symboles.
+
+3. **Identifiants créés après Order 10 (`MacroExpansion` / `CaseLowering`) :**
    - `ScopeResolver` s'exécute à l'Order 10. `ScopeTable` reste incrémentale (`Declare`/`BindUse` publiques) pour permettre une repasse légère si ces lowerings génèrent de nouveaux identifiants non résolus.
-2. **Alimentation des `DeclId` (Membres) dans `BindingSite` :**
-   - Réservé pour l'unification complète des membres d'instance/classe dans la table de portées.
 
-### Prochaines étapes prioritaires
-1. **Génération de code (Backend / Codegen - `volt run` & `volt build`) :**
+4. **Inférence des littéraux non entiers & collections (`UnconstrainedLiterals`) :**
+   - `ConstrainExprType` et `UnconstrainedLiterals` ne gèrent actuellement que les `IntLiteral`. Les littéraux flottants (`FloatLiteral`) et les collections nues (`ArrayLit`, `HashLit`) nécessitent la même propagation descendante de contraintes sémantiques.
+
+5. **Inférence automatique des méthodes génériques (`GenericInst`) :**
+   - `TypeChecker` valide l'arité explicite des arguments de types (`CheckArity`), mais l'inférence automatique des paramètres de type pour les appels de méthodes génériques (ex: `list.map(x => x + 1)` sans `<Int32>` explicite) doit être complétée.
+
+6. **Contrôle d'exhaustivité du Pattern Matching (`CaseExpr`) :**
+   - `CaseLowering` abaisse les `case/when` en `If/Else`. Le MiddleEnd doit ajouter la vérification d'exhaustivité sémantique (ex: s'assurer que toutes les variantes d'une `Enum` sont couvertes).
+
+7. **Distinction des Closures Évasives vs Non-évasives (*Escaping Closures*) :**
+   - `ClosureFrame` dimensionne les environnements de pile pour les captures, mais le `TypeChecker` doit différencier les closures à évasion de celles immédiatement inlinées (`non-escaping`).
+
+8. **Alimentation des `DeclId` (Membres) dans `BindingSite` :**
+   - Réservé pour l'unification complète des membres d'instance/classe dans la table de portées (`ScopeTable`).
+
+---
+
+## VII. Feuille de Route Prioritaire
+
+1. **[PROCHAINE ÉTAPE] Câblage des Mixins & Méthodes d'ordre supérieur (`Enumerable` / `Array.vl`) :**
+   - Implémentation du système de résolution et d'injection des mixins dans `TypeChecker.cpp` / `TypeStore.hpp` pour fournir `.map()` et `.filter()` à `Array.vl`.
+   - Résolution des méthodes génériques associées.
+
+2. **Génération de code (Backend / Codegen - `volt run` & `volt build`) :**
    - Exploitation des `ClosureFrame` et des tableaux de capture dans l'interpréteur/JIT et le backend LLVM AOT pour émettre la gestion des environnements sur la pile.
-2. **Support des Closures dans les Cibles WebAssembly / WASM (`volt build --target wasm`) :**
+
+3. **Support WebAssembly / WASM (`volt build --target wasm`) :**
    - Abaissement des environnements de closure vers les tables et la mémoire WASM.
+
