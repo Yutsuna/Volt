@@ -13,10 +13,12 @@
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <unordered_map>
 #include <vector>
 
 namespace Volt
@@ -108,6 +110,17 @@ namespace Sema
             return OfExpr[Expr.Value];
         }
 
+        void SetSiteType ( BindingSite Site, SemaTypeId Type )
+        {
+            SiteTypes[Site] = Type;
+        }
+
+        [[nodiscard]] SemaTypeId SiteType ( BindingSite Site ) const
+        {
+            const auto It = SiteTypes.find( Site );
+            return It != SiteTypes.end() ? It->second : SemaTypeId{};
+        }
+
         [[nodiscard]] std::size_t Size () const
         {
             return Types.Size();
@@ -118,6 +131,7 @@ namespace Sema
         Core::Arena<SemaType, SemaTypeId> Types;
         std::map<std::vector<std::uint32_t>, SemaTypeId> Dedup;
         std::vector<SemaTypeId> OfExpr; // indexed by ExprId::Value
+        std::unordered_map<BindingSite, SemaTypeId, BindingSiteHash> SiteTypes;
     };
 
 } // namespace Sema
