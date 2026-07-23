@@ -27,32 +27,40 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerConte
 namespace
 {
 
-// A closure type's parameter slots are fully inferred once every entry past
-// `Args[0]` (the `Lambda`/`Block` nominal's Result, see ClosureType) carries
-// a valid SemaTypeId. Result is excluded: a block whose body is all
-// statements — `each do |item| ... end` — never types a trailing expression,
-// so an invalid Result there is the ordinary Void case, not a failure to
-// infer. A point-free value passed as `&block` has nothing but the call site
-// to take a *parameter* type from — if that call site cannot supply one
-// either (an unannotated local, not a literal block under an
-// `ExpectedClosure` slot), the slot stays open and must be reported, not
-// silently handed through as `Array<?>`.
-[[nodiscard]] bool IsBlockFullyInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
-                                          Volt::Sema::SemaTypeId BlockType )
+// Only `Args[0]` (the `Lambda`/`Block` nominal's Result, see ClosureType) is
+// checked, and only for a `Lambda` node — never a `Block`. The two differ in
+// exactly the way that matters here:
+//
+// - A `do |x| ... end` (`Block`) is a statement sequence with no trailing
+//   expression more often than not — `each do |item| ... end` never types
+//   one — and its parameter slots are legitimately open while checking a
+//   generic definition's own body (`T` inside `Enumerable<T>` itself is an
+//   unresolved placeholder, not a failure — see UnitSink::Param). Neither
+//   signal is trustworthy there, so `Block` is skipped outright.
+// - Every `&expr` capture is rewritten to a `Lambda` by FunctionalLowering
+//   (`(fn_tmp) => expr(fn_tmp)`) before this pass ever runs, and a `Lambda`
+//   body is always a single expression meant to produce a value. Its own
+//   parameter always resolves — it is filled from the call's `Expected`
+//   slot mechanically, regardless of what `expr` turns out to be — so a
+//   parameter check would fire even in a fully generic definition body.
+//   What actually goes missing when `expr` (e.g. a local closure declared
+//   without annotations) was never resolved is the *Result*: exactly what
+//   feeds a method generic like `map<U>`'s `U`, and exactly what silently
+//   produced `Array<?>` before this check existed.
+[[nodiscard]] bool IsBlockResultInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                           Volt::Frontend::ExprId BlockArg,
+                                           Volt::Sema::SemaTypeId BlockType )
 {
+    if ( not std::holds_alternative<Volt::Frontend::Lambda>( Context.Ctx.Ast.Expr( BlockArg ) ) )
+    {
+        return true;
+    }
     if ( not BlockType.IsValid() or not Context.Ctx.Values.Has( BlockType ) )
     {
         return false;
     }
     const auto &Slots = Context.Ctx.Values.Get( BlockType ).Args;
-    for ( std::size_t Index = 1; Index < Slots.Size(); ++Index )
-    {
-        if ( not Slots[Index].IsValid() )
-        {
-            return false;
-        }
-    }
-    return true;
+    return not Slots.IsEmpty() and Slots[0].IsValid();
 }
 
 } // namespace
@@ -273,7 +281,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
         // point-free `&transform` can still come out with an open slot when
         // `transform` itself was never annotated; that must stop here rather
         // than propagate as `Array<?>` with no diagnostic anywhere.
-        if ( Found.Decl != nullptr and not IsBlockFullyInferred( Context, BlockType ) )
+        if ( Found.Decl != nullptr and not IsBlockResultInferred( Context, Expr.BlockArg, BlockType ) )
         {
             Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Expr.BlockArg ) ),
                             "cannot infer block parameter types for '" +
