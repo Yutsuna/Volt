@@ -1,6 +1,7 @@
 @[Primitive( "f32", 32 )]
 struct Float32
   include Comparable
+  include Arithmetic
 
   def <=>( other : Float32 ) -> Int32
     if self < other
@@ -21,6 +22,7 @@ end
 @[Primitive( "f64", 64 ), Literal( FloatLiteral )]
 struct Float64
   include Comparable
+  include Arithmetic
 
   def <=>( other : Float64 ) -> Int32
     if self < other
@@ -32,7 +34,4 @@ struct Float64
     end
   end
 
-  def abs -> Float64
-    self >= 0.0 ? self : -self
-  end
 end
