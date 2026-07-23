@@ -49,25 +49,38 @@ namespace Sema
         {
             return Store.AddSig( SigType{ .Base = NominalId{}, .ParamIndex = Index, .Args = {} } );
         }
+
+        [[nodiscard]] IdType SelfRef ()
+        {
+            return Param( SigType::SelfParam );
+        }
     };
 
     // Encodes an expression's type. A free parameter cannot appear here, so
     // it yields an invalid id — the caller decides whether that is an error.
+    // `self`, on the other hand, is already known inside a body, and is
+    // whatever type that body belongs to.
     struct UnitSink
     {
 
         using IdType = SemaTypeId;
 
         UnitTypes &Values;
+        SemaTypeId Self;
 
         [[nodiscard]] IdType Make ( NominalId Base, Core::SmallVec<IdType, 2> Args )
         {
             return Values.Intern( SemaType{ .Base = Base, .Args = std::move( Args ) } );
         }
 
-        [[nodiscard]] IdType Param ( std::int32_t )
+        [[nodiscard]] IdType Param ( std::int32_t /*Index*/ )
         {
             return IdType{};
+        }
+
+        [[nodiscard]] IdType SelfRef () const
+        {
+            return Self;
         }
     };
 
@@ -99,9 +112,16 @@ namespace Sema
                     const Frontend::Symbol Last = Ref.Path[Ref.Path.Size() - 1];
 
                     // A bare name that is one of the enclosing generics is a
-                    // parameter reference, not a type of its own.
+                    // parameter reference, not a type of its own. So is the
+                    // `self` keyword — spelled from the token table, since it
+                    // is syntax and not a Volt type name.
                     if ( Ref.Path.Size() == 1 )
                     {
+                        if ( Ast.Text( Last ) == Frontend::TokenSpelling( Frontend::TokenKind::KwSelf ) )
+                        {
+                            return Out.SelfRef();
+                        }
+
                         for ( std::size_t Index = 0; Index < Generics.size(); ++Index )
                         {
                             if ( Generics[Index] == Last )
@@ -167,12 +187,11 @@ namespace Sema
     }
 
     /// Substitute a declared signature's generic parameters by the receiver's
-    /// arguments, producing a concrete per-unit type. An out-of-range
-    /// parameter (an un-instantiated generic) yields an invalid id.
-    [[nodiscard]] SEMA_EXPORT SemaTypeId Instantiate ( const TypeStore &Store,
-                                                       SigTypeId Id,
-                                                       std::span<const SemaTypeId> ReceiverArgs,
-                                                       UnitTypes &Values );
+    /// arguments and its `self` by `Self`, producing a concrete per-unit type.
+    /// An out-of-range parameter (an un-instantiated generic) yields an
+    /// invalid id.
+    [[nodiscard]] SEMA_EXPORT SemaTypeId Instantiate (
+        const TypeStore &Store, SigTypeId Id, std::span<const SemaTypeId> ReceiverArgs, SemaTypeId Self, UnitTypes &Values );
 
 } // namespace Sema
 
