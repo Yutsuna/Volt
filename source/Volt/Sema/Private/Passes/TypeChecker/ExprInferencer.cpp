@@ -93,9 +93,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // name is a member of `self`. Resolving it here is what makes
                 // `each do | item | ... end` behave like `self.each do ... end`
                 // — same CalleeResolution, so the block gets its parameter
-                // types and the method generics still infer. Staying silent
-                // when nothing matches is deliberate: a free function call
-                // lands here too, and it is not this branch's business.
+                // types and the method generics still infer.
                 if ( Context.SelfValue.IsValid() )
                 {
                     const Resolution Found = LookupOn( Context, Context.SelfValue, Context.Ctx.Ast.Text( Expr.Name ) );
@@ -104,6 +102,19 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                         Context.CalleeResolution[Id.Value] = Found;
                         return Found.Result;
                     }
+                }
+
+                // Neither a member of `self` (or no `self` at all, as at
+                // module scope): a top-level `def`. CallType diagnoses the
+                // case where even this fails and the identifier is used as a
+                // call's callee — every other silent fallthrough here stays
+                // silent, since a bare name may legitimately mean something
+                // a later lowering pass still has to fill in.
+                const Resolution FreeFn = LookupFreeFunction( Context, Context.Ctx.Ast.Text( Expr.Name ) );
+                if ( FreeFn.Decl != nullptr )
+                {
+                    Context.CalleeResolution[Id.Value] = FreeFn;
+                    return FreeFn.Result;
                 }
                 return SemaTypeId{};
             },
@@ -245,6 +256,21 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
 
     if ( It == Context.CalleeResolution.end() )
     {
+        // A bare identifier that is neither a local, a type, a member of
+        // `self`, nor a declared free function: unlike a `receiver.name`
+        // (Member) or `self.name` (DotCall) call, nothing upstream of here
+        // ever reports this — those two go through LookupOn/MemberType,
+        // which already diagnose an unknown member. This is that same
+        // diagnostic's counterpart for a plain `foo( ... )` call.
+        if ( not Callee.IsValid() )
+        {
+            if ( const auto *Naked = std::get_if<Frontend::Identifier>( &Context.Ctx.Ast.Expr( Expr.Callee ) ) )
+            {
+                Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Expr.Callee ) ),
+                                "unknown function '" + std::string{ Context.Ctx.Ast.Text( Naked->Name ) } + "'" );
+            }
+        }
+
         for ( const Frontend::ExprId Arg : Expr.Args )
         {
             static_cast<void>( InferExpr( Context, Arg ) );
