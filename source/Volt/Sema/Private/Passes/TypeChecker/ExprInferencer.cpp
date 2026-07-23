@@ -8,6 +8,8 @@
 #include "Volt/Frontend/Lexer/Token.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
+#include <algorithm>
+
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
     if ( not Id.IsValid() or ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] ) )
@@ -23,6 +25,29 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerConte
     Context.Ctx.Values.SetExprType( Id, Type );
     return Type;
 }
+
+namespace
+{
+
+// A closure type is fully inferred once its result and every parameter slot
+// (`Args[0]` and `Args[1:]` of the `Lambda`/`Block` nominal, see ClosureType)
+// carries a valid SemaTypeId. A point-free value passed as `&block` has
+// nothing but the call site to take a type from — if that call site cannot
+// supply one either (an unannotated local, not a literal block under an
+// `ExpectedClosure` slot), the slot stays open and must be reported, not
+// silently handed through as `Array<?>`.
+[[nodiscard]] bool IsBlockFullyInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                          Volt::Sema::SemaTypeId BlockType )
+{
+    if ( not BlockType.IsValid() or not Context.Ctx.Values.Has( BlockType ) )
+    {
+        return false;
+    }
+    const auto &Slots = Context.Ctx.Values.Get( BlockType ).Args;
+    return std::ranges::all_of( Slots, []( const Volt::Sema::SemaTypeId Slot ) { return Slot.IsValid(); } );
+}
+
+} // namespace
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
@@ -46,6 +71,23 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 {
                     Context.NakedTypeExprs.insert( Id.Value );
                     return Context.MakeType( *Named, {} );
+                }
+
+                // Neither a local nor a type: inside a method body, a bare
+                // name is a member of `self`. Resolving it here is what makes
+                // `each do | item | ... end` behave like `self.each do ... end`
+                // — same CalleeResolution, so the block gets its parameter
+                // types and the method generics still infer. Staying silent
+                // when nothing matches is deliberate: a free function call
+                // lands here too, and it is not this branch's business.
+                if ( Context.SelfValue.IsValid() )
+                {
+                    const Resolution Found = LookupOn( Context, Context.SelfValue, Context.Ctx.Ast.Text( Expr.Name ) );
+                    if ( Found.Decl != nullptr )
+                    {
+                        Context.CalleeResolution[Id.Value] = Found;
+                        return Found.Result;
+                    }
                 }
                 return SemaTypeId{};
             },
@@ -171,7 +213,20 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     // its parameters with nothing to take a type from.
     const SemaTypeId Callee = InferExpr( Context, Expr.Callee );
 
-    const auto It = Context.CalleeResolution.find( Expr.Callee.Value );
+    // A callee that resolved to no member may still be callable: a local
+    // holding a closure is called as `f( x )`, which means the member its
+    // type annotates `@[Apply]`. Without this, `f( x )` evaluated to `f`
+    // itself, and every point-free pipeline stayed typed as its own Proc.
+    auto It = Context.CalleeResolution.find( Expr.Callee.Value );
+    if ( It == Context.CalleeResolution.end() )
+    {
+        const Resolution Applied = LookupApplyOn( Context, Callee );
+        if ( Applied.Decl != nullptr )
+        {
+            It = Context.CalleeResolution.emplace( Expr.Callee.Value, Applied ).first;
+        }
+    }
+
     if ( It == Context.CalleeResolution.end() )
     {
         for ( const Frontend::ExprId Arg : Expr.Args )
@@ -204,6 +259,19 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
         Context.ExpectedClosure        = Found.BlockParam;
         const SemaTypeId BlockType     = InferExpr( Context, Expr.BlockArg );
         Context.ExpectedClosure        = OuterExpected;
+
+        // Found.BlockParam only ever fills a param slot that has nothing of
+        // its own — a literal `do |i| ... end` under it always resolves. A
+        // point-free `&transform` can still come out with an open slot when
+        // `transform` itself was never annotated; that must stop here rather
+        // than propagate as `Array<?>` with no diagnostic anywhere.
+        if ( Found.Decl != nullptr and not IsBlockFullyInferred( Context, BlockType ) )
+        {
+            Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Expr.BlockArg ) ),
+                            "cannot infer block parameter types for '" +
+                                std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) } +
+                                "' — please add explicit type annotations" );
+        }
 
         UnifyBlock( Context, Found, BlockType );
     }
