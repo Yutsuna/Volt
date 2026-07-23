@@ -1,0 +1,102 @@
+Program 'samples/Sema/CallableArgs.vl'
+├─ Method 'apply_twice' @6:1
+│  ├─ params
+│  │  ├─ Param 'value'
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Int32' @6:26
+│  │  └─ Param 'block' is_block
+│  │     └─ decl_type
+│  │        └─ FuncType @6:42
+│  │           ├─ return
+│  │           │  └─ TypeRef 'Int32' @6:51
+│  │           └─ params
+│  │              └─ TypeRef 'Int32' @6:42
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @6:62
+│  └─ body
+│     └─ ExprStmt @7:3
+│        └─ expr
+│           └─ Call @7:13
+│              ├─ callee
+│              │  └─ Member 'call' @7:8
+│              │     └─ object
+│              │        └─ Identifier 'block' @7:3
+│              └─ args
+│                 └─ Call @7:25
+│                    ├─ callee
+│                    │  └─ Member 'call' @7:20
+│                    │     └─ object
+│                    │        └─ Identifier 'block' @7:15
+│                    └─ args
+│                       └─ Identifier 'value' @7:27
+├─ Method 'callable_args_test' @10:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @10:27
+│  └─ body
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Assign '=' @11:11
+│     │        ├─ target
+│     │        │  └─ Identifier 'add_one' @11:3
+│     │        └─ value
+│     │           └─ Lambda @11:13
+│     │              ├─ params
+│     │              │  └─ Param 'x'
+│     │              │     └─ decl_type
+│     │              │        └─ TypeRef 'Int32' @11:19
+│     │              └─ body
+│     │                 └─ Binary '+' @11:32
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'x' @11:30
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '1' @11:34
+│     ├─ LocalDecl 'via_capture' @15:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @15:17
+│     │  └─ init
+│     │     └─ Call @15:36
+│     │        ├─ callee
+│     │        │  └─ Identifier 'apply_twice' @15:25
+│     │        ├─ args
+│     │        │  └─ IntLiteral '5' @15:38
+│     │        └─ block_arg
+│     │           └─ Section static_capture @15:41
+│     │              └─ target_expr
+│     │                 └─ Identifier 'add_one' @15:42
+│     ├─ LocalDecl 'via_call' @20:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @20:14
+│     │  └─ init
+│     │     └─ Call @20:29
+│     │        ├─ callee
+│     │        │  └─ Identifier 'add_one' @20:22
+│     │        └─ args
+│     │           └─ IntLiteral '10' @20:31
+│     ├─ LocalDecl 'via_dot_call' @21:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @21:18
+│     │  └─ init
+│     │     └─ Call @21:38
+│     │        ├─ callee
+│     │        │  └─ Member 'call' @21:33
+│     │        │     └─ object
+│     │        │        └─ Identifier 'add_one' @21:26
+│     │        └─ args
+│     │           └─ IntLiteral '10' @21:40
+│     └─ ExprStmt @23:3
+│        └─ expr
+│           └─ Binary '+' @23:26
+│              ├─ lhs
+│              │  └─ Binary '+' @23:15
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'via_capture' @23:3
+│              │     └─ rhs
+│              │        └─ Identifier 'via_call' @23:17
+│              └─ rhs
+│                 └─ Identifier 'via_dot_call' @23:28
+└─ ExprStmt @26:1
+   └─ expr
+      └─ Call @26:19
+         └─ callee
+            └─ Identifier 'callable_args_test' @26:1
+--- exit 0 ---
