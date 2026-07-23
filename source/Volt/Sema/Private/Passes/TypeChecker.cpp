@@ -211,6 +211,7 @@ namespace Sema
                 if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
                 {
                     LocalTypes[Bound->Site] = Type;
+                    Ctx.Values.SetSiteType( Bound->Site, Type );
                 }
                 Locals[Name] = Type;
             }
@@ -359,6 +360,7 @@ namespace Sema
                     const SemaTypeId ParamType    = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
                     LocalTypes[BindingSite{ Id }] = ParamType;
                     Locals[Entry.Name]            = ParamType;
+                    Ctx.Values.SetSiteType( BindingSite{ Id }, ParamType );
                     InferExpr( Entry.Default );
                 }
                 WalkStmts( Node.Body );
@@ -439,6 +441,7 @@ namespace Sema
                             // one ScopeResolver bound every in-scope use to.
                             LocalTypes[BindingSite{ Id }] = Bound;
                             Locals[Node.Name]             = Bound;
+                            Ctx.Values.SetSiteType( BindingSite{ Id }, Bound );
                             if ( not Written.IsValid() and Node.Init.IsValid() )
                             {
                                 UnconstrainedVarInitializers[Node.Name] = Node.Init;
@@ -730,6 +733,105 @@ namespace Sema
                             CheckDotCallSelf( Frontend::LocOf( Ctx.Ast.Expr( Id ) ), Found );
                             CheckCallArgs( Expr.Loc, Found, Expr.Args );
                             return Found.Result;
+                        },
+                        [&] ( const Frontend::Lambda &Expr ) -> SemaTypeId
+                        {
+                            UnitSink Sink{ Ctx.Values };
+                            Core::SmallVec<SemaTypeId, 2> ParamTypes;
+                            for ( const Frontend::ParamId PId : Expr.Params )
+                            {
+                                const Frontend::Param &Entry = Ctx.Ast.GetParam( PId );
+                                const SemaTypeId ParamType =
+                                    ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
+                                LocalTypes[BindingSite{ PId }] = ParamType;
+                                Locals[Entry.Name]             = ParamType;
+                                Ctx.Values.SetSiteType( BindingSite{ PId }, ParamType );
+                                if ( Entry.Default.IsValid() )
+                                {
+                                    static_cast<void>( InferExpr( Entry.Default ) );
+                                }
+                                ParamTypes.PushBack( ParamType );
+                            }
+
+                            if ( Expr.ReturnType.IsValid() )
+                            {
+                                const SemaTypeId WrittenRet = InferExpr( Expr.ReturnType );
+                                if ( WrittenRet.IsValid() )
+                                {
+                                    ConstrainExprType( Expr.Body, WrittenRet );
+                                }
+                            }
+
+                            const SemaTypeId BodyType = InferExpr( Expr.Body );
+
+                            const auto *Captures = Ctx.Scopes.CapturesOfExpr( Id );
+                            if ( Captures == nullptr )
+                            {
+                                Captures = Ctx.Scopes.CapturesOf( Ctx.Scopes.ScopeOfExpr( Id ) );
+                            }
+
+                            const bool bHasCaptures = ( Captures != nullptr and not Captures->IsEmpty() );
+
+                            if ( not bHasCaptures )
+                            {
+                                NominalId Base;
+                                if ( const auto Opt = Ctx.Types.LookupNodeKind( "Lambda" ) )
+                                {
+                                    Base = *Opt;
+                                }
+                                else if ( const auto OptPtr = Ctx.Types.LookupNodeKind( "PointerType" ) )
+                                {
+                                    Base = *OptPtr;
+                                }
+
+                                if ( not Base.IsValid() )
+                                {
+                                    return SemaTypeId{};
+                                }
+
+                                Core::SmallVec<SemaTypeId, 2> FuncArgs;
+                                for ( const SemaTypeId PT : ParamTypes )
+                                {
+                                    FuncArgs.PushBack( PT );
+                                }
+                                FuncArgs.PushBack( BodyType );
+                                return MakeType( Base, std::move( FuncArgs ) );
+                            }
+                            else
+                            {
+                                NominalId Base;
+                                if ( const auto OptLambda = Ctx.Types.LookupNodeKind( "Lambda" ) )
+                                {
+                                    Base = *OptLambda;
+                                }
+                                else if ( const auto OptBlock = Ctx.Types.LookupNodeKind( "Block" ) )
+                                {
+                                    Base = *OptBlock;
+                                }
+
+                                if ( not Base.IsValid() )
+                                {
+                                    return SemaTypeId{};
+                                }
+
+                                Core::SmallVec<SemaTypeId, 2> CapturedTypes;
+                                for ( const auto &Cap : *Captures )
+                                {
+                                    if ( const auto Local = FindLocal( Frontend::ExprId{}, Cap.Name ) )
+                                    {
+                                        CapturedTypes.PushBack( *Local );
+                                    }
+                                    else if ( const auto It = LocalTypes.find( Cap.Site ); It != LocalTypes.end() )
+                                    {
+                                        CapturedTypes.PushBack( It->second );
+                                    }
+                                    else
+                                    {
+                                        CapturedTypes.PushBack( Ctx.Values.SiteType( Cap.Site ) );
+                                    }
+                                }
+                                return MakeType( Base, std::move( CapturedTypes ) );
+                            }
                         },
                         [&] ( const auto &Expr ) -> SemaTypeId { return LiteralType( Id, Expr ); },
                     },
