@@ -149,25 +149,56 @@ Program 'samples/Sema/BlockParamTypes.vl'
       │                 ├─ IntLiteral '1' @37:13
       │                 ├─ IntLiteral '2' @37:16
       │                 └─ IntLiteral '3' @37:19
-      └─ ExprStmt @38:3
+      ├─ ExprStmt @38:3
+      │  └─ expr
+      │     └─ Call @38:14
+      │        ├─ callee
+      │        │  └─ Member 'each' @38:8
+      │        │     └─ object
+      │        │        └─ Identifier 'items' @38:3
+      │        └─ block_arg
+      │           └─ Block @38:14
+      │              ├─ params
+      │              │  └─ Param 'item'
+      │              └─ body
+      │                 └─ LocalDecl 'squared' @39:5
+      │                    ├─ decl_type
+      │                    │  └─ TypeRef 'Int32' @39:15
+      │                    └─ init
+      │                       └─ Binary '*' @39:28
+      │                          ├─ lhs
+      │                          │  └─ Identifier 'item' @39:23
+      │                          └─ rhs
+      │                             └─ Identifier 'item' @39:30
+      └─ ExprStmt @45:3
          └─ expr
-            └─ Call @38:14
+            └─ Call @45:25
                ├─ callee
-               │  └─ Member 'each' @38:8
+               │  └─ Member 'each_with_index' @45:8
                │     └─ object
-               │        └─ Identifier 'items' @38:3
+               │        └─ Identifier 'items' @45:3
                └─ block_arg
-                  └─ Block @38:14
+                  └─ Block @45:25
                      ├─ params
-                     │  └─ Param 'item'
+                     │  ├─ Param 'item'
+                     │  └─ Param 'index'
                      └─ body
-                        └─ LocalDecl 'squared' @39:5
+                        ├─ LocalDecl 'product' @46:5
+                        │  ├─ decl_type
+                        │  │  └─ TypeRef 'UInt64' @46:15
+                        │  └─ init
+                        │     └─ Binary '*' @46:30
+                        │        ├─ lhs
+                        │        │  └─ Identifier 'index' @46:24
+                        │        └─ rhs
+                        │           └─ IntLiteral '2_u64' @46:32
+                        └─ LocalDecl 'doubled_item' @47:5
                            ├─ decl_type
-                           │  └─ TypeRef 'Int32' @39:15
+                           │  └─ TypeRef 'Int32' @47:20
                            └─ init
-                              └─ Binary '*' @39:28
+                              └─ Binary '*' @47:33
                                  ├─ lhs
-                                 │  └─ Identifier 'item' @39:23
+                                 │  └─ Identifier 'item' @47:28
                                  └─ rhs
-                                    └─ Identifier 'item' @39:30
+                                    └─ IntLiteral '2' @47:35
 --- exit 0 ---
