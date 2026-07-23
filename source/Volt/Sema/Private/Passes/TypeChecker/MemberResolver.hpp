@@ -17,6 +17,12 @@ constexpr std::string_view ConstructorName = "initialize";
 
 [[nodiscard]] Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name );
 
+// Calling a value directly — `f( x )` where `f` is not a method name but a
+// callable — invokes whatever member its type declares as `@[Apply]`. Which
+// member that is comes from the annotation, so no member name is ever known
+// to the compiler; a type that declares none is simply not callable.
+[[nodiscard]] Resolution LookupApplyOn ( TypeCheckerContext &Context, SemaTypeId Receiver );
+
 // Recompute a resolution's result, parameters and block slot from its
 // current Bindings. Idempotent, and called again each time inference
 // closes one more generic hole.
@@ -36,7 +42,13 @@ void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const
 
 void CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found );
 
-[[nodiscard]] bool IsBuiltinPrimitiveOp ( std::string_view Name );
+// True when `Name` is an operator the backend supplies directly on a type
+// whose layout is primitive or pointer. Volt declares those members as
+// abstract contracts (`mixin Arithmetic`) but never writes their bodies —
+// the spelling of the layout is what selects the machine instruction. The
+// unknown-member diagnostic and the abstract-conformance check must honour
+// the same exemption, or one contradicts the other.
+[[nodiscard]] bool IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name );
 
 [[nodiscard]] SemaTypeId MemberType (
     TypeCheckerContext &Context, Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name );
