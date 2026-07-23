@@ -179,6 +179,13 @@ namespace Frontend
         // otherwise wraps it in a new `Call` (e.g. a bare identifier callee).
         [[nodiscard]] ExprId AttachTrailingBlock ( ExprId Lhs, ExprId BlockId, std::uint32_t Begin );
         void ParseCallArguments ( ExprList &Args, SymbolList &ArgNames, TokenKind Close );
+
+        // `f( &g )` writes the capture inside the argument list but means it
+        // for the block slot: `&` marks a callable, and at a call site a
+        // marked trailing argument fills `&block` — the same rule as Ruby's
+        // `f( &blk )`. Deciding it here, from what was written, keeps Sema
+        // free of any guess about which argument "looks like" a block.
+        void PromoteCapturedBlock ( Call &Node );
         [[nodiscard]] bool CanStartCommandArgument () const;
 
         // --- Grammar: statements (ParseStmt.cpp) -------------------------
