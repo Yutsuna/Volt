@@ -9,7 +9,8 @@ namespace Volt
 namespace Sema
 {
 
-    SemaTypeId Instantiate ( const TypeStore &Store, SigTypeId Id, std::span<const SemaTypeId> ReceiverArgs, UnitTypes &Values )
+    SemaTypeId Instantiate (
+        const TypeStore &Store, SigTypeId Id, std::span<const SemaTypeId> ReceiverArgs, SemaTypeId Self, UnitTypes &Values )
     {
         if ( not Id.IsValid() )
         {
@@ -17,6 +18,14 @@ namespace Sema
         }
 
         const SigType &Sig = Store.Sig( Id );
+
+        // `self` is the receiver itself — that is the whole point of writing
+        // it rather than a name, and it is what makes one `min( other : self )`
+        // in a mixin serve every type that includes it.
+        if ( Sig.ParamIndex == SigType::SelfParam )
+        {
+            return Self;
+        }
 
         // A parameter reference is answered positionally by the receiver;
         // no receiver argument means the generic was never instantiated.
@@ -29,7 +38,7 @@ namespace Sema
         Core::SmallVec<SemaTypeId, 2> Args;
         for ( const SigTypeId Arg : Sig.Args )
         {
-            Args.PushBack( Instantiate( Store, Arg, ReceiverArgs, Values ) );
+            Args.PushBack( Instantiate( Store, Arg, ReceiverArgs, Self, Values ) );
         }
         return Values.Intern( SemaType{ .Base = Sig.Base, .Args = std::move( Args ) } );
     }
