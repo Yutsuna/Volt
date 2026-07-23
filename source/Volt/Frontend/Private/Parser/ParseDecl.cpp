@@ -56,6 +56,10 @@ namespace
     case Volt::Frontend::TokenKind::Ge:
     case Volt::Frontend::TokenKind::Shl:
     case Volt::Frontend::TokenKind::Shr:
+    case Volt::Frontend::TokenKind::Amp:
+    case Volt::Frontend::TokenKind::Pipe:
+    case Volt::Frontend::TokenKind::Caret:
+    case Volt::Frontend::TokenKind::Tilde:
         return true;
     default:
         return false;
