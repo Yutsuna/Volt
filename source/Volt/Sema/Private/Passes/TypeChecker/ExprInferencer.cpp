@@ -164,17 +164,30 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContext &Context, const Frontend::Call &Expr )
 {
+    // The callee comes first: resolving it is what fills CalleeResolution,
+    // and it depends on neither the arguments nor the block. Only once it is
+    // known can the trailing `do ... end` be typed against the `&block` slot
+    // the callee declares — inferring the block first, as this used to, left
+    // its parameters with nothing to take a type from.
+    const SemaTypeId Result = InferExpr( Context, Expr.Callee );
+
+    const auto It = Context.CalleeResolution.find( Expr.Callee.Value );
+
     for ( const Frontend::ExprId Arg : Expr.Args )
     {
         static_cast<void>( InferExpr( Context, Arg ) );
     }
-    static_cast<void>( InferExpr( Context, Expr.BlockArg ) );
-
-    const SemaTypeId Result = InferExpr( Context, Expr.Callee );
-
-    if ( const auto It = Context.CalleeResolution.find( Expr.Callee.Value ); It != Context.CalleeResolution.end() )
+    if ( It != Context.CalleeResolution.end() )
     {
         CheckCallArgs( Context, Expr.Loc, It->second, Expr.Args );
+    }
+
+    if ( Expr.BlockArg.IsValid() )
+    {
+        const SemaTypeId OuterExpected = Context.ExpectedClosure;
+        Context.ExpectedClosure = It != Context.CalleeResolution.end() ? It->second.BlockParam : SemaTypeId{};
+        static_cast<void>( InferExpr( Context, Expr.BlockArg ) );
+        Context.ExpectedClosure = OuterExpected;
     }
 
     return Result;
