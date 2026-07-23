@@ -109,8 +109,13 @@ namespace Sema
         Core::SmallVec<Symbol, 2> Params;
         // The declared interface: fields and methods of the body itself.
         std::vector<Member> Members;
-        NominalId Super;                       // resolved `class X < Y`
-        Core::SmallVec<NominalId, 2> Includes; // resolved mixins
+        // `class X < Y<T>` / `include Enumerable<T>`, kept *as written*, in
+        // the including type's own parameter space: a bare NominalId would
+        // drop the `<T>` and leave a mixin's members talking about a generic
+        // nobody can answer. Instantiate() against the receiver's arguments
+        // turns one of these into the concrete parent.
+        SigTypeId Super;
+        Core::SmallVec<SigTypeId, 2> Includes;
 
         // Per generic parameter, the AST field names feeding it when a node
         // kind is lowered to this type. Empty = the default convention (the
@@ -181,12 +186,12 @@ namespace Sema
             Types.Get( Id ).LiteralSlots = std::move( Slots );
         }
 
-        void SetSuper ( NominalId Id, NominalId Super )
+        void SetSuper ( NominalId Id, SigTypeId Super )
         {
             Types.Get( Id ).Super = Super;
         }
 
-        void AddInclude ( NominalId Id, NominalId Mixin )
+        void AddInclude ( NominalId Id, SigTypeId Mixin )
         {
             Types.Get( Id ).Includes.PushBack( Mixin );
         }
@@ -222,8 +227,50 @@ namespace Sema
             NominalId Owner;
         };
 
+        // The member `Id`'s *own* body declares, ignoring everything it
+        // inherits. The one step both traversals share: this one, which
+        // answers name existence, and LookupMemberOn (TypeResolve.hpp),
+        // which additionally carries generic arguments down the chain.
+        [[nodiscard]] const Member *OwnMember ( NominalId Id, std::string_view Name ) const
+        {
+            if ( not Id.IsValid() )
+            {
+                return nullptr;
+            }
+
+            // Lookup must never intern: a miss on an unknown name would
+            // otherwise grow the table on every read-only query.
+            const auto Key = Strings.Find( Name );
+            if ( not Key )
+            {
+                return nullptr;
+            }
+
+            for ( const Member &Entry : Types.Get( Id ).Members )
+            {
+                if ( Entry.Name == *Key )
+                {
+                    return &Entry;
+                }
+            }
+            return nullptr;
+        }
+
+        // The nominal a parent link names, dropping its arguments — enough
+        // to answer "does this name exist anywhere above me", which is all
+        // this traversal claims to do.
+        [[nodiscard]] NominalId BaseOf ( SigTypeId Id ) const
+        {
+            return Id.IsValid() ? Sigs.Get( Id ).Base : NominalId{};
+        }
+
         // Own body first, then mixins, then the superclass — transitively.
         // Depth is bounded so a malformed cyclic hierarchy cannot hang sema.
+        //
+        // Name existence only: the MemberRef it hands back carries the
+        // declaring nominal, not an instantiation, so a signature that
+        // mentions the owner's generics cannot be read off it. Typing a
+        // member access goes through LookupMemberOn instead.
         [[nodiscard]] MemberRef LookupMember ( NominalId Id, std::string_view Name, std::uint32_t Depth = 0 ) const
         {
             if ( not Id.IsValid() or Depth > 16 )
@@ -231,28 +278,20 @@ namespace Sema
                 return MemberRef{};
             }
 
-            const auto Key = Strings.Find( Name );
-            if ( not Key )
+            if ( const Member *Own = OwnMember( Id, Name ); Own != nullptr )
             {
-                return MemberRef{};
+                return MemberRef{ .Decl = Own, .Owner = Id };
             }
 
             const NominalType &Type = Types.Get( Id );
-            for ( const Member &Entry : Type.Members )
+            for ( const SigTypeId Mixin : Type.Includes )
             {
-                if ( Entry.Name == *Key )
-                {
-                    return MemberRef{ .Decl = &Entry, .Owner = Id };
-                }
-            }
-            for ( const NominalId Mixin : Type.Includes )
-            {
-                if ( const MemberRef Found = LookupMember( Mixin, Name, Depth + 1 ); Found.Decl != nullptr )
+                if ( const MemberRef Found = LookupMember( BaseOf( Mixin ), Name, Depth + 1 ); Found.Decl != nullptr )
                 {
                     return Found;
                 }
             }
-            return LookupMember( Type.Super, Name, Depth + 1 );
+            return LookupMember( BaseOf( Type.Super ), Name, Depth + 1 );
         }
 
         // --- Signature types ----------------------------------------------
