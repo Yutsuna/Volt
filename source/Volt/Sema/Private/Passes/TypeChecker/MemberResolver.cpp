@@ -75,8 +75,7 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
     const SemaTypeId Result =
         bConstructor ? Receiver : Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Receiver, Context.Ctx.Values );
 
-    return Resolution{
-        .Decl = Found.Decl, .Result = Result, .Params = std::move( Params ), .BlockParam = BlockParam };
+    return Resolution{ .Decl = Found.Decl, .Result = Result, .Params = std::move( Params ), .BlockParam = BlockParam };
 }
 
 void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
