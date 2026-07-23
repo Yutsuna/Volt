@@ -108,8 +108,8 @@ Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts)
 1. **[FAIT - 2026-07-23] Diagnostic d'absence de membre (`LookupOn` & `MemberType` strict) :**
    - **Statut :** RÉALISÉ & VALIDÉ. Les appels à des méthodes inconnues (`numbers.map`, `s.trim`, `w.invalid_method`) sont désormais strictly rejetés avec des diagnostics clairs.
 
-2. **Support des Mixins & Méthodes d'ordre supérieur (`Mixin` / `Include` / `Enumerable`) :**
-   - Le Frontend parse les nœuds `Mixin` et `Include`. Le MiddleEnd doit désormais finaliser l'injection automatique des méthodes de mixins génériques dans les types récepteurs (ex: mixin `Enumerable` apportant `.map` et `.filter` à `Array`), et la résolution de leurs conflits de symboles.
+2. **[FAIT - 2026-07-23] Support des Mixins & Méthodes d'ordre supérieur (`Mixin` / `Include` / `Enumerable`) :**
+   - **Statut :** RÉALISÉ & VALIDÉ. `include Enumerable<T>` conserve ses arguments génériques (`Super`/`Includes` sont des `SigTypeId`), `LookupMemberOn` compose les substitutions le long de la chaîne avec `self` figé sur le receveur d'origine, et `mixin Enumerable<T>` fournit `.map` / `.filter` / `.count` à `Array<T>`. La conformité des `abstract def` est contrôlée (`CheckAbstractConformance`), avec exemption des opérateurs fournis par le backend sur un layout primitif (`IsBuiltinOpOn`).
 
 3. **Identifiants créés après Order 10 (`MacroExpansion` / `CaseLowering`) :**
    - `ScopeResolver` s'exécute à l'Order 10. `ScopeTable` reste incrémentale (`Declare`/`BindUse` publiques) pour permettre une repasse légère si ces lowerings génèrent de nouveaux identifiants non résolus.
@@ -117,8 +117,10 @@ Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts)
 4. **Inférence des littéraux non entiers & collections (`UnconstrainedLiterals`) :**
    - `ConstrainExprType` et `UnconstrainedLiterals` ne gèrent actuellement que les `IntLiteral`. Les littéraux flottants (`FloatLiteral`) et les collections nues (`ArrayLit`, `HashLit`) nécessitent la même propagation descendante de contraintes sémantiques.
 
-5. **Inférence automatique des méthodes génériques (`GenericInst`) :**
-   - `TypeChecker` valide l'arité explicite des arguments de types (`CheckArity`), mais l'inférence automatique des paramètres de type pour les appels de méthodes génériques (ex: `list.map(x => x + 1)` sans `<Int32>` explicite) doit être complétée.
+5. **[FAIT - 2026-07-23] Inférence automatique des méthodes génériques (`GenericInst`) :**
+   - **Statut :** RÉALISÉ & VALIDÉ. `Frontend::Method` porte ses propres `Generics`, l'espace de paramètres est concaténé type ++ méthode, et `UnifySig` / `UnifyArgs` / `UnifyBlock` referment les trous depuis les arguments puis depuis le type réel du bloc : `arr.map do | i | i > 1 end` vaut `Array<Bool>` sans annotation explicite.
+   - **Convention d'appel (tranchée) :** un argument `&callable`, en dernière position et sans nom, remplit le slot `&block` — décidé au parse-time par `Parser::PromoteCapturedBlock`, Sema inchangé. `&` accepte `(` en plus d'`identifier`/`Constant`, d'où `numbers.map( &transform )` et `numbers.map( &( ( &.+ 10 ) >> ( &.* 2 ) ) )`. Appeler une valeur (`f( x )`) résout le membre annoté `@[Apply]` via `LookupApplyOn` : `FunctionalSpec.vl` passe de 11 à 6 erreurs.
+   - **Reste ouvert :** une lambda à paramètres non annotés et sans type attendu (`add10 = ( &.+ 10 )`) n'est pas typée, donc un point-free stocké dans un local rend un `Array<?>` **silencieux**. Il faut une inférence depuis le site d'usage — chantier séparé.
 
 6. **Contrôle d'exhaustivité du Pattern Matching (`CaseExpr`) :**
    - `CaseLowering` abaisse les `case/when` en `If/Else`. Le MiddleEnd doit ajouter la vérification d'exhaustivité sémantique (ex: s'assurer que toutes les variantes d'une `Enum` sont couvertes).
@@ -133,11 +135,10 @@ Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts)
 
 ## VII. Feuille de Route Prioritaire
 
-1. **[PROCHAINE ÉTAPE] Câblage des Mixins & Méthodes d'ordre supérieur (`Enumerable` / `Array.vl`) :**
-   - Implémentation du système de résolution et d'injection des mixins dans `TypeChecker.cpp` / `TypeStore.hpp` pour fournir `.map()` et `.filter()` à `Array.vl`.
-   - Résolution des méthodes génériques associées.
+1. **[FAIT - 2026-07-23] Câblage des Mixins & Méthodes d'ordre supérieur (`Enumerable` / `Array.vl`) :**
+   - Résolution et injection des mixins génériques, typage descendant des blocs, inférence des génériques de méthode, conformité des `abstract def`. Couvert par `samples/Sema/MixinGenerics.vl`, `BlockParamTypes.vl`, `AbstractConformance.vl`.
 
-2. **Génération de code (Backend / Codegen - `volt run` & `volt build`) :**
+2. **[PROCHAINE ÉTAPE] Génération de code (Backend / Codegen - `volt run` & `volt build`) :**
    - Exploitation des `ClosureFrame` et des tableaux de capture dans l'interpréteur/JIT et le backend LLVM AOT pour émettre la gestion des environnements sur la pile.
 
 3. **Support WebAssembly / WASM (`volt build --target wasm`) :**
