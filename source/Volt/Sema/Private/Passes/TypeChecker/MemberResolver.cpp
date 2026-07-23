@@ -201,7 +201,13 @@ void Volt::Sema::TypeCheckerPass::CheckDotCallSelf ( TypeCheckerContext &Context
     }
 }
 
-bool Volt::Sema::TypeCheckerPass::IsBuiltinPrimitiveOp ( std::string_view Name )
+namespace
+{
+
+// An operator name, told apart from an ordinary member by spelling alone:
+// anything that does not open with a letter or an underscore, plus the three
+// word-spelled logical operators. No operator is listed here by hand.
+[[nodiscard]] bool IsOperatorName ( std::string_view Name )
 {
     if ( Name.empty() )
     {
@@ -215,25 +221,59 @@ bool Volt::Sema::TypeCheckerPass::IsBuiltinPrimitiveOp ( std::string_view Name )
     return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
 }
 
+} // namespace
+
+Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupApplyOn ( TypeCheckerContext &Context,
+                                                                                     SemaTypeId Receiver )
+{
+    if ( not Context.Ctx.Values.Has( Receiver ) )
+    {
+        return Resolution{};
+    }
+
+    const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
+    if ( not Base.IsValid() )
+    {
+        return Resolution{};
+    }
+
+    for ( const Member &Entry : Context.Ctx.Types.Type( Base ).Members )
+    {
+        if ( Entry.bApply )
+        {
+            // Re-resolved by name rather than used directly, so the call goes
+            // through the same instantiation path as `f.call( x )` would.
+            return LookupOn( Context, Receiver, Context.Ctx.Types.Text( Entry.Name ) );
+        }
+    }
+    return Resolution{};
+}
+
+bool Volt::Sema::TypeCheckerPass::IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name )
+{
+    if ( not Base.IsValid() or not IsOperatorName( Name ) )
+    {
+        return false;
+    }
+
+    const NominalType &Nominal = Context.Ctx.Types.Type( Base );
+    if ( not Nominal.Layout.IsValid() )
+    {
+        return false;
+    }
+
+    const LayoutKind Kind = KindOf( Context.Ctx.Types.Get( Nominal.Layout ) );
+    return Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer;
+}
+
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::MemberType (
     TypeCheckerContext &Context, Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
 {
     const Resolution Found = LookupOn( Context, Receiver, Name );
     if ( Context.Ctx.Values.Has( Receiver ) and Found.Decl == nullptr )
     {
-        bool bIsBuiltinOp          = false;
-        const NominalId Base       = Context.Ctx.Values.Get( Receiver ).Base;
-        const NominalType &Nominal = Context.Ctx.Types.Type( Base );
-        if ( Nominal.Layout.IsValid() )
-        {
-            const LayoutKind Kind = KindOf( Context.Ctx.Types.Get( Nominal.Layout ) );
-            if ( ( Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer ) and IsBuiltinPrimitiveOp( Name ) )
-            {
-                bIsBuiltinOp = true;
-            }
-        }
-
-        if ( not bIsBuiltinOp )
+        const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
+        if ( not IsBuiltinOpOn( Context, Base, Name ) )
         {
             Context.Report( Loc, "type " + Context.NameOfValue( Receiver ) + " has no member '" + std::string( Name ) + "'" );
         }
