@@ -1,0 +1,18 @@
+def test_lambda_captures( base : Int32 ) -> Int32
+  local_val : Int32 = 10
+  f = ( x : Int32 ) => ( y : Int32 ) => base + local_val + x + y
+  g = f( 20 )
+  g( 5 )
+end
+
+def test_block_captures( factor : Int32 ) -> Int32
+  acc : Int32 = 0
+  items = [ 1, 2, 3 ]
+  items.each do |item : Int32|
+    acc = acc + item * factor
+  end
+  acc
+end
+
+test_lambda_captures( 100 )
+test_block_captures( 10 )

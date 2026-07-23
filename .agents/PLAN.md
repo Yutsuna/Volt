@@ -55,25 +55,52 @@ Ce document recense le bilan complet des travaux d'analyse sémantique réalisé
 56: 
 57: ### ✅ Bilan des réalisations (`ScopeResolver`) :
 58: 1. **`ScopeTable.hpp` & `ScopeResolver.cpp` :** Implémentation complète de l'arène de portées lexicales (`ScopeTable`), traversal récursif par réflexion `Overloaded` + `Meta::ForEachField` sans aucun `switch` sur les node kinds.
-59: 2. **Migration `TypeChecker` (Élimination du Point 5) :** `Checker::Locals` a été remplacé par `LocalTypes` indexé structurellement par `BindingSite` (`StmtId`/`ParamId`), résolvant le bug latent des collisions de symboles entre branches frères.
-60: 3. **Diagnostics & Couverture de tests :** Redéclaration dans la même portée lexicale diagnostiquée ; masquage imbriqué (*shadowing*) autorisé et validé (88/88 tests verts).
-61: 4. **Fix d'inclusion autonome :** `ScopeTable.hpp` inclut désormais explicitement `StringInterner.hpp` et `using Core::Symbol;`.
-62: 
-63: ---
-64: 
-65: ## IV. Dette Technique Résiduelle & Prochaines Étapes
-66: 
-67: ### 🟡 Dette technique résiduelle (Mineure & Documentée)
-68: 1. **Identifiants créés après Order 10 (`MacroExpansion` / `CaseLowering`) :**
-69:    - `ScopeResolver` s'exécute à l'Order 10. `ScopeTable` reste incrémentale (`Declare`/`BindUse` publiques) pour permettre une repasse légère si ces lowerings génèrent de nouveaux identifiants non résolus.
-70: 2. **Alimentation des `DeclId` (Membres) dans `BindingSite` :**
-71:    - Réservé pour l'unification complète des membres d'instance/classe dans la table de portées.
-72: 
-73: ### 🟢 Prochaines étapes prioritaires
-74: 1. **Captures de closures / Lambdas / Blocs (`do |x| ... end`) :**
-75:    - Exploitation de la hiérarchie `Scope::Parent` pour analyser les captures lexicales.
-76: 2. **Génération de code (Backend / Codegen) :**
-77:    - Exploitation de `ScopeTable` pour dériver les durées de vie et allocations sur la pile (*stack frames*).
-78: 3. **Commit Git :**
-79:    - Validation et commit des modifications actuelles sur la branche `Feat/Add-Semantic`.
+* **Justification de l'état actuel :** C'est un raccourci temporaire documenté (*"until ScopeResolver publishes a table"*). Il est suffisant pour le typage actuel de `source/Lib/` car la stdlib n'utilise pas de shadowing ambigu dans ses méthodes.
 
+---
+
+## III. Implémentation Complétée : Passe `ScopeResolver` (Order 10)
+
+La passe **`ScopeResolver`** (Order 10 dans [PassList.inl](file:///home/Yutsuna/Volt/source/Volt/Sema/Public/Volt/Sema/PassList.inl)) a été entièrement implémentée et validée (2026-07-22).
+
+### ✅ Bilan des réalisations (`ScopeResolver`) :
+1. **`ScopeTable.hpp` & `ScopeResolver.cpp` :** Implémentation complète de l'arène de portées lexicales (`ScopeTable`), traversal récursif par réflexion `Overloaded` + `Meta::ForEachField` sans aucun `switch` sur les node kinds.
+2. **Migration `TypeChecker` (Élimination du Point 5) :** `Checker::Locals` a été remplacé par `LocalTypes` indexé structurellement par `BindingSite` (`StmtId`/`ParamId`), résolvant le bug latent des collisions de symboles entre branches frères.
+3. **Diagnostics & Couverture de tests :** Redéclaration dans la même portée lexicale diagnostiquée ; masquage imbriqué (*shadowing*) autorisé et validé (88/88 tests verts).
+4. **Fix d'inclusion autonome :** `ScopeTable.hpp` inclut désormais explicitement `StringInterner.hpp` et `using Core::Symbol;`.
+
+---
+
+## V. Implémentation Complétée : Captures de Closures (`Feat/Add-scopes`)
+
+La détection et publication des **captures de closures** (2026-07-23) a été entièrement implémentée et validée sur la branche `Feat/Add-scopes`.
+
+### ✅ Bilan des réalisations (`Feat/Add-scopes`) :
+1. **Model de données de Capture (`ScopeTable.hpp`) :**
+   - Ajout du type `Capture` (`Site`, `Name`, `DeclaringScope`, `ClosureScope`).
+   - Enregistrement O(1) et publication via `CapturesOf(ScopeId)`, `CapturesOfExpr(ExprId)` et `SetScopeOfExpr(ExprId, ScopeId)`.
+2. **Détection & Propagation (`ScopeResolver.cpp`) :**
+   - Implémentation de `CheckAndRecordCaptures` analysant le franchissement de portées de type `EScopeKind::Block`.
+   - Propagation automatique pour les closures imbriquées (*nested closures*).
+3. **Validation & Coverage (`ClosureCaptures.vl`) :**
+   - Couverture des lambdas `( params ) => expr` et des blocs `do |params| ... end`.
+   - Échantillons et golden tests intégrés (`93/93 tests passés au vert`).
+   - Re-synchronisation du graphe de connaissances `graphify update .`.
+
+---
+
+## VI. Dette Technique Résiduelle & Prochaines Étapes
+
+### 🟡 Dette technique résiduelle (Mineure & Documentée)
+1. **Identifiants créés après Order 10 (`MacroExpansion` / `CaseLowering`) :**
+   - `ScopeResolver` s'exécute à l'Order 10. `ScopeTable` reste incrémentale (`Declare`/`BindUse` publiques) pour permettre une repasse légère si ces lowerings génèrent de nouveaux identifiants non résolus.
+2. **Alimentation des `DeclId` (Membres) dans `BindingSite` :**
+   - Réservé pour l'unification complète des membres d'instance/classe dans la table de portées.
+
+### 🟢 Prochaines étapes prioritaires
+1. **Typage des Closures (`TypeChecker.cpp` - Order 30) :**
+   - Différenciation des pointeurs de fonction natifs (closures sans captures) vs objets/structures d'environnement de closure (closures avec captures).
+2. **Génération de code (Backend / Codegen) :**
+   - Exploitation de `CapturesOf` pour dériver les structures d'environnement de pile (*closure env frame*).
+3. **Commit & Merge Git :**
+   - Validation et commit des modifications sur la branche `Feat/Add-scopes`.

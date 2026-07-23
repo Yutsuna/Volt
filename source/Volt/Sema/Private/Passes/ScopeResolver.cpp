@@ -203,6 +203,25 @@ namespace Sema
                     Context.Ast.Stmt( Id ) );
             }
 
+            void CheckAndRecordCaptures ( ScopeId FromScope, const Binding &Found )
+            {
+                const bool bIsLocalVal = std::holds_alternative<Frontend::StmtId>( Found.Site ) or
+                                         std::holds_alternative<Frontend::ParamId>( Found.Site );
+                if ( not bIsLocalVal )
+                {
+                    return;
+                }
+
+                for ( ScopeId It = FromScope; It.IsValid() and It != Found.Owner; It = Context.Scopes.Get( It ).Parent )
+                {
+                    const Scope &CurrentScope = Context.Scopes.Get( It );
+                    if ( CurrentScope.Kind == EScopeKind::Block )
+                    {
+                        Context.Scopes.RecordCapture( It, Found );
+                    }
+                }
+            }
+
             void WalkExpr ( Frontend::ExprId Id, ScopeId Current )
             {
                 if ( not Id.IsValid() )
@@ -217,6 +236,7 @@ namespace Sema
                             if ( const Binding *Found = Context.Scopes.Resolve( Current, Node.Name ) )
                             {
                                 Context.Scopes.BindUse( Id, *Found );
+                                CheckAndRecordCaptures( Current, *Found );
                                 ++Context.Stats.ScopesResolved;
                                 return;
                             }
@@ -230,6 +250,7 @@ namespace Sema
                         [&] ( const Frontend::Block &Node )
                         {
                             const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
+                            Context.Scopes.SetScopeOfExpr( Id, Inner );
                             WalkParams( Node.Params, Inner );
                             for ( const Frontend::StmtId Child : Node.Body )
                             {
@@ -239,6 +260,7 @@ namespace Sema
                         [&] ( const Frontend::Lambda &Node )
                         {
                             const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
+                            Context.Scopes.SetScopeOfExpr( Id, Inner );
                             WalkParams( Node.Params, Inner );
                             WalkExpr( Node.Body, Inner );
                         },
