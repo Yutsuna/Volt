@@ -123,6 +123,32 @@ namespace Sema
             }
         }
 
+        // Walk the declarations of one scope, invoking Visit for every `def`
+        // declared directly in a module — never one nested inside a
+        // Class/Struct/Mixin/Component body, which DeclareMembers already
+        // owns. Recurses into nested modules only, mirroring ForEachTypeDecl,
+        // so the two traversals can never desync on what counts as
+        // "top-level".
+        template <typename DeclContainer, typename Fn>
+        void ForEachFreeFunction ( const Frontend::AstContext &Ast, const DeclContainer &Decls, Fn &&Visit )
+        {
+            for ( const Frontend::DeclId Id : Decls )
+            {
+                if ( not Id.IsValid() )
+                {
+                    continue;
+                }
+
+                std::visit(
+                    Meta::Overloaded{
+                        [&] ( const Frontend::Module &Nested ) { ForEachFreeFunction( Ast, Nested.Body, Visit ); },
+                        [&] ( const Frontend::Method &Entry ) { Visit( Id, Entry ); },
+                        [] ( const auto & ) {},
+                    },
+                    Ast.Decl( Id ) );
+            }
+        }
+
         // The bit width of `@[Primitive( "i32", 32 )]`'s second argument.
         // Absent or malformed means "width unknown" (0), which is legal: a
         // pointer-shaped primitive may leave it to the target layout.
@@ -364,6 +390,14 @@ namespace Sema
                     Store.AttachLayout( Id, Layout );
                 }
             }
+
+            // A top-level `def`: same identity-first shape as BindType, minus
+            // a layout — a function has no memory representation of its own.
+            void BindFunction ( Frontend::DeclId Id, const Frontend::Method &Entry )
+            {
+                static_cast<void>( Store.DeclareFunction( Ast.Text( Entry.Name ), Unit, Id ) );
+                ++Bound;
+            }
         };
 
         // --- Phase B ---------------------------------------------------------
@@ -480,6 +514,35 @@ namespace Sema
                         Ast.Decl( Child ) );
                 }
             }
+
+            // A top-level `def`: no owner, so its parameter space is its own
+            // generics alone — no type generics to prepend.
+            void ResolveFunction ( Frontend::DeclId Id, const Frontend::Method &Entry )
+            {
+                Member *Slot = Store.FunctionByDecl( Unit, Id );
+                if ( Slot == nullptr )
+                {
+                    return;
+                }
+
+                const std::span<const Symbol> Scope{ Entry.Generics.begin(), Entry.Generics.Size() };
+
+                SigSink Sink{ Store };
+                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
+                Core::SmallVec<SigTypeId, 4> Params;
+                Core::SmallVec<bool, 4> ParamIsBlock;
+                for ( const Frontend::ParamId ParamRef : Entry.Params )
+                {
+                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                    Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
+                    ParamIsBlock.PushBack( ParamNode.bIsBlock );
+                }
+                Slot->Result       = Result;
+                Slot->Params       = std::move( Params );
+                Slot->ParamIsBlock = std::move( ParamIsBlock );
+                Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
+                ++Resolved;
+            }
         };
 
     } // namespace
@@ -490,6 +553,8 @@ namespace Sema
         Binder Bind{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls, [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> &Pending )
                          { Bind.BindType( Decl, Pending ); } );
+        ForEachFreeFunction( Ast, Ast.TopDecls,
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Bind.BindFunction( Id, Entry ); } );
         return Bind.Bound;
     }
 
@@ -500,6 +565,8 @@ namespace Sema
         SignatureResolver Step{ .Ast = Ast, .Store = Store, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls,
                          [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> & ) { Step.Resolve( Decl ); } );
+        ForEachFreeFunction( Ast, Ast.TopDecls,
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Step.ResolveFunction( Id, Entry ); } );
         return Step.Resolved;
     }
 
