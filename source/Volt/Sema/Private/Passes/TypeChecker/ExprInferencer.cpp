@@ -169,28 +169,48 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     // known can the trailing `do ... end` be typed against the `&block` slot
     // the callee declares — inferring the block first, as this used to, left
     // its parameters with nothing to take a type from.
-    const SemaTypeId Result = InferExpr( Context, Expr.Callee );
+    const SemaTypeId Callee = InferExpr( Context, Expr.Callee );
 
     const auto It = Context.CalleeResolution.find( Expr.Callee.Value );
+    if ( It == Context.CalleeResolution.end() )
+    {
+        for ( const Frontend::ExprId Arg : Expr.Args )
+        {
+            static_cast<void>( InferExpr( Context, Arg ) );
+        }
+        static_cast<void>( InferExpr( Context, Expr.BlockArg ) );
+        return Callee;
+    }
 
+    Resolution &Found = It->second;
+
+    // Arguments are bound before being checked: a method generic appearing
+    // in a parameter has to learn its type from the actual argument first,
+    // or every call to `def id<U>( x : U )` would be reported as a mismatch
+    // against a slot nothing had filled.
     for ( const Frontend::ExprId Arg : Expr.Args )
     {
         static_cast<void>( InferExpr( Context, Arg ) );
     }
-    if ( It != Context.CalleeResolution.end() )
-    {
-        CheckCallArgs( Context, Expr.Loc, It->second, Expr.Args );
-    }
+    UnifyArgs( Context, Found, Expr.Args );
+    CheckCallArgs( Context, Expr.Loc, Found, Expr.Args );
 
     if ( Expr.BlockArg.IsValid() )
     {
+        // The block is typed *under* the slot the callee declares — that is
+        // what gives `| i |` a type — and then answers back: what the block
+        // returns is what binds the `U` of `def map<U>( &block : T -> U )`.
         const SemaTypeId OuterExpected = Context.ExpectedClosure;
-        Context.ExpectedClosure        = It != Context.CalleeResolution.end() ? It->second.BlockParam : SemaTypeId{};
-        static_cast<void>( InferExpr( Context, Expr.BlockArg ) );
-        Context.ExpectedClosure = OuterExpected;
+        Context.ExpectedClosure        = Found.BlockParam;
+        const SemaTypeId BlockType     = InferExpr( Context, Expr.BlockArg );
+        Context.ExpectedClosure        = OuterExpected;
+
+        UnifyBlock( Context, Found, BlockType );
     }
 
-    return Result;
+    // Read after inference, not before: `Callee` is the result as it stood
+    // when the member resolved, with its generic holes still open.
+    return Found.Result;
 }
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::GenericInstType ( TypeCheckerContext &Context,

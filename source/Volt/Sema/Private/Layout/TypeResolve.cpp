@@ -43,11 +43,8 @@ namespace Sema
         return Values.Intern( SemaType{ .Base = Sig.Base, .Args = std::move( Args ) } );
     }
 
-    void UnifySig ( const TypeStore &Store,
-                    const UnitTypes &Values,
-                    SigTypeId Pattern,
-                    SemaTypeId Actual,
-                    std::span<SemaTypeId> Bindings )
+    void UnifySig (
+        const TypeStore &Store, const UnitTypes &Values, SigTypeId Pattern, SemaTypeId Actual, std::span<SemaTypeId> Bindings )
     {
         if ( not Pattern.IsValid() or not Values.Has( Actual ) )
         {

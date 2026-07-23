@@ -8,7 +8,15 @@
 namespace Volt::Sema::TypeCheckerPass
 {
 
-void EnterType ( TypeCheckerContext &Context, NominalId Id, const Frontend::SymbolList &Params, const Frontend::DeclList &Body );
+// `bConcrete` says whether this declaration owes its mixins an
+// implementation: a struct or a class does, a mixin does not — it is free
+// to pass a contract along to whoever includes it.
+void EnterType ( TypeCheckerContext &Context,
+                 NominalId Id,
+                 const Frontend::SymbolList &Params,
+                 const Frontend::DeclList &Body,
+                 Core::SourceRange Loc,
+                 bool bConcrete );
 
 void EnterMethod ( TypeCheckerContext &Context, const Frontend::Method &Node );
 

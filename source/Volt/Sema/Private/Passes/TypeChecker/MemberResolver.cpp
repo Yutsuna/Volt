@@ -43,7 +43,9 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         return Resolution{ .Decl       = Found.Decl,
                            .Result     = Signature.IsEmpty() ? SemaTypeId{} : Signature[0],
                            .Params     = std::move( Params ),
-                           .BlockParam = SemaTypeId{} };
+                           .BlockParam = SemaTypeId{},
+                           .Bindings   = {},
+                           .Receiver   = Receiver };
     }
 
     // A signature's ParamIndex counts against the type that *declares* it,
@@ -51,31 +53,109 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
     // from `Array<Int32>` is owned by `Enumerable<Int32>`, so its parameter
     // 0 is Int32. `Self` stays the receiver — a mixin's `self` means the
     // type that included it, never the mixin.
-    const Core::SmallVec<SemaTypeId, 2> OwnerArgs = Context.Ctx.Values.Get( Found.Owner ).Args;
-    const std::span<const SemaTypeId> Applied{ OwnerArgs.begin(), OwnerArgs.Size() };
+    //
+    // After those come the method's own generics, as holes: `def map<U>`
+    // adds one slot nothing here can fill. Inference at the call site
+    // closes them and recomputes, which is what Reinstantiate is for.
+    Resolution Out{ .Decl       = Found.Decl,
+                    .Result     = SemaTypeId{},
+                    .Params     = {},
+                    .BlockParam = SemaTypeId{},
+                    .Bindings   = Context.Ctx.Values.Get( Found.Owner ).Args,
+                    .Receiver   = Receiver };
+    for ( std::uint32_t Slot = 0; Slot < Found.Decl->OwnGenerics; ++Slot )
+    {
+        Out.Bindings.PushBack( SemaTypeId{} );
+    }
 
-    Core::SmallVec<SemaTypeId, 4> Params;
-    SemaTypeId BlockParam;
+    Reinstantiate( Context, Out );
+    if ( bConstructor )
+    {
+        Out.Result = Receiver;
+    }
+    return Out;
+}
+
+void Volt::Sema::TypeCheckerPass::Reinstantiate ( TypeCheckerContext &Context, Resolution &Found )
+{
+    if ( Found.Decl == nullptr or Found.Decl->bApply )
+    {
+        return;
+    }
+
+    const std::span<const SemaTypeId> Applied{ Found.Bindings.begin(), Found.Bindings.Size() };
+
+    Found.Params.Clear();
+    Found.BlockParam = SemaTypeId{};
     for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
     {
         const SemaTypeId Slot =
-            Instantiate( Context.Ctx.Types, Found.Decl->Params[Index], Applied, Receiver, Context.Ctx.Values );
+            Instantiate( Context.Ctx.Types, Found.Decl->Params[Index], Applied, Found.Receiver, Context.Ctx.Values );
 
         // A `&block` slot is not a positional parameter — it binds through
         // the call's trailing `do ... end`. Kept aside rather than dropped:
         // it is the only thing that can type that block's parameters.
         if ( Index < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[Index] )
         {
-            BlockParam = Slot;
+            Found.BlockParam = Slot;
             continue;
         }
-        Params.PushBack( Slot );
+        Found.Params.PushBack( Slot );
     }
 
-    const SemaTypeId Result =
-        bConstructor ? Receiver : Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Receiver, Context.Ctx.Values );
+    Found.Result = Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Found.Receiver, Context.Ctx.Values );
+}
 
-    return Resolution{ .Decl = Found.Decl, .Result = Result, .Params = std::move( Params ), .BlockParam = BlockParam };
+void Volt::Sema::TypeCheckerPass::UnifyArgs ( TypeCheckerContext &Context, Resolution &Found, const Frontend::ExprList &Args )
+{
+    if ( Found.Decl == nullptr or Found.Decl->OwnGenerics == 0 )
+    {
+        return;
+    }
+
+    // Positional arguments against positional slots — the `&block` slot is
+    // skipped here exactly as Reinstantiate skips it, so the two stay in
+    // step and argument N keeps meaning the same parameter in both.
+    const std::span<SemaTypeId> Bindings{ Found.Bindings.begin(), Found.Bindings.Size() };
+    std::size_t Position = 0;
+    for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
+    {
+        if ( Index < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[Index] )
+        {
+            continue;
+        }
+        if ( Position < Args.Size() )
+        {
+            UnifySig( Context.Ctx.Types, Context.Ctx.Values, Found.Decl->Params[Index],
+                      Context.Ctx.Values.ExprType( Args[Position] ), Bindings );
+        }
+        ++Position;
+    }
+
+    Reinstantiate( Context, Found );
+}
+
+void Volt::Sema::TypeCheckerPass::UnifyBlock ( TypeCheckerContext &Context, Resolution &Found, SemaTypeId BlockType )
+{
+    if ( Found.Decl == nullptr or Found.Decl->OwnGenerics == 0 or not BlockType.IsValid() )
+    {
+        return;
+    }
+
+    // This is where `U` is learnt: the declared `&block : T -> U` matched
+    // against the `Proc< Bool, Int32 >` the trailing block turned out to
+    // be. It has to happen *after* the block is typed, which is why the
+    // block is typed after the callee and before the result is read.
+    const std::span<SemaTypeId> Bindings{ Found.Bindings.begin(), Found.Bindings.Size() };
+    for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
+    {
+        if ( Index < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[Index] )
+        {
+            UnifySig( Context.Ctx.Types, Context.Ctx.Values, Found.Decl->Params[Index], BlockType, Bindings );
+        }
+    }
+
+    Reinstantiate( Context, Found );
 }
 
 void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
