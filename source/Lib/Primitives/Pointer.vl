@@ -1,8 +1,12 @@
-@[External( "libc" )]
-external def malloc( size : UInt64 ) -> Pointer<Void>
+# Bound under a prefixed Volt name, with the C symbol given explicitly: a bare
+# `malloc` / `free` inside this struct would otherwise name the struct's own
+# method, since an unqualified call is a call on `self`.
 
-@[External( "libc" )]
-external def free( ptr : Pointer<Void> ) -> Void
+@[External( "libc", "malloc" )]
+external def libc_malloc( size : UInt64 ) -> Pointer<Void>
+
+@[External( "libc", "free" )]
+external def libc_free( ptr : Pointer<Void> ) -> Void
 
 
 @[Primitive( "ptr", 64 ), Literal( PointerType )]
@@ -10,11 +14,11 @@ struct Pointer<T>
   include Comparable
 
   def self.malloc( count : UInt64 ) -> Pointer<T>
-    malloc( count * sizeof T )
+    libc_malloc( count * sizeof T )
   end
 
   def free -> Void
-    free( self )
+    libc_free( self )
   end
 
   def <=>( other : Pointer<T> ) -> Int32
