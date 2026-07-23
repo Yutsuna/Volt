@@ -74,6 +74,16 @@ namespace Sema
         ScopeId Owner;
     };
 
+    // A variable or parameter from an outer scope captured by a closure.
+    struct Capture
+    {
+
+        BindingSite Site;
+        Symbol Name;
+        ScopeId DeclaringScope;
+        ScopeId ClosureScope;
+    };
+
     // One lexical scope: shadowing is a per-scope entry, never a global one.
     struct Scope
     {
@@ -184,11 +194,69 @@ namespace Sema
             return StmtScope[Stmt.Value];
         }
 
+        void SetScopeOfExpr ( Frontend::ExprId Expr, ScopeId InScope )
+        {
+            if ( not Expr.IsValid() )
+            {
+                return;
+            }
+            if ( Expr.Value >= ExprScope.size() )
+            {
+                ExprScope.resize( static_cast<std::size_t>( Expr.Value ) + 1, ScopeId{} );
+            }
+            ExprScope[Expr.Value] = InScope;
+        }
+
+        [[nodiscard]] ScopeId ScopeOfExpr ( Frontend::ExprId Expr ) const
+        {
+            if ( not Expr.IsValid() or Expr.Value >= ExprScope.size() )
+            {
+                return ScopeId{};
+            }
+            return ExprScope[Expr.Value];
+        }
+
+        void RecordCapture ( ScopeId ClosureScope, const Binding &Target )
+        {
+            auto &Vec = ClosureCaptures[ClosureScope];
+            for ( const auto &Existing : Vec )
+            {
+                if ( Existing.Site == Target.Site )
+                {
+                    return;
+                }
+            }
+            Vec.PushBack( Capture{
+                .Site           = Target.Site,
+                .Name           = Target.Name,
+                .DeclaringScope = Target.Owner,
+                .ClosureScope   = ClosureScope,
+            } );
+        }
+
+        [[nodiscard]] const Core::SmallVec<Capture, 4> *CapturesOf ( ScopeId Scope ) const
+        {
+            const auto It = ClosureCaptures.find( Scope );
+            if ( It != ClosureCaptures.end() )
+            {
+                return &It->second;
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const Core::SmallVec<Capture, 4> *CapturesOfExpr ( Frontend::ExprId Expr ) const
+        {
+            const ScopeId Id = ScopeOfExpr( Expr );
+            return Id.IsValid() ? CapturesOf( Id ) : nullptr;
+        }
+
     private:
 
         Core::Arena<Scope, ScopeId> Scopes;
         std::vector<const Binding *> UseIndex; // by ExprId::Value
         std::vector<ScopeId> StmtScope;        // by StmtId::Value
+        std::vector<ScopeId> ExprScope;        // by ExprId::Value
+        std::unordered_map<ScopeId, Core::SmallVec<Capture, 4>> ClosureCaptures;
     };
 
 } // namespace Sema
