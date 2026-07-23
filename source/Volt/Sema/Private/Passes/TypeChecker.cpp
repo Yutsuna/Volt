@@ -348,7 +348,7 @@ namespace Sema
                 OuterUnconstrainedVarInitializers.swap( UnconstrainedVarInitializers );
                 const SemaTypeId OuterReturnType = CurrentMethodReturnType;
 
-                UnitSink Sink{ Ctx.Values };
+                UnitSink Sink{ .Values = Ctx.Values, .Self = SelfValue };
                 CurrentMethodReturnType = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Node.ReturnType );
 
                 const bool bOuterStatic = bStaticContext;
@@ -429,7 +429,7 @@ namespace Sema
                     Meta::Overloaded{
                         [&] ( const Frontend::LocalDecl &Node )
                         {
-                            UnitSink Sink{ Ctx.Values };
+                            UnitSink Sink{ .Values = Ctx.Values, .Self = SelfValue };
                             const SemaTypeId Written = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Node.DeclType );
                             if ( Written.IsValid() and Node.Init.IsValid() )
                             {
@@ -539,6 +539,23 @@ namespace Sema
 
                 const std::span<const SemaTypeId> Applied{ Args.begin(), Args.Size() };
 
+                // `@[Apply]`: invoking a callable. Its signature is the
+                // receiver's own arguments — result first, then parameters —
+                // so the arity of `block.call( x )` follows the block, which
+                // no written declaration could pin down.
+                if ( Found.Decl->bApply )
+                {
+                    const Core::SmallVec<SemaTypeId, 2> &Signature = Ctx.Values.Get( Receiver ).Args;
+                    Core::SmallVec<SemaTypeId, 4> Params;
+                    for ( std::size_t Index = 1; Index < Signature.Size(); ++Index )
+                    {
+                        Params.PushBack( Signature[Index] );
+                    }
+                    return Resolution{ .Decl   = Found.Decl,
+                                       .Result = Signature.IsEmpty() ? SemaTypeId{} : Signature[0],
+                                       .Params = std::move( Params ) };
+                }
+
                 // A `&block` slot binds through the call's trailing block,
                 // never a positional argument, so it is excluded here: the
                 // result lines up one-to-one with Call::Args / DotCall::Args.
@@ -549,11 +566,11 @@ namespace Sema
                     {
                         continue;
                     }
-                    Params.PushBack( Instantiate( Ctx.Types, Found.Decl->Params[Index], Applied, Ctx.Values ) );
+                    Params.PushBack( Instantiate( Ctx.Types, Found.Decl->Params[Index], Applied, Receiver, Ctx.Values ) );
                 }
 
                 return Resolution{ .Decl   = Found.Decl,
-                                   .Result = Instantiate( Ctx.Types, Found.Decl->Result, Applied, Ctx.Values ),
+                                   .Result = Instantiate( Ctx.Types, Found.Decl->Result, Applied, Receiver, Ctx.Values ),
                                    .Params = std::move( Params ) };
             }
 
@@ -639,6 +656,75 @@ namespace Sema
                 }
                 CheckMemberSelf( Loc, Found, bReceiverIsNakedType );
                 return Found.Result;
+            }
+
+            // --- Closures ---------------------------------------------------
+
+            // Bind a closure's parameters as locals and report their types in
+            // order. Shared by `( x ) => …` and `do | x | … end`, which differ
+            // only in how their body is spelled.
+            [[nodiscard]] Core::SmallVec<SemaTypeId, 2> BindClosureParams ( const Frontend::ParamList &Params )
+            {
+                UnitSink Sink{ .Values = Ctx.Values, .Self = SelfValue };
+                Core::SmallVec<SemaTypeId, 2> Types;
+                for ( const Frontend::ParamId PId : Params )
+                {
+                    const Frontend::Param &Entry   = Ctx.Ast.GetParam( PId );
+                    const SemaTypeId ParamType     = ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
+                    LocalTypes[BindingSite{ PId }] = ParamType;
+                    Locals[Entry.Name]             = ParamType;
+                    Ctx.Values.SetSiteType( BindingSite{ PId }, ParamType );
+                    if ( Entry.Default.IsValid() )
+                    {
+                        static_cast<void>( InferExpr( Entry.Default ) );
+                    }
+                    Types.PushBack( ParamType );
+                }
+                return Types;
+            }
+
+            // A statement body evaluates to its trailing expression, as it
+            // reads. Every statement is still walked — a block's body is
+            // checked whether or not its value is used.
+            [[nodiscard]] SemaTypeId TrailingType ( const Frontend::StmtList &Body )
+            {
+                SemaTypeId Last;
+                for ( const Frontend::StmtId Id : Body )
+                {
+                    WalkStmt( Id );
+                    Last = SemaTypeId{};
+                    if ( const auto *Stmt = std::get_if<Frontend::ExprStmt>( &Ctx.Ast.Stmt( Id ) ) )
+                    {
+                        Last = Ctx.Values.ExprType( Stmt->Expr );
+                    }
+                }
+                return Last;
+            }
+
+            // A closure's type is the stdlib type claiming `NodeKind`, applied
+            // to its result then its parameters — the argument order the
+            // FuncType node reflects, so a written `T -> U` and the block that
+            // satisfies it produce the very same type.
+            //
+            // Captures do not appear: an environment is a memory concern that
+            // ClosureFrame derives from the ScopeTable, not part of what a
+            // callable *is*.
+            [[nodiscard]] SemaTypeId
+            ClosureType ( std::string_view NodeKind, SemaTypeId Result, const Core::SmallVec<SemaTypeId, 2> &Params )
+            {
+                const auto Base = Ctx.Types.LookupNodeKind( NodeKind );
+                if ( not Base )
+                {
+                    return SemaTypeId{};
+                }
+
+                Core::SmallVec<SemaTypeId, 2> Args;
+                Args.PushBack( Result );
+                for ( const SemaTypeId Param : Params )
+                {
+                    Args.PushBack( Param );
+                }
+                return MakeType( *Base, std::move( Args ) );
             }
 
             // --- Expressions ------------------------------------------------
@@ -787,23 +873,7 @@ namespace Sema
                         },
                         [&] ( const Frontend::Lambda &Expr ) -> SemaTypeId
                         {
-                            UnitSink Sink{ Ctx.Values };
-                            Core::SmallVec<SemaTypeId, 2> ParamTypes;
-                            for ( const Frontend::ParamId PId : Expr.Params )
-                            {
-                                const Frontend::Param &Entry = Ctx.Ast.GetParam( PId );
-                                const SemaTypeId ParamType =
-                                    ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Entry.DeclType );
-                                LocalTypes[BindingSite{ PId }] = ParamType;
-                                Locals[Entry.Name]             = ParamType;
-                                Ctx.Values.SetSiteType( BindingSite{ PId }, ParamType );
-                                if ( Entry.Default.IsValid() )
-                                {
-                                    static_cast<void>( InferExpr( Entry.Default ) );
-                                }
-                                ParamTypes.PushBack( ParamType );
-                            }
-
+                            const Core::SmallVec<SemaTypeId, 2> ParamTypes = BindClosureParams( Expr.Params );
                             if ( Expr.ReturnType.IsValid() )
                             {
                                 const SemaTypeId WrittenRet = InferExpr( Expr.ReturnType );
@@ -812,77 +882,12 @@ namespace Sema
                                     ConstrainExprType( Expr.Body, WrittenRet );
                                 }
                             }
-
-                            const SemaTypeId BodyType = InferExpr( Expr.Body );
-
-                            const auto *Captures = Ctx.Scopes.CapturesOfExpr( Id );
-                            if ( Captures == nullptr )
-                            {
-                                Captures = Ctx.Scopes.CapturesOf( Ctx.Scopes.ScopeOfExpr( Id ) );
-                            }
-
-                            const bool bHasCaptures = ( Captures != nullptr and not Captures->IsEmpty() );
-
-                            if ( not bHasCaptures )
-                            {
-                                NominalId Base;
-                                if ( const auto Opt = Ctx.Types.LookupNodeKind( "Lambda" ) )
-                                {
-                                    Base = *Opt;
-                                }
-                                else if ( const auto OptPtr = Ctx.Types.LookupNodeKind( "PointerType" ) )
-                                {
-                                    Base = *OptPtr;
-                                }
-
-                                if ( not Base.IsValid() )
-                                {
-                                    return SemaTypeId{};
-                                }
-
-                                Core::SmallVec<SemaTypeId, 2> FuncArgs;
-                                for ( const SemaTypeId PT : ParamTypes )
-                                {
-                                    FuncArgs.PushBack( PT );
-                                }
-                                FuncArgs.PushBack( BodyType );
-                                return MakeType( Base, std::move( FuncArgs ) );
-                            }
-                            else
-                            {
-                                NominalId Base;
-                                if ( const auto OptLambda = Ctx.Types.LookupNodeKind( "Lambda" ) )
-                                {
-                                    Base = *OptLambda;
-                                }
-                                else if ( const auto OptBlock = Ctx.Types.LookupNodeKind( "Block" ) )
-                                {
-                                    Base = *OptBlock;
-                                }
-
-                                if ( not Base.IsValid() )
-                                {
-                                    return SemaTypeId{};
-                                }
-
-                                Core::SmallVec<SemaTypeId, 2> CapturedTypes;
-                                for ( const auto &Cap : *Captures )
-                                {
-                                    if ( const auto Local = FindLocal( Frontend::ExprId{}, Cap.Name ) )
-                                    {
-                                        CapturedTypes.PushBack( *Local );
-                                    }
-                                    else if ( const auto It = LocalTypes.find( Cap.Site ); It != LocalTypes.end() )
-                                    {
-                                        CapturedTypes.PushBack( It->second );
-                                    }
-                                    else
-                                    {
-                                        CapturedTypes.PushBack( Ctx.Values.SiteType( Cap.Site ) );
-                                    }
-                                }
-                                return MakeType( Base, std::move( CapturedTypes ) );
-                            }
+                            return ClosureType( "Lambda", InferExpr( Expr.Body ), ParamTypes );
+                        },
+                        [&] ( const Frontend::Block &Expr ) -> SemaTypeId
+                        {
+                            const Core::SmallVec<SemaTypeId, 2> ParamTypes = BindClosureParams( Expr.Params );
+                            return ClosureType( "Block", TrailingType( Expr.Body ), ParamTypes );
                         },
                         [&] ( const auto &Expr ) -> SemaTypeId { return LiteralType( Id, Expr ); },
                     },
@@ -969,7 +974,7 @@ namespace Sema
                 Core::SmallVec<SemaTypeId, 2> Args;
                 for ( const Frontend::TypeId Arg : Expr.Args )
                 {
-                    UnitSink Sink{ Ctx.Values };
+                    UnitSink Sink{ .Values = Ctx.Values, .Self = SelfValue };
                     Args.PushBack( ResolveTypeExpr( Ctx.Ast, Ctx.Types, Generics(), Sink, Arg ) );
                 }
 
