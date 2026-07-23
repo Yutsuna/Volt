@@ -185,7 +185,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     if ( Expr.BlockArg.IsValid() )
     {
         const SemaTypeId OuterExpected = Context.ExpectedClosure;
-        Context.ExpectedClosure = It != Context.CalleeResolution.end() ? It->second.BlockParam : SemaTypeId{};
+        Context.ExpectedClosure        = It != Context.CalleeResolution.end() ? It->second.BlockParam : SemaTypeId{};
         static_cast<void>( InferExpr( Context, Expr.BlockArg ) );
         Context.ExpectedClosure = OuterExpected;
     }
