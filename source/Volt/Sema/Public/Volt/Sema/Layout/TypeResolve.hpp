@@ -22,6 +22,7 @@
 
 #include <cstdint>
 #include <span>
+#include <string_view>
 #include <type_traits>
 #include <variant>
 
@@ -192,6 +193,32 @@ namespace Sema
     /// invalid id.
     [[nodiscard]] SEMA_EXPORT SemaTypeId Instantiate (
         const TypeStore &Store, SigTypeId Id, std::span<const SemaTypeId> ReceiverArgs, SemaTypeId Self, UnitTypes &Values );
+
+    // A member found on a receiver, with the *already concrete* type that
+    // declares it: looking `map` up on `Array<Int32>` yields the member as
+    // declared by `Enumerable`, owned by `Enumerable<Int32>`. That owner is
+    // what a signature's ParamIndex counts against, which is why the plain
+    // nominal TypeStore::LookupMember returns is not enough.
+    struct InstantiatedMember
+    {
+
+        const Member *Decl = nullptr;
+        SemaTypeId Owner;
+    };
+
+    /// Find `Name` on `Receiver`, composing generic arguments along the way:
+    /// own body, then each `include`, then the superclass, each parent first
+    /// instantiated against the arguments the child supplies it.
+    ///
+    /// `Self` stays the *original* receiver through the whole descent, never
+    /// the mixin being traversed — that is what makes `Comparable#<( other :
+    /// self )` mean `Int32` when reached from an Int32.
+    [[nodiscard]] SEMA_EXPORT InstantiatedMember LookupMemberOn ( const TypeStore &Store,
+                                                                  UnitTypes &Values,
+                                                                  SemaTypeId Receiver,
+                                                                  SemaTypeId Self,
+                                                                  std::string_view Name,
+                                                                  std::uint32_t Depth = 0 );
 
 } // namespace Sema
 
