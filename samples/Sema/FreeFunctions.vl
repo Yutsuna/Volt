@@ -1,0 +1,24 @@
+# A top-level `def` — declared directly in a module, not inside any
+# Class/Struct/Mixin — is declared into TypeStore (TypeBinder::BindFunction /
+# ResolveFunction) and bound by name (never through `self`, since a free
+# function has no receiver). Calling one checks arity and argument types
+# through the same CheckCallArgs a method call uses, and the call expression
+# takes the function's declared return type.
+
+def square( value : Int32 ) -> Int32
+  value * value
+end
+
+# A free function may call another free function declared later in the same
+# file — TypeBinder's serial seam declares every name before any unit's
+# ScopeResolver/TypeChecker pass runs, so declaration order never matters.
+def sum_of_squares( a : Int32, b : Int32 ) -> Int32
+  square( a ) + square( b )
+end
+
+def free_functions_test -> Int32
+  total : Int32 = sum_of_squares( 3, 4 )
+  total
+end
+
+free_functions_test()

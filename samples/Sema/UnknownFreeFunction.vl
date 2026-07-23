@@ -1,0 +1,7 @@
+# Calling a `def` that was never declared, anywhere — not a local, not a
+# type, not a member of `self`, not a top-level function — is now a strict
+# diagnostic (CallType, ExprInferencer.cpp), the free-function counterpart of
+# the unknown-member diagnostic a `receiver.name` call already gets. This
+# sample is expected to be rejected: `never_declared` names nothing.
+
+never_declared( 1, 2 )

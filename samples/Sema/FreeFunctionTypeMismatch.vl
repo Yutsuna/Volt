@@ -1,0 +1,10 @@
+# A free function's declared parameter types are checked against the actual
+# argument types, exactly as CheckCallArgs already does for a method call.
+# This sample is expected to be rejected: `greet` takes a String, a Bool is
+# given.
+
+def greet( name : String ) -> String
+  name
+end
+
+greet( true )
