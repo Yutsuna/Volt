@@ -1,6 +1,6 @@
 # PLAN — Bilan du chantier Sema et Feuilles de Route (`Feat/Add-Semantic`)
 
-**État de référence (2026-07-23) :** Build vert, 93/93 tests passés au vert (`volt-build format test`), typage de la stdlib 100 % valide (`volt check source/Lib/` : 13/13 fichiers sans aucune erreur), graphe `graphify` à jour.
+**État de référence (2026-07-24) :** Build vert, 110/110 tests passés au vert (`volt-build format test`), typage de la stdlib 100 % valide (`volt check source/Lib/` : 0 erreur), graphe `graphify` à jour. Voir `ON_GOING.md` pour le détail des phases 6 à 8 (mixins, génériques de méthode, convention d'appel `&`, diagnostic de bloc non inféré).
 
 Ce document recense le bilan complet des travaux d'analyse sémantique réalisés dans `Sema` (`TypeStore`, `TypeBinder`, `TypeChecker`), la dette technique résiduelle et la stratégie pour la prochaine étape prioritaire.
 
@@ -120,7 +120,8 @@ Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts)
 5. **[FAIT - 2026-07-23] Inférence automatique des méthodes génériques (`GenericInst`) :**
    - **Statut :** RÉALISÉ & VALIDÉ. `Frontend::Method` porte ses propres `Generics`, l'espace de paramètres est concaténé type ++ méthode, et `UnifySig` / `UnifyArgs` / `UnifyBlock` referment les trous depuis les arguments puis depuis le type réel du bloc : `arr.map do | i | i > 1 end` vaut `Array<Bool>` sans annotation explicite.
    - **Convention d'appel (tranchée) :** un argument `&callable`, en dernière position et sans nom, remplit le slot `&block` — décidé au parse-time par `Parser::PromoteCapturedBlock`, Sema inchangé. `&` accepte `(` en plus d'`identifier`/`Constant`, d'où `numbers.map( &transform )` et `numbers.map( &( ( &.+ 10 ) >> ( &.* 2 ) ) )`. Appeler une valeur (`f( x )`) résout le membre annoté `@[Apply]` via `LookupApplyOn` : `FunctionalSpec.vl` passe de 11 à 6 erreurs.
-   - **Reste ouvert :** une lambda à paramètres non annotés et sans type attendu (`add10 = ( &.+ 10 )`) n'est pas typée, donc un point-free stocké dans un local rend un `Array<?>` **silencieux**. Il faut une inférence depuis le site d'usage — chantier séparé.
+   - **[FAIT - 2026-07-24] Diagnostic strict sur `&block` non inféré :** `numbers.map( &transform )` avec `transform` non annoté rendait un `Array<?>` **silencieux** — pire que le diagnostic d'arité qu'il remplaçait. `IsBlockResultInferred` (`ExprInferencer.cpp`) rejette maintenant ce cas explicitement (`cannot infer block parameter types for '…'`), sans faux positif sur les corps génériques de la stdlib (`Enumerable<T>` lui-même) ni sur les blocs `do … end` littéraux. Couverture fermée : `samples/Sema/CallableArgs.vl` (promotion `&`, appel direct sur un local via `@[Apply]`) et l'ajout d'un bloc à deux paramètres dans `samples/Sema/BlockParamTypes.vl` (`each_with_index`). Détail dans `ON_GOING.md` §Phase 8.
+   - **Reste ouvert :** une lambda à paramètres non annotés et sans type attendu (`add10 = ( &.+ 10 )` puis `add10( 5 )`) n'est toujours pas typée — le diagnostic ci-dessus la rejette proprement dans le cas `&block`, mais ne la résout pas. Il faut une inférence depuis le site d'usage — chantier séparé, solveur bidirectionnel.
 
 6. **Contrôle d'exhaustivité du Pattern Matching (`CaseExpr`) :**
    - `CaseLowering` abaisse les `case/when` en `If/Else`. Le MiddleEnd doit ajouter la vérification d'exhaustivité sémantique (ex: s'assurer que toutes les variantes d'une `Enum` sont couvertes).
