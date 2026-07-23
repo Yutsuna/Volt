@@ -222,11 +222,8 @@ namespace Sema
     /// A slot already bound is left alone, and a shape mismatch simply
     /// teaches nothing: inference reports no diagnostics of its own, exactly
     /// like the rest of this file, and an unresolved slot stays invalid.
-    SEMA_EXPORT void UnifySig ( const TypeStore &Store,
-                                const UnitTypes &Values,
-                                SigTypeId Pattern,
-                                SemaTypeId Actual,
-                                std::span<SemaTypeId> Bindings );
+    SEMA_EXPORT void UnifySig (
+        const TypeStore &Store, const UnitTypes &Values, SigTypeId Pattern, SemaTypeId Actual, std::span<SemaTypeId> Bindings );
 
     [[nodiscard]] SEMA_EXPORT InstantiatedMember LookupMemberOn ( const TypeStore &Store,
                                                                   UnitTypes &Values,

@@ -30,6 +30,15 @@ struct Resolution
     // `Array<Int32>` declares `&block : T -> Void`, so the `| i |` of
     // `arr.each do | i |` is an Int32 without anyone writing it down.
     SemaTypeId BlockParam;
+
+    // The parameter space the signature above was instantiated against:
+    // the owner's arguments, then one slot per method generic. Those last
+    // slots start invalid — nothing but the call can fill them — and the
+    // types above are recomputed as inference closes them.
+    Core::SmallVec<SemaTypeId, 2> Bindings;
+    // Kept so that recomputation resolves `self` the same way the first
+    // instantiation did.
+    SemaTypeId Receiver;
 };
 
 struct TypeCheckerContext

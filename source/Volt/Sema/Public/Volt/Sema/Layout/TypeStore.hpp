@@ -85,6 +85,10 @@ namespace Sema
         // OwnGenerics are holes only the call site can fill.
         std::uint32_t OwnGenerics = 0;
         bool bSelf                = false; // `def self.malloc`
+        // `abstract def`: a contract, not an implementation. A mixin uses
+        // one to state what an including type owes it, and that debt is
+        // what the conformance check collects.
+        bool bAbstract = false;
         // `@[Apply]`: the member's signature *is* the receiver's type
         // arguments — result first, then parameters — rather than what it
         // wrote down. This is how a callable is invoked without the compiler
