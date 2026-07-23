@@ -134,14 +134,20 @@ Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts)
 
 ---
 
-## VII. Feuille de Route Prioritaire
+## VII. Feuille de Route Prioritaire (100 % Frontend & Middle-End)
 
 1. **[FAIT - 2026-07-23] Câblage des Mixins & Méthodes d'ordre supérieur (`Enumerable` / `Array.vl`) :**
    - Résolution et injection des mixins génériques, typage descendant des blocs, inférence des génériques de méthode, conformité des `abstract def`. Couvert par `samples/Sema/MixinGenerics.vl`, `BlockParamTypes.vl`, `AbstractConformance.vl`.
 
-2. **[PROCHAINE ÉTAPE] Génération de code (Backend / Codegen - `volt run` & `volt build`) :**
-   - Exploitation des `ClosureFrame` et des tableaux de capture dans l'interpréteur/JIT et le backend LLVM AOT pour émettre la gestion des environnements sur la pile.
+2. **[PROCHAINE ÉTAPE - FEUILLE DE ROUTE FRONTEND / MIDDLE-END] :**
+   - **Étape A : Table des Fonctions Libres (`TypeStore` / `ScopeResolver` / `TypeChecker`) :** Déclarer, lier et vérifier les fonctions top-level / libres pour lever le silence de la résolution d'identifiants et émettre des diagnostics stricts.
+   - **Étape B : Inférence des littéraux flottants & collections (`UnconstrainedLiterals`) :** Étendre l'inférence tardive aux `FloatLiteral`, `ArrayLit` et `HashLit`.
+   - **Étape C : Exhaustivité du Pattern Matching (`CaseExpr`) :** Contrôle sémantique d'exhaustivité sur les `case / when` (`Enum`, motifs).
+   - **Étape D : Closures Évasives vs Non-évasives (*Escaping Closures*) :** Analyse sémantique de l'évasion des closures (`escaping` vs `non-escaping`).
+   - **Étape E : Précédence Pratt du sigil `&` (`Parser`) :** Accepter `numbers.map( &.+ 10 )` direct sans parenthèses ou composition additionnelle.
+   - **Étape F : Complétion de la stdlib & Résolution des 6 erreurs restantes de `FunctionalSpec.vl`.**
 
-3. **Support WebAssembly / WASM (`volt build --target wasm`) :**
-   - Abaissement des environnements de closure vers les tables et la mémoire WASM.
+3. **[ULTÉRIEUR] Génération de code (Backend / Codegen & WASM - `volt run` / `volt build`) :**
+   - Mise en œuvre de la codegen LLVM AOT, l'interpréteur/JIT et WASM une fois le Frontend et le Middle-End terminés et validés à 100 %.
+
 
