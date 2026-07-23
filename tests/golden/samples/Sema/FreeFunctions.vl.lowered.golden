@@ -1,0 +1,65 @@
+Program 'samples/Sema/FreeFunctions.vl'
+├─ Method 'square' @8:1
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @8:21
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @8:32
+│  └─ body
+│     └─ ExprStmt @9:3
+│        └─ expr
+│           └─ Binary '*' @9:9
+│              ├─ lhs
+│              │  └─ Identifier 'value' @9:3
+│              └─ rhs
+│                 └─ Identifier 'value' @9:11
+├─ Method 'sum_of_squares' @15:1
+│  ├─ params
+│  │  ├─ Param 'a'
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Int32' @15:25
+│  │  └─ Param 'b'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @15:36
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @15:47
+│  └─ body
+│     └─ ExprStmt @16:3
+│        └─ expr
+│           └─ Binary '+' @16:15
+│              ├─ lhs
+│              │  └─ Call @16:9
+│              │     ├─ callee
+│              │     │  └─ Identifier 'square' @16:3
+│              │     └─ args
+│              │        └─ Identifier 'a' @16:11
+│              └─ rhs
+│                 └─ Call @16:23
+│                    ├─ callee
+│                    │  └─ Identifier 'square' @16:17
+│                    └─ args
+│                       └─ Identifier 'b' @16:25
+├─ Method 'free_functions_test' @19:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @19:28
+│  └─ body
+│     ├─ LocalDecl 'total' @20:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @20:11
+│     │  └─ init
+│     │     └─ Call @20:33
+│     │        ├─ callee
+│     │        │  └─ Identifier 'sum_of_squares' @20:19
+│     │        └─ args
+│     │           ├─ IntLiteral '3' @20:35
+│     │           └─ IntLiteral '4' @20:38
+│     └─ ExprStmt @21:3
+│        └─ expr
+│           └─ Identifier 'total' @21:3
+└─ ExprStmt @24:1
+   └─ expr
+      └─ Call @24:20
+         └─ callee
+            └─ Identifier 'free_functions_test' @24:1
+--- exit 0 ---
