@@ -38,8 +38,12 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         {
             Params.PushBack( Signature[Index] );
         }
-        return Resolution{
-            .Decl = Found.Decl, .Result = Signature.IsEmpty() ? SemaTypeId{} : Signature[0], .Params = std::move( Params ) };
+        // No block slot: an `@[Apply]` signature is the receiver's own
+        // arguments, and a callable takes its argument positionally.
+        return Resolution{ .Decl       = Found.Decl,
+                           .Result     = Signature.IsEmpty() ? SemaTypeId{} : Signature[0],
+                           .Params     = std::move( Params ),
+                           .BlockParam = SemaTypeId{} };
     }
 
     // A signature's ParamIndex counts against the type that *declares* it,
@@ -51,19 +55,28 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
     const std::span<const SemaTypeId> Applied{ OwnerArgs.begin(), OwnerArgs.Size() };
 
     Core::SmallVec<SemaTypeId, 4> Params;
+    SemaTypeId BlockParam;
     for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
     {
+        const SemaTypeId Slot =
+            Instantiate( Context.Ctx.Types, Found.Decl->Params[Index], Applied, Receiver, Context.Ctx.Values );
+
+        // A `&block` slot is not a positional parameter — it binds through
+        // the call's trailing `do ... end`. Kept aside rather than dropped:
+        // it is the only thing that can type that block's parameters.
         if ( Index < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[Index] )
         {
+            BlockParam = Slot;
             continue;
         }
-        Params.PushBack( Instantiate( Context.Ctx.Types, Found.Decl->Params[Index], Applied, Receiver, Context.Ctx.Values ) );
+        Params.PushBack( Slot );
     }
 
     const SemaTypeId Result =
         bConstructor ? Receiver : Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Receiver, Context.Ctx.Values );
 
-    return Resolution{ .Decl = Found.Decl, .Result = Result, .Params = std::move( Params ) };
+    return Resolution{
+        .Decl = Found.Decl, .Result = Result, .Params = std::move( Params ), .BlockParam = BlockParam };
 }
 
 void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
