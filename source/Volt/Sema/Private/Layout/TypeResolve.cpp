@@ -43,6 +43,53 @@ namespace Sema
         return Values.Intern( SemaType{ .Base = Sig.Base, .Args = std::move( Args ) } );
     }
 
+    void UnifySig ( const TypeStore &Store,
+                    const UnitTypes &Values,
+                    SigTypeId Pattern,
+                    SemaTypeId Actual,
+                    std::span<SemaTypeId> Bindings )
+    {
+        if ( not Pattern.IsValid() or not Values.Has( Actual ) )
+        {
+            return;
+        }
+
+        const SigType &Sig = Store.Sig( Pattern );
+
+        // `self` is decided by the receiver, never by an argument: there is
+        // nothing an actual type can teach about it.
+        if ( Sig.ParamIndex == SigType::SelfParam )
+        {
+            return;
+        }
+
+        // A free parameter is the point of the walk. Already-bound slots —
+        // everything the receiver supplied — win over what an argument
+        // suggests, so a wrong argument stays a diagnostic rather than
+        // silently redefining T.
+        if ( Sig.ParamIndex >= 0 )
+        {
+            const auto Index = static_cast<std::size_t>( Sig.ParamIndex );
+            if ( Index < Bindings.size() and not Bindings[Index].IsValid() )
+            {
+                Bindings[Index] = Actual;
+            }
+            return;
+        }
+
+        // Structural descent, but only where the two agree on the nominal:
+        // matching `Array<U>` against a String has nothing to say about U.
+        const SemaType &Concrete = Values.Get( Actual );
+        if ( Concrete.Base != Sig.Base )
+        {
+            return;
+        }
+        for ( std::size_t Index = 0; Index < Sig.Args.Size() and Index < Concrete.Args.Size(); ++Index )
+        {
+            UnifySig( Store, Values, Sig.Args[Index], Concrete.Args[Index], Bindings );
+        }
+    }
+
     InstantiatedMember LookupMemberOn ( const TypeStore &Store,
                                         UnitTypes &Values,
                                         SemaTypeId Receiver,
