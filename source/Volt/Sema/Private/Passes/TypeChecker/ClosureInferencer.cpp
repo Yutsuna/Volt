@@ -1,4 +1,3 @@
-
 #include "ClosureInferencer.hpp"
 
 #include "DeclStmtWalker.hpp"

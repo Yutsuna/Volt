@@ -1,6 +1,5 @@
 #include "DeclStmtWalker.hpp"
 
-#include "MemberResolver.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
 #include <algorithm>
@@ -25,7 +24,7 @@ void CollectIncludes ( const TypeStore &Store, NominalId Id, std::vector<Nominal
     for ( const SigTypeId Mixin : Store.Type( Id ).Includes )
     {
         const NominalId Base = Store.BaseOf( Mixin );
-        if ( not Base.IsValid() or std::find( Out.begin(), Out.end(), Base ) != Out.end() )
+        if ( not Base.IsValid() or std::ranges::find( Out, Base ) != Out.end() )
         {
             continue;
         }
