@@ -77,7 +77,14 @@ namespace Sema
         // through the positional argument list, so callers matching Params
         // against Args must skip it.
         Core::SmallVec<bool, 4> ParamIsBlock;
-        bool bSelf = false; // `def self.malloc`
+        // How many of the parameter space's slots belong to the method
+        // rather than to the declaring type. A signature resolves against
+        // the two concatenated — type generics first, method generics after
+        // — so on `Array<T>` the `U` of `def map<U>` is ParamIndex 1. The
+        // receiver answers the first Params.Size() of them; these last
+        // OwnGenerics are holes only the call site can fill.
+        std::uint32_t OwnGenerics = 0;
+        bool bSelf                = false; // `def self.malloc`
         // `@[Apply]`: the member's signature *is* the receiver's type
         // arguments — result first, then parameters — rather than what it
         // wrote down. This is how a callable is invoked without the compiler
