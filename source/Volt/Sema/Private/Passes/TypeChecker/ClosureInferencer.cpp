@@ -9,13 +9,33 @@
 Volt::Core::SmallVec<Volt::Sema::SemaTypeId, 2>
 Volt::Sema::TypeCheckerPass::BindClosureParams ( TypeCheckerContext &Context, const Frontend::ParamList &Params )
 {
+    // The `&block : T -> U` slot the enclosing call expects, if any. Copied
+    // rather than referenced: ResolveTypeExpr interns into Values below and
+    // may move the arena. Consumed here and cleared, so a closure nested
+    // deeper in this one's body cannot pick it up a second time.
+    Core::SmallVec<SemaTypeId, 2> Expected;
+    if ( Context.Ctx.Values.Has( Context.ExpectedClosure ) )
+    {
+        Expected = Context.Ctx.Values.Get( Context.ExpectedClosure ).Args;
+    }
+    Context.ExpectedClosure = SemaTypeId{};
+
     UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
     Core::SmallVec<SemaTypeId, 2> Types;
-    for ( const Frontend::ParamId PId : Params )
+    for ( std::size_t Index = 0; Index < Params.Size(); ++Index )
     {
+        const Frontend::ParamId PId  = Params[Index];
         const Frontend::Param &Entry = Context.Ctx.Ast.GetParam( PId );
-        const SemaTypeId ParamType =
-            ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Entry.DeclType );
+        SemaTypeId ParamType = ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Entry.DeclType );
+
+        // Unannotated, so take the type from the slot: a callable's
+        // arguments are its result followed by its parameters, hence the
+        // 1 + Index. `arr.each do | i |` types `i` here and nowhere else.
+        if ( not ParamType.IsValid() and 1 + Index < Expected.Size() )
+        {
+            ParamType = Expected[1 + Index];
+        }
+
         Context.LocalTypes[BindingSite{ PId }] = ParamType;
         Context.Locals[Entry.Name]             = ParamType;
         Context.Ctx.Values.SetSiteType( BindingSite{ PId }, ParamType );
