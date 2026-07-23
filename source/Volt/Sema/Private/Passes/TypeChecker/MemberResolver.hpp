@@ -17,6 +17,12 @@ constexpr std::string_view ConstructorName = "initialize";
 
 [[nodiscard]] Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name );
 
+// A top-level `def`, looked up by name alone — no receiver, so no `self` to
+// substitute and no owner arguments to instantiate against. Reuses the same
+// Resolution / Reinstantiate machinery LookupOn does, since TypeStore models
+// a free function as a receiver-less Member.
+[[nodiscard]] Resolution LookupFreeFunction ( TypeCheckerContext &Context, std::string_view Name );
+
 // Calling a value directly — `f( x )` where `f` is not a method name but a
 // callable — invokes whatever member its type declares as `@[Apply]`. Which
 // member that is comes from the annotation, so no member name is ever known
