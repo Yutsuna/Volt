@@ -403,6 +403,11 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, boo
         ReportHere( "expected a method name" );
     }
 
+    // After the name, so an operator method is safe: `def <( other )` has
+    // already consumed its `<` as the name by the time we look for one
+    // opening a parameter list.
+    Node.Generics = ParseGenericParams();
+
     if ( Accept( TokenKind::LParen ) )
     {
         ParseParameterList( Node.Params );
