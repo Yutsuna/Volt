@@ -211,9 +211,12 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
 
     if ( Kind == TokenKind::Amp )
     {
-        // Check if followed by identifier/constant/member (Static capture: &Math.square)
+        // Static capture: `&Math.square`, `&transform`, and — so that a
+        // composed point-free chain needs no intermediate name — a
+        // parenthesised expression, `&( ( &.+ 10 ) >> ( &.* 2 ) )`.
         if ( Pos + 1 < Tokens.size() and
-             ( Tokens[Pos + 1].Kind == TokenKind::Identifier or Tokens[Pos + 1].Kind == TokenKind::Constant ) )
+             ( Tokens[Pos + 1].Kind == TokenKind::Identifier or Tokens[Pos + 1].Kind == TokenKind::Constant or
+               Tokens[Pos + 1].Kind == TokenKind::LParen ) )
         {
             Advance();
             Section Node;
@@ -400,6 +403,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
             Node.Callee = Lhs;
             ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
             Expect( TokenKind::RParen, "to close call arguments" );
+            PromoteCapturedBlock( Node );
             Lhs = MakeExpr( Node, RangeSince( Begin ) );
         }
         else if ( Accept( TokenKind::LBracket ) )
@@ -457,6 +461,41 @@ void Volt::Frontend::Parser::ParseCallArguments ( ExprList &Args, SymbolList &Ar
     } while ( Accept( TokenKind::Comma ) );
     bNoDoBlock = Saved;
     SkipNewlines();
+}
+
+void Volt::Frontend::Parser::PromoteCapturedBlock ( Call &Node )
+{
+    if ( Node.BlockArg.IsValid() or Node.Args.IsEmpty() )
+    {
+        return;
+    }
+
+    // Only the trailing argument, and only an unnamed one: `f( fn: &g )`
+    // names a positional slot on purpose, and a capture in the middle of
+    // the list is an ordinary Proc value.
+    const std::size_t Last = Node.Args.Size() - 1;
+    if ( Node.ArgNames[Last].IsValid() )
+    {
+        return;
+    }
+
+    const Section *Captured = std::get_if<Section>( &Context.Expr( Node.Args[Last] ) );
+    if ( Captured == nullptr or Captured->Kind != ESectionKind::StaticCapture )
+    {
+        return;
+    }
+
+    Node.BlockArg = Node.Args[Last];
+
+    ExprList Args;
+    SymbolList Names;
+    for ( std::size_t Index = 0; Index < Last; ++Index )
+    {
+        Args.PushBack( Node.Args[Index] );
+        Names.PushBack( Node.ArgNames[Index] );
+    }
+    Node.Args     = std::move( Args );
+    Node.ArgNames = std::move( Names );
 }
 
 Volt::Frontend::ExprId Volt::Frontend::Parser::AttachTrailingBlock ( ExprId Lhs, ExprId BlockId, std::uint32_t Begin )
@@ -654,6 +693,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseCommandCallArgs ( ExprId Cal
     {
         Node.BlockArg = ParseDoBlock();
     }
+    PromoteCapturedBlock( Node );
 
     return MakeExpr( Node, RangeSince( Start.Begin ) );
 }
