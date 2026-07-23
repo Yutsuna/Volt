@@ -55,6 +55,11 @@ namespace Frontend
 
         Core::SourceRange Loc;
         Symbol Name;
+        // `def map<U>( ... )`: parameters of the method itself, on top of
+        // whatever the enclosing type declares. They are what lets a
+        // signature name a type the receiver does not fix — `U` is decided
+        // by the call, not by `Array<T>`.
+        SymbolList Generics;
         ParamList Params;
         TypeId ReturnType;
         StmtList Body;
