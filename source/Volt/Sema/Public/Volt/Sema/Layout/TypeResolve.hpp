@@ -213,6 +213,21 @@ namespace Sema
     /// `Self` stays the *original* receiver through the whole descent, never
     /// the mixin being traversed — that is what makes `Comparable#<( other :
     /// self )` mean `Int32` when reached from an Int32.
+    /// Walk a declared signature and a concrete type in parallel, binding
+    /// every generic parameter the pattern still mentions. `def map<U>(
+    /// &block : T -> U )` given a block of type `Proc< Bool, Int32 >` learns
+    /// `U = Bool` — the only way a method generic can ever be known, since
+    /// the receiver says nothing about it.
+    ///
+    /// A slot already bound is left alone, and a shape mismatch simply
+    /// teaches nothing: inference reports no diagnostics of its own, exactly
+    /// like the rest of this file, and an unresolved slot stays invalid.
+    SEMA_EXPORT void UnifySig ( const TypeStore &Store,
+                                const UnitTypes &Values,
+                                SigTypeId Pattern,
+                                SemaTypeId Actual,
+                                std::span<SemaTypeId> Bindings );
+
     [[nodiscard]] SEMA_EXPORT InstantiatedMember LookupMemberOn ( const TypeStore &Store,
                                                                   UnitTypes &Values,
                                                                   SemaTypeId Receiver,
