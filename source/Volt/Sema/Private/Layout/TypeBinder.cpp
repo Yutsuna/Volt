@@ -375,17 +375,15 @@ namespace Sema
             std::uint32_t Unit   = 0;
             std::size_t Resolved = 0;
 
-            // The nominal a written annotation names, ignoring its arguments:
-            // what `< Super` and `include` need.
-            [[nodiscard]] NominalId NominalOf ( Frontend::TypeId Id, std::span<const Symbol> Generics )
+            // A written parent link (`< Y<T>`, `include Enumerable<T>`) kept
+            // whole. Its arguments live in the *including* type's parameter
+            // space, so `include Enumerable<T>` on `Array<T>` stores a
+            // reference to parameter 0 — resolved once a receiver says what
+            // that T is.
+            [[nodiscard]] SigTypeId ParentOf ( Frontend::TypeId Id, std::span<const Symbol> Generics )
             {
                 SigSink Sink{ Store };
-                const SigTypeId Written = ResolveTypeExpr( Ast, Store, Generics, Sink, Id );
-                if ( not Written.IsValid() )
-                {
-                    return NominalId{};
-                }
-                return Store.Sig( Written ).Base;
+                return ResolveTypeExpr( Ast, Store, Generics, Sink, Id );
             }
 
             void Resolve ( const TypeDecl &Decl )
@@ -411,7 +409,7 @@ namespace Sema
 
                 if ( Decl.Super.IsValid() )
                 {
-                    Store.SetSuper( Id, NominalOf( Decl.Super, Generics ) );
+                    Store.SetSuper( Id, ParentOf( Decl.Super, Generics ) );
                 }
 
                 for ( const Frontend::DeclId Child : *Decl.Body )
@@ -424,7 +422,7 @@ namespace Sema
                         Meta::Overloaded{
                             [&] ( const Frontend::Include &Entry )
                             {
-                                if ( const NominalId Mixin = NominalOf( Entry.Target, Generics ); Mixin.IsValid() )
+                                if ( const SigTypeId Mixin = ParentOf( Entry.Target, Generics ); Mixin.IsValid() )
                                 {
                                     Store.AddInclude( Id, Mixin );
                                 }
