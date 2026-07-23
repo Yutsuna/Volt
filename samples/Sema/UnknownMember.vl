@@ -1,0 +1,7 @@
+module Greeter
+  def self.greet( name : String ) -> Void
+    name.invalid_method
+  end
+end
+
+Greeter.greet( "World" )

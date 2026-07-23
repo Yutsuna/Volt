@@ -54,7 +54,7 @@ file( GLOB_RECURSE VOLT_CHECK_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
   ${VOLT_ROOT}/samples/Sema/*.vl )
 list( SORT VOLT_CHECK_SOURCES )
 
-set( VOLT_CHECK_EXPECT_FAIL samples/Sema/RedeclareSameScope.vl )
+set( VOLT_CHECK_EXPECT_FAIL samples/Sema/RedeclareSameScope.vl samples/Sema/UnknownMember.vl )
 
 foreach( SOURCE IN LISTS VOLT_CHECK_SOURCES )
   add_test(
