@@ -115,8 +115,8 @@ bool Volt::Sema::TypeCheckerPass::IsBuiltinPrimitiveOp ( std::string_view Name )
     {
         return true;
     }
-    const char Char = Name[0];
-    return ( Char < 'a' or Char > 'z' ) and ( Char < 'A' or Char > 'Z' ) and Char != '_';
+    const char Ch = Name[0];
+    return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
 }
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::MemberType (
