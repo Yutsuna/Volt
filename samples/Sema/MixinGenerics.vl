@@ -1,0 +1,45 @@
+# A mixin included with an argument keeps that argument: `Enumerable<T>` on an
+# `Array<T>` is what lets `map` see the element type, and a method generic
+# declared on `map<U>` is what lets its result follow the block.
+
+mixin Boxed<T>
+  abstract def get -> T
+
+  def get_twice -> T
+    get
+  end
+
+  def convert<U>( &block : T -> U ) -> Array<U>
+    result = Array<U>.new
+    result.push( block.call( get ) )
+    result
+  end
+end
+
+struct Holder
+  include Boxed<Int32>
+
+  getter value : Int32
+
+  def initialize( value : Int32 = 0 )
+    @value = value
+  end
+
+  def get -> Int32
+    @value
+  end
+end
+
+def mixin_generics -> Void
+  h = Holder.new
+  same : Int32 = h.get_twice
+  mapped : Array<Bool> = h.convert do | value | value > 1 end
+  flag : Bool = mapped.pop
+end
+
+def stdlib_enumerable -> Void
+  items = [ 1, 2, 3 ]
+  flags : Array<Bool> = items.map do | item | item > 1 end
+  kept : Array<Int32> = items.filter do | item | item > 1 end
+  total : UInt64 = items.count
+end
