@@ -1,15 +1,11 @@
-// MemberResolver.cpp — Implementation of member resolution and call checking.
-
 #include "MemberResolver.hpp"
 
 #include "ExprInferencer.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
-namespace Volt::Sema::TypeCheckerPass
-{
-
-Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name )
+Volt::Sema::TypeCheckerPass::Resolution
+Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name )
 {
     if ( not Context.Ctx.Values.Has( Receiver ) )
     {
@@ -66,7 +62,10 @@ Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::str
                        .Params = std::move( Params ) };
 }
 
-void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType )
+void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
+                                                    Core::SourceRange Loc,
+                                                    const Resolution &Found,
+                                                    bool bReceiverIsNakedType )
 {
     if ( Found.Decl == nullptr )
     {
@@ -86,7 +85,7 @@ void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const
     }
 }
 
-void CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found )
+void Volt::Sema::TypeCheckerPass::CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found )
 {
     if ( Found.Decl == nullptr )
     {
@@ -106,7 +105,7 @@ void CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, cons
     }
 }
 
-bool IsBuiltinPrimitiveOp ( std::string_view Name )
+bool Volt::Sema::TypeCheckerPass::IsBuiltinPrimitiveOp ( std::string_view Name )
 {
     if ( Name.empty() )
     {
@@ -116,11 +115,11 @@ bool IsBuiltinPrimitiveOp ( std::string_view Name )
     {
         return true;
     }
-    const char c = Name[0];
-    return not( ( c >= 'a' and c <= 'z' ) or ( c >= 'A' and c <= 'Z' ) or c == '_' );
+    const char Char = Name[0];
+    return ( Char < 'a' or Char > 'z' ) and ( Char < 'A' or Char > 'Z' ) and Char != '_';
 }
 
-SemaTypeId MemberType (
+Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::MemberType (
     TypeCheckerContext &Context, Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
 {
     const Resolution Found = LookupOn( Context, Receiver, Name );
@@ -147,7 +146,10 @@ SemaTypeId MemberType (
     return Found.Result;
 }
 
-void CheckCallArgs ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found, const Frontend::ExprList &Args )
+void Volt::Sema::TypeCheckerPass::CheckCallArgs ( TypeCheckerContext &Context,
+                                                  Core::SourceRange Loc,
+                                                  const Resolution &Found,
+                                                  const Frontend::ExprList &Args )
 {
     if ( Found.Decl == nullptr or Found.Decl->Kind != EMemberKind::Method )
     {
@@ -182,7 +184,10 @@ void CheckCallArgs ( TypeCheckerContext &Context, Core::SourceRange Loc, const R
     }
 }
 
-void CheckArity ( TypeCheckerContext &Context, Core::SourceRange Loc, NominalId Base, std::size_t Given )
+void Volt::Sema::TypeCheckerPass::CheckArity ( TypeCheckerContext &Context,
+                                               Core::SourceRange Loc,
+                                               NominalId Base,
+                                               std::size_t Given )
 {
     if ( not Base.IsValid() )
     {
@@ -195,5 +200,3 @@ void CheckArity ( TypeCheckerContext &Context, Core::SourceRange Loc, NominalId 
                                  std::to_string( Given ) + " were given" );
     }
 }
-
-} // namespace Volt::Sema::TypeCheckerPass
