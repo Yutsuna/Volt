@@ -200,12 +200,23 @@ namespace Sema
             // signature still unresolved — phase B fills those in.
             void DeclareMembers ( NominalId Id, const Frontend::DeclList &Body )
             {
+                bool bApply = false;
+
                 for ( const Frontend::DeclId Child : Body )
                 {
                     if ( not Child.IsValid() )
                     {
                         continue;
                     }
+
+                    // Annotations bind to the member they precede, exactly as
+                    // they do at file scope.
+                    if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Ast.Decl( Child ) ) )
+                    {
+                        bApply = bApply or Ast.Text( Anno->Name ) == "Apply";
+                        continue;
+                    }
+
                     std::visit(
                         Meta::Overloaded{
                             [&] ( const Frontend::Field &Entry )
@@ -220,16 +231,19 @@ namespace Sema
                             [&] ( const Frontend::Method &Entry )
                             {
                                 Member Slot;
-                                Slot.Name  = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind  = EMemberKind::Method;
-                                Slot.Unit  = Unit;
-                                Slot.Decl  = Child;
-                                Slot.bSelf = Entry.bSelf;
+                                Slot.Name   = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind   = EMemberKind::Method;
+                                Slot.Unit   = Unit;
+                                Slot.Decl   = Child;
+                                Slot.bSelf  = Entry.bSelf;
+                                Slot.bApply = bApply;
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [] ( const auto & ) {},
                         },
                         Ast.Decl( Child ) );
+
+                    bApply = false;
                 }
             }
 
@@ -283,8 +297,6 @@ namespace Sema
                 DeclareMembers( Id, *Decl.Body );
 
                 LayoutId Layout;
-                std::string_view NodeKind;
-                Core::SourceRange NodeKindLoc;
 
                 for ( const PendingAnnotation &Anno : Pending )
                 {
@@ -312,9 +324,30 @@ namespace Sema
                                     "@[Literal] expects a node kind, e.g. @[Literal( IntLiteral )]" );
                             continue;
                         }
-                        NodeKind    = Ast.Text( Kind->Name );
-                        NodeKindLoc = Anno.Loc;
-                        Store.SetLiteralSlots( Id, ReadLiteralSlots( Anno.Args ) );
+                        // Bound here rather than after the loop: a type may
+                        // claim several node kinds by repeating the
+                        // annotation — `@[Literal( FuncType ), Literal( Lambda )]`
+                        // — which is how one stdlib type covers a family of
+                        // syntactic shapes that denote the same thing.
+                        const std::string_view NodeKind = Ast.Text( Kind->Name );
+
+                        // Two types claiming the same node kind would make the
+                        // type of `10` depend on stdlib file order. Refuse.
+                        if ( not Store.BindNodeKind( NodeKind, Id ) )
+                        {
+                            Report( Core::ESeverity::Error, Anno.Loc,
+                                    "node kind '" + std::string{ NodeKind } +
+                                        "' is already claimed by another type; only one type may wrap it" );
+                            continue;
+                        }
+
+                        // Extra arguments name the AST fields feeding each
+                        // generic parameter; an annotation that carries none
+                        // must not wipe what a sibling annotation set.
+                        if ( Anno.Args.Size() > 1 )
+                        {
+                            Store.SetLiteralSlots( Id, ReadLiteralSlots( Anno.Args ) );
+                        }
                     }
                 }
 
@@ -328,20 +361,6 @@ namespace Sema
                 if ( Layout.IsValid() )
                 {
                     Store.AttachLayout( Id, Layout );
-                }
-
-                if ( NodeKind.empty() )
-                {
-                    return;
-                }
-
-                // Two types claiming the same node kind would make the type of
-                // `10` depend on stdlib file order. Refuse instead.
-                if ( not Store.BindNodeKind( NodeKind, Id ) )
-                {
-                    Report( Core::ESeverity::Error, NodeKindLoc,
-                            "node kind '" + std::string{ NodeKind } +
-                                "' is already claimed by another type; only one type may wrap it" );
                 }
             }
         };
