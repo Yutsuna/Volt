@@ -56,7 +56,10 @@ list( SORT VOLT_CHECK_SOURCES )
 
 set( VOLT_CHECK_EXPECT_FAIL
   samples/Sema/AbstractConformance.vl
+  samples/Sema/FreeFunctionArityMismatch.vl
+  samples/Sema/FreeFunctionTypeMismatch.vl
   samples/Sema/RedeclareSameScope.vl
+  samples/Sema/UnknownFreeFunction.vl
   samples/Sema/UnknownMember.vl )
 
 foreach( SOURCE IN LISTS VOLT_CHECK_SOURCES )
