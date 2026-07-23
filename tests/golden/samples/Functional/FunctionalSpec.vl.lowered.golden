@@ -38,7 +38,7 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │              │  └─ Member 'map' @50:22
 │           │              │     └─ object
 │           │              │        └─ Identifier 'numbers' @50:15
-│           │              └─ args
+│           │              └─ block_arg
 │           │                 └─ Lambda @50:39
 │           │                    ├─ params
 │           │                    │  └─ Param 'fn_tmp_2' @50:39
