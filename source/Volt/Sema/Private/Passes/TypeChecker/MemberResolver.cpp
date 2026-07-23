@@ -76,6 +76,30 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
     return Out;
 }
 
+Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupFreeFunction ( TypeCheckerContext &Context,
+                                                                                          std::string_view Name )
+{
+    const Member *Found = Context.Ctx.Types.LookupFunction( Name );
+    if ( Found == nullptr )
+    {
+        return Resolution{};
+    }
+
+    Resolution Out{ .Decl       = Found,
+                    .Result     = SemaTypeId{},
+                    .Params     = {},
+                    .BlockParam = SemaTypeId{},
+                    .Bindings   = {},
+                    .Receiver   = SemaTypeId{} };
+    for ( std::uint32_t Slot = 0; Slot < Found->OwnGenerics; ++Slot )
+    {
+        Out.Bindings.PushBack( SemaTypeId{} );
+    }
+
+    Reinstantiate( Context, Out );
+    return Out;
+}
+
 void Volt::Sema::TypeCheckerPass::Reinstantiate ( TypeCheckerContext &Context, Resolution &Found )
 {
     if ( Found.Decl == nullptr or Found.Decl->bApply )
@@ -223,6 +247,52 @@ namespace
 
 } // namespace
 
+namespace
+{
+
+// Same nominal, same arity of generic arguments, but a slot the declaration
+// side left an open hole (invalid — an un-instantiated generic, or a written
+// argument that named no type at all) matches whatever the call site
+// actually supplies there, the same way an un-instantiated method generic
+// does. This is what lets `Pointer<Void>` — `Void` unresolved as of Point 6
+// of PLAN.md §VI — stand in for "any pointer" in the external `memcpy` /
+// `memcmp` signatures without the compiler ever comparing a type name.
+[[nodiscard]] bool ArgTypeMatches ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                    Volt::Sema::SemaTypeId ArgType,
+                                    Volt::Sema::SemaTypeId ParamType )
+{
+    if ( ArgType.Value == ParamType.Value )
+    {
+        return true;
+    }
+    if ( not Context.Ctx.Values.Has( ArgType ) or not Context.Ctx.Values.Has( ParamType ) )
+    {
+        return false;
+    }
+
+    const Volt::Sema::SemaType &ArgVal   = Context.Ctx.Values.Get( ArgType );
+    const Volt::Sema::SemaType &ParamVal = Context.Ctx.Values.Get( ParamType );
+    if ( ArgVal.Base != ParamVal.Base or ArgVal.Args.Size() != ParamVal.Args.Size() )
+    {
+        return false;
+    }
+
+    for ( std::size_t Index = 0; Index < ParamVal.Args.Size(); ++Index )
+    {
+        if ( not ParamVal.Args[Index].IsValid() )
+        {
+            continue;
+        }
+        if ( ParamVal.Args[Index].Value != ArgVal.Args[Index].Value )
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+} // namespace
+
 Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupApplyOn ( TypeCheckerContext &Context,
                                                                                      SemaTypeId Receiver )
 {
@@ -311,7 +381,7 @@ void Volt::Sema::TypeCheckerPass::CheckCallArgs ( TypeCheckerContext &Context,
             Context.ConstrainExprType( Args[Index], ParamType );
         }
         const SemaTypeId ArgType = InferExpr( Context, Args[Index] );
-        if ( ArgType.IsValid() and ParamType.IsValid() and ArgType.Value != ParamType.Value )
+        if ( ArgType.IsValid() and ParamType.IsValid() and not ArgTypeMatches( Context, ArgType, ParamType ) )
         {
             Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Args[Index] ) ),
                             "argument " + std::to_string( Index + 1 ) + " to " + Name + " has type " +
