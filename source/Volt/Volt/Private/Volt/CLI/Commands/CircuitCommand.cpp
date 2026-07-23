@@ -53,13 +53,13 @@ struct FManifest
     std::string Out;
     Out.reserve( Text.size() + 2 );
     Out += '"';
-    for ( const char Char : Text )
+    for ( const char Ch : Text )
     {
-        if ( Char == '\\' or Char == '"' )
+        if ( Ch == '\\' or Ch == '"' )
         {
             Out += '\\';
         }
-        Out += Char;
+        Out += Ch;
     }
     Out += '"';
     return Out;
