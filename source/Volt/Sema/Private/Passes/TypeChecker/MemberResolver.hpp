@@ -48,12 +48,22 @@ void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const
 
 void CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found );
 
+// Whether `Nominal` is an enum in the only sense the compiler ever needs to
+// know: it declares at least one case of its own. A plain `case x when 1, 2
+// end` over a non-enum value must never trip exhaustiveness, and a struct
+// with no cases must never be exempted from writing its own operators — so
+// this is the shared gate both the exhaustiveness check and the operator
+// exemption below rely on.
+[[nodiscard]] bool HasEnumCases ( const TypeStore &Store, NominalId Nominal );
+
 // True when `Name` is an operator the backend supplies directly on a type
-// whose layout is primitive or pointer. Volt declares those members as
-// abstract contracts (`mixin Arithmetic`) but never writes their bodies —
-// the spelling of the layout is what selects the machine instruction. The
-// unknown-member diagnostic and the abstract-conformance check must honour
-// the same exemption, or one contradicts the other.
+// whose layout is primitive or pointer, *or* the structural `===` an enum's
+// desugared `when Enum::Case` pattern (`CaseLowering`) compares its
+// discriminant with. Volt declares those members as abstract contracts
+// (`mixin Arithmetic`) but never writes their bodies — the spelling of the
+// layout (or, for an enum, the case set itself) is what selects the
+// comparison. The unknown-member diagnostic and the abstract-conformance
+// check must honour the same exemption, or one contradicts the other.
 [[nodiscard]] bool IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name );
 
 [[nodiscard]] SemaTypeId MemberType (
