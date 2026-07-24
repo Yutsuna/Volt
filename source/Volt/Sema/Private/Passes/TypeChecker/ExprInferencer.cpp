@@ -5,8 +5,15 @@
 #include "MemberResolver.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
+
+#include <algorithm>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <unordered_set>
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
@@ -61,6 +68,158 @@ namespace
     }
     const auto &Slots = Context.Ctx.Values.Get( BlockType ).Args;
     return not Slots.IsEmpty() and Slots[0].IsValid();
+}
+
+// The nominal `Type` resolves to, or an invalid handle when `Type` never
+// resolved (e.g. an unbound receiver) — Values.Get is only safe once Has()
+// is confirmed.
+[[nodiscard]] Volt::Sema::NominalId ScrutineeNominal ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                                       Volt::Sema::SemaTypeId Type )
+{
+    if ( not Type.IsValid() or not Context.Ctx.Values.Has( Type ) )
+    {
+        return {};
+    }
+    return Context.Ctx.Values.Get( Type ).Base;
+}
+
+// Whether `Nominal` is an enum in the only sense the compiler ever needs to
+// know: it declares at least one case of its own. A plain `case x when 1, 2
+// end` over a non-enum value must never trip exhaustiveness, so this is the
+// gate for the whole check.
+[[nodiscard]] bool HasEnumCases ( const Volt::Sema::TypeStore &Store, Volt::Sema::NominalId Nominal )
+{
+    if ( not Nominal.IsValid() )
+    {
+        return false;
+    }
+    const auto &Members = Store.Type( Nominal ).Members;
+    return std::ranges::any_of( Members, [] ( const Volt::Sema::Member &Entry )
+                                { return Entry.Kind == Volt::Sema::EMemberKind::EnumCase; } );
+}
+
+// The enum case name a desugared `when` pattern selects, if any.
+// `CaseLowering` (Order 22) turns `.Name` into `target.Name()` — a `Call`
+// over a `Member` — and any other pattern into `pattern === target` once
+// there is a target, so a written `TaskStatus::InProgress` (an explicit
+// receiver, never a `.Name` DotCall) surfaces as the `Call`/`Member` nested
+// inside that `Binary`. Recognizing both shapes here, recursively, is what
+// lets exhaustiveness see through either spelling without CaseLowering
+// having to know anything about enums itself.
+[[nodiscard]] std::optional<std::string_view> EnumCaseNameOf ( const Volt::Frontend::AstContext &Ast,
+                                                               Volt::Frontend::ExprId Pattern )
+{
+    if ( not Pattern.IsValid() )
+    {
+        return std::nullopt;
+    }
+
+    if ( const auto *Bin = std::get_if<Volt::Frontend::Binary>( &Ast.Expr( Pattern ) );
+         Bin != nullptr and Bin->Op == Volt::Frontend::TokenKind::TripleEq )
+    {
+        if ( const auto Name = EnumCaseNameOf( Ast, Bin->Lhs ) )
+        {
+            return Name;
+        }
+        return EnumCaseNameOf( Ast, Bin->Rhs );
+    }
+
+    const auto *CallNode = std::get_if<Volt::Frontend::Call>( &Ast.Expr( Pattern ) );
+    if ( CallNode == nullptr )
+    {
+        return std::nullopt;
+    }
+    const auto *MemberNode = std::get_if<Volt::Frontend::Member>( &Ast.Expr( CallNode->Callee ) );
+    if ( MemberNode == nullptr )
+    {
+        return std::nullopt;
+    }
+    return Ast.Text( MemberNode->Name );
+}
+
+// Types a `case` / `case target` expression and, when the scrutinee is an
+// enum, diagnoses a `when` that neither covers every case nor carries an
+// `else`. The expression's own value is the first clause (or the `else`)
+// whose trailing statement produced one — same policy `Ternary` already
+// uses for `Then`/`Else`.
+[[nodiscard]] Volt::Sema::SemaTypeId CaseType ( Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                                Volt::Frontend::ExprId Id,
+                                                const Volt::Frontend::CaseExpr &Expr )
+{
+    using namespace Volt::Sema::TypeCheckerPass;
+
+    const bool bHasTarget                      = Expr.Target.IsValid();
+    const Volt::Sema::SemaTypeId ScrutineeType = bHasTarget ? InferExpr( Context, Expr.Target ) : Context.SelfValue;
+    const Volt::Sema::NominalId Nominal        = ScrutineeNominal( Context, ScrutineeType );
+    const bool bIsEnum                         = HasEnumCases( Context.Ctx.Types, Nominal );
+
+    std::unordered_set<std::string_view> Covered;
+    Volt::Sema::SemaTypeId Result;
+
+    for ( const Volt::Frontend::StmtId ClauseId : Expr.Clauses )
+    {
+        if ( not ClauseId.IsValid() or
+             Volt::Frontend::KindOf( Context.Ctx.Ast.Stmt( ClauseId ) ) != Volt::Frontend::StmtKind::WhenClause )
+        {
+            continue;
+        }
+        const auto &Clause = std::get<Volt::Frontend::WhenClause>( Context.Ctx.Ast.Stmt( ClauseId ) );
+
+        for ( const Volt::Frontend::ExprId Pattern : Clause.Patterns )
+        {
+            static_cast<void>( InferExpr( Context, Pattern ) );
+            if ( not bIsEnum )
+            {
+                continue;
+            }
+            if ( const auto Name = EnumCaseNameOf( Context.Ctx.Ast, Pattern ) )
+            {
+                if ( const Volt::Sema::Member *CaseMember = Context.Ctx.Types.OwnMember( Nominal, *Name );
+                     CaseMember != nullptr and CaseMember->Kind == Volt::Sema::EMemberKind::EnumCase )
+                {
+                    Covered.insert( *Name );
+                }
+            }
+        }
+
+        const Volt::Sema::SemaTypeId ClauseType = TrailingType( Context, Clause.Body );
+        if ( not Result.IsValid() )
+        {
+            Result = ClauseType;
+        }
+    }
+
+    const Volt::Sema::SemaTypeId ElseType = TrailingType( Context, Expr.ElseBody );
+    if ( not Result.IsValid() )
+    {
+        Result = ElseType;
+    }
+
+    if ( bIsEnum and Expr.ElseBody.IsEmpty() )
+    {
+        std::string Missing;
+        for ( const Volt::Sema::Member &CaseMember : Context.Ctx.Types.Type( Nominal ).Members )
+        {
+            if ( CaseMember.Kind != Volt::Sema::EMemberKind::EnumCase )
+            {
+                continue;
+            }
+            const std::string_view Name = Context.Ctx.Types.Text( CaseMember.Name );
+            if ( Covered.contains( Name ) )
+            {
+                continue;
+            }
+            Missing += Missing.empty() ? "'" : ", '";
+            Missing += std::string{ Name } + "'";
+        }
+        if ( not Missing.empty() )
+        {
+            Context.Report( Volt::Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
+                            "non-exhaustive case: missing variant(s) " + Missing + " for type " + Context.NameOf( Nominal ) );
+        }
+    }
+
+    return Result;
 }
 
 } // namespace
@@ -226,6 +385,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 const Core::SmallVec<SemaTypeId, 2> ParamTypes = BindClosureParams( Context, Expr.Params );
                 return ClosureType( Context, "Block", TrailingType( Context, Expr.Body ), ParamTypes );
             },
+            [&] ( const Frontend::CaseExpr &Expr ) -> SemaTypeId { return CaseType( Context, Id, Expr ); },
             [&] ( const auto &Expr ) -> SemaTypeId { return LiteralType( Context, Id, Expr ); },
         },
         Node );
