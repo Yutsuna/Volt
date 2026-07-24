@@ -81,6 +81,16 @@ namespace Frontend
         StmtList Body;
     };
 
+    // `rescue [VarName] [: ExceptionType] Body...`
+    struct RescueClause
+    {
+        using Self = RescueClause;
+        Core::SourceRange Loc;
+        Symbol VarName;
+        TypeId ExceptionType;
+        StmtList Body;
+    };
+
     enum class StmtKind
     {
 
