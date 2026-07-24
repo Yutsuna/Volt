@@ -1,0 +1,28 @@
+@[Primitive( "u8", 8 ), Literal( CharLiteral )]
+struct Char
+  include Comparable
+  include Hashable
+
+  def <=>( other : Char ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    self
+  end
+
+  # One byte, not a decimal rendering: `"#{ 'A' }"` must read "A", not "65".
+  # Char therefore cannot `include Stringable` — its digits are not its value.
+  def to_string -> String
+    buf = Pointer<UInt8>.malloc( 2_u64 )
+    *( buf ) = self
+    *( buf + 1_u64 ) = 0_u8
+    String.new( buf, 1_u64 )
+  end
+end

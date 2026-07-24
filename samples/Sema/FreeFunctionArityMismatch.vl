@@ -1,0 +1,9 @@
+# A free function call goes through the same CheckCallArgs a method call
+# does, so a wrong argument count is rejected exactly the same way. This
+# sample is expected to be rejected: `add` takes two arguments, one is given.
+
+def add( a : Int32, b : Int32 ) -> Int32
+  a + b
+end
+
+add( 1 )

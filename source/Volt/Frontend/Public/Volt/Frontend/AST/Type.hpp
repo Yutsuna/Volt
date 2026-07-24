@@ -48,12 +48,18 @@ namespace Frontend
     };
 
     // `(A, B) -> R` / `-> R` — function type.
+    //
+    // Return precedes Params despite the surface syntax putting it last: the
+    // reflected field order *is* the generic-argument order of whichever
+    // stdlib type claims this node (`@[Literal( FuncType )]`), and a callable
+    // has exactly one result but any number of parameters — only a leading
+    // result sits at a fixed index a signature can name.
     struct FuncType
     {
 
         Core::SourceRange Loc;
-        TypeList Params;
         TypeId Return;
+        TypeList Params;
     };
 
     enum class TypeKind

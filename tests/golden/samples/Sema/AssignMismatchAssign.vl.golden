@@ -1,0 +1,43 @@
+Program 'samples/Sema/AssignMismatchAssign.vl'
+├─ Method 'bad_local_assign' @5:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @5:25
+│  └─ body
+│     ├─ LocalDecl 'n' @6:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @6:7
+│     │  └─ init
+│     │     └─ IntLiteral '1' @6:15
+│     └─ ExprStmt @7:3
+│        └─ expr
+│           └─ Assign '=' @7:5
+│              ├─ target
+│              │  └─ Identifier 'n' @7:3
+│              └─ value
+│                 └─ StringLiteral 'plain' @7:7
+└─ Struct 'Box' @10:1
+   └─ body
+      ├─ Field 'v' getter @11:3
+      │  └─ decl_type
+      │     └─ TypeRef 'Int32' @11:14
+      ├─ Method 'initialize' @13:3
+      │  └─ body
+      │     └─ ExprStmt @14:5
+      │        └─ expr
+      │           └─ Assign '=' @14:8
+      │              ├─ target
+      │              │  └─ InstanceVar '@v' @14:5
+      │              └─ value
+      │                 └─ IntLiteral '0' @14:10
+      └─ Method 'bad_ivar' @17:3
+         ├─ return_type
+         │  └─ TypeRef 'Void' @17:19
+         └─ body
+            └─ ExprStmt @18:5
+               └─ expr
+                  └─ Assign '=' @18:8
+                     ├─ target
+                     │  └─ InstanceVar '@v' @18:5
+                     └─ value
+                        └─ StringLiteral 'plain' @18:10
+--- exit 0 ---

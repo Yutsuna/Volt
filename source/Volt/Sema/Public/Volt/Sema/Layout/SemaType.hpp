@@ -110,6 +110,32 @@ namespace Sema
             return OfExpr[Expr.Value];
         }
 
+        /// An expression written inside a generic *definition* — the body of
+        /// `Array<T>`, of `Enumerable<T>`, of `map<U>`. A value of type `T`
+        /// there has no SemaTypeId, and cannot: `T` only becomes a type when
+        /// the definition is instantiated, which is monomorphisation, which is
+        /// backend work (rules/core-ast.md). Recorded rather than recomputed,
+        /// because TypeChecker is the only thing that knows where those bodies
+        /// begin and end; AstInvariant reads it to tell "deferred until
+        /// instantiation" apart from "the middle-end forgot".
+        void MarkDeferred ( Frontend::ExprId Expr )
+        {
+            if ( not Expr.IsValid() )
+            {
+                return;
+            }
+            if ( Expr.Value >= Deferred.size() )
+            {
+                Deferred.resize( static_cast<std::size_t>( Expr.Value ) + 1, false );
+            }
+            Deferred[Expr.Value] = true;
+        }
+
+        [[nodiscard]] bool IsDeferred ( Frontend::ExprId Expr ) const
+        {
+            return Expr.IsValid() and Expr.Value < Deferred.size() and Deferred[Expr.Value];
+        }
+
         void SetSiteType ( BindingSite Site, SemaTypeId Type )
         {
             SiteTypes[Site] = Type;
@@ -131,6 +157,7 @@ namespace Sema
         Core::Arena<SemaType, SemaTypeId> Types;
         std::map<std::vector<std::uint32_t>, SemaTypeId> Dedup;
         std::vector<SemaTypeId> OfExpr; // indexed by ExprId::Value
+        std::vector<bool> Deferred;     // indexed by ExprId::Value
         std::unordered_map<BindingSite, SemaTypeId, BindingSiteHash> SiteTypes;
     };
 

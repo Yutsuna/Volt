@@ -1,0 +1,50 @@
+# A bare `IntLiteral` is typed late, from whatever context consumes it
+# (Point 0 in PLAN.md). This sample extends the same late/lazy inference to
+# `FloatLiteral` and to naked collection literals (`ArrayLit`, `HashLit`):
+# neither has its own opinion about its element/key/value types, so the
+# target type of a typed local, a return, or a call argument must propagate
+# down through `ConstrainExprType` — same mechanism, same code path.
+
+def take_float( value : Float32 ) -> Float32
+  value
+end
+
+# A naked float literal defaults to Float64; the parameter type (Float32)
+# must retroactively narrow it, exactly like an Int32 default narrows to
+# UInt64 for an integer literal.
+def float_literal_inference -> Float32
+  take_float( 2.5 )
+end
+
+def sum_all( values : Array<UInt64> ) -> UInt64
+  total : UInt64 = 0
+  for value in values
+    total += value
+  end
+  total
+end
+
+def array_literal_inference -> UInt64
+
+  # The array literal itself carries no element type — each `IntLiteral`
+  # inside it must inherit `UInt64` from the declared local type.
+  fixed : Array<UInt64> = [ 1, 2, 3 ]
+
+  # Passed directly as a call argument: the parameter type constrains the
+  # literal array (and, through it, every element) at the call site.
+  via_call : UInt64 = sum_all( [ 4, 5, 6 ] )
+
+  fixed.size + via_call
+end
+
+def hash_literal_inference -> UInt64
+
+  # A hash literal propagates its declared value type into every naked
+  # `IntLiteral` value; the key is already a `String` literal.
+  counts : Hash<String, UInt64> = { "bytes" => 3, "extra" => 1 }
+  counts["extra"]
+end
+
+float_literal_inference()
+array_literal_inference()
+hash_literal_inference()

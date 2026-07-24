@@ -1,11 +1,11 @@
 #include "Volt/CLI/Commands/CircuitCommand.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
-#include "Volt/CLI/Version.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
+#include "Volt/Core/Support/Version.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
@@ -53,13 +53,13 @@ struct FManifest
     std::string Out;
     Out.reserve( Text.size() + 2 );
     Out += '"';
-    for ( const char Char : Text )
+    for ( const char Ch : Text )
     {
-        if ( Char == '\\' or Char == '"' )
+        if ( Ch == '\\' or Ch == '"' )
         {
             Out += '\\';
         }
-        Out += Char;
+        Out += Ch;
     }
     Out += '"';
     return Out;
@@ -268,7 +268,7 @@ struct FManifest
 
     FManifest Manifest;
     Manifest.Name       = Root.filename().string();
-    Manifest.Runtime    = std::string( Volt::CLI::VoltVersion );
+    Manifest.Runtime    = std::string( Volt::Core::VoltVersion );
     Manifest.Entrypoint = std::string( WellKnown::DefaultEntry );
     Manifest.Modules    = ScanModules( Root );
     return FormatManifest( Manifest );

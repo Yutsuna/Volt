@@ -15,16 +15,25 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │        └─ then
 │           └─ ExprStmt @6:5
 │              └─ expr
-│                 └─ Call @6:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @6:5
-│                    └─ args
-│                       └─ Interp @6:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @6:11
-│                             ├─ Identifier '__FILE__' @1:1
-│                             ├─ StringLiteral ':' @6:11
-│                             └─ Identifier '__LINE__' @1:1
+│                 └─ RaiseExpr @6:5
+│                    └─ exception
+│                       └─ Binary '+' @6:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @6:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @6:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @6:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/Loop/ForLoop.vl' @6:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @6:11
+│                          └─ rhs
+│                             └─ Call @6:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @6:11
+│                                      └─ object
+│                                         └─ IntLiteral '6' @6:43
 ├─ Method 'for_collection' @13:1
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @13:23
@@ -61,11 +70,15 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │     │              └─ body
 │     │                 └─ ExprStmt @17:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @17:11
+│     │                       └─ Assign '=' @17:11
 │     │                          ├─ target
 │     │                          │  └─ Identifier 'total' @17:5
 │     │                          └─ value
-│     │                             └─ Identifier 'item' @17:14
+│     │                             └─ Binary '+' @17:11
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'total' @17:5
+│     │                                └─ rhs
+│     │                                   └─ Identifier 'item' @17:14
 │     └─ ExprStmt @19:3
 │        └─ expr
 │           └─ Identifier 'total' @19:3
@@ -110,11 +123,15 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │     │              └─ body
 │     │                 └─ ExprStmt @29:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @29:11
+│     │                       └─ Assign '=' @29:11
 │     │                          ├─ target
 │     │                          │  └─ Identifier 'total' @29:5
 │     │                          └─ value
-│     │                             └─ Identifier 'value' @29:14
+│     │                             └─ Binary '+' @29:11
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'total' @29:5
+│     │                                └─ rhs
+│     │                                   └─ Identifier 'value' @29:14
 │     └─ ExprStmt @31:3
 │        └─ expr
 │           └─ Identifier 'total' @31:3
@@ -147,11 +164,15 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │     │              └─ body
 │     │                 └─ ExprStmt @40:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @40:11
+│     │                       └─ Assign '=' @40:11
 │     │                          ├─ target
 │     │                          │  └─ Identifier 'total' @40:5
 │     │                          └─ value
-│     │                             └─ Identifier 'i' @40:14
+│     │                             └─ Binary '+' @40:11
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'total' @40:5
+│     │                                └─ rhs
+│     │                                   └─ Identifier 'i' @40:14
 │     └─ ExprStmt @42:3
 │        └─ expr
 │           └─ Identifier 'total' @42:3
@@ -202,13 +223,35 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │                                ├─ callee
 │                                │  └─ Identifier 'puts' @55:5
 │                                └─ args
-│                                   └─ Interp @55:10
-│                                      └─ parts
-│                                         ├─ Identifier 'name' @1:1
-│                                         ├─ StringLiteral ' (' @55:10
-│                                         ├─ Identifier 'age' @1:1
-│                                         ├─ StringLiteral ') can be reached at ' @55:10
-│                                         └─ Identifier 'email' @1:1
+│                                   └─ Binary '+' @55:10
+│                                      ├─ lhs
+│                                      │  └─ Binary '+' @55:10
+│                                      │     ├─ lhs
+│                                      │     │  └─ Binary '+' @55:10
+│                                      │     │     ├─ lhs
+│                                      │     │     │  └─ Binary '+' @55:10
+│                                      │     │     │     ├─ lhs
+│                                      │     │     │     │  └─ Call @55:10
+│                                      │     │     │     │     └─ callee
+│                                      │     │     │     │        └─ Member 'to_string' @55:10
+│                                      │     │     │     │           └─ object
+│                                      │     │     │     │              └─ Identifier 'name' @55:13
+│                                      │     │     │     └─ rhs
+│                                      │     │     │        └─ StringLiteral ' (' @55:10
+│                                      │     │     └─ rhs
+│                                      │     │        └─ Call @55:10
+│                                      │     │           └─ callee
+│                                      │     │              └─ Member 'to_string' @55:10
+│                                      │     │                 └─ object
+│                                      │     │                    └─ Identifier 'age' @55:22
+│                                      │     └─ rhs
+│                                      │        └─ StringLiteral ') can be reached at ' @55:10
+│                                      └─ rhs
+│                                         └─ Call @55:10
+│                                            └─ callee
+│                                               └─ Member 'to_string' @55:10
+│                                                  └─ object
+│                                                     └─ Identifier 'email' @55:48
 ├─ ExprStmt @59:1
 │  └─ expr
 │     └─ Call @59:8

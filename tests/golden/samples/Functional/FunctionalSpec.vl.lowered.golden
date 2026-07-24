@@ -1,13 +1,23 @@
 Program 'samples/Functional/FunctionalSpec.vl'
-├─ MacroDef 'assert!' '-> Void
-  if not condition
-    raise "Assertion failed"
-  end
-' @1:1
-│  └─ params
-│     └─ Param 'condition'
-│        └─ decl_type
-│           └─ TypeRef 'Bool' @1:32
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ StringLiteral 'Assertion failed' @3:11
 ├─ Module 'PointFreeDemo' @43:1
 │  └─ body
 │     └─ Method 'run' self @45:3
@@ -38,22 +48,22 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │              │  └─ Member 'map' @50:22
 │           │              │     └─ object
 │           │              │        └─ Identifier 'numbers' @50:15
-│           │              └─ args
+│           │              └─ block_arg
 │           │                 └─ Lambda @50:39
 │           │                    ├─ params
-│           │                    │  └─ Param 'fn_tmp_2' @50:39
+│           │                    │  └─ Param 'fn_tmp_11' @50:39
 │           │                    └─ body
 │           │                       └─ Call @50:39
 │           │                          ├─ callee
 │           │                          │  └─ Lambda @50:44
 │           │                          │     ├─ params
-│           │                          │     │  └─ Param 'fn_tmp_1' @50:44
+│           │                          │     │  └─ Param 'fn_tmp_10' @50:44
 │           │                          │     └─ body
 │           │                          │        └─ Call @50:44
 │           │                          │           ├─ callee
 │           │                          │           │  └─ Member '*' @50:44
 │           │                          │           │     └─ object
-│           │                          │           │        └─ Identifier 'fn_tmp_1' @50:44
+│           │                          │           │        └─ Identifier 'fn_tmp_10' @50:44
 │           │                          │           └─ args
 │           │                          │              └─ IntLiteral '2' @50:48
 │           │                          └─ args
@@ -61,17 +71,17 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │                                ├─ callee
 │           │                                │  └─ Lambda @50:30
 │           │                                │     ├─ params
-│           │                                │     │  └─ Param 'fn_tmp_0' @50:30
+│           │                                │     │  └─ Param 'fn_tmp_9' @50:30
 │           │                                │     └─ body
 │           │                                │        └─ Call @50:30
 │           │                                │           ├─ callee
 │           │                                │           │  └─ Member '+' @50:30
 │           │                                │           │     └─ object
-│           │                                │           │        └─ Identifier 'fn_tmp_0' @50:30
+│           │                                │           │        └─ Identifier 'fn_tmp_9' @50:30
 │           │                                │           └─ args
 │           │                                │              └─ IntLiteral '10' @50:34
 │           │                                └─ args
-│           │                                   └─ Identifier 'fn_tmp_2' @50:39
+│           │                                   └─ Identifier 'fn_tmp_11' @50:39
 │           ├─ ExprStmt @52:5
 │           │  └─ expr
 │           │     └─ Call @52:12
@@ -80,9 +90,11 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        └─ args
 │           │           └─ Binary '==' @52:25
 │           │              ├─ lhs
-│           │              │  └─ Index @52:21
-│           │              │     ├─ object
-│           │              │     │  └─ Identifier 'results' @52:14
+│           │              │  └─ Call @52:21
+│           │              │     ├─ callee
+│           │              │     │  └─ Member '[]' @52:21
+│           │              │     │     └─ object
+│           │              │     │        └─ Identifier 'results' @52:14
 │           │              │     └─ args
 │           │              │        └─ IntLiteral '0' @52:22
 │           │              └─ rhs
@@ -95,9 +107,11 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        └─ args
 │           │           └─ Binary '==' @53:25
 │           │              ├─ lhs
-│           │              │  └─ Index @53:21
-│           │              │     ├─ object
-│           │              │     │  └─ Identifier 'results' @53:14
+│           │              │  └─ Call @53:21
+│           │              │     ├─ callee
+│           │              │     │  └─ Member '[]' @53:21
+│           │              │     │     └─ object
+│           │              │     │        └─ Identifier 'results' @53:14
 │           │              │     └─ args
 │           │              │        └─ IntLiteral '1' @53:22
 │           │              └─ rhs
@@ -110,9 +124,11 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        └─ args
 │           │           └─ Binary '==' @54:25
 │           │              ├─ lhs
-│           │              │  └─ Index @54:21
-│           │              │     ├─ object
-│           │              │     │  └─ Identifier 'results' @54:14
+│           │              │  └─ Call @54:21
+│           │              │     ├─ callee
+│           │              │     │  └─ Member '[]' @54:21
+│           │              │     │     └─ object
+│           │              │     │        └─ Identifier 'results' @54:14
 │           │              │     └─ args
 │           │              │        └─ IntLiteral '2' @54:22
 │           │              └─ rhs
@@ -125,19 +141,19 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        └─ value
 │           │           └─ Lambda @60:26
 │           │              ├─ params
-│           │              │  └─ Param 'fn_tmp_5' @60:26
+│           │              │  └─ Param 'fn_tmp_14' @60:26
 │           │              └─ body
 │           │                 └─ Call @60:26
 │           │                    ├─ callee
 │           │                    │  └─ Lambda @60:30
 │           │                    │     ├─ params
-│           │                    │     │  └─ Param 'fn_tmp_4' @60:30
+│           │                    │     │  └─ Param 'fn_tmp_13' @60:30
 │           │                    │     └─ body
 │           │                    │        └─ Call @60:30
 │           │                    │           ├─ callee
 │           │                    │           │  └─ Member 'prefix' @60:30
 │           │                    │           │     └─ object
-│           │                    │           │        └─ Identifier 'fn_tmp_4' @60:30
+│           │                    │           │        └─ Identifier 'fn_tmp_13' @60:30
 │           │                    │           └─ args
 │           │                    │              └─ StringLiteral 'usr_' @60:39
 │           │                    └─ args
@@ -145,15 +161,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │                          ├─ callee
 │           │                          │  └─ Lambda @60:18
 │           │                          │     ├─ params
-│           │                          │     │  └─ Param 'fn_tmp_3' @60:18
+│           │                          │     │  └─ Param 'fn_tmp_12' @60:18
 │           │                          │     └─ body
 │           │                          │        └─ Call @60:18
 │           │                          │           └─ callee
 │           │                          │              └─ Member 'trim' @60:18
 │           │                          │                 └─ object
-│           │                          │                    └─ Identifier 'fn_tmp_3' @60:18
+│           │                          │                    └─ Identifier 'fn_tmp_12' @60:18
 │           │                          └─ args
-│           │                             └─ Identifier 'fn_tmp_5' @60:26
+│           │                             └─ Identifier 'fn_tmp_14' @60:26
 │           ├─ ExprStmt @62:5
 │           │  └─ expr
 │           │     └─ Assign '=' @62:15
@@ -171,27 +187,29 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        ├─ target
 │           │        │  └─ Identifier 'clean_users' @65:5
 │           │        └─ value
-│           │           └─ Identifier 'raw_users' @65:19
-│           ├─ ExprStmt @66:7
-│           │  └─ expr
-│           │     └─ DotCall 'filter' @66:7
-│           │        └─ args
-│           │           └─ Lambda @66:17
-│           │              ├─ params
-│           │              │  └─ Param 'fn_tmp_6' @66:17
-│           │              └─ body
-│           │                 └─ Unary '!' @66:17
-│           │                    └─ operand
-│           │                       └─ Call @66:17
-│           │                          └─ callee
-│           │                             └─ Member 'empty?' @66:17
-│           │                                └─ object
-│           │                                   └─ Identifier 'fn_tmp_6' @66:17
-│           ├─ ExprStmt @67:7
-│           │  └─ expr
-│           │     └─ DotCall 'map' @67:7
-│           │        └─ args
-│           │           └─ Identifier 'transform' @67:13
+│           │           └─ Call @67:11
+│           │              ├─ callee
+│           │              │  └─ Member 'map' @67:7
+│           │              │     └─ object
+│           │              │        └─ Call @66:14
+│           │              │           ├─ callee
+│           │              │           │  └─ Member 'filter' @66:7
+│           │              │           │     └─ object
+│           │              │           │        └─ Identifier 'raw_users' @65:19
+│           │              │           └─ block_arg
+│           │              │              └─ Lambda @66:17
+│           │              │                 ├─ params
+│           │              │                 │  └─ Param 'fn_tmp_15' @66:17
+│           │              │                 └─ body
+│           │              │                    └─ Unary '!' @66:17
+│           │              │                       └─ operand
+│           │              │                          └─ Call @66:17
+│           │              │                             └─ callee
+│           │              │                                └─ Member 'empty?' @66:17
+│           │              │                                   └─ object
+│           │              │                                      └─ Identifier 'fn_tmp_15' @66:17
+│           │              └─ args
+│           │                 └─ Identifier 'transform' @67:13
 │           ├─ ExprStmt @69:5
 │           │  └─ expr
 │           │     └─ Call @69:12
@@ -200,9 +218,11 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        └─ args
 │           │           └─ Binary '==' @69:29
 │           │              ├─ lhs
-│           │              │  └─ Index @69:25
-│           │              │     ├─ object
-│           │              │     │  └─ Identifier 'clean_users' @69:14
+│           │              │  └─ Call @69:25
+│           │              │     ├─ callee
+│           │              │     │  └─ Member '[]' @69:25
+│           │              │     │     └─ object
+│           │              │     │        └─ Identifier 'clean_users' @69:14
 │           │              │     └─ args
 │           │              │        └─ IntLiteral '0' @69:26
 │           │              └─ rhs
@@ -215,9 +235,11 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │                    └─ args
 │                       └─ Binary '==' @70:29
 │                          ├─ lhs
-│                          │  └─ Index @70:25
-│                          │     ├─ object
-│                          │     │  └─ Identifier 'clean_users' @70:14
+│                          │  └─ Call @70:25
+│                          │     ├─ callee
+│                          │     │  └─ Member '[]' @70:25
+│                          │     │     └─ object
+│                          │     │        └─ Identifier 'clean_users' @70:14
 │                          │     └─ args
 │                          │        └─ IntLiteral '1' @70:26
 │                          └─ rhs
@@ -247,13 +269,13 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ value
 │           └─ Lambda @10:14
 │              ├─ params
-│              │  └─ Param 'fn_tmp_7' @10:14
+│              │  └─ Param 'fn_tmp_0' @10:14
 │              └─ body
 │                 └─ Call @10:14
 │                    ├─ callee
 │                    │  └─ Member '+' @10:14
 │                    │     └─ object
-│                    │        └─ Identifier 'fn_tmp_7' @10:14
+│                    │        └─ Identifier 'fn_tmp_0' @10:14
 │                    └─ args
 │                       └─ IntLiteral '5' @10:18
 ├─ ExprStmt @13:1
@@ -277,15 +299,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @14:1
 │        └─ args
-│           └─ Call @14:12
-│              ├─ callee
-│              │  └─ Binary '==' @14:22
-│              │     ├─ lhs
+│           └─ Binary '==' @14:22
+│              ├─ lhs
+│              │  └─ Call @14:12
+│              │     ├─ callee
 │              │     │  └─ Identifier 'double' @14:15
-│              │     └─ rhs
-│              │        └─ IntLiteral '8' @14:25
-│              └─ args
-│                 └─ IntLiteral '4' @14:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @14:10
+│              └─ rhs
+│                 └─ IntLiteral '8' @14:25
 ├─ ExprStmt @16:1
 │  └─ expr
 │     └─ Call @16:8
@@ -307,15 +329,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @17:1
 │        └─ args
-│           └─ Call @17:13
-│              ├─ callee
-│              │  └─ Binary '==' @17:25
-│              │     ├─ lhs
+│           └─ Binary '==' @17:25
+│              ├─ lhs
+│              │  └─ Call @17:13
+│              │     ├─ callee
 │              │     │  └─ Identifier 'add_five' @17:16
-│              │     └─ rhs
-│              │        └─ IntLiteral '15' @17:28
-│              └─ args
-│                 └─ IntLiteral '10' @17:10
+│              │     └─ args
+│              │        └─ IntLiteral '10' @17:10
+│              └─ rhs
+│                 └─ IntLiteral '15' @17:28
 ├─ ExprStmt @21:1
 │  └─ expr
 │     └─ Assign '=' @21:14
@@ -345,19 +367,19 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ value
 │           └─ Lambda @24:29
 │              ├─ params
-│              │  └─ Param 'fn_tmp_10' @24:29
+│              │  └─ Param 'fn_tmp_3' @24:29
 │              └─ body
 │                 └─ Call @24:29
 │                    ├─ callee
 │                    │  └─ Lambda @24:34
 │                    │     ├─ params
-│                    │     │  └─ Param 'fn_tmp_9' @24:34
+│                    │     │  └─ Param 'fn_tmp_2' @24:34
 │                    │     └─ body
 │                    │        └─ Call @24:34
 │                    │           ├─ callee
 │                    │           │  └─ Member '*' @24:34
 │                    │           │     └─ object
-│                    │           │        └─ Identifier 'fn_tmp_9' @24:34
+│                    │           │        └─ Identifier 'fn_tmp_2' @24:34
 │                    │           └─ args
 │                    │              └─ IntLiteral '2' @24:38
 │                    └─ args
@@ -365,17 +387,17 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │                          ├─ callee
 │                          │  └─ Lambda @24:20
 │                          │     ├─ params
-│                          │     │  └─ Param 'fn_tmp_8' @24:20
+│                          │     │  └─ Param 'fn_tmp_1' @24:20
 │                          │     └─ body
 │                          │        └─ Call @24:20
 │                          │           ├─ callee
 │                          │           │  └─ Member '+' @24:20
 │                          │           │     └─ object
-│                          │           │        └─ Identifier 'fn_tmp_8' @24:20
+│                          │           │        └─ Identifier 'fn_tmp_1' @24:20
 │                          │           └─ args
 │                          │              └─ IntLiteral '10' @24:24
 │                          └─ args
-│                             └─ Identifier 'fn_tmp_10' @24:29
+│                             └─ Identifier 'fn_tmp_3' @24:29
 ├─ ExprStmt @26:1
 │  └─ expr
 │     └─ Call @26:8
@@ -412,15 +434,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @28:1
 │        └─ args
-│           └─ Call @28:12
-│              ├─ callee
-│              │  └─ Binary '==' @28:30
-│              │     ├─ lhs
+│           └─ Binary '==' @28:30
+│              ├─ lhs
+│              │  └─ Call @28:12
+│              │     ├─ callee
 │              │     │  └─ Identifier 'calc_pointfree' @28:15
-│              │     └─ rhs
-│              │        └─ IntLiteral '24' @28:33
-│              └─ args
-│                 └─ IntLiteral '2' @28:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @28:10
+│              └─ rhs
+│                 └─ IntLiteral '24' @28:33
 ├─ ExprStmt @32:1
 │  └─ expr
 │     └─ Assign '=' @32:15
@@ -452,19 +474,19 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ value
 │           └─ Lambda @37:16
 │              ├─ params
-│              │  └─ Param 'fn_tmp_15' @37:16
+│              │  └─ Param 'fn_tmp_8' @37:16
 │              └─ body
 │                 └─ Call @37:16
 │                    ├─ callee
 │                    │  └─ Lambda @37:20
 │                    │     ├─ params
-│                    │     │  └─ Param 'fn_tmp_14' @37:20
+│                    │     │  └─ Param 'fn_tmp_7' @37:20
 │                    │     └─ body
 │                    │        └─ Call @37:20
 │                    │           ├─ callee
 │                    │           │  └─ Member 'prefix' @37:20
 │                    │           │     └─ object
-│                    │           │        └─ Identifier 'fn_tmp_14' @37:20
+│                    │           │        └─ Identifier 'fn_tmp_7' @37:20
 │                    │           └─ args
 │                    │              └─ StringLiteral '[user]: ' @37:29
 │                    └─ args
@@ -472,35 +494,35 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │                          ├─ callee
 │                          │  └─ Lambda @36:16
 │                          │     ├─ params
-│                          │     │  └─ Param 'fn_tmp_13' @36:16
+│                          │     │  └─ Param 'fn_tmp_6' @36:16
 │                          │     └─ body
 │                          │        └─ Call @36:16
 │                          │           ├─ callee
 │                          │           │  └─ Lambda @36:20
 │                          │           │     ├─ params
-│                          │           │     │  └─ Param 'fn_tmp_12' @36:20
+│                          │           │     │  └─ Param 'fn_tmp_5' @36:20
 │                          │           │     └─ body
 │                          │           │        └─ Call @36:20
 │                          │           │           └─ callee
 │                          │           │              └─ Member 'downcase' @36:20
 │                          │           │                 └─ object
-│                          │           │                    └─ Identifier 'fn_tmp_12' @36:20
+│                          │           │                    └─ Identifier 'fn_tmp_5' @36:20
 │                          │           └─ args
 │                          │              └─ Call @36:16
 │                          │                 ├─ callee
 │                          │                 │  └─ Lambda @35:20
 │                          │                 │     ├─ params
-│                          │                 │     │  └─ Param 'fn_tmp_11' @35:20
+│                          │                 │     │  └─ Param 'fn_tmp_4' @35:20
 │                          │                 │     └─ body
 │                          │                 │        └─ Call @35:20
 │                          │                 │           └─ callee
 │                          │                 │              └─ Member 'trim' @35:20
 │                          │                 │                 └─ object
-│                          │                 │                    └─ Identifier 'fn_tmp_11' @35:20
+│                          │                 │                    └─ Identifier 'fn_tmp_4' @35:20
 │                          │                 └─ args
-│                          │                    └─ Identifier 'fn_tmp_13' @36:16
+│                          │                    └─ Identifier 'fn_tmp_6' @36:16
 │                          └─ args
-│                             └─ Identifier 'fn_tmp_15' @37:16
+│                             └─ Identifier 'fn_tmp_8' @37:16
 ├─ ExprStmt @39:1
 │  └─ expr
 │     └─ Call @39:8
@@ -522,15 +544,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @40:1
 │        └─ args
-│           └─ Call @40:19
-│              ├─ callee
-│              │  └─ Binary '==' @40:38
-│              │     ├─ lhs
+│           └─ Binary '==' @40:38
+│              ├─ lhs
+│              │  └─ Call @40:19
+│              │     ├─ callee
 │              │     │  └─ Identifier 'clean_pointfree' @40:22
-│              │     └─ rhs
-│              │        └─ StringLiteral '[user]: bob' @40:41
-│              └─ args
-│                 └─ StringLiteral '  BOB ' @40:10
+│              │     └─ args
+│              │        └─ StringLiteral '  BOB ' @40:10
+│              └─ rhs
+│                 └─ StringLiteral '[user]: bob' @40:41
 └─ ExprStmt @75:1
    └─ expr
       └─ Member 'run' @75:14

@@ -10,6 +10,15 @@ Sa philosophie fondamentale est la **génération déclarative par Pattern Match
 
 Le Backend se contente de parcourir les nœuds AST/HIR déjà annotés et d'émettre le code cible correspondant selon la cible choisie.
 
+> **Contrat d'entrée : [`rules/core-ast.md`](rules/core-ast.md).** Le backend
+> reçoit exactement **27 nœuds noyau** (les 9 sucre ont disparu, vérifié par
+> `AstInvariant`), chacun typé — d'emblée en code concret, après substitution
+> dans un corps générique. `CalleeResolution` (méthode vs instruction machine
+> sur `Primitive{ Spelling, Bits }`) et `ClosureEnvFrame` (`bEscapes`, taille,
+> alignement) sont déjà calculés. Ce fichier dit aussi ce qui est **refusé
+> bruyamment** (`T?`, `Array#to_string`, runtime JSX) plutôt que laissé au
+> backend, et où sont les trous stdlib restants.
+
 ---
 
 ## Les 3 Cibles Backend de Volt

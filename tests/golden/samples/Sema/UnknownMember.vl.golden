@@ -1,0 +1,26 @@
+Program 'samples/Sema/UnknownMember.vl'
+├─ Module 'Greeter' @1:1
+│  └─ body
+│     └─ Method 'greet' self @2:3
+│        ├─ params
+│        │  └─ Param 'name'
+│        │     └─ decl_type
+│        │        └─ TypeRef 'String' @2:26
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @2:38
+│        └─ body
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ Member 'invalid_method' @3:9
+│                    └─ object
+│                       └─ Identifier 'name' @3:5
+└─ ExprStmt @7:1
+   └─ expr
+      └─ Call @7:14
+         ├─ callee
+         │  └─ Member 'greet' @7:8
+         │     └─ object
+         │        └─ Identifier 'Greeter' @7:1
+         └─ args
+            └─ StringLiteral 'World' @7:16
+--- exit 0 ---

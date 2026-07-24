@@ -15,16 +15,14 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │        └─ then
 │           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ Call @3:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @3:5
-│                    └─ args
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
 │                       └─ Interp @3:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
+│                             ├─ Identifier '__FILE__' @3:31
 │                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                             └─ Identifier '__LINE__' @3:43
 ├─ Struct 'RenderBounds' @7:1
 │  └─ body
 │     ├─ Field 'width' @8:3
@@ -98,9 +96,9 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │              └─ expr
 │                 └─ Interp @42:5
 │                    └─ parts
-│                       ├─ Identifier 'log_prefix' @1:1
+│                       ├─ Identifier 'log_prefix' @42:8
 │                       ├─ StringLiteral ' Component:' @42:5
-│                       └─ InstanceVar '@id' @1:1
+│                       └─ InstanceVar '@id' @42:32
 ├─ Class 'Button' @46:1
 │  ├─ super
 │  │  └─ TypeRef 'Component' @46:16
@@ -129,13 +127,13 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │                 └─ Interp @53:5
 │                    └─ parts
 │                       ├─ StringLiteral '<button id=\"' @53:5
-│                       ├─ InstanceVar '@id' @1:1
+│                       ├─ InstanceVar '@id' @53:21
 │                       ├─ StringLiteral '\" area=\"' @53:5
-│                       ├─ Member 'area' @1:7
+│                       ├─ Member 'area' @53:43
 │                       │  └─ object
-│                       │     └─ Identifier 'bounds' @1:1
+│                       │     └─ Identifier 'bounds' @53:37
 │                       ├─ StringLiteral '\">' @53:5
-│                       ├─ InstanceVar '@label' @1:1
+│                       ├─ InstanceVar '@label' @53:54
 │                       └─ StringLiteral '</button>' @53:5
 ├─ ExprStmt @57:1
 │  └─ expr

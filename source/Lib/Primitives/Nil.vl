@@ -1,0 +1,17 @@
+# The type of `nil`, and the only value it has.
+#
+# Laid out as a pointer-width scalar because that is what `nil` compiles to:
+# `Exception#capture_backtrace` writes `if symbols != nil` against a
+# `Pointer<Pointer<UInt8>>`, and the comparison is a plain pointer compare.
+# `IsAssignable` (Sema/.../TypeCompat.cpp) knows Nil only through the node kind
+# it claims here — never by name — and lets it into any slot laid out the same
+# way, which is every `Pointer<T>`.
+#
+# `T?` (NilableType) is a different question entirely and is **not**
+# implemented: it needs a sum-type model Volt does not have. It is refused with
+# an explicit diagnostic rather than accepted without semantics.
+
+@[Primitive( "ptr", 64 ), Literal( NilLiteral )]
+struct Nil
+  include Comparable
+end

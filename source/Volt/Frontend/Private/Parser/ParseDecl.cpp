@@ -48,6 +48,7 @@ namespace
     case Volt::Frontend::TokenKind::Star:
     case Volt::Frontend::TokenKind::Slash:
     case Volt::Frontend::TokenKind::Percent:
+    case Volt::Frontend::TokenKind::TripleEq:
     case Volt::Frontend::TokenKind::EqEq:
     case Volt::Frontend::TokenKind::NotEq:
     case Volt::Frontend::TokenKind::Lt:
@@ -56,6 +57,17 @@ namespace
     case Volt::Frontend::TokenKind::Ge:
     case Volt::Frontend::TokenKind::Shl:
     case Volt::Frontend::TokenKind::Shr:
+    case Volt::Frontend::TokenKind::Amp:
+    case Volt::Frontend::TokenKind::Pipe:
+    case Volt::Frontend::TokenKind::Caret:
+    case Volt::Frontend::TokenKind::Tilde:
+    // The three word-spelled operators. Sema's IsOperatorName already accepts
+    // them (it takes anything not starting with a letter or '_', plus these
+    // three by name), so leaving them out here meant `a and b` could never be
+    // given a type: no declaration could exist to carry the signature.
+    case Volt::Frontend::TokenKind::KwAnd:
+    case Volt::Frontend::TokenKind::KwOr:
+    case Volt::Frontend::TokenKind::KwNot:
         return true;
     default:
         return false;
@@ -399,6 +411,11 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, boo
         ReportHere( "expected a method name" );
     }
 
+    // After the name, so an operator method is safe: `def <( other )` has
+    // already consumed its `<` as the name by the time we look for one
+    // opening a parameter list.
+    Node.Generics = ParseGenericParams();
+
     if ( Accept( TokenKind::LParen ) )
     {
         ParseParameterList( Node.Params );
@@ -415,8 +432,26 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, boo
     if ( not bAbstract and not bExternal )
     {
         SkipTerminators();
-        ParseStatementBlock( Node.Body );
-        Expect( TokenKind::KwEnd, "to close method" );
+        StmtList MainBody;
+        ParseStatementBlock( MainBody );
+
+        if ( Check( TokenKind::KwRescue ) or Check( TokenKind::KwEnsure ) )
+        {
+            const std::uint32_t BeginBody = Here();
+            BeginExpr BeginNode;
+            BeginNode.Body = MainBody;
+            ParseRescueEnsure( BeginNode );
+            Expect( TokenKind::KwEnd, "to close method" );
+            const ExprId BeginExprId = MakeExpr( BeginNode, RangeSince( BeginBody ) );
+            ExprStmt StmtNode;
+            StmtNode.Expr = BeginExprId;
+            Node.Body.PushBack( MakeStmt( StmtNode, RangeSince( BeginBody ) ) );
+        }
+        else
+        {
+            Node.Body = MainBody;
+            Expect( TokenKind::KwEnd, "to close method" );
+        }
     }
 
     return MakeDecl( Node, RangeSince( Begin ) );

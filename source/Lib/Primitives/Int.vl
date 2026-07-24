@@ -2,6 +2,8 @@
 struct Int8
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : Int8 ) -> Int32
     if self < other
@@ -16,10 +18,6 @@ struct Int8
   def hash -> UInt64
     self
   end
-
-  def abs -> Int8
-    self >= 0 ? self : -self
-  end
 end
 
 
@@ -27,6 +25,8 @@ end
 struct Int16
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : Int16 ) -> Int32
     if self < other
@@ -41,10 +41,6 @@ struct Int16
   def hash -> UInt64
     self
   end
-
-  def abs -> Int16
-    self >= 0 ? self : -self
-  end
 end
 
 
@@ -52,6 +48,8 @@ end
 struct Int32
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : Int32 ) -> Int32
     if self < other
@@ -69,46 +67,6 @@ struct Int32
     h ^= ( h >> 7 )
     h ^ ( h << 17 )
   end
-
-  def divisible_by?( divisor : Int32 ) -> Bool
-    divisor != 0 and self % divisor == 0
-  end
-
-  def even? -> Bool
-    divisible_by?( 2 )
-  end
-
-  def odd? -> Bool
-    not even?
-  end
-
-  def abs -> Int32
-    self >= 0 ? self : -self
-  end
-
-  def min( other : Int32 ) -> Int32
-    self < other ? self : other
-  end
-
-  def max( other : Int32 ) -> Int32
-    self > other ? self : other
-  end
-
-  def successor -> Int32
-    self + 1
-  end
-
-  def predecessor -> Int32
-    self - 1
-  end
-
-  def times( &block : Int32 -> Void ) -> Void
-    i = 0
-    while i < self
-      block.call( i )
-      i += 1
-    end
-  end
 end
 
 
@@ -116,6 +74,8 @@ end
 struct Int64
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : Int64 ) -> Int32
     if self < other
@@ -134,7 +94,4 @@ struct Int64
     h ^ ( h << 17 )
   end
 
-  def abs -> Int64
-    self >= 0 ? self : -self
-  end
 end

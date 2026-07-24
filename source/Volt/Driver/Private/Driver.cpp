@@ -96,15 +96,21 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
                                .Scopes  = Unit.Scopes,
                                .Diags   = Bag,
                                .Stats   = Unit.Stats,
-                               .Globals = &Registry };
+                               .Globals = &Registry,
+                               .Sources = &Sources };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{
-        .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Scopes = Unit.Scopes, .Diags = Bag, .Stats = Unit.Stats };
+    Sema::PassContext Context{ .Ast     = Unit.Ast,
+                               .Types   = Types,
+                               .Values  = Unit.Types,
+                               .Scopes  = Unit.Scopes,
+                               .Diags   = Bag,
+                               .Stats   = Unit.Stats,
+                               .Sources = &Sources };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
@@ -200,8 +206,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
     Result.Errors = Diagnostics.ErrorTotal();
     for ( const CompileUnit &Unit : Units )
     {
-        Result.JsxLowered += Unit.Stats.JsxLowered;
-        Result.PipelinesLowered += Unit.Stats.PipelinesLowered;
+        Result.Stats.Merge( Unit.Stats );
     }
     return Result;
 }
@@ -395,6 +400,11 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
             }
         }
     }
+
+    // Same seam as CompileFiles: without the stdlib nothing claims IntLiteral,
+    // so every literal in a circuit typed as nothing and the whole tree came
+    // out untyped. A circuit is not a different language.
+    LoadStdLib( Refs );
 
     CompileResult Result = CompileRefs( Refs );
     BuildLinkGraph( CircuitName );
