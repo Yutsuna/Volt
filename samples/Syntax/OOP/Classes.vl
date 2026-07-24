@@ -12,7 +12,7 @@ class UserAccount
   def initialize( @name : String, @email : String, @role : String = "user" )
   end
 
-  def admin?
+  def admin? -> Bool
     @role == "admin"
   end
 end
