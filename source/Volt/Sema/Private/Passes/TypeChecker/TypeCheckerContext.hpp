@@ -67,6 +67,12 @@ struct TypeCheckerContext
     std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
     SemaTypeId CurrentMethodReturnType{};
 
+    // The innermost `rescue`s a bare `raise` is currently nested in, pushed
+    // while typing each clause's body and popped after. An anonymous clause
+    // (no bound name) still pushes an invalid Symbol, so a nested anonymous
+    // rescue does not inherit an outer clause's bound variable.
+    std::vector<Symbol> RescueVarStack{};
+
     // The resolution behind a `receiver.name` expression that turned
     // out to be a method, keyed by that Member expression's own Id —
     // filled when it is inferred, read back by the wrapping Call so
@@ -95,6 +101,29 @@ struct TypeCheckerContext
     [[nodiscard]] std::string NameOf ( NominalId Id ) const;
 
     [[nodiscard]] std::string NameOfValue ( SemaTypeId Id ) const;
+
+    [[nodiscard]] static constexpr SemaTypeId NoReturnType ()
+    {
+        return SemaTypeId{ 0xFFFFFFFEu };
+    }
+
+    [[nodiscard]] bool IsNoReturn ( SemaTypeId Id ) const
+    {
+        return Id == NoReturnType();
+    }
+
+    [[nodiscard]] SemaTypeId UnifyBranchTypes ( SemaTypeId A, SemaTypeId B ) const
+    {
+        if ( IsNoReturn( A ) )
+            return B;
+        if ( IsNoReturn( B ) )
+            return A;
+        if ( not A.IsValid() )
+            return B;
+        if ( not B.IsValid() )
+            return A;
+        return A;
+    }
 
     [[nodiscard]] SemaTypeId MakeType ( NominalId Base, Core::SmallVec<SemaTypeId, 2> Args );
 };
