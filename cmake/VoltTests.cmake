@@ -90,6 +90,14 @@ add_test(
   COMMAND ${CMAKE_COMMAND} -P ${VOLT_ROOT}/tests/ZeroHardcode.cmake
 )
 
+# The two AST contracts of rules/core-ast.md, replayed over the whole tree:
+# no residual sugar anywhere, and total typing over source/Lib.
+add_test(
+  NAME    AstInvariant
+  COMMAND ${CMAKE_COMMAND} -DVOLT_BIN=$<TARGET_FILE:Volt>
+          -P ${VOLT_ROOT}/tests/AstInvariant.cmake
+)
+
 add_custom_target( golden-update
   COMMAND ${CMAKE_COMMAND} -DVOLT_BIN=$<TARGET_FILE:Volt> -DUPDATE=1
           -P ${VOLT_ROOT}/tests/GoldenTest.cmake
