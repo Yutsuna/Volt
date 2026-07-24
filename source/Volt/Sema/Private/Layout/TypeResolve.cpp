@@ -138,6 +138,32 @@ namespace Sema
         return InstantiatedMember{};
     }
 
+    bool IsSubclassOf ( const TypeStore &Store, NominalId Child, NominalId Parent )
+    {
+        if ( not Child.IsValid() or not Parent.IsValid() )
+        {
+            return false;
+        }
+        NominalId Current   = Child;
+        std::uint32_t Depth = 0;
+        while ( Current.IsValid() and Depth < 100 )
+        {
+            if ( Current == Parent )
+            {
+                return true;
+            }
+            const NominalType &Type = Store.Type( Current );
+            if ( not Type.Super.IsValid() )
+            {
+                break;
+            }
+            const SigType &SuperSig = Store.Sig( Type.Super );
+            Current                 = SuperSig.Base;
+            Depth++;
+        }
+        return false;
+    }
+
 } // namespace Sema
 
 } // namespace Volt
