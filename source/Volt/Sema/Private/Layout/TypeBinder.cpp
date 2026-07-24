@@ -158,6 +158,27 @@ namespace Sema
             }
         }
 
+        // Record every module name, nested ones included. Names only — a
+        // module has no members of its own: ForEachTypeDecl already hoisted
+        // its types and ForEachFreeFunction its methods. See
+        // TypeStore::DeclareModule for why the name alone is worth keeping.
+        template <typename DeclContainer>
+        void DeclareModules ( const Frontend::AstContext &Ast, const DeclContainer &Decls, TypeStore &Store )
+        {
+            for ( const Frontend::DeclId Id : Decls )
+            {
+                if ( not Id.IsValid() )
+                {
+                    continue;
+                }
+                if ( const auto *Nested = std::get_if<Frontend::Module>( &Ast.Decl( Id ) ) )
+                {
+                    Store.DeclareModule( Ast.Text( Nested->Name ) );
+                    DeclareModules( Ast, Nested->Body, Store );
+                }
+            }
+        }
+
         // The bit width of `@[Primitive( "i32", 32 )]`'s second argument.
         // Absent or malformed means "width unknown" (0), which is legal: a
         // pointer-shaped primitive may leave it to the target layout.
@@ -672,6 +693,7 @@ namespace Sema
                          { Bind.BindType( Decl, Pending ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,
                              [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Bind.BindFunction( Id, Entry ); } );
+        DeclareModules( Ast, Ast.TopDecls, Store );
         return Bind.Bound;
     }
 
