@@ -38,11 +38,11 @@ class Exception
 
     if frames_count > 0
       symbols = libc_backtrace_symbols( buffer, frames_count )
-      if symbols != null
+      if symbols != nil
         i = 0
         while i < frames_count
           raw_sym = *( symbols + i )
-          if raw_sym != null
+          if raw_sym != nil
             sym_len = c_string_length( raw_sym )
             frames.push( String.new( raw_sym, sym_len ) )
           end
