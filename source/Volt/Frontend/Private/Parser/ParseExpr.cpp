@@ -47,6 +47,7 @@ bool Volt::Frontend::Parser::CanStartCommandArgument () const
     case TokenKind::KwFalse:
     case TokenKind::KwNil:
     case TokenKind::KwSelf:
+    case TokenKind::KwSuper:
         return true;
     default:
         return false;
@@ -252,6 +253,36 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
     return ParsePrimary();
 }
 
+void Volt::Frontend::Parser::ParseRescueEnsure ( BeginExpr &Node )
+{
+    while ( Accept( TokenKind::KwRescue ) )
+    {
+        const std::uint32_t RescueBegin = Here();
+        RescueClause RescueNode;
+        if ( Check( TokenKind::Identifier ) )
+        {
+            RescueNode.VarName = InternText( Advance() );
+            if ( Accept( TokenKind::Colon ) )
+            {
+                RescueNode.ExceptionType = ParseType();
+            }
+        }
+        else if ( Accept( TokenKind::Colon ) )
+        {
+            RescueNode.ExceptionType = ParseType();
+        }
+        SkipTerminators();
+        ParseStatementBlock( RescueNode.Body );
+        Node.RescueClauses.PushBack( MakeStmt( RescueNode, RangeSince( RescueBegin ) ) );
+    }
+
+    if ( Accept( TokenKind::KwEnsure ) )
+    {
+        SkipTerminators();
+        ParseStatementBlock( Node.EnsureBody );
+    }
+}
+
 Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
 {
     const std::uint32_t Begin = Here();
@@ -312,6 +343,54 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
         Advance();
         SizeOf Node;
         Node.Type = ParseType();
+        return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
+    case TokenKind::KwSuper:
+    {
+        Advance();
+        const ExprId SuperNode = MakeExpr( SuperExpr{}, RangeSince( Begin ) );
+        if ( Check( TokenKind::LParen ) )
+        {
+            Call Node;
+            Node.Callee = SuperNode;
+            Expect( TokenKind::LParen, "to open super arguments" );
+            ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
+            Expect( TokenKind::RParen, "to close super arguments" );
+            return ParsePostfix( MakeExpr( Node, RangeSince( Begin ) ) );
+        }
+        return ParsePostfix( SuperNode );
+    }
+
+    case TokenKind::KwRaise:
+    {
+        Advance();
+        ExprId Arg{};
+        if ( CanStartCommandArgument() or
+             not( Check( TokenKind::Newline ) or Check( TokenKind::Semicolon ) or Check( TokenKind::Eof ) or
+                  Check( TokenKind::KwEnd ) or Check( TokenKind::KwRescue ) or Check( TokenKind::KwEnsure ) or
+                  Check( TokenKind::KwElse ) or Check( TokenKind::KwElsif ) or Check( TokenKind::RParen ) or
+                  Check( TokenKind::RBracket ) or Check( TokenKind::RBrace ) ) )
+        {
+            // A string/interp argument is sugar for `Exception.new(msg)`, but
+            // the parser has no TypeStore to resolve the exception root
+            // type's name — Sema's RaiseExpr handler performs that desugar
+            // once the root is known (see @[ExceptionRoot]).
+            Arg = ParseExpr( 0 );
+        }
+        RaiseExpr Node;
+        Node.Exception = Arg;
+        return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
+    case TokenKind::KwBegin:
+    {
+        Advance();
+        SkipTerminators();
+        BeginExpr Node;
+        ParseStatementBlock( Node.Body );
+        ParseRescueEnsure( Node );
+        Expect( TokenKind::KwEnd, "to close begin block" );
         return MakeExpr( Node, RangeSince( Begin ) );
     }
 

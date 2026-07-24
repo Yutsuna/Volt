@@ -173,6 +173,11 @@ namespace Frontend
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
         [[nodiscard]] ExprId ParseDoBlock ();
         [[nodiscard]] ExprId ParseCaseExpr ();
+        // Shared `while rescue ... end` + optional `ensure ... end` tail,
+        // used by both the `begin` expression and a method's implicit
+        // rescue. The caller has already filled `Node.Body`; this fills
+        // `Node.RescueClauses` and `Node.EnsureBody` in place.
+        void ParseRescueEnsure ( BeginExpr &Node );
         [[nodiscard]] ExprId ParseDotCall ();
         // Attach a trailing block to the call it follows: mutates `Lhs` in
         // place if it is already a bare `Call` with no block yet (`each do`),
@@ -194,6 +199,7 @@ namespace Frontend
         [[nodiscard]] StmtId ParseIf ();
         [[nodiscard]] StmtId ParseElsif ();
         [[nodiscard]] StmtId ParseWhile ();
+        [[nodiscard]] StmtId ParseUntil ();
         [[nodiscard]] StmtId ParseFor ();
         [[nodiscard]] StmtId ParseReturn ();
         [[nodiscard]] StmtId ParseBreak ();
