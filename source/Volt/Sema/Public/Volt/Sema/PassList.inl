@@ -25,6 +25,10 @@ VOLT_PASS( ScopeResolver, 10, Analysis )
 VOLT_PASS( EnumLowering, 12, Lowering )
 
 VOLT_PASS( MacroExpansion, 15, Lowering )
+// After MacroExpansion on purpose: macro-generated text gets its constants
+// inlined too, and the re-parsed nodes carry the invocation's SourceRange, so
+// `__LINE__` in a macro body reports the caller's line.
+VOLT_PASS( MagicExpansion, 16, Lowering )
 VOLT_PASS( JsxLowering, 20, Lowering )
 VOLT_PASS( CaseLowering, 22, Lowering )
 VOLT_PASS( TypeChecker, 30, Analysis )
