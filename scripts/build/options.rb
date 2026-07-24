@@ -11,7 +11,10 @@ module Volt::Build
       'ubsan'   => 'VOLT_ENABLE_UBSAN',
       'tsan'    => 'VOLT_ENABLE_TSAN',
       'testing' => 'VOLT_ENABLE_TESTING',
-      'unity'   => 'VOLT_UNITY_BUILD'
+      'unity'   => 'VOLT_UNITY_BUILD',
+      # BackendLLVM is opt-in: a default dev build never pays LLVM's configure
+      # and link cost, and the module gates itself with an early return().
+      'llvm'    => 'VOLT_ENABLE_LLVM'
     }.freeze
     SANITIZERS    = %w[VOLT_ENABLE_ASAN VOLT_ENABLE_TSAN VOLT_ENABLE_UBSAN].freeze
 
@@ -97,6 +100,7 @@ module Volt::Build
           tsan          Enable ThreadSanitizer (VOLT_ENABLE_TSAN=ON).
           testing       Enable Testing (VOLT_ENABLE_TESTING=ON).
           unity         Enable Unity Build (VOLT_UNITY_BUILD=ON).
+          llvm          Build the native AOT backend (VOLT_ENABLE_LLVM=ON).
 
         \x1b[1mExecution:\x1b[0m
           run           Run the built binary after a successful build.
