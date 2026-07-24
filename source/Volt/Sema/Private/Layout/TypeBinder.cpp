@@ -415,6 +415,17 @@ namespace Sema
                             Store.SetLiteralSlots( Id, ReadLiteralSlots( Anno.Args ) );
                         }
                     }
+                    else if ( AnnoName == "ExceptionRoot" )
+                    {
+                        // The one stdlib type `raise`/`rescue` reason about
+                        // without the C++ side ever spelling out "Exception".
+                        if ( not Store.SetExceptionRoot( Id ) )
+                        {
+                            Report( Core::ESeverity::Error, Anno.Loc,
+                                    "@[ExceptionRoot] is already claimed by another type; only one type may be the "
+                                    "exception root" );
+                        }
+                    }
                 }
 
                 // Without @[Primitive] the layout is structural, and only
@@ -446,8 +457,44 @@ namespace Sema
 
             const Frontend::AstContext &Ast;
             TypeStore &Store;
+            Core::DiagEngine::Bag &Diags;
             std::uint32_t Unit   = 0;
             std::size_t Resolved = 0;
+
+            void Report ( Core::ESeverity Severity, Core::SourceRange Loc, const std::string &Message )
+            {
+                Diags.Report( Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
+            }
+
+            // A defaulted parameter followed by a non-defaulted one would
+            // make positional argument matching silently wrong — the caller
+            // can never supply the later required slot without also
+            // supplying the earlier optional one. `&block` never occupies a
+            // positional slot, so it neither counts as defaulted nor breaks
+            // the run of defaults before it.
+            void CheckTrailingDefaults ( const Frontend::ParamList &Params )
+            {
+                bool bSeenDefault = false;
+                for ( const Frontend::ParamId ParamRef : Params )
+                {
+                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                    if ( ParamNode.bIsBlock )
+                    {
+                        continue;
+                    }
+                    if ( ParamNode.Default.IsValid() )
+                    {
+                        bSeenDefault = true;
+                        continue;
+                    }
+                    if ( bSeenDefault )
+                    {
+                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                                "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                    "' has no default value but follows a parameter that does" );
+                    }
+                }
+            }
 
             // A written parent link (`< Y<T>`, `include Enumerable<T>`) kept
             // whole. Its arguments live in the *including* type's parameter
@@ -462,19 +509,12 @@ namespace Sema
 
             void Resolve ( const TypeDecl &Decl )
             {
-                const auto Found = Store.LookupType( Decl.Name );
+                const auto Found = Store.LookupTypeByDecl( Unit, Decl.Id );
                 if ( not Found )
                 {
                     return;
                 }
                 const NominalId Id = *Found;
-
-                // Only the unit that declared the type resolves it: a name
-                // re-declared elsewhere belongs to whoever won phase A.
-                if ( Store.Type( Id ).Unit != Unit or Store.Type( Id ).Decl != Decl.Id )
-                {
-                    return;
-                }
 
                 // The AST's own symbols: ResolveTypeExpr matches a written
                 // name against these, and the store's interner is a different
@@ -529,15 +569,22 @@ namespace Sema
                                 }
                                 const std::span<const Symbol> Scope{ Space.begin(), Space.Size() };
 
+                                CheckTrailingDefaults( Entry.Params );
+
                                 SigSink Sink{ Store };
                                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
                                 Core::SmallVec<SigTypeId, 4> Params;
                                 Core::SmallVec<bool, 4> ParamIsBlock;
+                                std::uint32_t MinParams = 0;
                                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                                 {
                                     const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
                                     Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
                                     ParamIsBlock.PushBack( ParamNode.bIsBlock );
+                                    if ( not ParamNode.bIsBlock and not ParamNode.Default.IsValid() )
+                                    {
+                                        ++MinParams;
+                                    }
                                 }
                                 if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
                                 {
@@ -545,6 +592,7 @@ namespace Sema
                                     Slot->Params       = std::move( Params );
                                     Slot->ParamIsBlock = std::move( ParamIsBlock );
                                     Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
+                                    Slot->MinParams    = MinParams;
                                     ++Resolved;
                                 }
                             },
@@ -586,22 +634,30 @@ namespace Sema
                     return;
                 }
 
+                CheckTrailingDefaults( Entry.Params );
+
                 const std::span<const Symbol> Scope{ Entry.Generics.begin(), Entry.Generics.Size() };
 
                 SigSink Sink{ Store };
                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
                 Core::SmallVec<SigTypeId, 4> Params;
                 Core::SmallVec<bool, 4> ParamIsBlock;
+                std::uint32_t MinParams = 0;
                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                 {
                     const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
                     Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
                     ParamIsBlock.PushBack( ParamNode.bIsBlock );
+                    if ( not ParamNode.bIsBlock and not ParamNode.Default.IsValid() )
+                    {
+                        ++MinParams;
+                    }
                 }
                 Slot->Result       = Result;
                 Slot->Params       = std::move( Params );
                 Slot->ParamIsBlock = std::move( ParamIsBlock );
                 Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
+                Slot->MinParams    = MinParams;
                 ++Resolved;
             }
         };
@@ -622,8 +678,7 @@ namespace Sema
     std::size_t
     ResolveUnitSignatures ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags )
     {
-        static_cast<void>( Diags );
-        SignatureResolver Step{ .Ast = Ast, .Store = Store, .Unit = Unit };
+        SignatureResolver Step{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls,
                          [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> & ) { Step.Resolve( Decl ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,
