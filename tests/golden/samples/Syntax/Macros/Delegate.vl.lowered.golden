@@ -1,20 +1,4 @@
 Program 'samples/Syntax/Macros/Delegate.vl'
-├─ MacroDef 'delegate' '{% for method in methods %}
-    def {{ method }}
-      {{ to_field }}.{{ method }}
-    end
-  {% end %}
-
-' @7:1
-│  └─ params
-│     ├─ Param 'methods'
-│     │  └─ decl_type
-│     │     └─ TypeRef 'Array' @7:31
-│     │        └─ generics
-│     │           └─ TypeRef 'Symbol' @7:37
-│     └─ Param 'to_field'
-│        └─ decl_type
-│           └─ TypeRef 'Symbol' @7:57
 ├─ Class 'User' @19:1
 │  └─ body
 │     ├─ Field 'name' @20:3

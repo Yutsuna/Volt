@@ -48,6 +48,8 @@ Program 'samples/Syntax/OOP/Classes.vl'
 │     │        └─ default
 │     │           └─ StringLiteral 'user' @12:69
 │     └─ Method 'admin?' @15:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @15:17
 │        └─ body
 │           └─ ExprStmt @16:5
 │              └─ expr

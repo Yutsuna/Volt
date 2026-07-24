@@ -17,12 +17,23 @@ Program 'samples/Syntax/OOP/Modules.vl'
 │              └─ expr
 │                 └─ RaiseExpr @3:5
 │                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ StringLiteral 'samples/Syntax/OOP/Modules.vl' @3:31
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ IntLiteral '3' @3:43
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/OOP/Modules.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
 ├─ Module 'MathUtils' @7:1
 │  └─ body
 │     ├─ Method 'square' self @8:3

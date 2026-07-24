@@ -22,11 +22,15 @@ Program 'samples/Syntax/ControlFlow/UntilLoop.vl'
       │  └─ body
       │     └─ ExprStmt @4:5
       │        └─ expr
-      │           └─ Assign '+=' @4:7
+      │           └─ Assign '=' @4:7
       │              ├─ target
       │              │  └─ Identifier 'i' @4:5
       │              └─ value
-      │                 └─ IntLiteral '1' @4:10
+      │                 └─ Binary '+' @4:7
+      │                    ├─ lhs
+      │                    │  └─ Identifier 'i' @4:5
+      │                    └─ rhs
+      │                       └─ IntLiteral '1' @4:10
       └─ While @8:10
          ├─ cond
          │  └─ Unary 'not' @8:10
@@ -39,9 +43,13 @@ Program 'samples/Syntax/ControlFlow/UntilLoop.vl'
          └─ body
             └─ ExprStmt @8:3
                └─ expr
-                  └─ Assign '+=' @8:5
+                  └─ Assign '=' @8:5
                      ├─ target
                      │  └─ Identifier 'i' @8:3
                      └─ value
-                        └─ IntLiteral '1' @8:8
+                        └─ Binary '+' @8:5
+                           ├─ lhs
+                           │  └─ Identifier 'i' @8:3
+                           └─ rhs
+                              └─ IntLiteral '1' @8:8
 --- exit 0 ---

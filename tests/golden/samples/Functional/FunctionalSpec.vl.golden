@@ -133,17 +133,19 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │           │        ├─ target
 │           │        │  └─ Identifier 'clean_users' @65:5
 │           │        └─ value
-│           │           └─ Identifier 'raw_users' @65:19
-│           ├─ ExprStmt @66:7
-│           │  └─ expr
-│           │     └─ DotCall 'filter' @66:7
-│           │        └─ args
-│           │           └─ Section instance_method 'empty?' negated @66:17
-│           ├─ ExprStmt @67:7
-│           │  └─ expr
-│           │     └─ DotCall 'map' @67:7
-│           │        └─ args
-│           │           └─ Identifier 'transform' @67:13
+│           │           └─ Call @67:11
+│           │              ├─ callee
+│           │              │  └─ Member 'map' @67:7
+│           │              │     └─ object
+│           │              │        └─ Call @66:14
+│           │              │           ├─ callee
+│           │              │           │  └─ Member 'filter' @66:7
+│           │              │           │     └─ object
+│           │              │           │        └─ Identifier 'raw_users' @65:19
+│           │              │           └─ block_arg
+│           │              │              └─ Section instance_method 'empty?' negated @66:17
+│           │              └─ args
+│           │                 └─ Identifier 'transform' @67:13
 │           ├─ ExprStmt @69:5
 │           │  └─ expr
 │           │     └─ Call @69:12

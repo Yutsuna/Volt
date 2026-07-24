@@ -1,37 +1,4 @@
 Program 'samples/Syntax/Macros/Serializable.vl'
-├─ MacroDef 'serializable' 'def to_string -> String
-    "User(" +
-      {% for field, index in fields %}
-        "{{ field }}: #{@{{ field }}.to_string}" + {% if index < fields.size - 1 %} ", " + {% end %}
-      {% end %}
-    ")"
-  end
-
-  def to_json -> String
-    "{" +
-      {% for field, index in fields %}
-        "\"{{ field }}\": " + @{{ field }}.to_json + {% if index < fields.size - 1 %} ", " + {% end %}
-      {% end %}
-    "}"
-  end
-
-  def self.from_string( str : String ) -> self
-    # parse the string as a key value pair and create a new instance of the class
-    # then create & return a new instance of the class
-  end
-
-  def self.from_json( json : String ) -> self
-    # parse the json as a key value pair and create a new instance of the class
-    # then create & return a new instance of the class
-  end
-
-' @6:1
-│  └─ params
-│     └─ Param 'fields'
-│        └─ decl_type
-│           └─ TypeRef 'Array' @6:34
-│              └─ generics
-│                 └─ TypeRef 'Symbol' @6:40
 └─ Class 'User' @38:1
    └─ body
       ├─ Field 'name' @39:3
@@ -74,30 +41,45 @@ Program 'samples/Syntax/Macros/Serializable.vl'
       │              │     │     │     │     │     ├─ lhs
       │              │     │     │     │     │     │  └─ StringLiteral 'User(' @46:3
       │              │     │     │     │     │     └─ rhs
-      │              │     │     │     │     │        └─ Interp @46:3
-      │              │     │     │     │     │           └─ parts
-      │              │     │     │     │     │              ├─ StringLiteral 'name: ' @46:3
-      │              │     │     │     │     │              └─ Member 'to_string' @46:3
-      │              │     │     │     │     │                 └─ object
-      │              │     │     │     │     │                    └─ InstanceVar '@name' @46:3
+      │              │     │     │     │     │        └─ Binary '+' @46:3
+      │              │     │     │     │     │           ├─ lhs
+      │              │     │     │     │     │           │  └─ StringLiteral 'name: ' @46:3
+      │              │     │     │     │     │           └─ rhs
+      │              │     │     │     │     │              └─ Call @46:3
+      │              │     │     │     │     │                 └─ callee
+      │              │     │     │     │     │                    └─ Member 'to_string' @46:3
+      │              │     │     │     │     │                       └─ object
+      │              │     │     │     │     │                          └─ Member 'to_string' @46:3
+      │              │     │     │     │     │                             └─ object
+      │              │     │     │     │     │                                └─ InstanceVar '@name' @46:3
       │              │     │     │     │     └─ rhs
       │              │     │     │     │        └─ StringLiteral ', ' @46:3
       │              │     │     │     └─ rhs
-      │              │     │     │        └─ Interp @46:3
-      │              │     │     │           └─ parts
-      │              │     │     │              ├─ StringLiteral 'email: ' @46:3
-      │              │     │     │              └─ Member 'to_string' @46:3
-      │              │     │     │                 └─ object
-      │              │     │     │                    └─ InstanceVar '@email' @46:3
+      │              │     │     │        └─ Binary '+' @46:3
+      │              │     │     │           ├─ lhs
+      │              │     │     │           │  └─ StringLiteral 'email: ' @46:3
+      │              │     │     │           └─ rhs
+      │              │     │     │              └─ Call @46:3
+      │              │     │     │                 └─ callee
+      │              │     │     │                    └─ Member 'to_string' @46:3
+      │              │     │     │                       └─ object
+      │              │     │     │                          └─ Member 'to_string' @46:3
+      │              │     │     │                             └─ object
+      │              │     │     │                                └─ InstanceVar '@email' @46:3
       │              │     │     └─ rhs
       │              │     │        └─ StringLiteral ', ' @46:3
       │              │     └─ rhs
-      │              │        └─ Interp @46:3
-      │              │           └─ parts
-      │              │              ├─ StringLiteral 'age: ' @46:3
-      │              │              └─ Member 'to_string' @46:3
-      │              │                 └─ object
-      │              │                    └─ InstanceVar '@age' @46:3
+      │              │        └─ Binary '+' @46:3
+      │              │           ├─ lhs
+      │              │           │  └─ StringLiteral 'age: ' @46:3
+      │              │           └─ rhs
+      │              │              └─ Call @46:3
+      │              │                 └─ callee
+      │              │                    └─ Member 'to_string' @46:3
+      │              │                       └─ object
+      │              │                          └─ Member 'to_string' @46:3
+      │              │                             └─ object
+      │              │                                └─ InstanceVar '@age' @46:3
       │              └─ rhs
       │                 └─ StringLiteral ')' @46:3
       ├─ Method 'to_json' @46:3

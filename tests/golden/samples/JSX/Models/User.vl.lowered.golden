@@ -24,6 +24,8 @@ Program 'samples/JSX/Models/User.vl'
       │        └─ default
       │           └─ BoolLiteral false @7:68
       ├─ Method 'admin?' @10:3
+      │  ├─ return_type
+      │  │  └─ TypeRef 'Bool' @10:17
       │  └─ body
       │     └─ ExprStmt @11:5
       │        └─ expr
@@ -32,10 +34,25 @@ Program 'samples/JSX/Models/User.vl'
          └─ body
             └─ ExprStmt @15:5
                └─ expr
-                  └─ Interp @15:5
-                     └─ parts
-                        ├─ InstanceVar '@name' @15:8
-                        ├─ StringLiteral ' <' @15:5
-                        ├─ InstanceVar '@email' @15:18
+                  └─ Binary '+' @15:5
+                     ├─ lhs
+                     │  └─ Binary '+' @15:5
+                     │     ├─ lhs
+                     │     │  └─ Binary '+' @15:5
+                     │     │     ├─ lhs
+                     │     │     │  └─ Call @15:5
+                     │     │     │     └─ callee
+                     │     │     │        └─ Member 'to_string' @15:5
+                     │     │     │           └─ object
+                     │     │     │              └─ InstanceVar '@name' @15:8
+                     │     │     └─ rhs
+                     │     │        └─ StringLiteral ' <' @15:5
+                     │     └─ rhs
+                     │        └─ Call @15:5
+                     │           └─ callee
+                     │              └─ Member 'to_string' @15:5
+                     │                 └─ object
+                     │                    └─ InstanceVar '@email' @15:18
+                     └─ rhs
                         └─ StringLiteral '>' @15:5
 --- exit 0 ---

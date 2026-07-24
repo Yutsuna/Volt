@@ -60,9 +60,15 @@ Program 'samples/Sema/CallableArgs.vl'
 │     │        ├─ args
 │     │        │  └─ IntLiteral '5' @15:38
 │     │        └─ block_arg
-│     │           └─ Section static_capture @15:41
-│     │              └─ target_expr
-│     │                 └─ Identifier 'add_one' @15:42
+│     │           └─ Lambda @15:41
+│     │              ├─ params
+│     │              │  └─ Param 'fn_tmp_0' @15:41
+│     │              └─ body
+│     │                 └─ Call @15:41
+│     │                    ├─ callee
+│     │                    │  └─ Identifier 'add_one' @15:42
+│     │                    └─ args
+│     │                       └─ Identifier 'fn_tmp_0' @15:41
 │     ├─ LocalDecl 'via_call' @20:3
 │     │  ├─ decl_type
 │     │  │  └─ TypeRef 'Int32' @20:14
