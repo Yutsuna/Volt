@@ -64,4 +64,62 @@ struct String
   def to_string -> String
     self
   end
+
+  def trim -> String
+    start = 0_u64
+    while start < @size
+      b = *( @data + start )
+      break unless b == 32_u8 or b == 9_u8 or b == 10_u8 or b == 13_u8
+      start += 1
+    end
+
+    finish = @size
+    while finish > start
+      b = *( @data + ( finish - 1_u64 ) )
+      break unless b == 32_u8 or b == 9_u8 or b == 10_u8 or b == 13_u8
+      finish -= 1
+    end
+
+    len = finish - start
+    buf = Pointer<UInt8>.malloc( len + 1_u64 )
+    memcpy( buf, @data + start, len )
+    *( buf + len ) = 0_u8
+    String.new( buf, len )
+  end
+
+  def downcase -> String
+    buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+    i = 0_u64
+    while i < @size
+      b = *( @data + i )
+      if b >= 65_u8 and b <= 90_u8
+        *( buf + i ) = b + 32_u8
+      else
+        *( buf + i ) = b
+      end
+      i += 1
+    end
+    *( buf + @size ) = 0_u8
+    String.new( buf, @size )
+  end
+
+  def upcase -> String
+    buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+    i = 0_u64
+    while i < @size
+      b = *( @data + i )
+      if b >= 97_u8 and b <= 122_u8
+        *( buf + i ) = b - 32_u8
+      else
+        *( buf + i ) = b
+      end
+      i += 1
+    end
+    *( buf + @size ) = 0_u8
+    String.new( buf, @size )
+  end
+
+  def prefix( pre : String ) -> String
+    pre + self
+  end
 end
