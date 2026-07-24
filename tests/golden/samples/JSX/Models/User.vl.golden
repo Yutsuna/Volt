@@ -24,6 +24,8 @@ Program 'samples/JSX/Models/User.vl'
       │        └─ default
       │           └─ BoolLiteral false @7:68
       ├─ Method 'admin?' @10:3
+      │  ├─ return_type
+      │  │  └─ TypeRef 'Bool' @10:17
       │  └─ body
       │     └─ ExprStmt @11:5
       │        └─ expr

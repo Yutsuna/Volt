@@ -1,0 +1,28 @@
+Program 'samples/Sema/InterpNoToString.vl'
+└─ Method 'stringify_array' @14:1
+   ├─ return_type
+   │  └─ TypeRef 'String' @14:24
+   └─ body
+      ├─ ExprStmt @15:3
+      │  └─ expr
+      │     └─ Assign '=' @15:11
+      │        ├─ target
+      │        │  └─ Identifier 'numbers' @15:3
+      │        └─ value
+      │           └─ ArrayLit @15:13
+      │              └─ elements
+      │                 ├─ IntLiteral '1' @15:15
+      │                 ├─ IntLiteral '2' @15:18
+      │                 └─ IntLiteral '3' @15:21
+      └─ ExprStmt @16:3
+         └─ expr
+            └─ Binary '+' @16:3
+               ├─ lhs
+               │  └─ StringLiteral 'values = ' @16:3
+               └─ rhs
+                  └─ Call @16:3
+                     └─ callee
+                        └─ Member 'to_string' @16:3
+                           └─ object
+                              └─ Identifier 'numbers' @16:16
+--- exit 0 ---
