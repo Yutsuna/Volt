@@ -14,21 +14,9 @@
 #include <string_view>
 #include <unordered_set>
 
-Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
-{
-    if ( not Id.IsValid() or ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] ) )
-    {
-        return SemaTypeId{};
-    }
-    if ( const SemaTypeId Known = Context.Ctx.Values.ExprType( Id ); Known.IsValid() )
-    {
-        return Known;
-    }
-
-    const SemaTypeId Type = ComputeExpr( Context, Id );
-    Context.Ctx.Values.SetExprType( Id, Type );
-    return Type;
-}
+/**
+ * Private
+ */
 
 namespace
 {
@@ -236,9 +224,9 @@ namespace
     const std::string_view RootName      = Context.Ctx.Types.Text( Context.Ctx.Types.Type( *Root ).Name );
     const Volt::Frontend::Symbol NameSym = Context.Ctx.Ast.Strings().Intern( RootName );
     const Volt::Frontend::ExprId ClassRef =
-        Context.Ctx.Ast.Add( Volt::Frontend::ExprNode{ Volt::Frontend::Identifier{ {}, NameSym } } );
-    const Volt::Frontend::ExprId NewMember = Context.Ctx.Ast.Add(
-        Volt::Frontend::ExprNode{ Volt::Frontend::Member{ {}, ClassRef, Context.Ctx.Ast.Strings().Intern( "new" ) } } );
+        Context.Ctx.Ast.Add( Volt::Frontend::ExprNode{ Volt::Frontend::Identifier{ .Loc = {}, .Name = NameSym } } );
+    const Volt::Frontend::ExprId NewMember = Context.Ctx.Ast.Add( Volt::Frontend::ExprNode{
+        Volt::Frontend::Member{ .Loc = {}, .Object = ClassRef, .Name = Context.Ctx.Ast.Strings().Intern( "new" ) } } );
     Volt::Frontend::Call CallNode;
     CallNode.Callee = NewMember;
     if ( MessageArg.IsValid() )
@@ -249,6 +237,26 @@ namespace
 }
 
 } // namespace
+
+/**
+ * Public
+ */
+
+Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
+{
+    if ( not Id.IsValid() or ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] ) )
+    {
+        return SemaTypeId{};
+    }
+    if ( const SemaTypeId Known = Context.Ctx.Values.ExprType( Id ); Known.IsValid() )
+    {
+        return Known;
+    }
+
+    const SemaTypeId Type = ComputeExpr( Context, Id );
+    Context.Ctx.Values.SetExprType( Id, Type );
+    return Type;
+}
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
@@ -428,7 +436,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     if ( not Context.RescueVarStack.empty() and Context.RescueVarStack.back().IsValid() )
                     {
                         Mutable.Exception = Context.Ctx.Ast.Add(
-                            Frontend::ExprNode{ Frontend::Identifier{ {}, Context.RescueVarStack.back() } } );
+                            Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = Context.RescueVarStack.back() } } );
                     }
                     else
                     {
