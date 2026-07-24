@@ -17,12 +17,23 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │              └─ expr
 │                 └─ RaiseExpr @3:5
 │                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ StringLiteral 'samples/Syntax/Loop/WhileLoop.vl' @3:31
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ IntLiteral '3' @3:43
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/Loop/WhileLoop.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
 ├─ Class 'Event' @9:1
 │  └─ body
 │     ├─ Field 'name' getter @10:3
@@ -102,11 +113,15 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │  └─ body
 │     │     ├─ ExprStmt @49:5
 │     │     │  └─ expr
-│     │     │     └─ Assign '+=' @49:15
+│     │     │     └─ Assign '=' @49:15
 │     │     │        ├─ target
 │     │     │        │  └─ InstanceVar '@attempts' @49:5
 │     │     │        └─ value
-│     │     │           └─ IntLiteral '1' @49:18
+│     │     │           └─ Binary '+' @49:15
+│     │     │              ├─ lhs
+│     │     │              │  └─ InstanceVar '@attempts' @49:5
+│     │     │              └─ rhs
+│     │     │                 └─ IntLiteral '1' @49:18
 │     │     ├─ If @50:5
 │     │     │  ├─ cond
 │     │     │  │  └─ Binary '>=' @50:18
@@ -175,9 +190,11 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │     │        ├─ target
 │     │     │        │  └─ Identifier 'event' @71:5
 │     │     │        └─ value
-│     │     │           └─ Index @71:19
-│     │     │              ├─ object
-│     │     │              │  └─ Identifier 'events' @71:13
+│     │     │           └─ Call @71:19
+│     │     │              ├─ callee
+│     │     │              │  └─ Member '[]' @71:19
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'events' @71:13
 │     │     │              └─ args
 │     │     │                 └─ Identifier 'index' @71:20
 │     │     ├─ ExprStmt @72:5
@@ -187,18 +204,26 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │     │           └─ Identifier 'event' @72:5
 │     │     ├─ ExprStmt @73:5
 │     │     │  └─ expr
-│     │     │     └─ Assign '+=' @73:19
+│     │     │     └─ Assign '=' @73:19
 │     │     │        ├─ target
 │     │     │        │  └─ Identifier 'handled_count' @73:5
 │     │     │        └─ value
-│     │     │           └─ IntLiteral '1' @73:22
+│     │     │           └─ Binary '+' @73:19
+│     │     │              ├─ lhs
+│     │     │              │  └─ Identifier 'handled_count' @73:5
+│     │     │              └─ rhs
+│     │     │                 └─ IntLiteral '1' @73:22
 │     │     └─ ExprStmt @74:5
 │     │        └─ expr
-│     │           └─ Assign '+=' @74:11
+│     │           └─ Assign '=' @74:11
 │     │              ├─ target
 │     │              │  └─ Identifier 'index' @74:5
 │     │              └─ value
-│     │                 └─ IntLiteral '1' @74:14
+│     │                 └─ Binary '+' @74:11
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'index' @74:5
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '1' @74:14
 │     └─ ExprStmt @76:3
 │        └─ expr
 │           └─ Identifier 'handled_count' @76:3
@@ -251,9 +276,11 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │     │        ├─ target
 │     │     │        │  └─ Identifier 'account' @83:5
 │     │     │        └─ value
-│     │     │           └─ Index @83:23
-│     │     │              ├─ object
-│     │     │              │  └─ Identifier 'accounts' @83:15
+│     │     │           └─ Call @83:23
+│     │     │              ├─ callee
+│     │     │              │  └─ Member '[]' @83:23
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'accounts' @83:15
 │     │     │              └─ args
 │     │     │                 └─ Identifier 'index' @83:24
 │     │     └─ If @84:5
@@ -282,11 +309,15 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │        └─ else
 │     │           └─ ExprStmt @87:7
 │     │              └─ expr
-│     │                 └─ Assign '+=' @87:13
+│     │                 └─ Assign '=' @87:13
 │     │                    ├─ target
 │     │                    │  └─ Identifier 'index' @87:7
 │     │                    └─ value
-│     │                       └─ IntLiteral '1' @87:16
+│     │                       └─ Binary '+' @87:13
+│     │                          ├─ lhs
+│     │                          │  └─ Identifier 'index' @87:7
+│     │                          └─ rhs
+│     │                             └─ IntLiteral '1' @87:16
 │     └─ ExprStmt @90:3
 │        └─ expr
 │           └─ Identifier 'found' @90:3
@@ -372,9 +403,11 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │  │     └─ rhs
 │     │  │        └─ Binary '==' @104:42
 │     │  │           ├─ lhs
-│     │  │           │  └─ Index @104:33
-│     │  │           │     ├─ object
-│     │  │           │     │  └─ Identifier 'text' @104:29
+│     │  │           │  └─ Call @104:33
+│     │  │           │     ├─ callee
+│     │  │           │     │  └─ Member '[]' @104:33
+│     │  │           │     │     └─ object
+│     │  │           │     │        └─ Identifier 'text' @104:29
 │     │  │           │     └─ args
 │     │  │           │        └─ Identifier 'offset' @104:34
 │     │  │           └─ rhs
@@ -382,11 +415,15 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │  └─ body
 │     │     └─ ExprStmt @105:5
 │     │        └─ expr
-│     │           └─ Assign '+=' @105:12
+│     │           └─ Assign '=' @105:12
 │     │              ├─ target
 │     │              │  └─ Identifier 'offset' @105:5
 │     │              └─ value
-│     │                 └─ IntLiteral '1' @105:15
+│     │                 └─ Binary '+' @105:12
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'offset' @105:5
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '1' @105:15
 │     └─ ExprStmt @107:3
 │        └─ expr
 │           └─ Identifier 'offset' @107:3
@@ -442,9 +479,11 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │        └─ args
 │           └─ Member 'handled?' @118:27
 │              └─ object
-│                 └─ Index @118:24
-│                    ├─ object
-│                    │  └─ Identifier 'pending_events' @118:10
+│                 └─ Call @118:24
+│                    ├─ callee
+│                    │  └─ Member '[]' @118:24
+│                    │     └─ object
+│                    │        └─ Identifier 'pending_events' @118:10
 │                    └─ args
 │                       └─ IntLiteral '0' @118:25
 ├─ ExprStmt @120:1

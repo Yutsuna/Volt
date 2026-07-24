@@ -17,12 +17,23 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │              └─ expr
 │                 └─ RaiseExpr @3:5
 │                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ StringLiteral 'samples/Syntax/OOP/FullOOP.vl' @3:31
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ IntLiteral '3' @3:43
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/OOP/FullOOP.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
 ├─ Struct 'RenderBounds' @7:1
 │  └─ body
 │     ├─ Field 'width' @8:3
@@ -94,11 +105,23 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │        └─ body
 │           └─ ExprStmt @42:5
 │              └─ expr
-│                 └─ Interp @42:5
-│                    └─ parts
-│                       ├─ Identifier 'log_prefix' @42:8
-│                       ├─ StringLiteral ' Component:' @42:5
-│                       └─ InstanceVar '@id' @42:32
+│                 └─ Binary '+' @42:5
+│                    ├─ lhs
+│                    │  └─ Binary '+' @42:5
+│                    │     ├─ lhs
+│                    │     │  └─ Call @42:5
+│                    │     │     └─ callee
+│                    │     │        └─ Member 'to_string' @42:5
+│                    │     │           └─ object
+│                    │     │              └─ Identifier 'log_prefix' @42:8
+│                    │     └─ rhs
+│                    │        └─ StringLiteral ' Component:' @42:5
+│                    └─ rhs
+│                       └─ Call @42:5
+│                          └─ callee
+│                             └─ Member 'to_string' @42:5
+│                                └─ object
+│                                   └─ InstanceVar '@id' @42:32
 ├─ Class 'Button' @46:1
 │  ├─ super
 │  │  └─ TypeRef 'Component' @46:16
@@ -124,16 +147,44 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │        └─ body
 │           └─ ExprStmt @53:5
 │              └─ expr
-│                 └─ Interp @53:5
-│                    └─ parts
-│                       ├─ StringLiteral '<button id=\"' @53:5
-│                       ├─ InstanceVar '@id' @53:21
-│                       ├─ StringLiteral '\" area=\"' @53:5
-│                       ├─ Member 'area' @53:43
-│                       │  └─ object
-│                       │     └─ Identifier 'bounds' @53:37
-│                       ├─ StringLiteral '\">' @53:5
-│                       ├─ InstanceVar '@label' @53:54
+│                 └─ Binary '+' @53:5
+│                    ├─ lhs
+│                    │  └─ Binary '+' @53:5
+│                    │     ├─ lhs
+│                    │     │  └─ Binary '+' @53:5
+│                    │     │     ├─ lhs
+│                    │     │     │  └─ Binary '+' @53:5
+│                    │     │     │     ├─ lhs
+│                    │     │     │     │  └─ Binary '+' @53:5
+│                    │     │     │     │     ├─ lhs
+│                    │     │     │     │     │  └─ Binary '+' @53:5
+│                    │     │     │     │     │     ├─ lhs
+│                    │     │     │     │     │     │  └─ StringLiteral '<button id=\"' @53:5
+│                    │     │     │     │     │     └─ rhs
+│                    │     │     │     │     │        └─ Call @53:5
+│                    │     │     │     │     │           └─ callee
+│                    │     │     │     │     │              └─ Member 'to_string' @53:5
+│                    │     │     │     │     │                 └─ object
+│                    │     │     │     │     │                    └─ InstanceVar '@id' @53:21
+│                    │     │     │     │     └─ rhs
+│                    │     │     │     │        └─ StringLiteral '\" area=\"' @53:5
+│                    │     │     │     └─ rhs
+│                    │     │     │        └─ Call @53:5
+│                    │     │     │           └─ callee
+│                    │     │     │              └─ Member 'to_string' @53:5
+│                    │     │     │                 └─ object
+│                    │     │     │                    └─ Member 'area' @53:43
+│                    │     │     │                       └─ object
+│                    │     │     │                          └─ Identifier 'bounds' @53:37
+│                    │     │     └─ rhs
+│                    │     │        └─ StringLiteral '\">' @53:5
+│                    │     └─ rhs
+│                    │        └─ Call @53:5
+│                    │           └─ callee
+│                    │              └─ Member 'to_string' @53:5
+│                    │                 └─ object
+│                    │                    └─ InstanceVar '@label' @53:54
+│                    └─ rhs
 │                       └─ StringLiteral '</button>' @53:5
 ├─ ExprStmt @57:1
 │  └─ expr

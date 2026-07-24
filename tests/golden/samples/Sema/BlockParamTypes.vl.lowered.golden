@@ -57,11 +57,15 @@ Program 'samples/Sema/BlockParamTypes.vl'
 │     │           │           └─ Identifier 'i' @16:19
 │     │           └─ ExprStmt @17:7
 │     │              └─ expr
-│     │                 └─ Assign '+=' @17:9
+│     │                 └─ Assign '=' @17:9
 │     │                    ├─ target
 │     │                    │  └─ Identifier 'i' @17:7
 │     │                    └─ value
-│     │                       └─ IntLiteral '1' @17:12
+│     │                       └─ Binary '+' @17:9
+│     │                          ├─ lhs
+│     │                          │  └─ Identifier 'i' @17:7
+│     │                          └─ rhs
+│     │                             └─ IntLiteral '1' @17:12
 │     └─ Method 'sum' @21:3
 │        ├─ return_type
 │        │  └─ TypeRef 'Int32' @21:14
@@ -85,11 +89,15 @@ Program 'samples/Sema/BlockParamTypes.vl'
 │           │              └─ body
 │           │                 └─ ExprStmt @24:7
 │           │                    └─ expr
-│           │                       └─ Assign '+=' @24:13
+│           │                       └─ Assign '=' @24:13
 │           │                          ├─ target
 │           │                          │  └─ Identifier 'total' @24:7
 │           │                          └─ value
-│           │                             └─ Identifier 'value' @24:16
+│           │                             └─ Binary '+' @24:13
+│           │                                ├─ lhs
+│           │                                │  └─ Identifier 'total' @24:7
+│           │                                └─ rhs
+│           │                                   └─ Identifier 'value' @24:16
 │           └─ ExprStmt @26:5
 │              └─ expr
 │                 └─ Identifier 'total' @26:5

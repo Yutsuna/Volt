@@ -1,0 +1,4 @@
+samples/Sema/CompoundAssignReceiver.vl:17:13: error: '+=' needs a target that can be read twice — assign through a local instead
+      make()[0] += 1
+                ^~~~
+--- exit 84 ---

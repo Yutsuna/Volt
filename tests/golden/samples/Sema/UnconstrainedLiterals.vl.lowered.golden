@@ -50,11 +50,15 @@ Program 'samples/Sema/UnconstrainedLiterals.vl'
 │     │              └─ body
 │     │                 └─ ExprStmt @22:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @22:11
+│     │                       └─ Assign '=' @22:11
 │     │                          ├─ target
 │     │                          │  └─ Identifier 'total' @22:5
 │     │                          └─ value
-│     │                             └─ Identifier 'value' @22:14
+│     │                             └─ Binary '+' @22:11
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'total' @22:5
+│     │                                └─ rhs
+│     │                                   └─ Identifier 'value' @22:14
 │     └─ ExprStmt @24:3
 │        └─ expr
 │           └─ Identifier 'total' @24:3
@@ -115,9 +119,11 @@ Program 'samples/Sema/UnconstrainedLiterals.vl'
 │     │           └─ IntLiteral '1' @44:62
 │     └─ ExprStmt @45:3
 │        └─ expr
-│           └─ Index @45:9
-│              ├─ object
-│              │  └─ Identifier 'counts' @45:3
+│           └─ Call @45:9
+│              ├─ callee
+│              │  └─ Member '[]' @45:9
+│              │     └─ object
+│              │        └─ Identifier 'counts' @45:3
 │              └─ args
 │                 └─ StringLiteral 'extra' @45:10
 ├─ ExprStmt @48:1
