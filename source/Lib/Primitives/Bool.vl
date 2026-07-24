@@ -2,6 +2,14 @@
 struct Bool
   include Comparable
 
+  # The three logical operators are contracts, not bodies: the `i1` layout is
+  # what exempts them from having one, and the backend emits `and` / `or` /
+  # `xor 1`. Declaring them is still load-bearing — the signature is what gives
+  # `a and b` a type at all.
+  abstract def and( other : Bool ) -> Bool
+  abstract def or( other : Bool ) -> Bool
+  abstract def not -> Bool
+
   def <=>( other : Bool ) -> Int32
     if self == other
       0
