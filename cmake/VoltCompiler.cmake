@@ -30,7 +30,8 @@ target_compile_options( VoltCompileOptions INTERFACE
   -Wformat=2
   -Wimplicit-fallthrough
   -Wno-missing-braces
-  -Wno-maybe-uninitialized
+  $<$<CXX_COMPILER_ID:GNU>:-Wno-maybe-uninitialized>
+  $<$<OR:$<CXX_COMPILER_ID:Clang>,$<CXX_COMPILER_ID:AppleClang>>:-Wno-uninitialized>
   -Werror
  )
 
