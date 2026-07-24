@@ -403,12 +403,15 @@ void Volt::Sema::TypeCheckerPass::CheckCallArgs ( TypeCheckerContext &Context,
 
     const std::string Name = std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) };
 
-    const std::size_t Expected = Found.Params.Size();
-    const std::size_t Given    = Args.Size();
-    if ( Given != Expected )
+    const std::size_t Expected    = Found.Params.Size();
+    const std::size_t MinExpected = Found.Decl->MinParams;
+    const std::size_t Given       = Args.Size();
+    if ( Given < MinExpected or Given > Expected )
     {
-        Context.Report( Loc, Name + " takes " + std::to_string( Expected ) + " argument(s), but " + std::to_string( Given ) +
-                                 " were given" );
+        Context.Report( Loc, Name + " takes " +
+                                 ( MinExpected == Expected ? std::to_string( Expected )
+                                                           : std::to_string( MinExpected ) + ".." + std::to_string( Expected ) ) +
+                                 " argument(s), but " + std::to_string( Given ) + " were given" );
         return;
     }
 
