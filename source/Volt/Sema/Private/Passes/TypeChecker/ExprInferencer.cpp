@@ -9,7 +9,6 @@
 #include "Volt/Frontend/Lexer/Token.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
-#include <algorithm>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -83,21 +82,6 @@ namespace
     return Context.Ctx.Values.Get( Type ).Base;
 }
 
-// Whether `Nominal` is an enum in the only sense the compiler ever needs to
-// know: it declares at least one case of its own. A plain `case x when 1, 2
-// end` over a non-enum value must never trip exhaustiveness, so this is the
-// gate for the whole check.
-[[nodiscard]] bool HasEnumCases ( const Volt::Sema::TypeStore &Store, Volt::Sema::NominalId Nominal )
-{
-    if ( not Nominal.IsValid() )
-    {
-        return false;
-    }
-    const auto &Members = Store.Type( Nominal ).Members;
-    return std::ranges::any_of( Members, [] ( const Volt::Sema::Member &Entry )
-                                { return Entry.Kind == Volt::Sema::EMemberKind::EnumCase; } );
-}
-
 // The enum case name a desugared `when` pattern selects, if any.
 // `CaseLowering` (Order 22) turns `.Name` into `target.Name()` — a `Call`
 // over a `Member` — and any other pattern into `pattern === target` once
@@ -122,6 +106,14 @@ namespace
             return Name;
         }
         return EnumCaseNameOf( Ast, Bin->Rhs );
+    }
+
+    // `TrafficLight::Red` (an explicit receiver) parses as a bare `Member` —
+    // `::` is just `.` to the parser (ParsePostfix) — never a `Call`; only
+    // the `.Name` sugar goes through the DotCall→Call(Member) rewrite above.
+    if ( const auto *BareMember = std::get_if<Volt::Frontend::Member>( &Ast.Expr( Pattern ) ); BareMember != nullptr )
+    {
+        return Ast.Text( BareMember->Name );
     }
 
     const auto *CallNode = std::get_if<Volt::Frontend::Call>( &Ast.Expr( Pattern ) );
