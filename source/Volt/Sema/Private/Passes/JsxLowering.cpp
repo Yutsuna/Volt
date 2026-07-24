@@ -30,8 +30,6 @@ namespace Sema
     namespace
     {
 
-        using namespace Frontend;
-
         // The runtime facade the JSX tree is lowered onto. Names only —
         // never a Volt type — so the zero-hardcode guard stays satisfied.
         constexpr std::string_view FacadeRoot   = "Volt";
@@ -45,7 +43,7 @@ namespace Sema
 
         public:
 
-            explicit JsxRewriter ( AstContext &InContext ) : Context( InContext )
+            explicit JsxRewriter ( Frontend::AstContext &InContext ) : Context( InContext )
             {
             }
 
@@ -60,30 +58,30 @@ namespace Sema
 
                 for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
                 {
-                    const ExprId Id{ static_cast<ExprId::ValueType>( Index ) };
+                    const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
 
                     // Copy the node out of the arena first: the Lower*
                     // helpers append nodes and may reallocate it, so no
                     // reference into it may survive.
-                    ExprNode Lowered;
+                    Frontend::ExprNode Lowered;
                     switch ( KindOf( Context.Expr( Id ) ) )
                     {
-                    case ExprKind::JsxElement:
+                    case Frontend::ExprKind::JsxElement:
                     {
-                        const JsxElement Node = std::get<JsxElement>( Context.Expr( Id ) );
-                        Lowered               = LowerElement( Node );
+                        const Frontend::JsxElement Node = std::get<Frontend::JsxElement>( Context.Expr( Id ) );
+                        Lowered                         = LowerElement( Node );
                         break;
                     }
-                    case ExprKind::JsxFragment:
+                    case Frontend::ExprKind::JsxFragment:
                     {
-                        const JsxFragment Node = std::get<JsxFragment>( Context.Expr( Id ) );
-                        Lowered                = LowerFragment( Node );
+                        const Frontend::JsxFragment Node = std::get<Frontend::JsxFragment>( Context.Expr( Id ) );
+                        Lowered                          = LowerFragment( Node );
                         break;
                     }
-                    case ExprKind::JsxText:
+                    case Frontend::ExprKind::JsxText:
                     {
-                        const JsxText Node = std::get<JsxText>( Context.Expr( Id ) );
-                        Lowered            = LowerText( Node );
+                        const Frontend::JsxText Node = std::get<Frontend::JsxText>( Context.Expr( Id ) );
+                        Lowered                      = LowerText( Node );
                         break;
                     }
                     default:
@@ -100,58 +98,58 @@ namespace Sema
         private:
 
             /// `Volt::JSX.<Method>` — the member chain used as a call callee.
-            [[nodiscard]] ExprId MakeFacade ( std::string_view Method, Core::SourceRange Loc )
+            [[nodiscard]] Frontend::ExprId MakeFacade ( std::string_view Method, Core::SourceRange Loc )
             {
                 Core::StringInterner &Strings = Context.Strings();
 
-                Identifier RootNode;
-                RootNode.Loc      = Loc;
-                RootNode.Name     = Strings.Intern( FacadeRoot );
-                const ExprId Root = Context.Add( ExprNode{ RootNode } );
+                Frontend::Identifier RootNode;
+                RootNode.Loc                = Loc;
+                RootNode.Name               = Strings.Intern( FacadeRoot );
+                const Frontend::ExprId Root = Context.Add( Frontend::ExprNode{ RootNode } );
 
                 Frontend::Member ModuleNode;
-                ModuleNode.Loc      = Loc;
-                ModuleNode.Object   = Root;
-                ModuleNode.Name     = Strings.Intern( FacadeModule );
-                const ExprId Module = Context.Add( ExprNode{ ModuleNode } );
+                ModuleNode.Loc                = Loc;
+                ModuleNode.Object             = Root;
+                ModuleNode.Name               = Strings.Intern( FacadeModule );
+                const Frontend::ExprId Module = Context.Add( Frontend::ExprNode{ ModuleNode } );
 
                 Frontend::Member MethodNode;
                 MethodNode.Loc    = Loc;
                 MethodNode.Object = Module;
                 MethodNode.Name   = Strings.Intern( Method );
-                return Context.Add( ExprNode{ MethodNode } );
+                return Context.Add( Frontend::ExprNode{ MethodNode } );
             }
 
-            [[nodiscard]] ExprNode LowerElement ( const JsxElement &Element )
+            [[nodiscard]] Frontend::ExprNode LowerElement ( const Frontend::JsxElement &Element )
             {
                 const Core::SourceRange Loc = Element.Loc;
 
                 // Arg 0: the tag name as a string literal.
-                StringLiteral TagLit;
-                TagLit.Loc       = Loc;
-                TagLit.Value     = Element.Tag;
-                const ExprId Tag = Context.Add( ExprNode{ TagLit } );
+                Frontend::StringLiteral TagLit;
+                TagLit.Loc                 = Loc;
+                TagLit.Value               = Element.Tag;
+                const Frontend::ExprId Tag = Context.Add( Frontend::ExprNode{ TagLit } );
 
                 // Arg 1: `{ "name" => value, ... }` of the attributes.
-                HashLit Attrs;
+                Frontend::HashLit Attrs;
                 Attrs.Loc = Loc;
                 for ( std::size_t Index = 0; Index < Element.AttrNames.Size(); ++Index )
                 {
-                    StringLiteral Key;
+                    Frontend::StringLiteral Key;
                     Key.Loc   = Loc;
                     Key.Value = Element.AttrNames[Index];
-                    Attrs.Keys.PushBack( Context.Add( ExprNode{ Key } ) );
+                    Attrs.Keys.PushBack( Context.Add( Frontend::ExprNode{ Key } ) );
                     Attrs.Values.PushBack( Element.AttrValues[Index] );
                 }
-                const ExprId AttrHash = Context.Add( ExprNode{ std::move( Attrs ) } );
+                const Frontend::ExprId AttrHash = Context.Add( Frontend::ExprNode{ std::move( Attrs ) } );
 
                 // Arg 2: `[ child, ... ]`; children keep their Ids and lower in place.
-                ArrayLit Children;
-                Children.Loc            = Loc;
-                Children.Elements       = Element.Children;
-                const ExprId ChildArray = Context.Add( ExprNode{ std::move( Children ) } );
+                Frontend::ArrayLit Children;
+                Children.Loc                      = Loc;
+                Children.Elements                 = Element.Children;
+                const Frontend::ExprId ChildArray = Context.Add( Frontend::ExprNode{ std::move( Children ) } );
 
-                Call Node;
+                Frontend::Call Node;
                 Node.Loc    = Loc;
                 Node.Callee = MakeFacade( CreateMethod, Loc );
                 Node.Args.PushBack( Tag );
@@ -160,44 +158,44 @@ namespace Sema
                 Node.ArgNames.PushBack( Symbol{} );
                 Node.ArgNames.PushBack( Symbol{} );
                 Node.ArgNames.PushBack( Symbol{} );
-                return ExprNode{ std::move( Node ) };
+                return Frontend::ExprNode{ std::move( Node ) };
             }
 
-            [[nodiscard]] ExprNode LowerFragment ( const JsxFragment &Fragment )
+            [[nodiscard]] Frontend::ExprNode LowerFragment ( const Frontend::JsxFragment &Fragment )
             {
                 const Core::SourceRange Loc = Fragment.Loc;
 
-                ArrayLit Children;
-                Children.Loc            = Loc;
-                Children.Elements       = Fragment.Children;
-                const ExprId ChildArray = Context.Add( ExprNode{ std::move( Children ) } );
+                Frontend::ArrayLit Children;
+                Children.Loc                      = Loc;
+                Children.Elements                 = Fragment.Children;
+                const Frontend::ExprId ChildArray = Context.Add( Frontend::ExprNode{ std::move( Children ) } );
 
-                Call Node;
+                Frontend::Call Node;
                 Node.Loc    = Loc;
                 Node.Callee = MakeFacade( FragmentMeth, Loc );
                 Node.Args.PushBack( ChildArray );
                 Node.ArgNames.PushBack( Symbol{} );
-                return ExprNode{ std::move( Node ) };
+                return Frontend::ExprNode{ std::move( Node ) };
             }
 
-            [[nodiscard]] ExprNode LowerText ( const JsxText &Text )
+            [[nodiscard]] Frontend::ExprNode LowerText ( const Frontend::JsxText &Text )
             {
                 const Core::SourceRange Loc = Text.Loc;
 
-                StringLiteral Lit;
-                Lit.Loc              = Loc;
-                Lit.Value            = Text.Text;
-                const ExprId Literal = Context.Add( ExprNode{ Lit } );
+                Frontend::StringLiteral Lit;
+                Lit.Loc                        = Loc;
+                Lit.Value                      = Text.Text;
+                const Frontend::ExprId Literal = Context.Add( Frontend::ExprNode{ Lit } );
 
-                Call Node;
+                Frontend::Call Node;
                 Node.Loc    = Loc;
                 Node.Callee = MakeFacade( TextMethod, Loc );
                 Node.Args.PushBack( Literal );
                 Node.ArgNames.PushBack( Symbol{} );
-                return ExprNode{ std::move( Node ) };
+                return Frontend::ExprNode{ std::move( Node ) };
             }
 
-            AstContext &Context;
+            Frontend::AstContext &Context;
         };
 
     } // namespace

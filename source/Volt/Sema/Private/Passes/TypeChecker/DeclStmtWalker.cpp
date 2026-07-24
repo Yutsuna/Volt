@@ -4,6 +4,7 @@
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
+#include "Volt/Sema/Layout/TypeStore.hpp"
 
 #include <algorithm>
 #include <vector>
@@ -12,21 +13,20 @@ namespace
 {
 
 using namespace Volt;
-using namespace Volt::Sema;
 
 // Every mixin reachable through `include`, transitively and without
 // repeats. The superclass is deliberately not followed: whatever it
 // includes, it was itself required to implement.
-void CollectIncludes ( const TypeStore &Store, NominalId Id, std::vector<NominalId> &Out, std::uint32_t Depth )
+void CollectIncludes ( const Sema::TypeStore &Store, Sema::NominalId Id, std::vector<Sema::NominalId> &Out, std::uint32_t Depth )
 {
     if ( not Id.IsValid() or Depth > 16 )
     {
         return;
     }
 
-    for ( const SigTypeId Mixin : Store.Type( Id ).Includes )
+    for ( const Sema::SigTypeId Mixin : Store.Type( Id ).Includes )
     {
-        const NominalId Base = Store.BaseOf( Mixin );
+        const Sema::NominalId Base = Store.BaseOf( Mixin );
         if ( not Base.IsValid() or std::ranges::find( Out, Base ) != Out.end() )
         {
             continue;
@@ -40,14 +40,14 @@ void CollectIncludes ( const TypeStore &Store, NominalId Id, std::vector<Nominal
 // this type, onto something that actually has a body. Resolution goes
 // through the ordinary member lookup, so an implementation inherited
 // from a superclass or supplied by another mixin counts.
-void CheckAbstractConformance ( TypeCheckerPass::TypeCheckerContext &Context, NominalId Id, Core::SourceRange Loc )
+void CheckAbstractConformance ( Sema::TypeCheckerPass::TypeCheckerContext &Context, Sema::NominalId Id, Core::SourceRange Loc )
 {
-    std::vector<NominalId> Mixins;
+    std::vector<Sema::NominalId> Mixins;
     CollectIncludes( Context.Ctx.Types, Id, Mixins, 0 );
 
-    for ( const NominalId Mixin : Mixins )
+    for ( const Sema::NominalId Mixin : Mixins )
     {
-        for ( const Member &Entry : Context.Ctx.Types.Type( Mixin ).Members )
+        for ( const Sema::Member &Entry : Context.Ctx.Types.Type( Mixin ).Members )
         {
             if ( not Entry.bAbstract )
             {
@@ -59,12 +59,12 @@ void CheckAbstractConformance ( TypeCheckerPass::TypeCheckerContext &Context, No
             // On a primitive, `+` is a machine instruction, not a body the
             // stdlib could ever write. Same exemption as the unknown-member
             // diagnostic, through the same predicate.
-            if ( TypeCheckerPass::IsBuiltinOpOn( Context, Id, Name ) )
+            if ( Sema::TypeCheckerPass::IsBuiltinOpOn( Context, Id, Name ) )
             {
                 continue;
             }
 
-            const InstantiatedMember Found =
+            const Sema::InstantiatedMember Found =
                 LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Context.SelfValue, Context.SelfValue, Name );
             if ( Found.Decl != nullptr and not Found.Decl->bAbstract )
             {
