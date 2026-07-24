@@ -3,6 +3,7 @@
 #include "ClosureInferencer.hpp"
 #include "LiteralInferencer.hpp"
 #include "MemberResolver.hpp"
+#include "TypeCompat.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
@@ -64,6 +65,26 @@ namespace
     }
     const auto &Slots = Context.Ctx.Values.Get( BlockType ).Args;
     return not Slots.IsEmpty() and Slots[0].IsValid();
+}
+
+// Has this expression no type of its own yet, so that a surrounding context
+// may decide it? True for a literal still awaiting narrowing, and for an
+// identifier naming a local that was seeded by such a literal (`h = 5381`
+// becoming UInt64 once `hash` demands one). False for everything else —
+// notably a local with a written annotation, which is *checked* against its
+// context, never rewritten by it.
+[[nodiscard]] bool IsMalleable ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context, Volt::Frontend::ExprId Id )
+{
+    if ( not Id.IsValid() )
+    {
+        return false;
+    }
+    if ( Context.UnconstrainedLiterals.contains( Id.Value ) )
+    {
+        return true;
+    }
+    const auto *Name = std::get_if<Volt::Frontend::Identifier>( &Context.Ctx.Ast.Expr( Id ) );
+    return Name != nullptr and Context.UnconstrainedVarInitializers.contains( Name->Name );
 }
 
 // The nominal `Type` resolves to, or an invalid handle when `Type` never
@@ -264,7 +285,32 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
 
     return std::visit(
         Meta::Overloaded{
-            [&] ( const Frontend::SelfExpr & ) -> SemaTypeId { return Context.SelfValue; },
+            [&] ( const Frontend::SelfExpr & ) -> SemaTypeId
+            {
+                // No enclosing type body means no receiver. A module is a
+                // namespace, not a type: its methods are registered as free
+                // functions (Layout/TypeBinder.cpp), so `self` is invalid
+                // there too and the call must be written bare.
+                //
+                // Reported here rather than left silent because DotCallLowering
+                // turns an implicit `.method` into `self.method`: without this,
+                // a receiver-less `.method` would type as "unknown" and vanish.
+                if ( not Context.SelfValue.IsValid() )
+                {
+                    Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
+                                    "'self' has no meaning outside a type body — a module is a namespace, not a type" );
+                }
+
+                // In a static method `self` *is* the type, exactly like writing
+                // the type name: marking it naked is what lets the one member
+                // check (CheckMemberSelf) reject `self.instance_member` there,
+                // instead of a second static/instance predicate on the side.
+                if ( Context.bStaticContext )
+                {
+                    Context.NakedTypeExprs.insert( Id.Value );
+                }
+                return Context.SelfValue;
+            },
             [&] ( const Frontend::SuperExpr & ) -> SemaTypeId
             {
                 if ( Context.SelfValue.IsValid() )
@@ -289,10 +335,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 return SemaTypeId{};
             },
             [&] ( const Frontend::InstanceVar &Expr ) -> SemaTypeId
-            {
-                return MemberType( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Context.SelfValue,
-                                   Context.bStaticContext, Context.Ctx.Ast.Text( Expr.Name ) );
-            },
+            { return MemberType( Context, Id, Context.SelfValue, Context.bStaticContext, Context.Ctx.Ast.Text( Expr.Name ) ); },
             [&] ( const Frontend::Identifier &Expr ) -> SemaTypeId
             {
                 if ( const std::optional<SemaTypeId> Local = Context.FindLocal( Id, Expr.Name ) )
@@ -356,47 +399,50 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             },
             [&] ( const Frontend::Member &Expr ) -> SemaTypeId
             {
-                const SemaTypeId Object            = InferExpr( Context, Expr.Object );
-                const Resolution Found             = LookupOn( Context, Object, Context.Ctx.Ast.Text( Expr.Name ) );
-                Context.CalleeResolution[Id.Value] = Found;
-                if ( Context.Ctx.Values.Has( Object ) and Found.Decl == nullptr )
-                {
-                    Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
-                                    "type " + Context.NameOfValue( Object ) + " has no member '" +
-                                        std::string{ Context.Ctx.Ast.Text( Expr.Name ) } + "'" );
-                }
-                CheckMemberSelf( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Found,
-                                 Context.NakedTypeExprs.contains( Expr.Object.Value ) );
-                return Found.Result;
-            },
-            [&] ( const Frontend::Index &Expr ) -> SemaTypeId
-            {
+                // Was an inlined copy of MemberType: same lookup, same
+                // recording, same unknown-member diagnostic, same self check.
+                // Sharing the one function is what keeps a `Member` callee and
+                // an operator receiver from drifting apart.
                 const SemaTypeId Object = InferExpr( Context, Expr.Object );
-                for ( const Frontend::ExprId Arg : Expr.Args )
-                {
-                    static_cast<void>( InferExpr( Context, Arg ) );
-                }
-                return MemberType( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Object,
-                                   Context.NakedTypeExprs.contains( Expr.Object.Value ), IndexOperator );
+                return MemberType( Context, Id, Object, Context.NakedTypeExprs.contains( Expr.Object.Value ),
+                                   Context.Ctx.Ast.Text( Expr.Name ) );
             },
+            // No Frontend::Index branch: IndexLowering (order 25) rewrites
+            // every subscript into a `[]` / `[]=` call before TypeChecker
+            // runs. That is what gives an index a type at all — this branch
+            // used to call MemberType directly and hand back an invalid
+            // SemaTypeId on a generic receiver, silently.
             [&] ( const Frontend::Binary &Expr ) -> SemaTypeId
             {
                 const SemaTypeId Lhs = InferExpr( Context, Expr.Lhs );
                 const SemaTypeId Rhs = InferExpr( Context, Expr.Rhs );
-                if ( Lhs.IsValid() and not Context.UnconstrainedLiterals.contains( Expr.Lhs.Value ) )
+
+                // An operand only adopts the other's type when it has none of
+                // its own to lose (IsMalleable). Propagating unconditionally
+                // was wrong for every heterogeneous operator: `ptr + len` is
+                // `Pointer<UInt8> + UInt64` by design, and the old rule rewrote
+                // `len` to Pointer<UInt8> for the rest of the method — silently,
+                // because the trailing `-> UInt64` check then re-stamped it
+                // back. That is exactly the pair of silences phase C removes.
+                if ( Lhs.IsValid() and not IsMalleable( Context, Expr.Lhs ) and IsMalleable( Context, Expr.Rhs ) )
                 {
                     Context.ConstrainExprType( Expr.Rhs, Lhs );
                 }
-                else if ( Rhs.IsValid() and not Context.UnconstrainedLiterals.contains( Expr.Rhs.Value ) )
+                else if ( Rhs.IsValid() and not IsMalleable( Context, Expr.Rhs ) and IsMalleable( Context, Expr.Lhs ) )
                 {
                     Context.ConstrainExprType( Expr.Lhs, Rhs );
                 }
-                return MemberType( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), InferExpr( Context, Expr.Lhs ),
-                                   Context.NakedTypeExprs.contains( Expr.Lhs.Value ), Frontend::TokenSpelling( Expr.Op ) );
+                // The resolution MemberType records is the whole of B.4: on a
+                // primitive/pointer layout it is empty and the backend emits an
+                // instruction chosen from `Primitive{ Spelling, Bits }`; on any
+                // other layout it names the method to call. No lowering pass,
+                // no node created — see rules/core-ast.md.
+                return MemberType( Context, Id, InferExpr( Context, Expr.Lhs ), Context.NakedTypeExprs.contains( Expr.Lhs.Value ),
+                                   Frontend::TokenSpelling( Expr.Op ) );
             },
             [&] ( const Frontend::Unary &Expr ) -> SemaTypeId
             {
-                return MemberType( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), InferExpr( Context, Expr.Operand ),
+                return MemberType( Context, Id, InferExpr( Context, Expr.Operand ),
                                    Context.NakedTypeExprs.contains( Expr.Operand.Value ), Frontend::TokenSpelling( Expr.Op ) );
             },
             [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
@@ -414,11 +460,19 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     else
                     {
                         Context.WriteLocal( Expr.Target, Target->Name, Value );
-                        Context.UnconstrainedVarInitializers[Target->Name] = Expr.Value;
+                        if ( Context.IsUnconstrainedInit( Expr.Value, Value ) )
+                        {
+                            Context.UnconstrainedVarInitializers[Target->Name] = Expr.Value;
+                        }
                         Context.UninitializedLocals.erase( Target->Name );
                     }
                 }
-                static_cast<void>( InferExpr( Context, Expr.Target ) );
+                // AssignLowering (order 24) has already turned `x op= v` into
+                // `x = x op v`, so compound assignment reaches this one check
+                // with no case of its own.
+                const SemaTypeId TargetType = InferExpr( Context, Expr.Target );
+                Context.ConstrainExprType( Expr.Value, TargetType );
+                CheckAssignable( Context, Expr.Value, TargetType, EAssignSite::Assign );
                 return Value;
             },
             [&] ( const Frontend::Ternary &Expr ) -> SemaTypeId
@@ -509,23 +563,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             },
             [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Context, Expr ); },
             [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Context, Id, Expr ); },
-            [&] ( const Frontend::DotCall &Expr ) -> SemaTypeId
-            {
-                for ( const Frontend::ExprId Arg : Expr.Args )
-                {
-                    static_cast<void>( InferExpr( Context, Arg ) );
-                }
-                const Resolution Found = LookupOn( Context, Context.SelfValue, Context.Ctx.Ast.Text( Expr.Method ) );
-                if ( Context.Ctx.Values.Has( Context.SelfValue ) and Found.Decl == nullptr )
-                {
-                    Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
-                                    "type " + Context.NameOfValue( Context.SelfValue ) + " has no member '" +
-                                        std::string{ Context.Ctx.Ast.Text( Expr.Method ) } + "'" );
-                }
-                CheckDotCallSelf( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Found );
-                CheckCallArgs( Context, Expr.Loc, Found, Expr.Args );
-                return Found.Result;
-            },
+            // No Frontend::DotCall branch: DotCallLowering (order 23) rewrites
+            // every one into `self.method( ... )` before TypeChecker (order 30)
+            // runs, and RunPasses always runs the Lowering passes first. The
+            // node reaching here would be a bug the AstInvariant pass reports.
             [&] ( const Frontend::Lambda &Expr ) -> SemaTypeId
             {
                 const Core::SmallVec<SemaTypeId, 2> ParamTypes = BindClosureParams( Context, Expr.Params );

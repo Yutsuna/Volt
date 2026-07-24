@@ -46,8 +46,6 @@ void UnifyBlock ( TypeCheckerContext &Context, Resolution &Found, SemaTypeId Blo
 
 void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType );
 
-void CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found );
-
 // Whether `Nominal` is an enum in the only sense the compiler ever needs to
 // know: it declares at least one case of its own. A plain `case x when 1, 2
 // end` over a non-enum value must never trip exhaustiveness, and a struct
@@ -66,8 +64,19 @@ void CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, cons
 // check must honour the same exemption, or one contradicts the other.
 [[nodiscard]] bool IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name );
 
+// Resolve `Name` on `Receiver` for the expression `Id`, diagnose an unknown
+// member, and — the part backends depend on — **record the resolution** in
+// `Context.CalleeResolution[Id.Value]`.
+//
+// Recording here rather than at each call site is what makes the operator
+// contract of `rules/core-ast.md` hold: `Binary` and `Unary` are core nodes on
+// a primitive layout only, and on any other layout they *are* method calls.
+// A backend distinguishes the two by reading this map, so an operator whose
+// resolution was resolved and then dropped would force every backend to redo
+// member lookup. `Id` replaces the old `Loc` parameter — the location is
+// derived from the node, so the two can no longer disagree.
 [[nodiscard]] SemaTypeId MemberType (
-    TypeCheckerContext &Context, Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name );
+    TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name );
 
 void CheckCallArgs ( TypeCheckerContext &Context,
                      Core::SourceRange Loc,
