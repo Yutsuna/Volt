@@ -1,3 +1,4 @@
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
@@ -6,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
 namespace
 {
@@ -896,7 +898,10 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
             }
 
             const std::string_view ExprText = Raw.substr( Index + 2, Cursor - ( Index + 2 ) );
-            Node.Parts.PushBack( ParseSubExpression( ExprText, Tok.Range ) );
+            // Raw is a verbatim slice of the file starting one byte past the
+            // opening quote, so a fragment offset maps back exactly.
+            const auto Base = static_cast<std::uint32_t>( Tok.Range.Begin + 1 + Index + 2 );
+            Node.Parts.PushBack( ParseSubExpression( ExprText, Tok.Range, Base ) );
 
             Index        = Cursor + 1;
             LiteralStart = Index;
@@ -917,12 +922,22 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
     return MakeExpr( Node, Tok.Range );
 }
 
-Volt::Frontend::ExprId Volt::Frontend::Parser::ParseSubExpression ( std::string_view Text, Core::SourceRange Range )
+Volt::Frontend::ExprId
+Volt::Frontend::Parser::ParseSubExpression ( std::string_view Text, Core::SourceRange Range, std::uint32_t BaseOffset )
 {
+    // The sub-lexer numbers the fragment from zero, so every node it builds
+    // would claim to live at the very start of the file. The fragment is a
+    // verbatim slice of the source, so sliding the new nodes by its absolute
+    // offset restores each one's real position.
+    const ArenaMark Mark = MarkArenas( Context );
+
     Lexer SubLexer( Context.FileId(), Text, Interner, Diagnostics );
     std::vector<Token> SubTokens = SubLexer.Tokenize();
     Parser SubParser( std::move( SubTokens ), Context, Diagnostics );
     const ExprId Result = SubParser.ParseExpr( 0 );
+
+    ShiftLocsSince( Context, Mark, BaseOffset );
+
     if ( Result.IsValid() )
     {
         return Result;
