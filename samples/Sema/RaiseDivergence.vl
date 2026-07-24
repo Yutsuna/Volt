@@ -1,0 +1,4 @@
+def test_divergence( cond : Bool, val : Int32 ) -> Int32
+  result = cond ? val : raise "Invalid condition"
+  result
+end
