@@ -187,7 +187,7 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
                                                     const Resolution &Found,
                                                     bool bReceiverIsNakedType )
 {
-    if ( Found.Decl == nullptr )
+    if ( Found.Decl == nullptr or Found.Decl->Kind == EMemberKind::EnumCase )
     {
         return;
     }
@@ -207,7 +207,7 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
 
 void Volt::Sema::TypeCheckerPass::CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found )
 {
-    if ( Found.Decl == nullptr )
+    if ( Found.Decl == nullptr or Found.Decl->Kind == EMemberKind::EnumCase )
     {
         return;
     }
