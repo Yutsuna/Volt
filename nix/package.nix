@@ -1,6 +1,5 @@
 {
   pkgs,
-  inputs,
   ...
 }:
 let
@@ -30,8 +29,7 @@ gccStdenv.mkDerivation {
   cmakeFlags = [
     "-DCMAKE_BUILD_TYPE=Release"
     "-DVOLT_USE_CCACHE=ON"
-    "-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=mold"
-    "-DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=mold"
+    "-DVOLT_UNITY_BUILD=ON"
     "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
     "-DCMAKE_INSTALL_RPATH=${placeholder "out"}/lib"
   ];
