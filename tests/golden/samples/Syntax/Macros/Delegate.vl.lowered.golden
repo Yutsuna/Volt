@@ -47,18 +47,18 @@ Program 'samples/Syntax/Macros/Delegate.vl'
       │     └─ Param 'user' instance_var
       │        └─ decl_type
       │           └─ TypeRef 'User' @33:27
-      ├─ Method 'name' @2:3
+      ├─ Method 'name' @36:3
       │  └─ body
-      │     └─ ExprStmt @2:18
+      │     └─ ExprStmt @36:3
       │        └─ expr
-      │           └─ Member 'name' @3:4
+      │           └─ Member 'name' @36:3
       │              └─ object
-      │                 └─ Identifier 'user' @2:18
-      └─ Method 'email' @3:25
+      │                 └─ Identifier 'user' @36:3
+      └─ Method 'email' @36:3
          └─ body
-            └─ ExprStmt @3:41
+            └─ ExprStmt @36:3
                └─ expr
-                  └─ Member 'email' @3:45
+                  └─ Member 'email' @36:3
                      └─ object
-                        └─ Identifier 'user' @3:41
+                        └─ Identifier 'user' @36:3
 --- exit 0 ---

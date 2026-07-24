@@ -34,8 +34,8 @@ Program 'samples/JSX/Models/User.vl'
                └─ expr
                   └─ Interp @15:5
                      └─ parts
-                        ├─ InstanceVar '@name' @1:1
+                        ├─ InstanceVar '@name' @15:8
                         ├─ StringLiteral ' <' @15:5
-                        ├─ InstanceVar '@email' @1:1
+                        ├─ InstanceVar '@email' @15:18
                         └─ StringLiteral '>' @15:5
 --- exit 0 ---
