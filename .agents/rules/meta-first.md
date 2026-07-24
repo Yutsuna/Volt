@@ -26,3 +26,32 @@ If a change makes you write a `switch` over every kind, or a near-duplicate of a
 existing traversal, you are fighting the architecture. Reach for
 `Meta/Reflect.hpp` (`ForEachField`) and `Meta/Overloaded.hpp` instead — a pass is
 `std::visit(Overloaded{ [&](Target&){…}, [&](auto&){ WalkFields(…); } }, Node)`.
+
+## `VOLT_EXPR_SUGAR` — a second macro, still one line per node
+
+`Nodes.inl` declares expressions with two macros, not one. `VOLT_EXPR( Name )`
+is a core node; `VOLT_EXPR_SUGAR( Name )` is a node a `Lowering` pass must have
+rewritten before `TypeChecker` runs (`rules/core-ast.md`). The manifest defines
+
+```cpp
+#ifndef VOLT_EXPR_SUGAR
+    #define VOLT_EXPR_SUGAR( Name ) VOLT_EXPR( Name )
+#endif
+```
+
+so **every existing consumer keeps seeing all 36 nodes** — the enum in
+`Expr.hpp`, the variant, the name LUT, `ForEachField`, the printer. Only a
+consumer that defines `VOLT_EXPR_SUGAR` itself tells the two apart, and there
+are exactly two:
+
+- `Sema/Private/Passes/AstInvariant.cpp` builds a `constexpr std::array` of the
+  sugar kinds and reports any survivor. **No `switch`** — membership on a
+  generated set.
+- `tests/AstInvariant.cmake` reads the same lines out of the manifest with a
+  regex, so the corpus-wide census cannot drift from the compiler's own.
+
+Marking a new node as sugar is therefore **one word** in `Nodes.inl`, and
+forgetting to lower it is a build failure rather than something a backend
+author discovers. The same shape applies to `PassStats`: `Merge` and
+`check --metrics` both walk it with `Meta::ForEachField`, so a new counter is
+one field and reaches the CLI with no other edit.
