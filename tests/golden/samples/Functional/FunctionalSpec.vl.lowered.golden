@@ -1,13 +1,25 @@
 Program 'samples/Functional/FunctionalSpec.vl'
-├─ MacroDef 'assert!' '-> Void
-  if not condition
-    raise "Assertion failed"
-  end
-' @1:1
-│  └─ params
-│     └─ Param 'condition'
-│        └─ decl_type
-│           └─ TypeRef 'Bool' @1:32
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ Call @3:5
+│                    ├─ callee
+│                    │  └─ Identifier 'raise' @3:5
+│                    └─ args
+│                       └─ StringLiteral 'Assertion failed' @3:11
 ├─ Module 'PointFreeDemo' @43:1
 │  └─ body
 │     └─ Method 'run' self @45:3
@@ -277,15 +289,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @14:1
 │        └─ args
-│           └─ Call @14:12
-│              ├─ callee
-│              │  └─ Binary '==' @14:22
-│              │     ├─ lhs
+│           └─ Binary '==' @14:22
+│              ├─ lhs
+│              │  └─ Call @14:12
+│              │     ├─ callee
 │              │     │  └─ Identifier 'double' @14:15
-│              │     └─ rhs
-│              │        └─ IntLiteral '8' @14:25
-│              └─ args
-│                 └─ IntLiteral '4' @14:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @14:10
+│              └─ rhs
+│                 └─ IntLiteral '8' @14:25
 ├─ ExprStmt @16:1
 │  └─ expr
 │     └─ Call @16:8
@@ -307,15 +319,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @17:1
 │        └─ args
-│           └─ Call @17:13
-│              ├─ callee
-│              │  └─ Binary '==' @17:25
-│              │     ├─ lhs
+│           └─ Binary '==' @17:25
+│              ├─ lhs
+│              │  └─ Call @17:13
+│              │     ├─ callee
 │              │     │  └─ Identifier 'add_five' @17:16
-│              │     └─ rhs
-│              │        └─ IntLiteral '15' @17:28
-│              └─ args
-│                 └─ IntLiteral '10' @17:10
+│              │     └─ args
+│              │        └─ IntLiteral '10' @17:10
+│              └─ rhs
+│                 └─ IntLiteral '15' @17:28
 ├─ ExprStmt @21:1
 │  └─ expr
 │     └─ Assign '=' @21:14
@@ -412,15 +424,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @28:1
 │        └─ args
-│           └─ Call @28:12
-│              ├─ callee
-│              │  └─ Binary '==' @28:30
-│              │     ├─ lhs
+│           └─ Binary '==' @28:30
+│              ├─ lhs
+│              │  └─ Call @28:12
+│              │     ├─ callee
 │              │     │  └─ Identifier 'calc_pointfree' @28:15
-│              │     └─ rhs
-│              │        └─ IntLiteral '24' @28:33
-│              └─ args
-│                 └─ IntLiteral '2' @28:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @28:10
+│              └─ rhs
+│                 └─ IntLiteral '24' @28:33
 ├─ ExprStmt @32:1
 │  └─ expr
 │     └─ Assign '=' @32:15
@@ -522,15 +534,15 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @40:1
 │        └─ args
-│           └─ Call @40:19
-│              ├─ callee
-│              │  └─ Binary '==' @40:38
-│              │     ├─ lhs
+│           └─ Binary '==' @40:38
+│              ├─ lhs
+│              │  └─ Call @40:19
+│              │     ├─ callee
 │              │     │  └─ Identifier 'clean_pointfree' @40:22
-│              │     └─ rhs
-│              │        └─ StringLiteral '[user]: bob' @40:41
-│              └─ args
-│                 └─ StringLiteral '  BOB ' @40:10
+│              │     └─ args
+│              │        └─ StringLiteral '  BOB ' @40:10
+│              └─ rhs
+│                 └─ StringLiteral '[user]: bob' @40:41
 └─ ExprStmt @75:1
    └─ expr
       └─ Member 'run' @75:14
