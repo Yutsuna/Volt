@@ -86,12 +86,28 @@ namespace Sema
                 }
             }
 
-            // A type body is a structural scope only: members are resolved by
-            // name-on-receiver (TypeStore::LookupMember), never through the
-            // lexical chain, so nothing is declared into it here.
+            // A type body's own fields/methods are declared into this scope
+            // (DeclId binding sites), but typing an access still goes
+            // exclusively through name-on-receiver (TypeStore::LookupMember)
+            // — this is binding metadata for tooling, not a second authority.
+            // Two passes because member visibility is order-independent: a
+            // method must see a field declared textually after it, unlike a
+            // LocalDecl in a block.
             void WalkTypeBody ( const Frontend::DeclList &Body, ScopeId Parent )
             {
                 const ScopeId Inner = Context.Scopes.PushScope( Parent, EScopeKind::Type );
+                for ( const Frontend::DeclId Child : Body )
+                {
+                    std::visit(
+                        Meta::Overloaded{
+                            [&] ( const Frontend::Field &Node )
+                            { Context.Scopes.Declare( Inner, Node.Name, BindingSite{ Child } ); },
+                            [&] ( const Frontend::Method &Node )
+                            { Context.Scopes.Declare( Inner, Node.Name, BindingSite{ Child } ); },
+                            [] ( const auto & ) {},
+                        },
+                        Context.Ast.Decl( Child ) );
+                }
                 for ( const Frontend::DeclId Child : Body )
                 {
                     WalkDecl( Child, Inner );
@@ -250,9 +266,21 @@ namespace Sema
                             // method, a member — TypeChecker decides later.
                             ++Context.Stats.UnresolvedIdentifiers;
                         },
-                        // `@name` is a member on self, resolved by
-                        // name-on-receiver — never by the lexical chain.
-                        [] ( const Frontend::InstanceVar & ) {},
+                        // `@name` is a member on self, typed by
+                        // name-on-receiver (MemberType/TypeStore) — never by
+                        // the lexical chain. Resolving it here only records a
+                        // best-effort binding for tooling; it reaches an
+                        // own-body field declared in WalkTypeBody through the
+                        // Method scope's Type parent, never an inherited one
+                        // (a superclass/mixin body lives in a different
+                        // DeclList). A miss is not an error.
+                        [&] ( const Frontend::InstanceVar &Node )
+                        {
+                            if ( const Binding *Found = Context.Scopes.Resolve( Current, Node.Name ) )
+                            {
+                                Context.Scopes.BindUse( Id, *Found );
+                            }
+                        },
                         [&] ( const Frontend::Block &Node )
                         {
                             const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
