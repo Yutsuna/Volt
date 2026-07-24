@@ -58,6 +58,15 @@ Usage: volt check [options] [input_file_or_dir]
     --metrics                        Gather code statistics and size metric benchmarks
     --unused                         Flag unreferenced syntax structures and bindings
     -h, --help                       Show help
+
+Usage: volt build [options] [input_file]
+    -i INPUT, --input INPUT          File input source program
+    -o OUTPUT, --output OUTPUT       Output artifact path
+    --target TARGET                  Code generation target (native|wasm)
+    -O LEVEL                         Optimization level (0|2|3)
+    --emit KIND                      Stop after an intermediate artifact (ir|obj)
+    --lto                            Enable link-time optimization (native only)
+    -h, --help                       Show help
 ```
 
 ## How this maps onto the architecture
@@ -70,6 +79,10 @@ Usage: volt check [options] [input_file_or_dir]
 - `run` / `repl` → the later JIT/interpreter phase; both sit on top of the same
   Driver pipeline (one `CompileUnit` per input, REPL = incremental units).
 - `circuit` → `Driver::CompileCircuit` / Project.vl scaffolding.
+- `build` → the full Driver pipeline, then a code generator selected by
+  `--target` through the `IBackend` seam (`BACKEND.md`): `native` →
+  `BackendLLVM`, `wasm` → `BackendWASM`. `volt run`'s VM is the same seam
+  with `BackendVM`.
 - `version` → `VERSION.md` is the single source of the version string.
 
 Meta-first applies here too: a new subcommand is **one entry in the command
