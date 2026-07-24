@@ -61,6 +61,13 @@ namespace
     case Volt::Frontend::TokenKind::Pipe:
     case Volt::Frontend::TokenKind::Caret:
     case Volt::Frontend::TokenKind::Tilde:
+    // The three word-spelled operators. Sema's IsOperatorName already accepts
+    // them (it takes anything not starting with a letter or '_', plus these
+    // three by name), so leaving them out here meant `a and b` could never be
+    // given a type: no declaration could exist to carry the signature.
+    case Volt::Frontend::TokenKind::KwAnd:
+    case Volt::Frontend::TokenKind::KwOr:
+    case Volt::Frontend::TokenKind::KwNot:
         return true;
     default:
         return false;
