@@ -22,9 +22,9 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │                       └─ Interp @3:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
+│                             ├─ Identifier '__FILE__' @3:31
 │                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                             └─ Identifier '__LINE__' @3:43
 ├─ Method 'check_if_statement' @9:1
 │  ├─ params
 │  │  └─ Param 'score'

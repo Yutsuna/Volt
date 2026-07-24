@@ -22,9 +22,9 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │                       └─ Interp @6:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @6:11
-│                             ├─ Identifier '__FILE__' @1:1
+│                             ├─ StringLiteral 'samples/Syntax/Loop/ForLoop.vl' @6:31
 │                             ├─ StringLiteral ':' @6:11
-│                             └─ Identifier '__LINE__' @1:1
+│                             └─ IntLiteral '6' @6:43
 ├─ Method 'for_collection' @13:1
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @13:23
@@ -204,11 +204,11 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │                                └─ args
 │                                   └─ Interp @55:10
 │                                      └─ parts
-│                                         ├─ Identifier 'name' @1:1
+│                                         ├─ Identifier 'name' @55:13
 │                                         ├─ StringLiteral ' (' @55:10
-│                                         ├─ Identifier 'age' @1:1
+│                                         ├─ Identifier 'age' @55:22
 │                                         ├─ StringLiteral ') can be reached at ' @55:10
-│                                         └─ Identifier 'email' @1:1
+│                                         └─ Identifier 'email' @55:48
 ├─ ExprStmt @59:1
 │  └─ expr
 │     └─ Call @59:8
