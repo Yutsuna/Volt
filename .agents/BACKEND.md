@@ -1,64 +1,53 @@
 # Backend Architecture — Declarative Code Generation & Targets
 
-## Rôle du Backend
-Le Backend de Volt prend en entrée l'AST/HIR **entièrement désucré, résolu et typé** issu du MiddleEnd.
+The Backend consumes the middle-end's output and emits code. Its philosophy
+is **declarative generation by pattern matching**:
 
-Sa philosophie fondamentale est la **génération déclarative par Pattern Matching** :
-- **Zéro analyse sémantique dans le Backend.**
-- **Zéro inférence ou résolution de type dans le Backend.**
-- **Zéro incertitude.**
+- **Zero semantic analysis in the Backend.**
+- **Zero type inference or resolution in the Backend.**
+- **Zero uncertainty** — anything unclear was refused loudly upstream.
 
-Le Backend se contente de parcourir les nœuds AST/HIR déjà annotés et d'émettre le code cible correspondant selon la cible choisie.
+> **Input contract: [`rules/core-ast.md`](rules/core-ast.md).** Exactly
+> **27 core nodes** (the 9 sugar nodes are gone, checked by `AstInvariant`),
+> every value expression typed — outright in concrete code, after
+> substitution inside a generic body. The contract is *materialised* for
+> backends as: `UnitTypes` (expression types), `UnitCallees`
+> (`Sema/Layout/CalleeMap.hpp` — the method-vs-machine-instruction protocol,
+> snapshotted per unit at the end of TypeChecker), `SynthesizeClosureFrame`
+> (env size/alignment/`bEscapes`), and the `TypeStore`'s `MemoryLayout`s.
 
-> **Contrat d'entrée : [`rules/core-ast.md`](rules/core-ast.md).** Le backend
-> reçoit exactement **27 nœuds noyau** (les 9 sucre ont disparu, vérifié par
-> `AstInvariant`), chacun typé — d'emblée en code concret, après substitution
-> dans un corps générique. `CalleeResolution` (méthode vs instruction machine
-> sur `Primitive{ Spelling, Bits }`) et `ClosureEnvFrame` (`bEscapes`, taille,
-> alignement) sont déjà calculés. Ce fichier dit aussi ce qui est **refusé
-> bruyamment** (`T?`, `Array#to_string`, runtime JSX) plutôt que laissé au
-> backend, et où sont les trous stdlib restants.
-
----
-
-## Les 3 Cibles Backend de Volt
+## The 3 targets
 
 ```
-                     ┌───> [1] volt run   ───> Interpréteur / JIT ABI (Dev & Hot Reload)
-MiddleEnd (AST/HIR) ─┼───> [2] volt JSX   ───> WebAssembly / WASM (Frontend Web)
-                     └───> [3] volt build ───> LLVM IR / Native AOT (Prod & Backend)
+                     ┌───> [1] volt run / repl        ───> BackendVM    (bytecode VM, hot reload)
+Middle-end (core AST)─┼───> [2] volt build --target wasm ─> BackendWASM (self-contained .wasm encoder)
+                     └───> [3] volt build              ───> BackendLLVM (LLVM IR, native AOT)
 ```
 
-### 1. Target `run` — Interpréteur / JIT ABI (`volt run`)
-- **Cas d'usage** : Boucle de développement rapide, exécution instantanée sans phase de compilation lourde, et **Hot Reloading** pour le développement d'applications Web et d'interfaces.
-- **Fonctionnement** : Évalue directement l'AST/HIR résolu ou génère du bytecode VM léger exécutable immédiatement en mémoire.
+All three sit on the shared **BackendCore** layer and are ordinary Volt
+modules under `source/Volt/Backend/`.
 
-### 2. Target `JSX` — WebAssembly (`volt build --target wasm`)
-- **Cas d'usage** : Applications Web modernes, composants UI dynamiques et interactifs dans le navigateur.
-- **Fonctionnement** : Traduit les nœuds UI/JSX abaissés et la logique métier en bytecode WebAssembly (WASM) compact et ultra-performant pour le Web.
+## The spec
 
-### 3. Target `build` — LLVM IR / Executable Native (`volt build`)
-- **Cas d'usage** : Applications de production, serveurs backend hautes performances, et exécutables natifs optimisés.
-- **Fonctionnement** : Génère le code intermédiaire LLVM IR à partir de l'AST/HIR résolu, puis s'appuie sur le pipeline d'optimisation et d'émission native de LLVM.
+| Document | Covers |
+|---|---|
+| [`backend/core-interfaces.md`](backend/core-interfaces.md) | `concept TargetBackend`, `BackendInput`/`UnitView`, node dispatch, the callee protocol, `Monomorphizer`, error policy, module wiring |
+| [`backend/llvm.md`](backend/llvm.md) | 27-node → IR mapping, instruction table, control flow, closures, EH tiers, optimisation & link pipeline |
+| [`backend/vm.md`](backend/vm.md) | bytecode ISA (`Bytecode.inl` manifest), frames, dispatch, **hot reload** via the FunctionTable seam, REPL |
+| [`backend/wasm.md`](backend/wasm.md) | module sections, layout → wasm types, JS bridge imports, the JSX dependency, `--target wasm` |
+| [`backend/abi.md`](backend/abi.md) | `LayoutEngine` rules, object/string/array layout (stdlib-declared), calling convention, closure env, exception objects |
 
----
-
-## Pipeline d'émission par Pattern Matching
-
-Grâce à la séparation stricte des rôles, la structure d'émission du Backend s'appuie sur le pattern matching :
+## The emission shape (all targets)
 
 ```cpp
-// Structure conceptuelle du générateur Backend :
-void EmitNode( const ResolvedNode &Node )
-{
-    std::visit( Overloaded {
-        [&]( const ResolvedLambda &Lambda )   { EmitLambdaTarget( Lambda ); },
-        [&]( const ResolvedCall &Call )       { EmitCallTarget( Call ); },
-        [&]( const ResolvedBinary &Binary )   { EmitBinaryTarget( Binary ); },
-        [&]( const ResolvedLiteral &Lit )     { EmitLiteralTarget( Lit ); },
-        // ...
-    }, Node );
-}
+std::visit( Meta::Overloaded{
+    [&]( const Frontend::Call &Node )   { EmitCall( Id, Node ); },
+    [&]( const Frontend::Binary &Node ) { EmitBinary( Id, Node ); },   // CalleeEntry ? call : instruction
+    [&]( const Frontend::Lambda &Node ) { EmitClosure( Id, Node ); },  // ClosureEnvFrame precomputed
+    ...
+}, Unit.Ast->Expr( Id ) );
 ```
 
-Le Backend n'a pas à se soucier de savoir si un entier `10` est `Int32` ou `UInt64`, ni si un appel est valide : le MiddleEnd lui fournit l'information exacte et incontestable.
+The backend never asks whether `10` is 32 or 64 bits, nor whether a call is
+valid: it reads `Values`, `Callees` and the layouts, and emits. A hole in
+those tables is a middle-end bug, reported as such — never guessed around.
