@@ -1,9 +1,6 @@
-# `.agents/` — how to contribute to Volt (human or AI)
+# `.agents/` — How to Contribute to Volt (Human or AI)
 
-This directory is the **portable, versioned source of truth** for the agents,
-rules and skills that frame every contribution to the Volt compiler. Claude Code
-reads subagents from `.claude/agents/` and skills from `.claude/skills/`; those
-are symlinks back here, so editing a file under `.agents/` updates the harness.
+This directory is the **portable, versioned source of truth** for the agents, rules, and skills that frame every contribution to the Volt compiler. Claude Code reads subagents from `.claude/agents/` and skills from `.claude/skills/`; those are symlinks back here, so editing a file under `.agents/` updates the harness harness.
 
 ```
 .agents/
@@ -12,66 +9,31 @@ are symlinks back here, so editing a file under `.agents/` updates the harness.
   skills/   step-by-step recipes for common, repeatable edits
 ```
 
-## graphify
+## Graphify Knowledge Graph
 
-This project has a graphify knowledge graph at graphify-out/.
+This project maintains a Graphify knowledge graph located at `graphify-out/`.
 
-Rules:
-- Before answering architecture or codebase questions, read graphify-out/GRAPH_REPORT.md for god nodes and community structure
-- If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
-- After modifying code files in this session, run `graphify update .` to keep the graph current (AST-only, no API cost)
+### Mandatory Rules:
+- Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md` for god nodes and community structure.
+- If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
+- After modifying code files in a session, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
-## Two reflexes on every change
+## Two Reflexes on Every Change
 
-1. **Format & build.** Run `volt-build format test` before you call
-   a task done (Allman style, `SpacesInParens`, column 170) — format is parallel and
-   per-file cached, so it only touches what changed. The build is `-Werror`; warnings are failures.
-   All build, format, and test tasks must go through `volt-build`. Prefer single-command
-   invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`.
+1. **Format & Build.** Run `volt-build format test` before calling a task done (Allman style, `SpacesInParens`, column 170) — formatting is parallel and per-file cached, touching only modified files. The build is `-Werror`; warnings are treated as failures. All build, format, tidy, and test tasks must go through `volt-build`. Prefer single-command invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`. See [`rules/cpp-style.md`](rules/cpp-style.md).
+2. **Keep the Map Current.** After a significant architecture change, run `graphify update .` (AST-only, no API cost) so `graphify-out/` reflects the modified code. See [`rules/graphify.md`](rules/graphify.md).
 
-   **Run `volt-build format test` (and `volt-build tidy`).** Format is parallel and
-   per-file cached, so it only touches what changed. The build is `-Werror`; warnings are failures.
-   All build, format, tidy, and test tasks must go through `volt-build`. Prefer single-command
-   invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`. See
-   [`rules/cpp-style.md`](rules/cpp-style.md).
-2. **Keep the map current.** After a significant architecture change, run
-   `graphify update .` (AST-only, no API cost) so `graphify-out/` still reflects
-   the code. See [`rules/graphify.md`](rules/graphify.md).
+## The Meta-First Bet
 
-## The meta-first bet
+Volt's foundational principle is that **adding a feature should take ~10 lines, not 500**. Before writing new boilerplate, check whether the change is simply *one line in a manifest* (`AST/Nodes.inl`, `Lexer/TokenKind.inl`, `Parser/Pratt.inl`, `Sema/PassList.inl`) plus a small struct. If you find yourself writing a manual visitor per node or a `switch` over kinds, stop — that is what `Reflect` + `Overloaded` are designed for. See [`rules/meta-first.md`](rules/meta-first.md).
 
-Volt's whole point is that **adding a feature is ~10 lines, not 500**. Before
-writing new machinery, check whether the change is really *one line in a
-manifest* (`AST/Nodes.inl`, `Lexer/TokenKind.inl`, `Parser/Pratt.inl`,
-`Sema/PassList.inl`) plus a small struct. If you find yourself writing a visitor
-per node or a `switch` over kinds, stop — that is what Reflect + Overloaded are
-for. See [`rules/meta-first.md`](rules/meta-first.md).
+## Non-Negotiables
 
-## Non-negotiables
-
-- **Zero hardcode of Volt types.** The C++ compiler never mentions `Int`,
-  `String`, `Array`. It reasons in Memory Layouts; type names live in the Volt
-  stdlib (`source/Lib/`) + annotations. See [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
-- **Value AST.** Arena + typed `Id`s, never smart pointers in the AST. See
-  [`rules/ast-value.md`](rules/ast-value.md).
-- **A rewriting pass sweeps the arena by index.** It copies the source node by
-  value and assigns the slot; it never holds an arena reference across an
-  `Add()` — that silently loses the rewrite, depending on file size. See
-  [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
-- **The backend consumes a 27-node core AST.** No sugar survives `Lowering`,
-  every value expression is typed (after substitution inside a generic body),
-  and `AstInvariant` (Order 40) checks both on every build. What is refused
-  loudly rather than left to a backend is listed there too. See
-  [`rules/core-ast.md`](rules/core-ast.md).
-- **Unreal C++ style, C++26, `Public/Private`, `-Werror`.** See
-  [`rules/cpp-style.md`](rules/cpp-style.md).
-- **The `volt` CLI surface is a contract.** Subcommands (`run`, `repl`, `parse`,
-  `check`, `version`, `help`, `circuit`, then `build`, `format`) and their
-  options are specified once in [`rules/cli-surface.md`](rules/cli-surface.md);
-  `Main.cpp` stays a thin command table over `Driver`.
-- **Symbols crossing a `.so` boundary must be exported.** Modules build with
-  `-fvisibility=hidden`; anything a *different* module calls needs the
-  generated `<MODULE>_EXPORT` macro, or `VOLT_BUILD_SHARED=ON` link-fails late
-  with a wall of mold `undefined symbol` errors. See
-  [`rules/shared-lib-exports.md`](rules/shared-lib-exports.md).
-- **Dual-mode build performance strategy.** Non-unity by default for instant 1s incremental local edits; `unity` flag for clean CI/Release builds. See [`rules/build-performance.md`](rules/build-performance.md).
+- **Zero Hardcoding of Volt Types.** The C++ compiler never hardcodes names like `Int`, `String`, or `Array`. It operates strictly on Memory Layouts; type names reside in the Volt standard library (`source/Lib/`) alongside annotations. See [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
+- **Value AST.** Arena storage with typed `Id`s; smart pointers are strictly forbidden in the AST. See [`rules/ast-value.md`](rules/ast-value.md).
+- **Arena-by-Index Pass Sweeping.** A rewriting pass sweeps the arena by index. It copies the source node by value and assigns the slot; it must never hold an arena reference across an `Add()` invocation — doing so silently loses rewrites due to vector reallocation. See [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
+- **27-Node Core AST Contract.** No sugar survives `Lowering`, every value expression is typed (outright in concrete code, or after substitution inside a generic body), and `AstInvariant` (Order 40) enforces both on every build. What is refused loudly upstream rather than delegated to a backend is specified in [`rules/core-ast.md`](rules/core-ast.md).
+- **Unreal C++ Style, C++26, `Public/Private`, `-Werror`.** See [`rules/cpp-style.md`](rules/cpp-style.md).
+- **The `volt` CLI Surface Contract.** Subcommands (`run`, `repl`, `parse`, `check`, `version`, `help`, `circuit`, `build`, `format`) and their options are specified once in [`rules/cli-surface.md`](rules/cli-surface.md); `Main.cpp` remains a thin command table routing to `Driver`.
+- **Export Symbols Across `.so` Boundaries.** Modules compile with `-fvisibility=hidden`. Anything invoked by a *different* shared module requires the generated `<MODULE>_EXPORT` macro; otherwise `VOLT_BUILD_SHARED=ON` link builds will fail with mold `undefined symbol` errors. See [`rules/shared-lib-exports.md`](rules/shared-lib-exports.md).
+- **Dual-Mode Build Performance Strategy.** Non-unity builds by default for instant 1s incremental local edits; `unity` flag enabled for clean CI/Release builds. See [`rules/build-performance.md`](rules/build-performance.md).
