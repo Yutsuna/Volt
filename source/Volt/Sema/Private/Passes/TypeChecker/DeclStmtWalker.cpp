@@ -173,6 +173,11 @@ void Volt::Sema::TypeCheckerPass::WalkDecl ( TypeCheckerContext &Context, Fronte
                 EnterType( Context, Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Node.Name ) ).value_or( NominalId{} ),
                            Node.Generics, Node.Body, Node.Loc, false );
             },
+            [&] ( const Frontend::Enum &Node )
+            {
+                EnterType( Context, Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Node.Name ) ).value_or( NominalId{} ),
+                           Node.Generics, Node.Body, Node.Loc, true );
+            },
             [&] ( const Frontend::Method &Node ) { EnterMethod( Context, Node ); },
             [] ( const Frontend::Annotation & ) {},
             [&] ( const auto &Node ) { WalkChildren( Context, Node ); },
