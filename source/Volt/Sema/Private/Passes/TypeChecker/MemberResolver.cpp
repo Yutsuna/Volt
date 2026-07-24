@@ -4,6 +4,8 @@
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
+#include <algorithm>
+
 Volt::Sema::TypeCheckerPass::Resolution
 Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name )
 {
@@ -319,6 +321,16 @@ Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupApply
     return Resolution{};
 }
 
+bool Volt::Sema::TypeCheckerPass::HasEnumCases ( const TypeStore &Store, NominalId Nominal )
+{
+    if ( not Nominal.IsValid() )
+    {
+        return false;
+    }
+    const auto &Members = Store.Type( Nominal ).Members;
+    return std::ranges::any_of( Members, [] ( const Member &Entry ) { return Entry.Kind == EMemberKind::EnumCase; } );
+}
+
 bool Volt::Sema::TypeCheckerPass::IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name )
 {
     if ( not Base.IsValid() or not IsOperatorName( Name ) )
@@ -333,7 +345,17 @@ bool Volt::Sema::TypeCheckerPass::IsBuiltinOpOn ( const TypeCheckerContext &Cont
     }
 
     const LayoutKind Kind = KindOf( Context.Ctx.Types.Get( Nominal.Layout ) );
-    return Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer;
+    if ( Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer )
+    {
+        return true;
+    }
+
+    // An enum's layout is an empty `Aggregate` (no `@[Primitive]`, no
+    // fields) — never `Primitive`/`Pointer` — yet `when Enum::Case` desugars
+    // to `pattern === target` (CaseLowering) and no enum declares `===`
+    // itself. `"==="` is the only operator this exemption widens to, since
+    // that is the only one CaseLowering ever emits against an enum.
+    return Name == "===" and HasEnumCases( Context.Ctx.Types, Base );
 }
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::MemberType (
