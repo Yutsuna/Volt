@@ -68,11 +68,13 @@ namespace Driver
     struct CompileResult
     {
 
-        std::size_t Files            = 0;
-        std::size_t JsxLowered       = 0;
-        std::size_t PipelinesLowered = 0;
-        std::size_t Errors           = 0;
-        bool bCycle                  = false;
+        std::size_t Files  = 0;
+        std::size_t Errors = 0;
+        // Every per-unit counter, summed. One field rather than a copy of
+        // PassStats' shape, so a new counter reaches `check --metrics` with
+        // no change here at all.
+        Sema::PassStats Stats;
+        bool bCycle = false;
     };
 
     // Front-end orchestrator: discovers the files of a build, parses and
