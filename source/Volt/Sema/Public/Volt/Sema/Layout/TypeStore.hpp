@@ -57,6 +57,12 @@ namespace Sema
 
         Field,
         Method,
+        // An `enum` case (`Red`, `Some( value : T )`): a named, self-typed
+        // constant, reachable both as `Enum::Case` (a naked-type access) and
+        // as `.Case` inside a `case self when` pattern (an instance access)
+        // — CheckMemberSelf/CheckDotCallSelf exempt this kind from the
+        // static/instance split for exactly that reason.
+        EnumCase,
     };
 
     // One entry of a type's interface, published by the serial binder so that
