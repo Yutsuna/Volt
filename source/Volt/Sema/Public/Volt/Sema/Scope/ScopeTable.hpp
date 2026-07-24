@@ -250,6 +250,23 @@ namespace Sema
             return Id.IsValid() ? CapturesOf( Id ) : nullptr;
         }
 
+        // A closure literal consumed directly where it is written — a call's
+        // trailing `do ... end` / BlockArg, or a bare argument in its Args
+        // list — never outlives that call: its environment can live on the
+        // caller's stack. Anything else (bound to a local, returned, stored
+        // in a field or a literal) may outlive the statement that wrote it,
+        // so escaping is the conservative default absent a recorded proof.
+        void SetEscapes ( ScopeId ClosureScope, bool bEscapes )
+        {
+            ClosureEscapes[ClosureScope] = bEscapes;
+        }
+
+        [[nodiscard]] bool Escapes ( ScopeId ClosureScope ) const
+        {
+            const auto It = ClosureEscapes.find( ClosureScope );
+            return It == ClosureEscapes.end() or It->second;
+        }
+
     private:
 
         Core::Arena<Scope, ScopeId> Scopes;
@@ -257,6 +274,7 @@ namespace Sema
         std::vector<ScopeId> StmtScope;        // by StmtId::Value
         std::vector<ScopeId> ExprScope;        // by ExprId::Value
         std::unordered_map<ScopeId, Core::SmallVec<Capture, 4>> ClosureCaptures;
+        std::unordered_map<ScopeId, bool> ClosureEscapes;
     };
 
 } // namespace Sema
