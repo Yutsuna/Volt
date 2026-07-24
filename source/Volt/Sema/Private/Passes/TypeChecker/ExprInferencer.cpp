@@ -184,17 +184,11 @@ namespace
         }
 
         const Volt::Sema::SemaTypeId ClauseType = TrailingType( Context, Clause.Body );
-        if ( not Result.IsValid() )
-        {
-            Result = ClauseType;
-        }
+        Result                                  = Context.UnifyBranchTypes( Result, ClauseType );
     }
 
     const Volt::Sema::SemaTypeId ElseType = TrailingType( Context, Expr.ElseBody );
-    if ( not Result.IsValid() )
-    {
-        Result = ElseType;
-    }
+    Result                                = Context.UnifyBranchTypes( Result, ElseType );
 
     if ( bIsEnum and Expr.ElseBody.IsEmpty() )
     {
@@ -223,6 +217,37 @@ namespace
     return Result;
 }
 
+// Builds `<ExceptionRoot>.new(MessageArg)` (MessageArg may be an invalid
+// ExprId for a bare `.new()`), resolving the root type's name dynamically
+// through TypeStore rather than a hardcoded spelling. Shared by the two
+// places a `raise` needs to materialise an actual exception value: the
+// `raise "msg"` string-literal desugar and the bare-`raise`-with-no-active-
+// rescue fallback.
+[[nodiscard]] Volt::Frontend::ExprId MakeExceptionConstructor ( Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                                                Volt::Core::SourceRange Loc,
+                                                                Volt::Frontend::ExprId MessageArg )
+{
+    const auto Root = Context.Ctx.Types.GetExceptionRoot();
+    if ( not Root )
+    {
+        Context.Report( Loc, "no type is annotated @[ExceptionRoot]; the stdlib must declare one" );
+        return Volt::Frontend::ExprId{};
+    }
+    const std::string_view RootName      = Context.Ctx.Types.Text( Context.Ctx.Types.Type( *Root ).Name );
+    const Volt::Frontend::Symbol NameSym = Context.Ctx.Ast.Strings().Intern( RootName );
+    const Volt::Frontend::ExprId ClassRef =
+        Context.Ctx.Ast.Add( Volt::Frontend::ExprNode{ Volt::Frontend::Identifier{ {}, NameSym } } );
+    const Volt::Frontend::ExprId NewMember = Context.Ctx.Ast.Add(
+        Volt::Frontend::ExprNode{ Volt::Frontend::Member{ {}, ClassRef, Context.Ctx.Ast.Strings().Intern( "new" ) } } );
+    Volt::Frontend::Call CallNode;
+    CallNode.Callee = NewMember;
+    if ( MessageArg.IsValid() )
+    {
+        CallNode.Args.PushBack( MessageArg );
+    }
+    return Context.Ctx.Ast.Add( Volt::Frontend::ExprNode{ std::move( CallNode ) } );
+}
+
 } // namespace
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
@@ -232,6 +257,29 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
     return std::visit(
         Meta::Overloaded{
             [&] ( const Frontend::SelfExpr & ) -> SemaTypeId { return Context.SelfValue; },
+            [&] ( const Frontend::SuperExpr & ) -> SemaTypeId
+            {
+                if ( Context.SelfValue.IsValid() )
+                {
+                    const SemaType &SelfConc = Context.Ctx.Values.Get( Context.SelfValue );
+                    if ( SelfConc.Base.IsValid() )
+                    {
+                        const NominalType &NomType = Context.Ctx.Types.Type( SelfConc.Base );
+                        if ( NomType.Super.IsValid() )
+                        {
+                            const SemaTypeId SuperInstance = Instantiate( Context.Ctx.Types, NomType.Super, SelfConc.Args,
+                                                                          Context.SelfValue, Context.Ctx.Values );
+                            const Resolution Found         = LookupOn( Context, SuperInstance, "initialize" );
+                            if ( Found.Decl != nullptr )
+                            {
+                                Context.CalleeResolution[Id.Value] = Found;
+                                return Found.Result;
+                            }
+                        }
+                    }
+                }
+                return SemaTypeId{};
+            },
             [&] ( const Frontend::InstanceVar &Expr ) -> SemaTypeId
             {
                 return MemberType( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Context.SelfValue,
@@ -247,6 +295,26 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 {
                     Context.NakedTypeExprs.insert( Id.Value );
                     return Context.MakeType( *Named, {} );
+                }
+
+                if ( Context.Ctx.Ast.Text( Expr.Name ) == "super" and Context.SelfValue.IsValid() )
+                {
+                    const SemaType &SelfConc = Context.Ctx.Values.Get( Context.SelfValue );
+                    if ( SelfConc.Base.IsValid() )
+                    {
+                        const NominalType &NomType = Context.Ctx.Types.Type( SelfConc.Base );
+                        if ( NomType.Super.IsValid() )
+                        {
+                            const SemaTypeId SuperInstance = Instantiate( Context.Ctx.Types, NomType.Super, SelfConc.Args,
+                                                                          Context.SelfValue, Context.Ctx.Values );
+                            const Resolution Found         = LookupOn( Context, SuperInstance, "initialize" );
+                            if ( Found.Decl != nullptr )
+                            {
+                                Context.CalleeResolution[Id.Value] = Found;
+                                return Found.Result;
+                            }
+                        }
+                    }
                 }
 
                 // Neither a local nor a type: inside a method body, a bare
@@ -347,7 +415,86 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 static_cast<void>( InferExpr( Context, Expr.Cond ) );
                 const SemaTypeId Then = InferExpr( Context, Expr.Then );
                 const SemaTypeId Else = InferExpr( Context, Expr.Else );
-                return Then.IsValid() ? Then : Else;
+                return Context.UnifyBranchTypes( Then, Else );
+            },
+            [&] ( const Frontend::RaiseExpr &Expr ) -> SemaTypeId
+            {
+                Frontend::RaiseExpr &Mutable = std::get<Frontend::RaiseExpr>( Context.Ctx.Ast.Expr( Id ) );
+                if ( not Mutable.Exception.IsValid() )
+                {
+                    // Bare `raise`: re-raise the innermost rescue's bound
+                    // variable, or (outside any rescue) fall back to
+                    // constructing a fresh exception.
+                    if ( not Context.RescueVarStack.empty() and Context.RescueVarStack.back().IsValid() )
+                    {
+                        Mutable.Exception = Context.Ctx.Ast.Add(
+                            Frontend::ExprNode{ Frontend::Identifier{ {}, Context.RescueVarStack.back() } } );
+                    }
+                    else
+                    {
+                        Mutable.Exception = MakeExceptionConstructor( Context, Expr.Loc, Frontend::ExprId{} );
+                    }
+                }
+                else if ( std::holds_alternative<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Mutable.Exception ) ) or
+                          std::holds_alternative<Frontend::Interp>( Context.Ctx.Ast.Expr( Mutable.Exception ) ) )
+                {
+                    // `raise "msg"` desugars to `Exception.new("msg")`, moved
+                    // here from the parser so the constructed callee resolves
+                    // through TypeStore's @[ExceptionRoot] instead of a
+                    // hardcoded name.
+                    Mutable.Exception = MakeExceptionConstructor( Context, Expr.Loc, Mutable.Exception );
+                }
+                if ( Mutable.Exception.IsValid() )
+                {
+                    static_cast<void>( InferExpr( Context, Mutable.Exception ) );
+                }
+                return Context.NoReturnType();
+            },
+            [&] ( const Frontend::BeginExpr &Expr ) -> SemaTypeId
+            {
+                SemaTypeId Result = TrailingType( Context, Expr.Body );
+                for ( const Frontend::StmtId ClauseId : Expr.RescueClauses )
+                {
+                    if ( not ClauseId.IsValid() )
+                    {
+                        continue;
+                    }
+                    const auto &Clause = std::get<Frontend::RescueClause>( Context.Ctx.Ast.Stmt( ClauseId ) );
+                    SemaTypeId ExceptionType{};
+                    if ( Clause.ExceptionType.IsValid() )
+                    {
+                        UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
+                        ExceptionType =
+                            ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
+                        const NominalId Nominal =
+                            Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
+                        if ( const auto ExcOpt = Context.Ctx.Types.GetExceptionRoot(); ExcOpt.has_value() and Nominal.IsValid() )
+                        {
+                            if ( not IsSubclassOf( Context.Ctx.Types, Nominal, *ExcOpt ) )
+                            {
+                                Context.Report( Frontend::LocOf( Context.Ctx.Ast.Stmt( ClauseId ) ),
+                                                "rescue filter type must be a subclass of Exception" );
+                            }
+                        }
+                    }
+                    else if ( const auto ExcOpt = Context.Ctx.Types.GetExceptionRoot(); ExcOpt.has_value() )
+                    {
+                        ExceptionType = Context.MakeType( *ExcOpt, {} );
+                    }
+                    if ( Clause.VarName.IsValid() )
+                    {
+                        Context.WriteLocal( Frontend::ExprId{}, Clause.VarName, ExceptionType );
+                    }
+                    Context.RescueVarStack.push_back( Clause.VarName );
+                    const SemaTypeId ClauseType = TrailingType( Context, Clause.Body );
+                    Context.RescueVarStack.pop_back();
+                    Result = Context.UnifyBranchTypes( Result, ClauseType );
+                }
+                if ( not Expr.EnsureBody.IsEmpty() )
+                {
+                    static_cast<void>( TrailingType( Context, Expr.EnsureBody ) );
+                }
+                return Result;
             },
             [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Context, Expr ); },
             [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Context, Id, Expr ); },
