@@ -1,17 +1,17 @@
 # MiddleEnd Architecture — Semantic Analysis & Lazy-Strict Typing
 
-## Rôle du MiddleEnd
-Le MiddleEnd de Volt prend en entrée l'AST désucré issu du Frontend et effectue la **résolution des portées (Scope Resolution)**, le **liage des types (Type Binding)**, et la **propagation des contraintes sémantiques**.
+## Role of the MiddleEnd
+The Volt MiddleEnd takes the desugared AST produced by the Frontend and performs **Scope Resolution**, **Type Binding**, and **Semantic Constraint Propagation**.
 
-Sa philosophie fondamentale est le **"Lazy typage dynamique, mais strict"**.
+Its foundational philosophy is **"Lazy Dynamic, but Strict Typing"**.
 
 ---
 
-## Philosophie : "Lazy Typage Dynamique, mais Strict"
+## Philosophy: "Lazy Dynamic, but Strict Typing"
 
-Le MiddleEnd ne précipite jamais le verrouillage d'un type. Si un littéral ou une variable n'a pas de type explicite, il est conservé dans un état **"potentiellement ce type"** (non contraint) et s'affine au fur et à mesure de l'utilisation. En revanche, dès qu'un type est **explicitement déclaré**, il devient **strict et immuable** (aucune conversion implicite autorisée).
+The MiddleEnd never rushes to freeze a type prematurely. If a literal or variable lacks an explicit type annotation, it is maintained in an **"unconstrained / potentially-this-type"** state and refined as it is used down the pipeline. However, as soon as a type is **explicitly declared**, it becomes **strict and immutable** (no implicit type coercions allowed).
 
-### Exemple concret :
+### Concrete Walkthrough Example:
 
 ```volt
 def func( a : UInt64 ) -> Int32
@@ -22,82 +22,54 @@ b = 10
 func b
 ```
 
-### Déroulement pas-à-pas dans le MiddleEnd :
+### Step-by-Step Processing in the MiddleEnd:
 
-1. **Assignation implicite (`b = 10`)** :
-   - Le Frontend produit un littéral entier `10` et la déclaration de `b`.
-   - Le MiddleEnd enregistre `10` comme un `IntLiteral` **non contraint** avec `Int32` comme simple fallback par défaut.
-   - `b` reçoit comme type l'expression non contrainte de `10`. Le type de `b` n'est **pas bloqué** à `Int32`.
+1. **Implicit Assignment (`b = 10`)**:
+   - The Frontend produces an integer literal `10` and the declaration of `b`.
+   - The MiddleEnd registers `10` as an **unconstrained** `IntLiteral` with `Int32` as a fallback default.
+   - `b` receives the unconstrained expression type of `10`. The type of `b` is **not locked** to `Int32`.
 
-2. **Appel de fonction (`func b`)** :
-   - La signature de `func` exige un paramètre `a` de type **`UInt64`**.
-   - Lors de la vérification de l'appel (`CheckCallArgs`), la contrainte `UInt64` est **répercutée en amont** (propagation récursive des contraintes `ConstrainExprType`) sur l'argument `b`, puis sur son initialiseur littéral `10`.
-   - Le littéral `10` et la variable `b` sont ainsi affinés et verrouillés à **`UInt64`**.
+2. **Function Call (`func b`)**:
+   - The signature of `func` requires a parameter `a` of type **`UInt64`**.
+   - During call argument checking (`CheckCallArgs`), the constraint `UInt64` is **propagated upstream** (recursive constraint propagation via `ConstrainExprType`) onto argument `b`, and subsequently onto its literal initializer `10`.
+   - Both the literal `10` and the variable `b` are thus refined and locked to **`UInt64`**.
 
-3. **Valeur de retour explicite (`a` de type `UInt64` vers `Int32`)** :
-   - Le paramètre `a` est **explicitement typé** en `UInt64`. Son type est connu avec certitude et **strict**.
-   - Le corps de la fonction tente de retourner `a` alors que la signature indique une valeur de retour `Int32`.
-   - **Erreur sémantique immédiate** : `a` étant explicitement un `UInt64`, Volt refuse toute conversion implicite vers `Int32`.
+3. **Explicit Return Value (`a` of type `UInt64` to `Int32`)**:
+   - Parameter `a` is **explicitly typed** as `UInt64`. Its type is known with certainty and is **strict**.
+   - The function body attempts to return `a` while the function signature specifies an `Int32` return type.
+   - **Immediate Semantic Error**: Because `a` is explicitly `UInt64`, Volt strictly rejects all implicit conversions to `Int32`.
 
 ---
 
-## Passes du MiddleEnd (`EPassKind::Analysis`)
+## MiddleEnd Passes (`EPassKind::Analysis`)
 
-Le liage des types (`Sema::BindUnitTypes`, `Layout/TypeBinder.cpp`) tourne
-**avant** la phase parallèle, dans le seam sériel du Driver : un `10` d'un
-fichier utilisateur résout vers l'`Int32` déclaré dans `source/Lib/`, donc ce
-liage est cross-unit et ne peut pas être une passe par-fichier. Il enregistre
-aussi les **noms de modules** (`TypeStore::DeclareModule`) : un `module` est un
-namespace, pas un type nominal — ses méthodes sont des fonctions libres.
+Type binding (`Sema::BindUnitTypes`, `Layout/TypeBinder.cpp`) executes **before** the parallel pass phase, inside the Driver's serial execution seam: a literal `10` in a user file resolves to `Int32` declared in `source/Lib/`. This binding is cross-unit and cannot be run as a per-file pass. It also registers **module names** (`TypeStore::DeclareModule`): a `module` is a namespace, not a nominal type — its methods are free functions.
 
 ### 1. Order 10 — `ScopeResolver`
-- Construit la `ScopeTable` (portées `Method`/`Block`/`Branch`), déclare
-  paramètres et locales, calcule les captures de closures et leur `bEscapes`.
-- Rejette les redéclarations dans une même portée, autorise le shadowing enfant.
+- Constructs the `ScopeTable` (`Method`/`Block`/`Branch` scopes), declares parameters and local variables, and computes closure captures along with their `bEscapes` status.
+- Rejects redeclarations within the same scope while permitting child scope shadowing.
 
 ### 2. Order 30 — `TypeChecker` (`Sema/Private/Passes/TypeChecker/`)
-- Inférence bidirectionnelle sur `UnitTypes` ; `UnconstrainedLiterals` /
-  `UnconstrainedVarInitializers` gèrent l'affinement lazy des littéraux nus.
-- **Ordre impératif à chaque site d'affectation : inférer → contraindre →
-  vérifier.** Contraindre avant d'inférer gèle les enfants (le parent est
-  mémoïsé, le walk n'a jamais lieu).
-- **Assignabilité totale** : un prédicat unique `TypeCompat::IsAssignable`
-  (+ `CheckAssignable( ..., EAssignSite )`) est câblé sur les 5 sites
-  (`LocalDecl`, `Assign`, `Return`, valeur finale de corps, défaut de
-  paramètre). Un type **explicitement déclaré** est strict : aucune conversion
-  implicite, **sauf** l'élargissement scalaire de même famille sans
-  rétrécissement — décision de sémantique du langage, forcée par `hash -> UInt64`,
-  détaillée dans [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
-- **Opérateurs** : `MemberType` enregistre la résolution dans `CalleeResolution`
-  pour `Binary`/`Unary` comme pour `Member` — sur layout primitif/pointeur le
-  backend émet l'instruction, sinon il appelle la méthode. Zéro passe, zéro
-  nœud. Un opérateur exempté de corps doit **quand même** être déclaré.
-- `Nil` (`@[Literal( NilLiteral )]`) assignable à tout `Pointer` ; `T?`
-  (`NilableType`) **refusé bruyamment** (`nilable types are not implemented`).
-- Arités, membres instance vs statique (`bStaticContext`), fonctions libres.
+- Bidirectional inference over `UnitTypes`; `UnconstrainedLiterals` / `UnconstrainedVarInitializers` manage the lazy refinement of unconstrained literals.
+- **Imperative ordering at every assignment site: infer → constrain → verify.** Constraining before inferring freezes child expressions (the parent is memoized and AST traversal never occurs).
+- **Comprehensive Assignability**: A unified predicate `TypeCompat::IsAssignable` (+ `CheckAssignable( ..., EAssignSite )`) is wired across all 5 assignment sites (`LocalDecl`, `Assign`, `Return`, final block body value, parameter default). An **explicitly declared** type is strict: zero implicit conversions, **except** same-family scalar widening without narrowing — a language semantic design decision forced by `hash -> UInt64`, detailed in [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
+- **Operators**: `MemberType` records resolution in `CalleeResolution` for `Binary`/`Unary` as well as `Member` — for primitive/pointer memory layouts, the backend emits a machine instruction; otherwise it emits a method call. Zero extra passes, zero extra AST nodes. An operator exempt from a body must **still** be declared.
+- `Nil` (`@[Literal( NilLiteral )]`) is assignable to any `Pointer`; `T?` (`NilableType`) is **loudly refused** (`nilable types are not implemented`).
+- Arity validation, instance vs static member contexts (`bStaticContext`), free function resolutions.
 
 ### 3. Order 40 — `AstInvariant`
-Le garde-fou qui rend « 0 dette » **structurel** plutôt qu'instantané. Ne crée
-aucun nœud (seule façon de tourner après `TypeChecker` sans casser l'invariant
-structurel). Deux vérifications, toutes deux erreurs dures :
-- **Aucun sucre résiduel** (ensemble `VOLT_EXPR_SUGAR` généré par le manifeste).
-- **Typage total en position de valeur**, `Context.Metadata` et corps génériques
-  exclus (cf. le contrat d'entrée backend dans
-  [`rules/core-ast.md`](rules/core-ast.md)).
+The safety check that makes "Zero Debt" **structural** rather than transient. Creates zero AST nodes (the only way to run after `TypeChecker` without breaking structural invariants). Performs two checks, both producing hard errors:
+- **Zero Residual Sugar**: Verifies no `VOLT_EXPR_SUGAR` node variants exist in the arena.
+- **Total Value Typing**: Every expression in a value position must be typed, excluding `Context.Metadata` and generic template bodies (per the backend input contract in [`rules/core-ast.md`](rules/core-ast.md)).
 
-Compteurs remontés par `volt check --metrics` (`PassStats`, agrégé par réflexion).
+Counters are reported by `volt check --metrics` (`PassStats`, aggregated via reflection).
 
-> **Invariant structurel** : aucune passe créatrice de nœuds après `TypeChecker`.
-> C'est ce qui garantit que tout nœud vu par un backend a un type.
+> **Structural Invariant**: No node-creating pass may run after `TypeChecker`. This guarantees that every AST node seen by a backend possesses a resolved type.
 
 ---
 
-## Produit en sortie du MiddleEnd
-En sortie du MiddleEnd, l'AST/HIR livré au backend (voir
-[`rules/core-ast.md`](rules/core-ast.md) pour le contrat complet — **27 nœuds
-noyau**, `CalleeResolution` et `ClosureEnvFrame` déjà calculés) est :
-- **100 % Résolu** : chaque identifiant lié à son site de déclaration.
-- **100 % Typé** — avec une seule nuance, portée par le contrat : typé d'emblée
-  dans du code concret, **typé après substitution** dans un corps générique
-  (`T` de `Array<T>` ne devient un type qu'à la monomorphisation = codegen).
-- **100 % Validé** : tous les diagnostics sémantiques sont émis.
+## MiddleEnd Output Artifact
+At the exit of the MiddleEnd, the AST/HIR delivered to the backend (see [`rules/core-ast.md`](rules/core-ast.md) for the complete contract — **27 core nodes**, with `CalleeResolution` and `ClosureEnvFrame` fully precomputed) is:
+- **100% Resolved**: Every identifier is bound to its declaration site.
+- **100% Typed**: With a single nuance defined by the contract: typed immediately in concrete code, **typed after substitution** inside generic bodies (`T` in `Array<T>` becomes a type only upon monomorphization during codegen).
+- **100% Validated**: All semantic diagnostics have been emitted.

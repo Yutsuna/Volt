@@ -56,6 +56,7 @@ option( VOLT_ENABLE_TSAN        "Enable ThreadSanitizer (Debug only)"           
 option( VOLT_CHECKED_IDS        "Cross-arena TypedId provenance checks (changes Id layout)" OFF )
 option( VOLT_UNITY_BUILD        "Enable Unity Build (fast full clean builds, slower incremental)" OFF )
 option( VOLT_BUILD_SHARED       "Build internal Volt modules as shared libraries"                 OFF )
+option( VOLT_ENABLE_LLVM        "Build the BackendLLVM module (requires an LLVM toolchain)"       OFF )
 
 if( VOLT_UNITY_BUILD )
     set( CMAKE_UNITY_BUILD ON )

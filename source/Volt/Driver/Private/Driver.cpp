@@ -97,7 +97,8 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
                                .Diags   = Bag,
                                .Stats   = Unit.Stats,
                                .Globals = &Registry,
-                               .Sources = &Sources };
+                               .Sources = &Sources,
+                               .Callees = &Unit.Callees };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
