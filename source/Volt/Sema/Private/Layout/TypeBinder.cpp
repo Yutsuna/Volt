@@ -113,6 +113,15 @@ namespace Sema
                                              .Super    = Frontend::TypeId{} },
                                    Pending );
                         },
+                        [&] ( const Frontend::Enum &Type )
+                        {
+                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
+                                             .Id       = Id,
+                                             .Generics = &Type.Generics,
+                                             .Body     = &Type.Body,
+                                             .Super    = Frontend::TypeId{} },
+                                   Pending );
+                        },
                         [] ( const auto & ) {},
                     },
                     Node );
@@ -222,8 +231,28 @@ namespace Sema
                 return Store.AddAggregate( std::move( Agg ) );
             }
 
-            // Every field and method of the body becomes a member, with its
-            // signature still unresolved — phase B fills those in.
+            // `Id` instantiated with its own generic parameters, in order —
+            // what `self` means inside `Id`'s own body. This is the result
+            // type of every enum case: `Optional<T>::Some`/`::None` both
+            // produce an `Optional<T>`, not a bare `Optional`.
+            [[nodiscard]] SigTypeId SelfSigOf ( NominalId Id )
+            {
+                SigType Self;
+                Self.Base = Id;
+                for ( std::size_t Index = 0; Index < Store.Type( Id ).Params.Size(); ++Index )
+                {
+                    SigType Param;
+                    Param.ParamIndex = static_cast<std::int32_t>( Index );
+                    Self.Args.PushBack( Store.AddSig( std::move( Param ) ) );
+                }
+                return Store.AddSig( std::move( Self ) );
+            }
+
+            // Every field, method and enum case of the body becomes a
+            // member, with its signature still unresolved — phase B fills
+            // those in. (An enum case's Result is the one exception: it is
+            // already fully known here, since it never depends on anything
+            // but the enum's own identity.)
             void DeclareMembers ( NominalId Id, const Frontend::DeclList &Body )
             {
                 bool bApply = false;
@@ -264,6 +293,16 @@ namespace Sema
                                 Slot.bSelf     = Entry.bSelf;
                                 Slot.bApply    = bApply;
                                 Slot.bAbstract = Entry.bAbstract;
+                                Store.AddMember( Id, std::move( Slot ) );
+                            },
+                            [&] ( const Frontend::EnumCase &Entry )
+                            {
+                                Member Slot;
+                                Slot.Name   = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind   = EMemberKind::EnumCase;
+                                Slot.Unit   = Unit;
+                                Slot.Decl   = Child;
+                                Slot.Result = SelfSigOf( Id );
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [] ( const auto & ) {},
@@ -506,6 +545,28 @@ namespace Sema
                                     Slot->Params       = std::move( Params );
                                     Slot->ParamIsBlock = std::move( ParamIsBlock );
                                     Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
+                                    ++Resolved;
+                                }
+                            },
+                            [&] ( const Frontend::EnumCase &Entry )
+                            {
+                                // A case is never itself generic — its
+                                // payload (`Some( value : T )`) only ever
+                                // references the enum's own parameters, so
+                                // no space concatenation like Method's.
+                                SigSink Sink{ Store };
+                                Core::SmallVec<SigTypeId, 4> Params;
+                                Core::SmallVec<bool, 4> ParamIsBlock;
+                                for ( const Frontend::ParamId ParamRef : Entry.Payload )
+                                {
+                                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                                    Params.PushBack( ResolveTypeExpr( Ast, Store, Generics, Sink, ParamNode.DeclType ) );
+                                    ParamIsBlock.PushBack( ParamNode.bIsBlock );
+                                }
+                                if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
+                                {
+                                    Slot->Params       = std::move( Params );
+                                    Slot->ParamIsBlock = std::move( ParamIsBlock );
                                     ++Resolved;
                                 }
                             },
