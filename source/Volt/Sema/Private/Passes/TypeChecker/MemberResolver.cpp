@@ -1,5 +1,7 @@
 #include "MemberResolver.hpp"
 
+#include "TypeCompat.hpp"
+
 #include "ExprInferencer.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
@@ -224,26 +226,6 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
     }
 }
 
-void Volt::Sema::TypeCheckerPass::CheckDotCallSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found )
-{
-    if ( Found.Decl == nullptr or Found.Decl->Kind == EMemberKind::EnumCase )
-    {
-        return;
-    }
-
-    const bool bMemberIsStatic = Found.Decl->bSelf;
-    const std::string Name     = std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) };
-
-    if ( Context.bStaticContext and not bMemberIsStatic )
-    {
-        Context.Report( Loc, "instance member " + Name + " cannot be accessed from a static context" );
-    }
-    else if ( not Context.bStaticContext and bMemberIsStatic )
-    {
-        Context.Report( Loc, "static member " + Name + " cannot be accessed from an instance context" );
-    }
-}
-
 namespace
 {
 
@@ -262,52 +244,6 @@ namespace
     }
     const char Ch = Name[0];
     return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
-}
-
-} // namespace
-
-namespace
-{
-
-// Same nominal, same arity of generic arguments, but a slot the declaration
-// side left an open hole (invalid — an un-instantiated generic, or a written
-// argument that named no type at all) matches whatever the call site
-// actually supplies there, the same way an un-instantiated method generic
-// does. This is what lets `Pointer<Void>` — `Void` unresolved as of Point 6
-// of PLAN.md §VI — stand in for "any pointer" in the external `memcpy` /
-// `memcmp` signatures without the compiler ever comparing a type name.
-[[nodiscard]] bool ArgTypeMatches ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
-                                    Volt::Sema::SemaTypeId ArgType,
-                                    Volt::Sema::SemaTypeId ParamType )
-{
-    if ( ArgType.Value == ParamType.Value )
-    {
-        return true;
-    }
-    if ( not Context.Ctx.Values.Has( ArgType ) or not Context.Ctx.Values.Has( ParamType ) )
-    {
-        return false;
-    }
-
-    const Volt::Sema::SemaType &ArgVal   = Context.Ctx.Values.Get( ArgType );
-    const Volt::Sema::SemaType &ParamVal = Context.Ctx.Values.Get( ParamType );
-    if ( ArgVal.Base != ParamVal.Base or ArgVal.Args.Size() != ParamVal.Args.Size() )
-    {
-        return false;
-    }
-
-    for ( std::size_t Index = 0; Index < ParamVal.Args.Size(); ++Index )
-    {
-        if ( not ParamVal.Args[Index].IsValid() )
-        {
-            continue;
-        }
-        if ( ParamVal.Args[Index].Value != ArgVal.Args[Index].Value )
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 } // namespace
@@ -376,9 +312,17 @@ bool Volt::Sema::TypeCheckerPass::IsBuiltinOpOn ( const TypeCheckerContext &Cont
 }
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::MemberType (
-    TypeCheckerContext &Context, Core::SourceRange Loc, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
+    TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
 {
-    const Resolution Found = LookupOn( Context, Receiver, Name );
+    const Core::SourceRange Loc = Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) );
+    const Resolution Found      = LookupOn( Context, Receiver, Name );
+
+    // Unconditional, exactly as the Member branch has always done: an empty
+    // Resolution is itself the answer "no user-written member here", which for
+    // an operator on a primitive layout is what tells a backend to emit an
+    // instruction rather than a call.
+    Context.CalleeResolution[Id.Value] = Found;
+
     if ( Context.Ctx.Values.Has( Receiver ) and Found.Decl == nullptr )
     {
         const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
@@ -423,7 +367,7 @@ void Volt::Sema::TypeCheckerPass::CheckCallArgs ( TypeCheckerContext &Context,
             Context.ConstrainExprType( Args[Index], ParamType );
         }
         const SemaTypeId ArgType = InferExpr( Context, Args[Index] );
-        if ( ArgType.IsValid() and ParamType.IsValid() and not ArgTypeMatches( Context, ArgType, ParamType ) )
+        if ( ArgType.IsValid() and ParamType.IsValid() and not IsAssignable( Context, ParamType, ArgType ) )
         {
             Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Args[Index] ) ),
                             "argument " + std::to_string( Index + 1 ) + " to " + Name + " has type " +
