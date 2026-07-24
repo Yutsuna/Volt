@@ -10,6 +10,7 @@
 #include <optional>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -383,6 +384,25 @@ namespace Sema
             return It != FunctionByName.end() ? &Functions[It->second] : nullptr;
         }
 
+        // --- Modules -------------------------------------------------------
+
+        // A `module` is a namespace, not a nominal type: its methods are bound
+        // as free functions (Layout/TypeBinder.cpp) and it has no layout, no
+        // `self`, no members. Only its *name* is kept, and only so that
+        // `MathUtils.square( 4 )` can be told apart from a member access on an
+        // unresolved receiver — the first resolves to the free function, the
+        // second is a genuine unknown.
+        void DeclareModule ( std::string_view Name )
+        {
+            Modules.insert( Strings.Intern( Name ) );
+        }
+
+        [[nodiscard]] bool IsModule ( std::string_view Name ) const
+        {
+            const auto Known = Strings.Find( Name );
+            return Known.has_value() and Modules.contains( *Known );
+        }
+
         // --- Signature types ----------------------------------------------
 
         [[nodiscard]] SigTypeId AddSig ( SigType Value )
@@ -528,6 +548,7 @@ namespace Sema
         // (parallel, read-only) TypeChecker run.
         std::vector<Member> Functions;
         std::unordered_map<Symbol, std::size_t> FunctionByName;
+        std::unordered_set<Symbol> Modules;
     };
 
 } // namespace Sema
