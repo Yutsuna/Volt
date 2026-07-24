@@ -58,6 +58,7 @@ set( VOLT_CHECK_EXPECT_FAIL
   samples/Sema/AbstractConformance.vl
   samples/Sema/FreeFunctionArityMismatch.vl
   samples/Sema/FreeFunctionTypeMismatch.vl
+  samples/Sema/NonExhaustiveCase.vl
   samples/Sema/RedeclareSameScope.vl
   samples/Sema/UnknownFreeFunction.vl
   samples/Sema/UnknownMember.vl )
