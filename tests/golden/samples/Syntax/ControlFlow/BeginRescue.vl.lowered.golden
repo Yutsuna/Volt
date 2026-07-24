@@ -1,0 +1,89 @@
+Program 'samples/Syntax/ControlFlow/BeginRescue.vl'
+├─ Method 'calculate' @1:1
+│  ├─ params
+│  │  └─ Param 'x'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @1:20
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:31
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ BeginExpr @2:3
+│              ├─ body
+│              │  ├─ If @3:5
+│              │  │  ├─ cond
+│              │  │  │  └─ Binary '==' @3:10
+│              │  │  │     ├─ lhs
+│              │  │  │     │  └─ Identifier 'x' @3:8
+│              │  │  │     └─ rhs
+│              │  │  │        └─ IntLiteral '0' @3:13
+│              │  │  └─ then
+│              │  │     └─ ExprStmt @4:7
+│              │  │        └─ expr
+│              │  │           └─ RaiseExpr @4:7
+│              │  │              └─ exception
+│              │  │                 └─ StringLiteral 'Division by zero' @4:13
+│              │  └─ ExprStmt @6:5
+│              │     └─ expr
+│              │        └─ Binary '/' @6:9
+│              │           ├─ lhs
+│              │           │  └─ IntLiteral '100' @6:5
+│              │           └─ rhs
+│              │              └─ Identifier 'x' @6:11
+│              └─ rescue_clauses
+│                 ├─ RescueClause 'e' @7:10
+│                 │  ├─ exception_type
+│                 │  │  └─ TypeRef 'ArgumentError' @7:14
+│                 │  └─ body
+│                 │     └─ ExprStmt @8:5
+│                 │        └─ expr
+│                 │           └─ Unary '-' @8:5
+│                 │              └─ operand
+│                 │                 └─ IntLiteral '1' @8:6
+│                 └─ RescueClause 'e' @9:10
+│                    └─ body
+│                       └─ ExprStmt @10:5
+│                          └─ expr
+│                             └─ Unary '-' @10:5
+│                                └─ operand
+│                                   └─ IntLiteral '2' @10:6
+└─ Method 'method_rescue' @16:1
+   ├─ params
+   │  └─ Param 'y'
+   │     └─ decl_type
+   │        └─ TypeRef 'Int32' @16:24
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @16:35
+   └─ body
+      └─ ExprStmt @21:1
+         └─ expr
+            └─ BeginExpr @21:1
+               ├─ body
+               │  ├─ If @17:3
+               │  │  ├─ cond
+               │  │  │  └─ Binary '<' @17:8
+               │  │  │     ├─ lhs
+               │  │  │     │  └─ Identifier 'y' @17:6
+               │  │  │     └─ rhs
+               │  │  │        └─ IntLiteral '0' @17:10
+               │  │  └─ then
+               │  │     └─ ExprStmt @18:5
+               │  │        └─ expr
+               │  │           └─ RaiseExpr @18:5
+               │  │              └─ exception
+               │  │                 └─ StringLiteral 'Negative value' @18:11
+               │  └─ ExprStmt @20:3
+               │     └─ expr
+               │        └─ Binary '*' @20:5
+               │           ├─ lhs
+               │           │  └─ Identifier 'y' @20:3
+               │           └─ rhs
+               │              └─ IntLiteral '2' @20:7
+               └─ rescue_clauses
+                  └─ RescueClause 'err' @21:8
+                     └─ body
+                        └─ ExprStmt @22:3
+                           └─ expr
+                              └─ IntLiteral '0' @22:3
+--- exit 0 ---
