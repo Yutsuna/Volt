@@ -54,6 +54,10 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   stdlib (`source/Lib/`) + annotations. See [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
 - **Value AST.** Arena + typed `Id`s, never smart pointers in the AST. See
   [`rules/ast-value.md`](rules/ast-value.md).
+- **A rewriting pass sweeps the arena by index.** It copies the source node by
+  value and assigns the slot; it never holds an arena reference across an
+  `Add()` — that silently loses the rewrite, depending on file size. See
+  [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
 - **Unreal C++ style, C++26, `Public/Private`, `-Werror`.** See
   [`rules/cpp-style.md`](rules/cpp-style.md).
 - **The `volt` CLI surface is a contract.** Subcommands (`run`, `repl`, `parse`,
