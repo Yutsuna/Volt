@@ -452,6 +452,33 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
 {
     for ( ;; )
     {
+        // A chain continues on the next line when that line opens with `.`:
+        //
+        //     clean = users
+        //       .filter( ... )   # a comment here is fine: the lexer folds
+        //       .map( ... )      # blank lines and comments into one Newline
+        //
+        // Without this, the tail links parse as separate statements — two
+        // orphan DotCall nodes with an implicit `self` receiver, i.e. a
+        // silently wrong program rather than a syntax error.
+        //
+        // `Dot` only. `LBracket` and `LParen` opening a line are an array
+        // literal and a parenthesised expression, and `&.` (AmpDot) starts a
+        // section — none of them may be swallowed as a continuation.
+        if ( Check( TokenKind::Newline ) )
+        {
+            std::size_t Ahead = 0;
+            while ( PeekKind( Ahead ) == TokenKind::Newline )
+            {
+                ++Ahead;
+            }
+            if ( PeekKind( Ahead ) != TokenKind::Dot )
+            {
+                break;
+            }
+            SkipNewlines();
+        }
+
         const std::uint32_t Begin = Here();
 
         if ( Accept( TokenKind::Dot ) or Accept( TokenKind::ColonColon ) )
