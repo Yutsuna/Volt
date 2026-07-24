@@ -18,14 +18,14 @@ def main():
     repo_root = Path(__file__).resolve().parent.parent
     os.chdir(repo_root)
 
-    print("1. Updating graphify AST extraction...")
+    print("Updating graphify AST extraction...")
     run_command("graphify update .")
 
-    print("2. Rebuilding graphify Wiki...")
+    print("Rebuilding graphify Wiki...")
     graphify_out = repo_root / "graphify-out"
     if not graphify_out.exists():
         print(f"Error: {graphify_out} directory not found.", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(84)
 
     wiki_script = repo_root / "scripts" / "graphify" / "update_wiki.py"
     res = run_command(f"{sys.executable} {wiki_script}")

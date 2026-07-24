@@ -30,6 +30,6 @@ pkgs.mkShell {
     export CC=gcc
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
 
-    python3 scripts/update_graphify.py
+    python3 scripts/graphify/update_graphify.py
   '';
 }
