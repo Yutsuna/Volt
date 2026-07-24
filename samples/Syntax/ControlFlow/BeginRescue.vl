@@ -1,0 +1,25 @@
+def calculate( x : Int32 ) -> Int32
+  begin
+    if x == 0
+      raise "Division by zero"
+    end
+    100 / x
+  rescue e : ArgumentError
+    -1
+  rescue e
+    -2
+  ensure
+    # Cleanup block
+  end
+end
+
+def method_rescue( y : Int32 ) -> Int32
+  if y < 0
+    raise "Negative value"
+  end
+  y * 2
+rescue err
+  0
+ensure
+  # Method level cleanup
+end
