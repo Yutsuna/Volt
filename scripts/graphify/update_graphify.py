@@ -15,7 +15,7 @@ def run_command(cmd, check=True):
 
 
 def main():
-    repo_root = Path(__file__).resolve().parent.parent
+    repo_root = Path(__file__).resolve().parent.parent.parent
     os.chdir(repo_root)
 
     print("Updating graphify AST extraction...")
