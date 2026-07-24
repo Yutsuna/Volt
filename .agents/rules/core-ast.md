@@ -83,6 +83,45 @@ The rejected alternative was a post-`TypeChecker` lowering pass turning
 non-primitive operators into `Call` nodes. It would have to hand-annotate the
 `UnitTypes` of every `Call` it creates. Zero nodes beats that.
 
+## "Every value expression has a type" — the exact wording
+
+`AstInvariant` (`Sema/Private/Passes/AstInvariant.cpp`) checks the second
+contract on the set of expressions a backend will actually ask a value at:
+`Init` of a `LocalDecl`, `Value` of an `Assign` / `Return`, `Args` and
+`BlockArg` of a `Call`, the operands of `Binary` / `Unary` / `Ternary` /
+`Deref`, and the elements of an `ArrayLit` / `HashLit`. A `Member` in callee
+position or an `Identifier` naming a type is deliberately outside it.
+
+Two exclusions, both recorded by the compiler rather than guessed at:
+
+- **Metadata.** `InferExpr` short-circuits anything `MetadataExprs` marked —
+  the arguments of an `@[...]` annotation and of a `macro` invocation. Those
+  nodes are spellings consumed at compile time, never evaluated.
+- **Generic definition bodies.** Inside `Array<T>`, `Enumerable<T>` or
+  `map<U>`, a value of type `T` has no `SemaTypeId` and cannot have one:
+  `T` becomes a type at instantiation, and instantiation is monomorphisation,
+  which is codegen. `TypeChecker` marks every expression it walks under a
+  generic declaration through `UnitTypes::MarkDeferred`, so "deferred until
+  instantiation" is distinguishable from "the middle-end forgot". **The
+  contract a backend gets is therefore: typed outright in concrete code,
+  typed after substitution inside a generic definition.**
+
+## Two receivers that are not values
+
+- **A `module` is a namespace.** It has no nominal, no layout, no `self`; its
+  methods are bound as *free functions* (`Layout/TypeBinder.cpp`). Only the
+  name is kept, in `TypeStore::DeclareModule`, and it exists for one purpose:
+  `MathUtils.square( 4 )` resolves through `LookupFreeFunction` and records a
+  `CalleeResolution` like any other call, while `unknown_thing.square( 4 )`
+  stays a genuine unknown. A backend sees an ordinary `Call`; the `Member`'s
+  object carries no type and must never be evaluated.
+- **`*p` is a `Deref`, and its type is the pointee.** "Pointer" is not a name
+  the compiler knows: the pointer nominal is whichever stdlib type claims the
+  `PointerType` node kind (`@[Literal( PointerType )]`), the same mechanism
+  that identifies `Nil` through `NilLiteral`. The pointee is that instance's
+  first generic argument. Dereferencing anything else is an error, not a
+  silence.
+
 ## The structural invariant behind all of this
 
 > **No pass runs after `TypeChecker` except `Analysis` passes that create no
@@ -105,3 +144,28 @@ refusal is not debt, a silence would be:
   table, which is backend work.
 - **Un-annotated lambda parameters with no expected type** — needs a
   bidirectional solver; a separate project, with no impact on the backends.
+  `samples/Functional/FunctionalSpec.vl` is the fixture: `add_five = ( &.+ 5 )`
+  then `add_five( 10 )`. It is a `Golden` (parse) sample and does not
+  type-check, by design.
+- **Integer literal suffixes are parsed and then ignored by Sema.** `0_u64`
+  types as `Int32`, because `LiteralType` inserts every `IntLiteral` into
+  `UnconstrainedLiterals` without ever reading the suffix. A real missing
+  feature, not a regression, and its own piece of work.
+- **A method with no `-> T` has no return type**, so its value in an
+  expression is untyped. There is no return-type inference; the stdlib
+  annotates everywhere and samples must too.
+- **Several `samples/Syntax/**` fixtures do not `check`** — they call
+  `Array#length`, `puts`, `Hash#each`, `to_json`, which the stdlib does not
+  declare. Those are stdlib gaps; they are parse fixtures, covered by `Golden`
+  tests only. `AstInvariant`'s typing half is enforced on `source/Lib/**` and
+  `samples/Sema/**`; its residual-sugar half on everything
+  (`tests/AstInvariant.cmake`).
+- **The JSX runtime is not declared.** `JsxLowering` is complete — zero Jsx
+  nodes survive — but it emits `Volt.JSX.create_element( tag, props, children )`
+  and no stdlib type declares it, so `.vlx` files lower correctly and then type
+  as nothing. Declaring it needs an element type and heterogeneous `children`,
+  i.e. a sum type, the same wall `T?` hits. It is silent rather than loud
+  because a `Member` on a receiver that has no type says nothing by design;
+  making *that* loud was tried and produced 253 false positives across the
+  corpus (bare names legitimately resolve later or elsewhere), so the honest
+  record is this line, not a wrong diagnostic.
