@@ -13,6 +13,7 @@ namespace
 {
 
 using namespace Volt;
+using namespace Volt::Sema;
 
 // Every mixin reachable through `include`, transitively and without
 // repeats. The superclass is deliberately not followed: whatever it

@@ -39,276 +39,269 @@
 #include <type_traits>
 #include <variant>
 
-namespace Volt
+namespace
 {
 
-namespace Sema
+using namespace Volt;
+using namespace Volt::Sema;
+
+// The only two shapes a manifest Value column may produce. Everything
+// a literal node stores is an interned string, so a numeric site
+// field renders through the second overload and nothing else is
+// needed to widen MagicSite.
+[[nodiscard]] std::string MagicText ( std::string_view Text )
 {
+    return std::string{ Text };
+}
 
-    namespace
-    {
+[[nodiscard]] std::string MagicText ( std::uint32_t Value )
+{
+    return std::to_string( Value );
+}
 
-        // The only two shapes a manifest Value column may produce. Everything
-        // a literal node stores is an interned string, so a numeric site
-        // field renders through the second overload and nothing else is
-        // needed to widen MagicSite.
-        [[nodiscard]] std::string MagicText ( std::string_view Text )
-        {
-            return std::string{ Text };
-        }
+[[nodiscard]] bool IsMagicInterior ( const char Character )
+{
+    return ( Character >= 'A' and Character <= 'Z' ) or ( Character >= '0' and Character <= '9' ) or Character == '_';
+}
 
-        [[nodiscard]] std::string MagicText ( std::uint32_t Value )
-        {
-            return std::to_string( Value );
-        }
+} // namespace
 
-        [[nodiscard]] bool IsMagicInterior ( const char Character )
-        {
-            return ( Character >= 'A' and Character <= 'Z' ) or ( Character >= '0' and Character <= '9' ) or Character == '_';
-        }
-
-    } // namespace
-
-    std::optional<Frontend::ExprNode>
-    ExpandMagic ( std::string_view Name, const MagicSite &Site, Core::StringInterner &Interner, Core::SourceRange Loc )
-    {
-        // Every literal node reachable from the manifest has the same shape —
-        // { SourceRange, Symbol } — which is what lets one construction
-        // expression serve them all, generated straight from the manifest.
+std::optional<Frontend::ExprNode>
+Volt::Sema::ExpandMagic ( std::string_view Name, const MagicSite &Site, Core::StringInterner &Interner, Core::SourceRange Loc )
+{
+    // Every literal node reachable from the manifest has the same shape —
+    // { SourceRange, Symbol } — which is what lets one construction
+    // expression serve them all, generated straight from the manifest.
 #define VOLT_MAGIC( Spelling, Node, Value )                                                                                      \
     if ( Name == std::string_view( Spelling ) )                                                                                  \
         return Frontend::ExprNode{ Frontend::Node{ Loc, Interner.Intern( MagicText( Value ) ) } };
 #include "Volt/Sema/MagicConstants.inl"
 
-        return std::nullopt;
+    return std::nullopt;
+}
+
+bool Volt::Sema::IsMagicShape ( std::string_view Name )
+{
+    if ( Name.size() <= 4 or not Name.starts_with( "__" ) or not Name.ends_with( "__" ) )
+    {
+        return false;
     }
 
-    bool IsMagicShape ( std::string_view Name )
+    return std::ranges::all_of( Name.substr( 2, Name.size() - 4 ), IsMagicInterior );
+}
+
+std::span<const std::string_view> Volt::Sema::MagicNames ()
+{
+#define VOLT_MAGIC( Spelling, Node, Value ) std::string_view( Spelling ),
+    static constexpr std::array Names{
+#include "Volt/Sema/MagicConstants.inl"
+    };
+    return Names;
+}
+
+namespace
+{
+
+class Expander
+{
+
+public:
+
+    explicit Expander ( Volt::Sema::PassContext &InContext ) : Context( InContext )
     {
-        if ( Name.size() <= 4 or not Name.starts_with( "__" ) or not Name.ends_with( "__" ) )
+    }
+
+    void Run ()
+    {
+        // Answering "where am I" needs the file table; a tool that
+        // never registered one gets a silent no-op rather than a
+        // wrong answer.
+        if ( Context.Sources == nullptr or not Context.Sources->IsValidFile( Context.Ast.FileId() ) )
         {
-            return false;
+            return;
         }
 
-        return std::ranges::all_of( Name.substr( 2, Name.size() - 4 ), IsMagicInterior );
-    }
+        Path = Context.Sources->PathOf( Context.Ast.FileId() );
 
-    std::span<const std::string_view> MagicNames ()
-    {
-#define VOLT_MAGIC( Spelling, Node, Value ) std::string_view( Spelling ),
-        static constexpr std::array Names{
-#include "Volt/Sema/MagicConstants.inl"
-        };
-        return Names;
-    }
+        const std::size_t Slash = Path.find_last_of( '/' );
+        Dir                     = Slash == std::string_view::npos ? std::string_view{} : Path.substr( 0, Slash );
 
-    namespace
-    {
-
-        class Expander
+        for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
         {
-
-        public:
-
-            explicit Expander ( PassContext &InContext ) : Context( InContext )
-            {
-            }
-
-            void Run ()
-            {
-                // Answering "where am I" needs the file table; a tool that
-                // never registered one gets a silent no-op rather than a
-                // wrong answer.
-                if ( Context.Sources == nullptr or not Context.Sources->IsValidFile( Context.Ast.FileId() ) )
-                {
-                    return;
-                }
-
-                Path = Context.Sources->PathOf( Context.Ast.FileId() );
-
-                const std::size_t Slash = Path.find_last_of( '/' );
-                Dir                     = Slash == std::string_view::npos ? std::string_view{} : Path.substr( 0, Slash );
-
-                for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
-                {
-                    WalkDecl( Id, Frontend::Symbol{} );
-                }
-                for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
-                {
-                    WalkStmt( Id, Frontend::Symbol{} );
-                }
-            }
-
-        private:
-
-            // Function is the enclosing method's name, threaded down the walk
-            // — the one piece of context an expansion cannot read off a node.
-            void WalkDecl ( Frontend::DeclId Id, Frontend::Symbol Function )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-
-                std::visit(
-                    Meta::Overloaded{
-                        [&] ( const Frontend::Method &Node )
-                        {
-                            for ( const Frontend::ParamId Param : Node.Params )
-                            {
-                                WalkExpr( Context.Ast.GetParam( Param ).Default, Node.Name );
-                            }
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, Node.Name );
-                            }
-                        },
-                        [&] ( const auto &Node ) { WalkFields( Node, Function ); },
-                    },
-                    Context.Ast.Decl( Id ) );
-            }
-
-            void WalkStmt ( Frontend::StmtId Id, Frontend::Symbol Function )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-                std::visit( [&] ( const auto &Node ) { WalkFields( Node, Function ); }, Context.Ast.Stmt( Id ) );
-            }
-
-            void WalkExpr ( Frontend::ExprId Id, Frontend::Symbol Function )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-
-                // Children first: an expansion replaces the node wholesale,
-                // so descending afterwards would walk the freshly-built
-                // literal instead of the original operands.
-                std::visit( [&] ( const auto &Node ) { WalkFields( Node, Function ); }, Context.Ast.Expr( Id ) );
-
-                const auto *Name = std::get_if<Frontend::Identifier>( &Context.Ast.Expr( Id ) );
-                if ( Name == nullptr )
-                {
-                    return;
-                }
-
-                const std::string_view Spelling = Context.Ast.Text( Name->Name );
-                if ( not IsMagicShape( Spelling ) )
-                {
-                    return;
-                }
-
-                const Core::SourceRange Loc  = Name->Loc;
-                const Core::LineColumn Where = Context.Sources->Resolve( Loc.File, Loc.Begin );
-
-                const MagicSite Site{ .Path     = Path,
-                                      .Dir      = Dir,
-                                      .Function = Function.IsValid() ? Context.Ast.Text( Function ) : std::string_view{},
-                                      .Line     = Where.Line,
-                                      .Column   = Where.Column };
-
-                std::optional<Frontend::ExprNode> Expanded = ExpandMagic( Spelling, Site, Context.Ast.Strings(), Loc );
-                if ( not Expanded.has_value() )
-                {
-                    ReportUnknown( Spelling, Loc );
-                    return;
-                }
-
-                // Rewrite in place: parents hold the ExprId, so the whole tree
-                // updates at once and traversal order is irrelevant.
-                Context.Ast.Expr( Id ) = *std::move( Expanded );
-                ++Context.Stats.MagicsExpanded;
-            }
-
-            // The reserved `__NAME__` shape belongs to the compiler, so a
-            // spelling of that shape the manifest does not know is a typo,
-            // reported here rather than left to surface as a puzzling
-            // unknown-identifier error much later.
-            void ReportUnknown ( std::string_view Spelling, Core::SourceRange Loc )
-            {
-                std::string Known;
-                for ( const std::string_view Candidate : MagicNames() )
-                {
-                    if ( not Known.empty() )
-                    {
-                        Known += ", ";
-                    }
-                    Known += Candidate;
-                }
-
-                Context.Diags.Report( Core::Diagnostic{
-                    .Severity = Core::ESeverity::Error,
-                    .Range    = Loc,
-                    .Message  = "unknown magic constant '" + std::string{ Spelling } + "'",
-                    .Notes    = { Core::DiagnosticNote{ .Range = Loc, .Message = "known magic constants: " + Known } } } );
-            }
-
-            // Reflection-driven default walk: recurse into every child node a
-            // field carries, whatever the node is called.
-            template <typename NodeType> void WalkFields ( const NodeType &Node, Frontend::Symbol Function )
-            {
-                if constexpr ( Meta::Reflected<NodeType> )
-                {
-                    Meta::ForEachField( Node,
-                                        [&] ( std::string_view, const auto &Field )
-                                        {
-                                            using FieldType = std::remove_cvref_t<decltype( Field )>;
-                                            if constexpr ( std::is_same_v<FieldType, Frontend::ExprId> )
-                                            {
-                                                WalkExpr( Field, Function );
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::ExprList> )
-                                            {
-                                                for ( const Frontend::ExprId Child : Field )
-                                                {
-                                                    WalkExpr( Child, Function );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::StmtId> )
-                                            {
-                                                WalkStmt( Field, Function );
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::StmtList> )
-                                            {
-                                                for ( const Frontend::StmtId Child : Field )
-                                                {
-                                                    WalkStmt( Child, Function );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::DeclList> )
-                                            {
-                                                for ( const Frontend::DeclId Child : Field )
-                                                {
-                                                    WalkDecl( Child, Function );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::ParamList> )
-                                            {
-                                                for ( const Frontend::ParamId Child : Field )
-                                                {
-                                                    WalkExpr( Context.Ast.GetParam( Child ).Default, Function );
-                                                }
-                                            }
-                                        } );
-                }
-            }
-
-            PassContext &Context;
-            std::string_view Path;
-            std::string_view Dir;
-        };
-
-    } // namespace
-
-    void MagicExpansion ( PassContext &Context )
-    {
-        Expander Walk{ Context };
-        Walk.Run();
+            WalkDecl( Id, Frontend::Symbol{} );
+        }
+        for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
+        {
+            WalkStmt( Id, Frontend::Symbol{} );
+        }
     }
 
-} // namespace Sema
+private:
 
-} // namespace Volt
+    // Function is the enclosing method's name, threaded down the walk
+    // — the one piece of context an expansion cannot read off a node.
+    void WalkDecl ( Frontend::DeclId Id, Frontend::Symbol Function )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        std::visit(
+            Meta::Overloaded{
+                [&] ( const Frontend::Method &Node )
+                {
+                    for ( const Frontend::ParamId Param : Node.Params )
+                    {
+                        WalkExpr( Context.Ast.GetParam( Param ).Default, Node.Name );
+                    }
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, Node.Name );
+                    }
+                },
+                [&] ( const auto &Node ) { WalkFields( Node, Function ); },
+            },
+            Context.Ast.Decl( Id ) );
+    }
+
+    void WalkStmt ( Frontend::StmtId Id, Frontend::Symbol Function )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+        std::visit( [&] ( const auto &Node ) { WalkFields( Node, Function ); }, Context.Ast.Stmt( Id ) );
+    }
+
+    void WalkExpr ( Frontend::ExprId Id, Frontend::Symbol Function )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        // Children first: an expansion replaces the node wholesale,
+        // so descending afterwards would walk the freshly-built
+        // literal instead of the original operands.
+        std::visit( [&] ( const auto &Node ) { WalkFields( Node, Function ); }, Context.Ast.Expr( Id ) );
+
+        const auto *Name = std::get_if<Frontend::Identifier>( &Context.Ast.Expr( Id ) );
+        if ( Name == nullptr )
+        {
+            return;
+        }
+
+        const std::string_view Spelling = Context.Ast.Text( Name->Name );
+        if ( not IsMagicShape( Spelling ) )
+        {
+            return;
+        }
+
+        const Core::SourceRange Loc  = Name->Loc;
+        const Core::LineColumn Where = Context.Sources->Resolve( Loc.File, Loc.Begin );
+
+        const MagicSite Site{ .Path     = Path,
+                              .Dir      = Dir,
+                              .Function = Function.IsValid() ? Context.Ast.Text( Function ) : std::string_view{},
+                              .Line     = Where.Line,
+                              .Column   = Where.Column };
+
+        std::optional<Frontend::ExprNode> Expanded = ExpandMagic( Spelling, Site, Context.Ast.Strings(), Loc );
+        if ( not Expanded.has_value() )
+        {
+            ReportUnknown( Spelling, Loc );
+            return;
+        }
+
+        // Rewrite in place: parents hold the ExprId, so the whole tree
+        // updates at once and traversal order is irrelevant.
+        Context.Ast.Expr( Id ) = *std::move( Expanded );
+        ++Context.Stats.MagicsExpanded;
+    }
+
+    // The reserved `__NAME__` shape belongs to the compiler, so a
+    // spelling of that shape the manifest does not know is a typo,
+    // reported here rather than left to surface as a puzzling
+    // unknown-identifier error much later.
+    void ReportUnknown ( std::string_view Spelling, Core::SourceRange Loc )
+    {
+        std::string Known;
+        for ( const std::string_view Candidate : MagicNames() )
+        {
+            if ( not Known.empty() )
+            {
+                Known += ", ";
+            }
+            Known += Candidate;
+        }
+
+        Context.Diags.Report(
+            Core::Diagnostic{ .Severity = Core::ESeverity::Error,
+                              .Range    = Loc,
+                              .Message  = "unknown magic constant '" + std::string{ Spelling } + "'",
+                              .Notes = { Core::DiagnosticNote{ .Range = Loc, .Message = "known magic constants: " + Known } } } );
+    }
+
+    // Reflection-driven default walk: recurse into every child node a
+    // field carries, whatever the node is called.
+    template <typename NodeType> void WalkFields ( const NodeType &Node, Frontend::Symbol Function )
+    {
+        if constexpr ( Meta::Reflected<NodeType> )
+        {
+            Meta::ForEachField( Node,
+                                [&] ( std::string_view, const auto &Field )
+                                {
+                                    using FieldType = std::remove_cvref_t<decltype( Field )>;
+                                    if constexpr ( std::is_same_v<FieldType, Frontend::ExprId> )
+                                    {
+                                        WalkExpr( Field, Function );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::ExprList> )
+                                    {
+                                        for ( const Frontend::ExprId Child : Field )
+                                        {
+                                            WalkExpr( Child, Function );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::StmtId> )
+                                    {
+                                        WalkStmt( Field, Function );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::StmtList> )
+                                    {
+                                        for ( const Frontend::StmtId Child : Field )
+                                        {
+                                            WalkStmt( Child, Function );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::DeclList> )
+                                    {
+                                        for ( const Frontend::DeclId Child : Field )
+                                        {
+                                            WalkDecl( Child, Function );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::ParamList> )
+                                    {
+                                        for ( const Frontend::ParamId Child : Field )
+                                        {
+                                            WalkExpr( Context.Ast.GetParam( Child ).Default, Function );
+                                        }
+                                    }
+                                } );
+        }
+    }
+
+    Volt::Sema::PassContext &Context;
+    std::string_view Path;
+    std::string_view Dir;
+};
+
+} // namespace
+
+void Volt::Sema::MagicExpansion ( Volt::Sema::PassContext &Context )
+{
+    Expander Walk{ Context };
+    Walk.Run();
+}

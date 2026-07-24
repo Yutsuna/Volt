@@ -27,400 +27,391 @@
 #include <utility>
 #include <variant>
 
-namespace Volt
+namespace
 {
 
-namespace Sema
+using namespace Volt;
+using namespace Volt::Sema;
+
+class Resolver
 {
 
-    namespace
+public:
+
+    explicit Resolver ( PassContext &InContext ) : Context( InContext )
     {
-
-        class Resolver
-        {
-
-        public:
-
-            explicit Resolver ( PassContext &InContext ) : Context( InContext )
-            {
-            }
-
-            void Run ()
-            {
-                const ScopeId Root = Context.Scopes.PushScope( ScopeId{}, EScopeKind::Unit );
-                for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
-                {
-                    WalkDecl( Id, Root );
-                }
-                for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
-                {
-                    WalkStmt( Id, Root );
-                }
-            }
-
-        private:
-
-            void Report ( Core::SourceRange Loc, std::string Message )
-            {
-                Context.Diags.Report( Core::Diagnostic{
-                    .Severity = Core::ESeverity::Error, .Range = Loc, .Message = std::move( Message ), .Notes = {} } );
-            }
-
-            void DeclareOrReport ( ScopeId InScope, Symbol Name, BindingSite Site, Core::SourceRange Loc )
-            {
-                if ( not Context.Scopes.Declare( InScope, Name, Site ) )
-                {
-                    Report( Loc, "redeclaration of " + std::string{ Context.Ast.Text( Name ) } + " in the same scope" );
-                }
-            }
-
-            // Params of a Method/Block declare into that scope; a default
-            // value is evaluated where the scope opens, so it resolves there.
-            void WalkParams ( const Frontend::ParamList &Params, ScopeId InScope )
-            {
-                for ( const Frontend::ParamId Id : Params )
-                {
-                    const Frontend::Param &Entry = Context.Ast.GetParam( Id );
-                    DeclareOrReport( InScope, Entry.Name, BindingSite{ Id }, Entry.Loc );
-                    WalkExpr( Entry.Default, InScope );
-                }
-            }
-
-            // A type body's own fields/methods are declared into this scope
-            // (DeclId binding sites), but typing an access still goes
-            // exclusively through name-on-receiver (TypeStore::LookupMember)
-            // — this is binding metadata for tooling, not a second authority.
-            // Two passes because member visibility is order-independent: a
-            // method must see a field declared textually after it, unlike a
-            // LocalDecl in a block.
-            void WalkTypeBody ( const Frontend::DeclList &Body, ScopeId Parent )
-            {
-                const ScopeId Inner = Context.Scopes.PushScope( Parent, EScopeKind::Type );
-                for ( const Frontend::DeclId Child : Body )
-                {
-                    std::visit(
-                        Meta::Overloaded{
-                            [&] ( const Frontend::Field &Node )
-                            { Context.Scopes.Declare( Inner, Node.Name, BindingSite{ Child } ); },
-                            [&] ( const Frontend::Method &Node )
-                            { Context.Scopes.Declare( Inner, Node.Name, BindingSite{ Child } ); },
-                            [] ( const auto & ) {},
-                        },
-                        Context.Ast.Decl( Child ) );
-                }
-                for ( const Frontend::DeclId Child : Body )
-                {
-                    WalkDecl( Child, Inner );
-                }
-            }
-
-            void WalkDecl ( Frontend::DeclId Id, ScopeId Current )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-
-                std::visit(
-                    Meta::Overloaded{
-                        [&] ( const Frontend::Module &Node )
-                        {
-                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Unit );
-                            for ( const Frontend::DeclId Child : Node.Body )
-                            {
-                                WalkDecl( Child, Inner );
-                            }
-                        },
-                        [&] ( const Frontend::Class &Node ) { WalkTypeBody( Node.Body, Current ); },
-                        [&] ( const Frontend::Struct &Node ) { WalkTypeBody( Node.Body, Current ); },
-                        [&] ( const Frontend::Mixin &Node ) { WalkTypeBody( Node.Body, Current ); },
-                        [&] ( const Frontend::Method &Node )
-                        {
-                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Method );
-                            WalkParams( Node.Params, Inner );
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, Inner );
-                            }
-                        },
-                        // A component is a type with parameters: its params
-                        // are value bindings visible throughout its body.
-                        [&] ( const Frontend::Component &Node )
-                        {
-                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Type );
-                            WalkParams( Node.Params, Inner );
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, Inner );
-                            }
-                        },
-                        [&] ( const Frontend::Circuit &Node )
-                        {
-                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Type );
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, Inner );
-                            }
-                        },
-                        // Annotation arguments are compile-time metadata, not
-                        // program values — never resolved, never counted.
-                        [] ( const Frontend::Annotation & ) {},
-                        [&] ( const auto &Node ) { WalkFields( Node, Current ); },
-                    },
-                    Context.Ast.Decl( Id ) );
-            }
-
-            void WalkStmt ( Frontend::StmtId Id, ScopeId Current )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-                Context.Scopes.SetScopeOf( Id, Current );
-
-                std::visit(
-                    Meta::Overloaded{
-                        // Then and Else are separate Branch scopes: a Then
-                        // local is never visible in Else.
-                        [&] ( const Frontend::If &Node )
-                        {
-                            WalkExpr( Node.Cond, Current );
-                            const ScopeId ThenScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                            for ( const Frontend::StmtId Child : Node.Then )
-                            {
-                                WalkStmt( Child, ThenScope );
-                            }
-                            const ScopeId ElseScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                            for ( const Frontend::StmtId Child : Node.Else )
-                            {
-                                WalkStmt( Child, ElseScope );
-                            }
-                        },
-                        [&] ( const Frontend::While &Node )
-                        {
-                            WalkExpr( Node.Cond, Current );
-                            const ScopeId BodyScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, BodyScope );
-                            }
-                        },
-                        [&] ( const Frontend::RescueClause &Node )
-                        {
-                            const ScopeId RescueScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                            if ( Node.VarName.IsValid() )
-                            {
-                                DeclareOrReport( RescueScope, Node.VarName, BindingSite{ Id }, Node.Loc );
-                            }
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, RescueScope );
-                            }
-                        },
-                        // Declares in the current scope, does not open one:
-                        // statement-order visibility falls out of the walk.
-                        // The initializer resolves *before* the name exists,
-                        // so `x = x + 1`-style inits see the outer binding.
-                        [&] ( const Frontend::LocalDecl &Node )
-                        {
-                            WalkExpr( Node.Init, Current );
-                            DeclareOrReport( Current, Node.Name, BindingSite{ Id }, Node.Loc );
-                        },
-                        [&] ( const auto &Node ) { WalkFields( Node, Current ); },
-                    },
-                    Context.Ast.Stmt( Id ) );
-            }
-
-            void CheckAndRecordCaptures ( ScopeId FromScope, const Binding &Found )
-            {
-                const bool bIsLocalVal = std::holds_alternative<Frontend::StmtId>( Found.Site ) or
-                                         std::holds_alternative<Frontend::ParamId>( Found.Site );
-                if ( not bIsLocalVal )
-                {
-                    return;
-                }
-
-                for ( ScopeId It = FromScope; It.IsValid() and It != Found.Owner; It = Context.Scopes.Get( It ).Parent )
-                {
-                    const Scope &CurrentScope = Context.Scopes.Get( It );
-                    if ( CurrentScope.Kind == EScopeKind::Block )
-                    {
-                        Context.Scopes.RecordCapture( It, Found );
-                    }
-                }
-            }
-
-            // bDirectCallArg marks an expression written directly as a
-            // call's trailing block / bare argument — the one syntactic
-            // position a closure is guaranteed to be fully consumed before
-            // the enclosing statement ends. It is not propagated into child
-            // expressions: only the argument slot itself is a direct
-            // position, not whatever it happens to contain.
-            void WalkExpr ( Frontend::ExprId Id, ScopeId Current, bool bDirectCallArg = false )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-
-                std::visit(
-                    Meta::Overloaded{
-                        [&] ( const Frontend::Identifier &Node )
-                        {
-                            if ( const Binding *Found = Context.Scopes.Resolve( Current, Node.Name ) )
-                            {
-                                Context.Scopes.BindUse( Id, *Found );
-                                CheckAndRecordCaptures( Current, *Found );
-                                ++Context.Stats.ScopesResolved;
-                                return;
-                            }
-                            // Not an error: may be a type name, a static
-                            // method, a member — TypeChecker decides later.
-                            ++Context.Stats.UnresolvedIdentifiers;
-                        },
-                        // `@name` is a member on self, typed by
-                        // name-on-receiver (MemberType/TypeStore) — never by
-                        // the lexical chain. Resolving it here only records a
-                        // best-effort binding for tooling; it reaches an
-                        // own-body field declared in WalkTypeBody through the
-                        // Method scope's Type parent, never an inherited one
-                        // (a superclass/mixin body lives in a different
-                        // DeclList). A miss is not an error.
-                        [&] ( const Frontend::InstanceVar &Node )
-                        {
-                            if ( const Binding *Found = Context.Scopes.Resolve( Current, Node.Name ) )
-                            {
-                                Context.Scopes.BindUse( Id, *Found );
-                            }
-                        },
-                        [&] ( const Frontend::Block &Node )
-                        {
-                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
-                            Context.Scopes.SetScopeOfExpr( Id, Inner );
-                            Context.Scopes.SetEscapes( Inner, not bDirectCallArg );
-                            WalkParams( Node.Params, Inner );
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, Inner );
-                            }
-                        },
-                        [&] ( const Frontend::Lambda &Node )
-                        {
-                            const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
-                            Context.Scopes.SetScopeOfExpr( Id, Inner );
-                            Context.Scopes.SetEscapes( Inner, not bDirectCallArg );
-                            WalkParams( Node.Params, Inner );
-                            WalkExpr( Node.Body, Inner );
-                        },
-                        [&] ( const Frontend::Call &Node )
-                        {
-                            WalkExpr( Node.Callee, Current );
-                            for ( const Frontend::ExprId Arg : Node.Args )
-                            {
-                                WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
-                            }
-                            WalkExpr( Node.BlockArg, Current, /*bDirectCallArg=*/true );
-                        },
-                        [&] ( const Frontend::DotCall &Node )
-                        {
-                            for ( const Frontend::ExprId Arg : Node.Args )
-                            {
-                                WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
-                            }
-                        },
-                        // The main body and `ensure` are separate Branch
-                        // scopes, same as If/While — a local declared inside
-                        // `begin ... end` must not leak into the enclosing
-                        // scope. Each RescueClause pushes and populates its
-                        // own Branch scope already (WalkStmt above), so its
-                        // clauses are simply walked in Current here.
-                        [&] ( const Frontend::BeginExpr &Node )
-                        {
-                            const ScopeId BodyScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                            for ( const Frontend::StmtId Child : Node.Body )
-                            {
-                                WalkStmt( Child, BodyScope );
-                            }
-                            for ( const Frontend::StmtId Clause : Node.RescueClauses )
-                            {
-                                WalkStmt( Clause, Current );
-                            }
-                            const ScopeId EnsureScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                            for ( const Frontend::StmtId Child : Node.EnsureBody )
-                            {
-                                WalkStmt( Child, EnsureScope );
-                            }
-                        },
-                        [&] ( const auto &Node ) { WalkFields( Node, Current ); },
-                    },
-                    Context.Ast.Expr( Id ) );
-            }
-
-            // Reflection-driven default walk: recurse into every child node a
-            // field carries, whatever the node is called. This is what makes
-            // adding an AST node free for this pass.
-            template <typename NodeType> void WalkFields ( const NodeType &Node, ScopeId Current )
-            {
-                if constexpr ( Meta::Reflected<NodeType> )
-                {
-                    Meta::ForEachField( Node,
-                                        [&] ( std::string_view, const auto &Field )
-                                        {
-                                            using FieldType = std::remove_cvref_t<decltype( Field )>;
-                                            if constexpr ( std::is_same_v<FieldType, Frontend::ExprId> )
-                                            {
-                                                WalkExpr( Field, Current );
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::ExprList> )
-                                            {
-                                                for ( const Frontend::ExprId Child : Field )
-                                                {
-                                                    WalkExpr( Child, Current );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::StmtId> )
-                                            {
-                                                WalkStmt( Field, Current );
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::StmtList> )
-                                            {
-                                                for ( const Frontend::StmtId Child : Field )
-                                                {
-                                                    WalkStmt( Child, Current );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::DeclList> )
-                                            {
-                                                for ( const Frontend::DeclId Child : Field )
-                                                {
-                                                    WalkDecl( Child, Current );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, Frontend::ParamList> )
-                                            {
-                                                // Not a value scope (EnumCase
-                                                // payload, MacroDef params):
-                                                // only the defaults resolve.
-                                                for ( const Frontend::ParamId Child : Field )
-                                                {
-                                                    WalkExpr( Context.Ast.GetParam( Child ).Default, Current );
-                                                }
-                                            }
-                                        } );
-                }
-            }
-
-            PassContext &Context;
-        };
-
-    } // namespace
-
-    void ScopeResolver ( PassContext &Context )
-    {
-        Resolver Walk{ Context };
-        Walk.Run();
     }
 
-} // namespace Sema
+    void Run ()
+    {
+        const ScopeId Root = Context.Scopes.PushScope( ScopeId{}, EScopeKind::Unit );
+        for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
+        {
+            WalkDecl( Id, Root );
+        }
+        for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
+        {
+            WalkStmt( Id, Root );
+        }
+    }
 
-} // namespace Volt
+private:
+
+    void Report ( Core::SourceRange Loc, std::string Message )
+    {
+        Context.Diags.Report(
+            Core::Diagnostic{ .Severity = Core::ESeverity::Error, .Range = Loc, .Message = std::move( Message ), .Notes = {} } );
+    }
+
+    void DeclareOrReport ( ScopeId InScope, Symbol Name, BindingSite Site, Core::SourceRange Loc )
+    {
+        if ( not Context.Scopes.Declare( InScope, Name, Site ) )
+        {
+            Report( Loc, "redeclaration of " + std::string{ Context.Ast.Text( Name ) } + " in the same scope" );
+        }
+    }
+
+    // Params of a Method/Block declare into that scope; a default
+    // value is evaluated where the scope opens, so it resolves there.
+    void WalkParams ( const Frontend::ParamList &Params, ScopeId InScope )
+    {
+        for ( const Frontend::ParamId Id : Params )
+        {
+            const Frontend::Param &Entry = Context.Ast.GetParam( Id );
+            DeclareOrReport( InScope, Entry.Name, BindingSite{ Id }, Entry.Loc );
+            WalkExpr( Entry.Default, InScope );
+        }
+    }
+
+    // A type body's own fields/methods are declared into this scope
+    // (DeclId binding sites), but typing an access still goes
+    // exclusively through name-on-receiver (TypeStore::LookupMember)
+    // — this is binding metadata for tooling, not a second authority.
+    // Two passes because member visibility is order-independent: a
+    // method must see a field declared textually after it, unlike a
+    // LocalDecl in a block.
+    void WalkTypeBody ( const Frontend::DeclList &Body, ScopeId Parent )
+    {
+        const ScopeId Inner = Context.Scopes.PushScope( Parent, EScopeKind::Type );
+        for ( const Frontend::DeclId Child : Body )
+        {
+            std::visit(
+                Meta::Overloaded{
+                    [&] ( const Frontend::Field &Node ) { Context.Scopes.Declare( Inner, Node.Name, BindingSite{ Child } ); },
+                    [&] ( const Frontend::Method &Node ) { Context.Scopes.Declare( Inner, Node.Name, BindingSite{ Child } ); },
+                    [] ( const auto & ) {},
+                },
+                Context.Ast.Decl( Child ) );
+        }
+        for ( const Frontend::DeclId Child : Body )
+        {
+            WalkDecl( Child, Inner );
+        }
+    }
+
+    void WalkDecl ( Frontend::DeclId Id, ScopeId Current )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        std::visit(
+            Meta::Overloaded{
+                [&] ( const Frontend::Module &Node )
+                {
+                    const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Unit );
+                    for ( const Frontend::DeclId Child : Node.Body )
+                    {
+                        WalkDecl( Child, Inner );
+                    }
+                },
+                [&] ( const Frontend::Class &Node ) { WalkTypeBody( Node.Body, Current ); },
+                [&] ( const Frontend::Struct &Node ) { WalkTypeBody( Node.Body, Current ); },
+                [&] ( const Frontend::Mixin &Node ) { WalkTypeBody( Node.Body, Current ); },
+                [&] ( const Frontend::Method &Node )
+                {
+                    const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Method );
+                    WalkParams( Node.Params, Inner );
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, Inner );
+                    }
+                },
+                // A component is a type with parameters: its params
+                // are value bindings visible throughout its body.
+                [&] ( const Frontend::Component &Node )
+                {
+                    const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Type );
+                    WalkParams( Node.Params, Inner );
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, Inner );
+                    }
+                },
+                [&] ( const Frontend::Circuit &Node )
+                {
+                    const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Type );
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, Inner );
+                    }
+                },
+                // Annotation arguments are compile-time metadata, not
+                // program values — never resolved, never counted.
+                [] ( const Frontend::Annotation & ) {},
+                [&] ( const auto &Node ) { WalkFields( Node, Current ); },
+            },
+            Context.Ast.Decl( Id ) );
+    }
+
+    void WalkStmt ( Frontend::StmtId Id, ScopeId Current )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+        Context.Scopes.SetScopeOf( Id, Current );
+
+        std::visit(
+            Meta::Overloaded{
+                // Then and Else are separate Branch scopes: a Then
+                // local is never visible in Else.
+                [&] ( const Frontend::If &Node )
+                {
+                    WalkExpr( Node.Cond, Current );
+                    const ScopeId ThenScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.Then )
+                    {
+                        WalkStmt( Child, ThenScope );
+                    }
+                    const ScopeId ElseScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.Else )
+                    {
+                        WalkStmt( Child, ElseScope );
+                    }
+                },
+                [&] ( const Frontend::While &Node )
+                {
+                    WalkExpr( Node.Cond, Current );
+                    const ScopeId BodyScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, BodyScope );
+                    }
+                },
+                [&] ( const Frontend::RescueClause &Node )
+                {
+                    const ScopeId RescueScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    if ( Node.VarName.IsValid() )
+                    {
+                        DeclareOrReport( RescueScope, Node.VarName, BindingSite{ Id }, Node.Loc );
+                    }
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, RescueScope );
+                    }
+                },
+                // Declares in the current scope, does not open one:
+                // statement-order visibility falls out of the walk.
+                // The initializer resolves *before* the name exists,
+                // so `x = x + 1`-style inits see the outer binding.
+                [&] ( const Frontend::LocalDecl &Node )
+                {
+                    WalkExpr( Node.Init, Current );
+                    DeclareOrReport( Current, Node.Name, BindingSite{ Id }, Node.Loc );
+                },
+                [&] ( const auto &Node ) { WalkFields( Node, Current ); },
+            },
+            Context.Ast.Stmt( Id ) );
+    }
+
+    void CheckAndRecordCaptures ( ScopeId FromScope, const Binding &Found )
+    {
+        const bool bIsLocalVal =
+            std::holds_alternative<Frontend::StmtId>( Found.Site ) or std::holds_alternative<Frontend::ParamId>( Found.Site );
+        if ( not bIsLocalVal )
+        {
+            return;
+        }
+
+        for ( ScopeId It = FromScope; It.IsValid() and It != Found.Owner; It = Context.Scopes.Get( It ).Parent )
+        {
+            const Scope &CurrentScope = Context.Scopes.Get( It );
+            if ( CurrentScope.Kind == EScopeKind::Block )
+            {
+                Context.Scopes.RecordCapture( It, Found );
+            }
+        }
+    }
+
+    // bDirectCallArg marks an expression written directly as a
+    // call's trailing block / bare argument — the one syntactic
+    // position a closure is guaranteed to be fully consumed before
+    // the enclosing statement ends. It is not propagated into child
+    // expressions: only the argument slot itself is a direct
+    // position, not whatever it happens to contain.
+    void WalkExpr ( Frontend::ExprId Id, ScopeId Current, bool bDirectCallArg = false )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        std::visit(
+            Meta::Overloaded{
+                [&] ( const Frontend::Identifier &Node )
+                {
+                    if ( const Binding *Found = Context.Scopes.Resolve( Current, Node.Name ) )
+                    {
+                        Context.Scopes.BindUse( Id, *Found );
+                        CheckAndRecordCaptures( Current, *Found );
+                        ++Context.Stats.ScopesResolved;
+                        return;
+                    }
+                    // Not an error: may be a type name, a static
+                    // method, a member — TypeChecker decides later.
+                    ++Context.Stats.UnresolvedIdentifiers;
+                },
+                // `@name` is a member on self, typed by
+                // name-on-receiver (MemberType/TypeStore) — never by
+                // the lexical chain. Resolving it here only records a
+                // best-effort binding for tooling; it reaches an
+                // own-body field declared in WalkTypeBody through the
+                // Method scope's Type parent, never an inherited one
+                // (a superclass/mixin body lives in a different
+                // DeclList). A miss is not an error.
+                [&] ( const Frontend::InstanceVar &Node )
+                {
+                    if ( const Binding *Found = Context.Scopes.Resolve( Current, Node.Name ) )
+                    {
+                        Context.Scopes.BindUse( Id, *Found );
+                    }
+                },
+                [&] ( const Frontend::Block &Node )
+                {
+                    const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
+                    Context.Scopes.SetScopeOfExpr( Id, Inner );
+                    Context.Scopes.SetEscapes( Inner, not bDirectCallArg );
+                    WalkParams( Node.Params, Inner );
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, Inner );
+                    }
+                },
+                [&] ( const Frontend::Lambda &Node )
+                {
+                    const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
+                    Context.Scopes.SetScopeOfExpr( Id, Inner );
+                    Context.Scopes.SetEscapes( Inner, not bDirectCallArg );
+                    WalkParams( Node.Params, Inner );
+                    WalkExpr( Node.Body, Inner );
+                },
+                [&] ( const Frontend::Call &Node )
+                {
+                    WalkExpr( Node.Callee, Current );
+                    for ( const Frontend::ExprId Arg : Node.Args )
+                    {
+                        WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
+                    }
+                    WalkExpr( Node.BlockArg, Current, /*bDirectCallArg=*/true );
+                },
+                [&] ( const Frontend::DotCall &Node )
+                {
+                    for ( const Frontend::ExprId Arg : Node.Args )
+                    {
+                        WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
+                    }
+                },
+                // The main body and `ensure` are separate Branch
+                // scopes, same as If/While — a local declared inside
+                // `begin ... end` must not leak into the enclosing
+                // scope. Each RescueClause pushes and populates its
+                // own Branch scope already (WalkStmt above), so its
+                // clauses are simply walked in Current here.
+                [&] ( const Frontend::BeginExpr &Node )
+                {
+                    const ScopeId BodyScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.Body )
+                    {
+                        WalkStmt( Child, BodyScope );
+                    }
+                    for ( const Frontend::StmtId Clause : Node.RescueClauses )
+                    {
+                        WalkStmt( Clause, Current );
+                    }
+                    const ScopeId EnsureScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.EnsureBody )
+                    {
+                        WalkStmt( Child, EnsureScope );
+                    }
+                },
+                [&] ( const auto &Node ) { WalkFields( Node, Current ); },
+            },
+            Context.Ast.Expr( Id ) );
+    }
+
+    // Reflection-driven default walk: recurse into every child node a
+    // field carries, whatever the node is called. This is what makes
+    // adding an AST node free for this pass.
+    template <typename NodeType> void WalkFields ( const NodeType &Node, ScopeId Current )
+    {
+        if constexpr ( Meta::Reflected<NodeType> )
+        {
+            Meta::ForEachField( Node,
+                                [&] ( std::string_view, const auto &Field )
+                                {
+                                    using FieldType = std::remove_cvref_t<decltype( Field )>;
+                                    if constexpr ( std::is_same_v<FieldType, Frontend::ExprId> )
+                                    {
+                                        WalkExpr( Field, Current );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::ExprList> )
+                                    {
+                                        for ( const Frontend::ExprId Child : Field )
+                                        {
+                                            WalkExpr( Child, Current );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::StmtId> )
+                                    {
+                                        WalkStmt( Field, Current );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::StmtList> )
+                                    {
+                                        for ( const Frontend::StmtId Child : Field )
+                                        {
+                                            WalkStmt( Child, Current );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::DeclList> )
+                                    {
+                                        for ( const Frontend::DeclId Child : Field )
+                                        {
+                                            WalkDecl( Child, Current );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::ParamList> )
+                                    {
+                                        // Not a value scope (EnumCase
+                                        // payload, MacroDef params):
+                                        // only the defaults resolve.
+                                        for ( const Frontend::ParamId Child : Field )
+                                        {
+                                            WalkExpr( Context.Ast.GetParam( Child ).Default, Current );
+                                        }
+                                    }
+                                } );
+        }
+    }
+
+    Volt::Sema::PassContext &Context;
+};
+
+} // namespace
+
+void Volt::Sema::ScopeResolver ( Volt::Sema::PassContext &Context )
+{
+    Resolver Walk{ Context };
+    Walk.Run();
+}
