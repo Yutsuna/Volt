@@ -15,10 +15,8 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ then
 │           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ Call @3:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @3:5
-│                    └─ args
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
 │                       └─ StringLiteral 'Assertion failed' @3:11
 ├─ Module 'PointFreeDemo' @43:1
 │  └─ body
