@@ -1,6 +1,8 @@
 #include "DeclStmtWalker.hpp"
 
 #include "MemberResolver.hpp"
+#include "Volt/Core/Meta/Overloaded.hpp"
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
 #include <algorithm>
@@ -120,6 +122,8 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     OuterUnconstrainedLiterals.swap( Context.UnconstrainedLiterals );
     std::unordered_map<Symbol, Frontend::ExprId> OuterUnconstrainedVarInitializers;
     OuterUnconstrainedVarInitializers.swap( Context.UnconstrainedVarInitializers );
+    std::unordered_set<Symbol> OuterUninitializedLocals;
+    OuterUninitializedLocals.swap( Context.UninitializedLocals );
     const SemaTypeId OuterReturnType = Context.CurrentMethodReturnType;
 
     UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
@@ -147,6 +151,7 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     Context.Locals.swap( OuterLocals );
     Context.UnconstrainedLiterals.swap( OuterUnconstrainedLiterals );
     Context.UnconstrainedVarInitializers.swap( OuterUnconstrainedVarInitializers );
+    Context.UninitializedLocals.swap( OuterUninitializedLocals );
 }
 
 void Volt::Sema::TypeCheckerPass::WalkDecl ( TypeCheckerContext &Context, Frontend::DeclId Id )
@@ -187,9 +192,53 @@ void Volt::Sema::TypeCheckerPass::WalkDecl ( TypeCheckerContext &Context, Fronte
 
 void Volt::Sema::TypeCheckerPass::WalkStmts ( TypeCheckerContext &Context, const Frontend::StmtList &Stmts )
 {
-    for ( const Frontend::StmtId Id : Stmts )
+    for ( std::size_t Index = 0; Index < Stmts.Size(); ++Index )
     {
+        const Frontend::StmtId Id = Stmts[Index];
         WalkStmt( Context, Id );
+
+        // Detect unreachable code: if this statement is a control-flow
+        // interrupt (return, raise, break, next) and there are more
+        // statements after it in the same block, nothing below can execute.
+        if ( not Id.IsValid() )
+        {
+            continue;
+        }
+        const bool bDiverges = std::visit(
+            Meta::Overloaded{
+                [] ( const Frontend::Return & ) { return true; },
+                [] ( const Frontend::Break & ) { return true; },
+                [] ( const Frontend::Next & ) { return true; },
+                [] ( const Frontend::ExprStmt &S )
+                {
+                    // A bare `raise` is an ExprStmt wrapping a RaiseExpr.
+                    static_cast<void>( S );
+                    return false;
+                },
+                [] ( const auto & ) { return false; },
+            },
+            Context.Ctx.Ast.Stmt( Id ) );
+
+        // Check the ExprStmt case for `raise`: the expression type is NoReturn.
+        const bool bExprDiverges = [&]
+        {
+            if ( const auto *Stmt = std::get_if<Frontend::ExprStmt>( &Context.Ctx.Ast.Stmt( Id ) ) )
+            {
+                return Context.IsNoReturn( Context.Ctx.Values.ExprType( Stmt->Expr ) );
+            }
+            return false;
+        }();
+
+        if ( ( bDiverges or bExprDiverges ) and Index + 1 < Stmts.Size() )
+        {
+            const Frontend::StmtId NextStmt = Stmts[Index + 1];
+            if ( NextStmt.IsValid() )
+            {
+                Context.Report( Frontend::LocOf( Context.Ctx.Ast.Stmt( NextStmt ) ),
+                                "unreachable code after control flow interrupt" );
+            }
+            break;
+        }
     }
 }
 
@@ -219,6 +268,17 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
                 if ( not Written.IsValid() and Node.Init.IsValid() )
                 {
                     Context.UnconstrainedVarInitializers[Node.Name] = Node.Init;
+                }
+
+                // Definite assignment: a typed declaration with no initializer
+                // (`x : T`) is uninitialized until explicitly assigned.
+                if ( Bound.IsValid() and not Node.Init.IsValid() )
+                {
+                    Context.UninitializedLocals.insert( Node.Name );
+                }
+                else
+                {
+                    Context.UninitializedLocals.erase( Node.Name );
                 }
             },
             [&] ( const Frontend::Return &Node )
