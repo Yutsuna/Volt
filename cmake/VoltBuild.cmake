@@ -13,8 +13,11 @@ VoltAddModules(
   Core
   Frontend
   Sema
-  Driver
+  # Before Driver: the Driver maps its CompileUnits into Backend::UnitViews, so
+  # `Volt::BackendCore` must already be a defined ALIAS when Driver links it.
+  # The dependency stays one-way — BackendCore never mentions Driver.
   Backend/BackendCore
+  Driver
   Backend/BackendVM
   Backend/BackendLLVM
   Backend/BackendWASM
