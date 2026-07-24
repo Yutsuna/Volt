@@ -115,7 +115,7 @@ template <typename NodeType>
     else
     {
         const std::string_view Kind = Meta::TypeName<NodeType>();
-        if ( Kind == "IntLiteral" )
+        if ( Kind == "IntLiteral" or Kind == "FloatLiteral" )
         {
             Context.UnconstrainedLiterals.insert( Id.Value );
         }
