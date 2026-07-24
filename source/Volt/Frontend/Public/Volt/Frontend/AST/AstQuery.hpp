@@ -41,6 +41,93 @@ namespace Frontend
             Node );
     }
 
+    // --- Locating nodes a nested parse produced --------------------------
+    //
+    // Two front-end paths re-lex a fragment into an existing AstContext: the
+    // interpolation sub-parser and macro expansion. Both hand the Lexer a
+    // string that starts at offset zero, so every node they build claims to
+    // sit at the head of the file — a diagnostic inside `#{...}` or a macro
+    // body points at line 1, and `__LINE__` expands to 1 with it. Bracketing
+    // the arenas around the nested parse gives the caller exactly the nodes
+    // it created, to put back on the enclosing file's coordinates.
+
+    /// Every arena's size at one instant. Nodes appended after it occupy the
+    /// half-open range [Mark, Count) of their category.
+    struct ArenaMark
+    {
+
+        std::size_t Exprs  = 0;
+        std::size_t Stmts  = 0;
+        std::size_t Decls  = 0;
+        std::size_t Types  = 0;
+        std::size_t Params = 0;
+    };
+
+    [[nodiscard]] inline ArenaMark MarkArenas ( const AstContext &Ast )
+    {
+        return ArenaMark{ .Exprs  = Ast.ExprCount(),
+                          .Stmts  = Ast.StmtCount(),
+                          .Decls  = Ast.DeclCount(),
+                          .Types  = Ast.TypeCount(),
+                          .Params = Ast.ParamCount() };
+    }
+
+    /// Invoke Fn( Core::SourceRange & ) on every node appended since Mark.
+    /// Like LocOf, this leans on the `Loc` convention rather than a per-kind
+    /// switch, so a new node category member is covered the day it is added.
+    template <typename Fn> void ForEachLocSince ( AstContext &Ast, const ArenaMark &Mark, Fn &&Apply )
+    {
+        const auto Visit = [&Apply] ( auto &Concrete )
+        {
+            if constexpr ( requires { Concrete.Loc; } )
+            {
+                Apply( Concrete.Loc );
+            }
+        };
+
+        for ( std::size_t Index = Mark.Exprs; Index < Ast.ExprCount(); ++Index )
+        {
+            std::visit( Visit, Ast.Expr( ExprId{ static_cast<ExprId::ValueType>( Index ) } ) );
+        }
+        for ( std::size_t Index = Mark.Stmts; Index < Ast.StmtCount(); ++Index )
+        {
+            std::visit( Visit, Ast.Stmt( StmtId{ static_cast<StmtId::ValueType>( Index ) } ) );
+        }
+        for ( std::size_t Index = Mark.Decls; Index < Ast.DeclCount(); ++Index )
+        {
+            std::visit( Visit, Ast.Decl( DeclId{ static_cast<DeclId::ValueType>( Index ) } ) );
+        }
+        for ( std::size_t Index = Mark.Types; Index < Ast.TypeCount(); ++Index )
+        {
+            std::visit( Visit, Ast.Type( TypeId{ static_cast<TypeId::ValueType>( Index ) } ) );
+        }
+        for ( std::size_t Index = Mark.Params; Index < Ast.ParamCount(); ++Index )
+        {
+            Visit( Ast.GetParam( ParamId{ static_cast<ParamId::ValueType>( Index ) } ) );
+        }
+    }
+
+    /// Slide nodes appended since Mark by Offset. For a fragment that *is* a
+    /// verbatim slice of the file (string interpolation), so offsets map back
+    /// exactly and each node keeps its own distinct position.
+    inline void ShiftLocsSince ( AstContext &Ast, const ArenaMark &Mark, std::uint32_t Offset )
+    {
+        ForEachLocSince( Ast, Mark,
+                         [Offset] ( Core::SourceRange &Loc )
+                         {
+                             Loc.Begin += Offset;
+                             Loc.End += Offset;
+                         } );
+    }
+
+    /// Collapse nodes appended since Mark onto one range. For synthesised
+    /// text (macro expansion), which has no per-character preimage in the
+    /// file: the honest location for all of it is the invocation site.
+    inline void StampLocsSince ( AstContext &Ast, const ArenaMark &Mark, Core::SourceRange Range )
+    {
+        ForEachLocSince( Ast, Mark, [Range] ( Core::SourceRange &Loc ) { Loc = Range; } );
+    }
+
     /// The text of a StringLiteral expression, if that is what Id points at.
     /// The view lives as long as the context's interner.
     [[nodiscard]] inline std::optional<std::string_view> AsStringText ( const AstContext &Ast, ExprId Id )
