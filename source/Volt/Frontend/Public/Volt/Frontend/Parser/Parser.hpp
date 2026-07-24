@@ -169,7 +169,7 @@ namespace Frontend
         [[nodiscard]] ExprId ParseArrayLiteral ();
         [[nodiscard]] ExprId ParseHashLiteral ();
         [[nodiscard]] ExprId ParseStringLiteral ( const Token &Tok );
-        [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range );
+        [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range, std::uint32_t BaseOffset );
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
         [[nodiscard]] ExprId ParseDoBlock ();
         [[nodiscard]] ExprId ParseCaseExpr ();
