@@ -63,7 +63,7 @@ end
 # `Nil` claims, never through its name.
 def nil_into_pointer -> Void
   buf : Pointer<UInt8> = Pointer<UInt8>.malloc( 8 )
-  if buf != null
+  if buf != nil
     buf.free
   end
 end
