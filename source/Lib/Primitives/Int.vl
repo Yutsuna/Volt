@@ -3,6 +3,7 @@ struct Int8
   include Comparable
   include Hashable
   include Arithmetic
+  include Stringable
 
   def <=>( other : Int8 ) -> Int32
     if self < other
@@ -25,6 +26,7 @@ struct Int16
   include Comparable
   include Hashable
   include Arithmetic
+  include Stringable
 
   def <=>( other : Int16 ) -> Int32
     if self < other
@@ -47,6 +49,7 @@ struct Int32
   include Comparable
   include Hashable
   include Arithmetic
+  include Stringable
 
   def <=>( other : Int32 ) -> Int32
     if self < other
@@ -72,6 +75,7 @@ struct Int64
   include Comparable
   include Hashable
   include Arithmetic
+  include Stringable
 
   def <=>( other : Int64 ) -> Int32
     if self < other
