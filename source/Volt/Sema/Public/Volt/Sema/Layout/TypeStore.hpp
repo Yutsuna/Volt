@@ -104,6 +104,18 @@ namespace Sema
         // node marks its own `call`, and arity follows the receiver, which no
         // fixed declaration could express.
         bool bApply = false;
+        // `@[External( "libc", "malloc" )]`: implemented outside Volt, so the
+        // member is a *declaration* of a symbol the linker resolves rather
+        // than a body any backend emits. Recorded here, at the one seam that
+        // already reads annotations, because a backend must never re-scan an
+        // AST for sibling Annotation decls — that would be semantic analysis
+        // in codegen (.agents/backend/core-interfaces.md).
+        //
+        // ExternLib is the library to link ("libc"); ExternSymbol is the C
+        // symbol, defaulting to the member's own spelling when the annotation
+        // gives only a library. Both invalid when the member is ordinary Volt.
+        Symbol ExternLib;
+        Symbol ExternSymbol;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
