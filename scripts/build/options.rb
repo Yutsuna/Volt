@@ -12,8 +12,6 @@ module Volt::Build
       'tsan'    => 'VOLT_ENABLE_TSAN',
       'testing' => 'VOLT_ENABLE_TESTING',
       'unity'   => 'VOLT_UNITY_BUILD',
-      # BackendLLVM is opt-in: a default dev build never pays LLVM's configure
-      # and link cost, and the module gates itself with an early return().
       'llvm'    => 'VOLT_ENABLE_LLVM'
     }.freeze
     SANITIZERS    = %w[VOLT_ENABLE_ASAN VOLT_ENABLE_TSAN VOLT_ENABLE_UBSAN].freeze
