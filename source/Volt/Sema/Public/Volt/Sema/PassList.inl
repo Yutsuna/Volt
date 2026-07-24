@@ -31,7 +31,24 @@ VOLT_PASS( MacroExpansion, 15, Lowering )
 VOLT_PASS( MagicExpansion, 16, Lowering )
 VOLT_PASS( JsxLowering, 20, Lowering )
 VOLT_PASS( CaseLowering, 22, Lowering )
+// Right after CaseLowering, never before: a `when .even?` pattern is a DotCall
+// that belongs to the scrutinee, not to `self`. What survives order 22 is a
+// `.method` in statement position, i.e. a genuine implicit-self call.
+VOLT_PASS( DotCallLowering, 23, Lowering )
+// Before IndexLowering: it turns `obj[ i ] += v` into `obj[ i ] = obj[ i ] + v`,
+// so the store lowering below sees one shape of assignment and nothing else.
+VOLT_PASS( AssignLowering, 24, Lowering )
+VOLT_PASS( IndexLowering, 25, Lowering )
+// After MacroExpansion (15), never before: a macro body is text, and the
+// `#{ ... }` it contains only becomes an Interp node once that text has been
+// expanded and re-parsed.
+VOLT_PASS( InterpLowering, 26, Lowering )
 VOLT_PASS( TypeChecker, 30, Analysis )
 VOLT_PASS( UnusedChecker, 35, Analysis )
+// Last, and Analysis: it creates no node, which is what lets it run after
+// TypeChecker without breaking the structural invariant above. It is the
+// mechanical check that the two AST contracts still hold — no residual sugar,
+// no untyped value expression. See rules/core-ast.md.
+VOLT_PASS( AstInvariant, 40, Analysis )
 
 #undef VOLT_PASS

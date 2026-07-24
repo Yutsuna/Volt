@@ -26,13 +26,23 @@ namespace Sema
     struct PassStats
     {
 
-        std::size_t JsxLowered       = 0;
-        std::size_t CaseLowered      = 0;
-        std::size_t MacrosExpanded   = 0;
-        std::size_t EnumsLowered     = 0;
-        std::size_t PipelinesLowered = 0;
-        std::size_t MagicsExpanded   = 0;
-        std::size_t ScopesResolved   = 0;
+        std::size_t JsxLowered      = 0;
+        std::size_t CaseLowered     = 0;
+        std::size_t DotCallsLowered = 0;
+        std::size_t AssignsLowered  = 0;
+        std::size_t IndexesLowered  = 0;
+        std::size_t InterpsLowered  = 0;
+        // AstInvariant (order 40). Both must be 0 for the AST contract of
+        // rules/core-ast.md to hold; both are also reported as hard errors, so
+        // these counters are what `check --metrics` shows rather than the
+        // enforcement itself.
+        std::size_t ResidualSugarNodes = 0;
+        std::size_t UntypedValueExprs  = 0;
+        std::size_t MacrosExpanded     = 0;
+        std::size_t EnumsLowered       = 0;
+        std::size_t PipelinesLowered   = 0;
+        std::size_t MagicsExpanded     = 0;
+        std::size_t ScopesResolved     = 0;
         // Not errors: a name ScopeResolver could not bind may be a type or a
         // member — TypeChecker decides later, with type context in hand.
         std::size_t UnresolvedIdentifiers = 0;
