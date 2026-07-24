@@ -30,6 +30,7 @@ target_compile_options( VoltCompileOptions INTERFACE
   -Wformat=2
   -Wimplicit-fallthrough
   -Wno-missing-braces
+  -Wno-maybe-uninitialized
   -Werror
  )
 
