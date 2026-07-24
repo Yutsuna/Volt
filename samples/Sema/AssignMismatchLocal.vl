@@ -1,0 +1,14 @@
+# VOLT_CHECK_EXPECT_FAIL — site 1 of 5: a local declaration whose initializer
+# does not fit the written type.
+#
+# The second case is the one that proves the rule is a *direction*, not just an
+# equality: widening (Int8 -> UInt64) is accepted, narrowing is not.
+
+def bad_local -> Void
+  n : Int32 = "plain"
+end
+
+def narrowing -> Void
+  wide : UInt64 = 5
+  narrow : Int32 = wide
+end

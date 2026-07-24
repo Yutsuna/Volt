@@ -1,0 +1,50 @@
+# String interpolation is sugar. InterpLowering (order 26) folds it into the
+# concatenation it means, left-associatively and in source order:
+#
+#   "n = #{ n }!"  ->  ( "n = " + n.to_string ) + "!"
+#
+# A part that is already a string chunk is concatenated as it stands; every
+# other part is asked for `to_string`. No Interp node reaches the type checker
+# or a backend, and because the result is an ordinary `String#+` chain, the
+# whole expression types through the same path as hand-written concatenation.
+
+def literal_and_expr( n : Int32 ) -> String
+  "count = #{ n } items"
+end
+
+def expr_only( n : Int32 ) -> String
+  "#{ n }"
+end
+
+def integer_widths -> String
+  small : Int8 = 7
+  big : Int64 = -1234
+  unsigned : UInt64 = 99
+  "#{ small }/#{ big }/#{ unsigned }"
+end
+
+def floating -> String
+  ratio : Float64 = 1.5
+  "ratio = #{ ratio }"
+end
+
+def boolean -> String
+  flag = true
+  "flag = #{ flag }"
+end
+
+def character -> String
+  letter = 'A'
+  "letter = #{ letter }"
+end
+
+# A string interpolated into a string: the inner Interp carries a smaller arena
+# index, so it is lowered first and the outer one sees an ordinary expression.
+def nested( name : String ) -> String
+  inner = "[#{ name }]"
+  "wrapped #{ inner } done"
+end
+
+def leading_and_trailing( n : Int32 ) -> String
+  "#{ n } and #{ n }"
+end
