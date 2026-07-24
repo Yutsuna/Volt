@@ -161,6 +161,7 @@ namespace Sema
                 UseIndex.resize( static_cast<std::size_t>( Use.Value ) + 1, nullptr );
             }
             UseIndex[Use.Value] = &Target;
+            ++UseCounts[Target.Site];
         }
 
         [[nodiscard]] const Binding *BindingOf ( Frontend::ExprId Use ) const
@@ -267,6 +268,12 @@ namespace Sema
             return It == ClosureEscapes.end() or It->second;
         }
 
+        [[nodiscard]] std::size_t UseCountOf ( const BindingSite &Site ) const
+        {
+            const auto It = UseCounts.find( Site );
+            return It != UseCounts.end() ? It->second : 0;
+        }
+
     private:
 
         Core::Arena<Scope, ScopeId> Scopes;
@@ -275,6 +282,7 @@ namespace Sema
         std::vector<ScopeId> ExprScope;        // by ExprId::Value
         std::unordered_map<ScopeId, Core::SmallVec<Capture, 4>> ClosureCaptures;
         std::unordered_map<ScopeId, bool> ClosureEscapes;
+        std::unordered_map<BindingSite, std::size_t, BindingSiteHash> UseCounts;
     };
 
 } // namespace Sema
