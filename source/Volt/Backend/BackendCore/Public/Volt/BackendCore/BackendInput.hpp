@@ -36,11 +36,22 @@ namespace Backend
     };
 
     // The whole build: units in circuit link order (dependencies before
-    // dependents, entry module last), plus the frozen store.
+    // dependents, entry module last), plus the store.
+    //
+    // `Types` is mutable, and deliberately: everything a backend *reads* is
+    // settled, but a generic's layout is not something Sema left out — it is
+    // something Sema cannot know. `Array<T>` has no memory shape until T is
+    // fixed, and fixing it is monomorphisation, which is codegen
+    // (rules/core-ast.md). InstanceLayout.hpp materialises those into the
+    // store's layout arena as they are discovered. That arena is separate from
+    // the nominal and signature arenas, so growing it cannot invalidate the
+    // `Member *` handles Sema published, and codegen is single-threaded.
+    //
+    // No backend may declare a *type* here — only measure one.
     struct BackendInput
     {
 
-        const Sema::TypeStore *Types = nullptr;
+        Sema::TypeStore *Types = nullptr;
         std::span<const UnitView> Units;
     };
 
