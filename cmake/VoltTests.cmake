@@ -56,8 +56,17 @@ list( SORT VOLT_CHECK_SOURCES )
 
 set( VOLT_CHECK_EXPECT_FAIL
   samples/Sema/AbstractConformance.vl
+  samples/Sema/AssignMismatchAssign.vl
+  samples/Sema/AssignMismatchDefault.vl
+  samples/Sema/AssignMismatchLocal.vl
+  samples/Sema/AssignMismatchReturn.vl
+  samples/Sema/AssignMismatchTrailing.vl
+  samples/Sema/CompoundAssignReceiver.vl
+  samples/Sema/NilableUnsupported.vl
+  samples/Sema/DotCallNoReceiver.vl
   samples/Sema/FreeFunctionArityMismatch.vl
   samples/Sema/FreeFunctionTypeMismatch.vl
+  samples/Sema/InterpNoToString.vl
   samples/Sema/NonExhaustiveCase.vl
   samples/Sema/RedeclareSameScope.vl
   samples/Sema/UnknownFreeFunction.vl
