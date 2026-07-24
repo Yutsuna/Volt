@@ -1,4 +1,5 @@
 #include "TypeCheckerContext.hpp"
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 
@@ -24,18 +25,40 @@ void Volt::Sema::TypeCheckerPass::TypeCheckerContext::Report ( Core::SourceRange
 std::optional<Volt::Sema::SemaTypeId> Volt::Sema::TypeCheckerPass::TypeCheckerContext::FindLocal ( Frontend::ExprId Use,
                                                                                                    Symbol Name ) const
 {
+    SemaTypeId FoundType;
+
     if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
     {
         if ( const auto It = LocalTypes.find( Bound->Site ); It != LocalTypes.end() )
         {
-            return It->second;
+            FoundType = It->second;
         }
     }
-    if ( const auto It = Locals.find( Name ); It != Locals.end() )
+    if ( not FoundType.IsValid() )
     {
-        return It->second;
+        if ( const auto It = Locals.find( Name ); It != Locals.end() )
+        {
+            FoundType = It->second;
+        }
     }
-    return std::nullopt;
+    if ( not FoundType.IsValid() )
+    {
+        return std::nullopt;
+    }
+
+    // Definite assignment: warn when a variable declared without an
+    // initializer is read before its first assignment.
+    if ( UninitializedLocals.contains( Name ) )
+    {
+        Ctx.Diags.Report( Core::Diagnostic{
+            .Severity = Core::ESeverity::Warning,
+            .Range    = Use.IsValid() ? Frontend::LocOf( Ctx.Ast.Expr( Use ) ) : Core::SourceRange{},
+            .Message  = "variable '" + std::string{ Ctx.Ast.Text( Name ) } + "' used before being initialized",
+            .Notes    = {},
+        } );
+    }
+
+    return FoundType;
 }
 
 void Volt::Sema::TypeCheckerPass::TypeCheckerContext::WriteLocal ( Frontend::ExprId Use, Symbol Name, SemaTypeId Type )
