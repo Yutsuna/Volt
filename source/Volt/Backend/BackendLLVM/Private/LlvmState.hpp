@@ -11,6 +11,7 @@
 #include "Volt/BackendCore/BackendInput.hpp"
 #include "Volt/BackendCore/InstanceLayout.hpp"
 #include "Volt/BackendCore/LayoutEngine.hpp"
+#include "Volt/BackendCore/Mangler.hpp"
 #include "Volt/BackendCore/Monomorphizer.hpp"
 #include "Volt/BackendLLVM/LlvmEmitter.hpp"
 
@@ -23,6 +24,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <unordered_map>
@@ -160,6 +162,30 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // — the compiler never learns that "f64" means any particular Volt type
     // (rules/zero-hardcode.md). Null when the layout is unresolved.
     [[nodiscard]] llvm::Type *TypeOfLayout ( Sema::LayoutId Id );
+
+    // How a value of this layout crosses a call boundary. Scalars travel in a
+    // register; an aggregate travels by pointer, which is what abi.md fixes
+    // for all three targets ("aggregates by pointer, byval later if profiling
+    // asks"). Null when the layout is unresolved.
+    [[nodiscard]] llvm::Type *ParamTypeOfLayout ( Sema::LayoutId Id );
+
+    // The signature of `Entry` as a member of `Owner`, instantiated for
+    // `FlatArgs`. Parameter order is abi.md's, once for every target:
+    // `self`, then the declared parameters. (`ptr %env` trails a *closure*
+    // body, which is emitted from a Lambda, not from a declaration.)
+    [[nodiscard]] llvm::FunctionType *
+    FunctionTypeOf ( const Sema::Member &Entry, Sema::NominalId Owner, std::span<const std::uint32_t> FlatArgs );
+
+    // --- Declare sweep (LlvmEmitter.cpp) ----------------------------------
+
+    // Create an llvm::Function for every concrete method and free function of
+    // the build, before any body is emitted, so a call to a callee declared in
+    // another unit — or later in this one — resolves with no fixup pass.
+    void DeclareAll ();
+
+    // One declaration. Returns null when the member is not something codegen
+    // emits a symbol for (abstract, generic, a field), which is not a failure.
+    llvm::Function *DeclareMember ( const Sema::Member &Entry, Sema::NominalId Owner );
 
     // In debug builds, check that LLVM's own DataLayout agrees with
     // LayoutEngine about this aggregate's size and every field offset.
