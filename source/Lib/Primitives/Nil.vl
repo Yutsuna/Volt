@@ -1,7 +1,7 @@
-# The type of `null`, and the only value it has.
+# The type of `nil`, and the only value it has.
 #
-# Laid out as a pointer-width scalar because that is what `null` compiles to:
-# `Exception#capture_backtrace` writes `if symbols != null` against a
+# Laid out as a pointer-width scalar because that is what `nil` compiles to:
+# `Exception#capture_backtrace` writes `if symbols != nil` against a
 # `Pointer<Pointer<UInt8>>`, and the comparison is a plain pointer compare.
 # `IsAssignable` (Sema/.../TypeCompat.cpp) knows Nil only through the node kind
 # it claims here — never by name — and lets it into any slot laid out the same
