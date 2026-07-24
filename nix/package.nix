@@ -27,10 +27,11 @@ gccStdenv.mkDerivation {
   ];
 
   cmakeFlags = [
-    "-DCMAKE_BUILD_TYPE=Release"
-    "-DVOLT_USE_CCACHE=ON"
-    "-DVOLT_UNITY_BUILD=ON"
-    "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+    "-DCMAKE_BUILD_TYPE=Release" # TODO: Add option to change build type
+    "-DVOLT_USE_CCACHE=ON" # TODO: Add option to disable ccache
+    "-DVOLT_UNITY_BUILD=ON" # TODO: Add option to disable unity build
+    "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON" # TODO: Add option to disable rpath
+    "-DVOLT_ENABLE_LLVM=ON" # TODO: Add option to change backend target
     "-DCMAKE_INSTALL_RPATH=${placeholder "out"}/lib"
   ];
 
