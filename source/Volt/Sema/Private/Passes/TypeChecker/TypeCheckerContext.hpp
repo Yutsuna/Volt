@@ -65,6 +65,10 @@ struct TypeCheckerContext
     std::unordered_map<Symbol, SemaTypeId> Locals{};
     std::unordered_set<std::uint32_t> UnconstrainedLiterals{};
     std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
+    // Names of locals declared with a type annotation but no initializer
+    // (`x : T` without `= expr`). Marked on declaration, cleared on first
+    // assignment, checked on every read — definite assignment analysis.
+    std::unordered_set<Symbol> UninitializedLocals{};
     SemaTypeId CurrentMethodReturnType{};
 
     // The innermost `rescue`s a bare `raise` is currently nested in, pushed
