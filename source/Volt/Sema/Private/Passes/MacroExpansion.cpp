@@ -323,6 +323,7 @@ public:
             Total += Expanded;
             if ( Expanded == 0 )
             {
+                DropDefsFromRoot();
                 return Total;
             }
         }
@@ -332,6 +333,17 @@ public:
     }
 
 private:
+
+    // A `macro` is a compile-time template: once every invocation is expanded
+    // it carries no code a backend could emit, yet it stayed in TopDecls and
+    // walked out of the middle-end with everything else. Only the root list is
+    // cleaned — the node stays in the arena, so nothing that already holds its
+    // DeclId (the Defs map above, a diagnostic's SourceRange) is invalidated.
+    void DropDefsFromRoot ()
+    {
+        std::erase_if( Ast.TopDecls, [this] ( const Frontend::DeclId Id )
+                       { return Id.IsValid() and KindOf( Ast.Decl( Id ) ) == Frontend::DeclKind::MacroDef; } );
+    }
 
     void CollectDefs ()
     {
