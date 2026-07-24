@@ -257,6 +257,30 @@ namespace
     return Context.Ctx.Ast.Add( Volt::Frontend::ExprNode{ std::move( CallNode ) } );
 }
 
+// `*p` yields what `p` points at. "Points at" is not a name the compiler
+// knows: the pointer nominal is whichever stdlib type claims the PointerType
+// node kind (`@[Literal( PointerType )]` on `Pointer<T>`), exactly the way
+// NilLiteral identifies Nil in TypeCompat. The pointee is that instance's
+// first generic argument.
+[[nodiscard]] Volt::Sema::SemaTypeId
+DerefType ( Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context, Volt::Frontend::ExprId Id, Volt::Sema::SemaTypeId Operand )
+{
+    if ( not Context.Ctx.Values.Has( Operand ) )
+    {
+        return Volt::Sema::SemaTypeId{};
+    }
+
+    const Volt::Sema::SemaType &Value = Context.Ctx.Values.Get( Operand );
+    const auto Pointer                = Context.Ctx.Types.LookupNodeKind( "PointerType" );
+    if ( not Pointer or Value.Base != *Pointer )
+    {
+        Context.Report( Volt::Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
+                        "cannot dereference a value of type " + Context.NameOfValue( Operand ) );
+        return Volt::Sema::SemaTypeId{};
+    }
+    return Value.Args.IsEmpty() ? Volt::Sema::SemaTypeId{} : Value.Args[0];
+}
+
 } // namespace
 
 /**
@@ -272,6 +296,11 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerConte
     if ( const SemaTypeId Known = Context.Ctx.Values.ExprType( Id ); Known.IsValid() )
     {
         return Known;
+    }
+
+    if ( Context.bGenericBody )
+    {
+        Context.Ctx.Values.MarkDeferred( Id );
     }
 
     const SemaTypeId Type = ComputeExpr( Context, Id );
@@ -403,7 +432,37 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // recording, same unknown-member diagnostic, same self check.
                 // Sharing the one function is what keeps a `Member` callee and
                 // an operator receiver from drifting apart.
+                // `MathUtils.square( 4 )` — a module is a namespace, so the
+                // qualified spelling names the same free function the bare one
+                // does (Layout/TypeBinder registers module methods flat). The
+                // receiver is not a value and never gets a type; without this
+                // the whole call typed as unknown, silently.
+                const auto *Name = std::get_if<Frontend::Identifier>( &Context.Ctx.Ast.Expr( Expr.Object ) );
+                if ( Name != nullptr and Context.Ctx.Types.IsModule( Context.Ctx.Ast.Text( Name->Name ) ) )
+                {
+                    // `Core::AppConfig` — a type declared inside the module.
+                    // TypeBinder hoists nested types to the top level, so the
+                    // qualified spelling names the same nominal the bare one
+                    // does; naked, exactly like a bare type name.
+                    if ( const auto Named = Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Expr.Name ) ) )
+                    {
+                        Context.NakedTypeExprs.insert( Id.Value );
+                        return Context.MakeType( *Named, {} );
+                    }
+                    const Resolution Found = LookupFreeFunction( Context, Context.Ctx.Ast.Text( Expr.Name ) );
+                    if ( Found.Decl != nullptr )
+                    {
+                        Context.CalleeResolution[Id.Value] = Found;
+                        return Found.Result;
+                    }
+                    Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
+                                    "module " + std::string{ Context.Ctx.Ast.Text( Name->Name ) } + " has no function '" +
+                                        std::string{ Context.Ctx.Ast.Text( Expr.Name ) } + "'" );
+                    return SemaTypeId{};
+                }
+
                 const SemaTypeId Object = InferExpr( Context, Expr.Object );
+
                 return MemberType( Context, Id, Object, Context.NakedTypeExprs.contains( Expr.Object.Value ),
                                    Context.Ctx.Ast.Text( Expr.Name ) );
             },
@@ -444,6 +503,25 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             {
                 return MemberType( Context, Id, InferExpr( Context, Expr.Operand ),
                                    Context.NakedTypeExprs.contains( Expr.Operand.Value ), Frontend::TokenSpelling( Expr.Op ) );
+            },
+            [&] ( const Frontend::Deref &Expr ) -> SemaTypeId
+            { return DerefType( Context, Id, InferExpr( Context, Expr.Operand ) ); },
+            [&] ( const Frontend::SizeOf &Expr ) -> SemaTypeId
+            {
+                // A byte count takes its width from its use site — `count *
+                // sizeof T` against a UInt64 count — exactly like an integer
+                // literal does, so it joins UnconstrainedLiterals and falls
+                // back to whatever type claims IntLiteral. Its operand is a
+                // type, never a value: nothing to descend into here, the
+                // backend reads the layout size straight off Expr.Type.
+                static_cast<void>( Expr );
+                const auto Base = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
+                if ( not Base )
+                {
+                    return SemaTypeId{};
+                }
+                Context.UnconstrainedLiterals.insert( Id.Value );
+                return Context.MakeType( *Base, {} );
             },
             [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
             {

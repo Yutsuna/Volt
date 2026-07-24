@@ -49,6 +49,18 @@ std::vector<bool> Volt::Sema::TypeCheckerPass::MetadataExprs ( const Frontend::A
                 MarkMetadata( Ast, Arg, Marked );
             }
         }
+        // A macro invocation's arguments are consumed by MacroExpansion
+        // (order 15) and substituted into the generated text; the nodes stay
+        // in the arena but no code ever evaluates them. `delegate( methods:
+        // [ :name, :email ] )` leaves two SymbolLiterals behind that are
+        // spellings, not values — the same status as an annotation argument.
+        else if ( const auto *Macro = std::get_if<Frontend::MacroInvoke>( &Ast.Decl( Id ) ) )
+        {
+            for ( const Frontend::ExprId Arg : Macro->Args )
+            {
+                MarkMetadata( Ast, Arg, Marked );
+            }
+        }
     }
     return Marked;
 }
