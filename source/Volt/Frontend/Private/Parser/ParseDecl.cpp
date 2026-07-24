@@ -425,8 +425,26 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, boo
     if ( not bAbstract and not bExternal )
     {
         SkipTerminators();
-        ParseStatementBlock( Node.Body );
-        Expect( TokenKind::KwEnd, "to close method" );
+        StmtList MainBody;
+        ParseStatementBlock( MainBody );
+
+        if ( Check( TokenKind::KwRescue ) or Check( TokenKind::KwEnsure ) )
+        {
+            const std::uint32_t BeginBody = Here();
+            BeginExpr BeginNode;
+            BeginNode.Body = MainBody;
+            ParseRescueEnsure( BeginNode );
+            Expect( TokenKind::KwEnd, "to close method" );
+            const ExprId BeginExprId = MakeExpr( BeginNode, RangeSince( BeginBody ) );
+            ExprStmt StmtNode;
+            StmtNode.Expr = BeginExprId;
+            Node.Body.PushBack( MakeStmt( StmtNode, RangeSince( BeginBody ) ) );
+        }
+        else
+        {
+            Node.Body = MainBody;
+            Expect( TokenKind::KwEnd, "to close method" );
+        }
     }
 
     return MakeDecl( Node, RangeSince( Begin ) );
