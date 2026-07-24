@@ -15,6 +15,7 @@
 
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
@@ -447,10 +448,18 @@ namespace Sema
                 // into the same AstContext. Any error is anchored back to the
                 // invocation site.
                 const std::size_t ErrorsBefore = Context.Diags.Errors();
+                const ArenaMark Mark           = MarkArenas( Ast );
                 Lexer GeneratedLexer( Ast.FileId(), Generated, Ast.Strings(), Context.Diags );
                 Parser GeneratedParser( GeneratedLexer.Tokenize(), Ast, Context.Diags, Generated );
                 DeclList Out;
                 GeneratedParser.ParseMemberBlock( Out );
+
+                // The generated text is synthesised, not a slice of the file,
+                // so no node in it has a real preimage. The invocation is the
+                // one honest location for all of it — which is also what
+                // makes `__LINE__` in a macro body report the caller's line.
+                StampLocsSince( Ast, Mark, Invoke.Loc );
+
                 if ( Context.Diags.Errors() > ErrorsBefore )
                 {
                     Context.Diags.Error( Invoke.Loc, "in expansion of macro '" + std::string( Ast.Text( Invoke.Name ) ) + "'" );
