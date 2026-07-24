@@ -1,12 +1,7 @@
-#include "Volt/Core/Meta/Overloaded.hpp"
-#include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
-#include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Pass.hpp"
 
-#include <string_view>
-#include <type_traits>
 #include <variant>
 
 namespace
@@ -25,131 +20,51 @@ public:
 
     void Run ()
     {
-        for ( const Frontend::DeclId Id : Context.TopDecls )
+        // Flat sweep over the arena, never a reflective walk: Add() reallocates
+        // the arena storage, so a rewrite driven from a field reference inside a
+        // live parent node writes into freed memory (see rules/ast-rewrite.md).
+        // Sub-expressions are parsed first, so children carry smaller indices:
+        // going 0 -> OriginalCount desugars the innermost node first, which is
+        // what `(&.trim) >> (&.prefix("_"))` needs. Nodes created by a lowering
+        // land past OriginalCount and are never Section/Composition, so leaving
+        // them out of the sweep is intentional.
+        const std::size_t OriginalCount = Context.ExprCount();
+
+        for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
         {
-            WalkDecl( Id );
-        }
-        for ( const Frontend::StmtId Id : Context.TopStmts )
-        {
-            WalkStmt( Id );
+            const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+            switch ( KindOf( Context.Expr( Id ) ) )
+            {
+            case Frontend::ExprKind::Section:
+                Context.Expr( Id ) = LowerSection( Id );
+                break;
+            case Frontend::ExprKind::Composition:
+                Context.Expr( Id ) = LowerComposition( Id );
+                break;
+            default:
+                break;
+            }
         }
     }
 
 private:
 
-    void WalkDecl ( Frontend::DeclId Id )
+    // Both lowerings copy their source node by value before the first Add(),
+    // and return a node the caller stores back into the slot — the assignment
+    // sequences the call before the left operand, so no Add() can invalidate
+    // the destination.
+
+    [[nodiscard]] Frontend::ExprNode LowerSection ( Frontend::ExprId SectionId )
     {
-        if ( not Id.IsValid() )
-        {
-            return;
-        }
-        std::visit(
-            Meta::Overloaded{
-                [&] ( auto &Node ) { WalkFields( Node ); },
-            },
-            Context.Decl( Id ) );
-    }
-
-    void WalkStmt ( Frontend::StmtId Id )
-    {
-        if ( not Id.IsValid() )
-        {
-            return;
-        }
-        std::visit(
-            Meta::Overloaded{
-                [&] ( auto &Node ) { WalkFields( Node ); },
-            },
-            Context.Stmt( Id ) );
-    }
-
-    void WalkExpr ( Frontend::ExprId &Id )
-    {
-        if ( not Id.IsValid() )
-        {
-            return;
-        }
-
-        // Rewrite bottom-up
-        std::visit(
-            Meta::Overloaded{
-                [&] ( auto &Node ) { WalkFields( Node ); },
-            },
-            Context.Expr( Id ) );
-
-        const Frontend::ExprKind Kind = KindOf( Context.Expr( Id ) );
-        if ( Kind == Frontend::ExprKind::Section )
-        {
-            Id = LowerSection( Id );
-        }
-        else if ( Kind == Frontend::ExprKind::Composition )
-        {
-            Id = LowerComposition( Id );
-        }
-    }
-
-    template <typename NodeType> void WalkFields ( NodeType &Node )
-    {
-        if constexpr ( Meta::Reflected<NodeType> )
-        {
-            Meta::ForEachField( Node,
-                                [&] ( std::string_view, auto &Field )
-                                {
-                                    using FieldType = std::remove_reference_t<decltype( Field )>;
-                                    if constexpr ( std::is_same_v<FieldType, Frontend::ExprId> )
-                                    {
-                                        WalkExpr( Field );
-                                    }
-                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::ExprList> )
-                                    {
-                                        for ( Frontend::ExprId &Child : Field )
-                                        {
-                                            WalkExpr( Child );
-                                        }
-                                    }
-                                    else if constexpr ( std::is_same_v<FieldType, Frontend::StmtId> )
-                                    {
-                                        WalkStmt( Field );
-                                    }
-                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::StmtList> )
-                                    {
-                                        for ( Frontend::StmtId &Child : Field )
-                                        {
-                                            WalkStmt( Child );
-                                        }
-                                    }
-                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::DeclList> )
-                                    {
-                                        for ( Frontend::DeclId &Child : Field )
-                                        {
-                                            WalkDecl( Child );
-                                        }
-                                    }
-                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::ParamList> )
-                                    {
-                                        for ( Frontend::ParamId &Child : Field )
-                                        {
-                                            WalkExpr( Context.GetParam( Child ).Default );
-                                        }
-                                    }
-                                } );
-        }
-    }
-
-    // WARN: this is so hardcoded
-    // TODO: refactor to avoid redundancy
-
-    [[nodiscard]] Frontend::ExprId LowerSection ( Frontend::ExprId SectionId )
-    {
-        const Volt::Frontend::Section Sec  = std::get<Volt::Frontend::Section>( Context.Expr( SectionId ) );
-        const Volt::Core::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
+        const Frontend::Section Sec  = std::get<Frontend::Section>( Context.Expr( SectionId ) );
+        const Core::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
 
         Frontend::Param Param;
-        Param.Loc                         = Sec.Loc;
-        Param.Name                        = ParamName;
-        Param.DeclType                    = Frontend::TypeId{};
-        Param.Default                     = Frontend::ExprId{};
-        const Volt::Frontend::ParamId PId = Context.Add( Param );
+        Param.Loc                   = Sec.Loc;
+        Param.Name                  = ParamName;
+        Param.DeclType              = Frontend::TypeId{};
+        Param.Default               = Frontend::ExprId{};
+        const Frontend::ParamId PId = Context.Add( Param );
 
         Frontend::ParamList Params;
         Params.PushBack( PId );
@@ -161,7 +76,12 @@ private:
 
         Frontend::ExprId BodyExpr{};
 
-        if ( Sec.Kind == Frontend::ESectionKind::InstanceMethod )
+        switch ( Sec.Kind )
+        {
+        // An instance-method section and an operator section desugar the
+        // same way: the difference lives in the spelling of Sec.Target.
+        case Frontend::ESectionKind::InstanceMethod:
+        case Frontend::ESectionKind::Operator:
         {
             Frontend::Member Mem;
             Mem.Loc                    = Sec.Loc;
@@ -175,36 +95,21 @@ private:
             Cal.Args   = Sec.Args;
             for ( std::size_t Idx = 0; Idx < Sec.Args.Size(); ++Idx )
             {
-                Cal.ArgNames.PushBack( Frontend::Symbol{} );
+                Cal.ArgNames.PushBack( Core::Symbol{} );
             }
             BodyExpr = Context.Add( Cal );
+            break;
         }
-        else if ( Sec.Kind == Frontend::ESectionKind::Operator )
-        {
-            Frontend::Member Mem;
-            Mem.Loc                    = Sec.Loc;
-            Mem.Object                 = IdExpr;
-            Mem.Name                   = Sec.Target;
-            const Frontend::ExprId MId = Context.Add( Mem );
-
-            Frontend::Call Cal;
-            Cal.Loc    = Sec.Loc;
-            Cal.Callee = MId;
-            Cal.Args   = Sec.Args;
-            for ( std::size_t Idx = 0; Idx < Sec.Args.Size(); ++Idx )
-            {
-                Cal.ArgNames.PushBack( Frontend::Symbol{} );
-            }
-            BodyExpr = Context.Add( Cal );
-        }
-        else if ( Sec.Kind == Frontend::ESectionKind::StaticCapture )
+        case Frontend::ESectionKind::StaticCapture:
         {
             Frontend::Call Cal;
             Cal.Loc    = Sec.Loc;
             Cal.Callee = Sec.TargetExpr;
             Cal.Args.PushBack( IdExpr );
-            Cal.ArgNames.PushBack( Frontend::Symbol{} );
+            Cal.ArgNames.PushBack( Core::Symbol{} );
             BodyExpr = Context.Add( Cal );
+            break;
+        }
         }
 
         if ( Sec.bNegated )
@@ -221,21 +126,20 @@ private:
         Lam.Params     = Params;
         Lam.ReturnType = Frontend::ExprId{};
         Lam.Body       = BodyExpr;
-        return Context.Add( Lam );
+        return Lam;
     }
 
-    [[nodiscard]] Frontend::ExprId LowerComposition ( Frontend::ExprId CompId )
+    [[nodiscard]] Frontend::ExprNode LowerComposition ( Frontend::ExprId CompId )
     {
         const Frontend::Composition Comp = std::get<Frontend::Composition>( Context.Expr( CompId ) );
-
-        const Frontend::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
+        const Core::Symbol ParamName     = Context.MakeUniqueSymbol( "fn_tmp" );
 
         Frontend::Param Param;
-        Param.Loc                         = Comp.Loc;
-        Param.Name                        = ParamName;
-        Param.DeclType                    = Frontend::TypeId{};
-        Param.Default                     = Frontend::ExprId{};
-        const Volt::Frontend::ParamId PId = Context.Add( Param );
+        Param.Loc                   = Comp.Loc;
+        Param.Name                  = ParamName;
+        Param.DeclType              = Frontend::TypeId{};
+        Param.Default               = Frontend::ExprId{};
+        const Frontend::ParamId PId = Context.Add( Param );
 
         Frontend::ParamList Params;
         Params.PushBack( PId );
@@ -249,14 +153,14 @@ private:
         InnerCall.Loc    = Comp.Loc;
         InnerCall.Callee = Comp.Lhs;
         InnerCall.Args.PushBack( IdExpr );
-        InnerCall.ArgNames.PushBack( Frontend::Symbol{} );
+        InnerCall.ArgNames.PushBack( Core::Symbol{} );
         const Frontend::ExprId InnerExpr = Context.Add( InnerCall );
 
         Frontend::Call OuterCall;
         OuterCall.Loc    = Comp.Loc;
         OuterCall.Callee = Comp.Rhs;
         OuterCall.Args.PushBack( InnerExpr );
-        OuterCall.ArgNames.PushBack( Frontend::Symbol{} );
+        OuterCall.ArgNames.PushBack( Core::Symbol{} );
         const Frontend::ExprId OuterExpr = Context.Add( OuterCall );
 
         Frontend::Lambda Lam;
@@ -264,7 +168,7 @@ private:
         Lam.Params     = Params;
         Lam.ReturnType = Frontend::ExprId{};
         Lam.Body       = OuterExpr;
-        return Context.Add( Lam );
+        return Lam;
     }
 
     Frontend::AstContext &Context;
