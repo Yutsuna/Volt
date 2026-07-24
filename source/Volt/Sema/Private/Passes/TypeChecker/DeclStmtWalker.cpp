@@ -93,8 +93,11 @@ void Volt::Sema::TypeCheckerPass::EnterType ( TypeCheckerContext &Context,
     const Frontend::SymbolList *OuterGenerics = Context.SelfGenerics;
     const SemaTypeId OuterValue               = Context.SelfValue;
 
+    const bool bOuterGenericBody = Context.bGenericBody;
+
     Context.SelfType     = Id;
     Context.SelfGenerics = &Params;
+    Context.bGenericBody = bOuterGenericBody or not Params.IsEmpty();
 
     Core::SmallVec<SemaTypeId, 2> Args;
     for ( std::size_t Index = 0; Index < Params.Size(); ++Index )
@@ -113,6 +116,7 @@ void Volt::Sema::TypeCheckerPass::EnterType ( TypeCheckerContext &Context,
     Context.SelfType     = OuterType;
     Context.SelfGenerics = OuterGenerics;
     Context.SelfValue    = OuterValue;
+    Context.bGenericBody = bOuterGenericBody;
 }
 
 void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, const Frontend::Method &Node )
@@ -133,8 +137,13 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     Context.CurrentMethodReturnType =
         ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.ReturnType );
 
-    const bool bOuterStatic = Context.bStaticContext;
-    Context.bStaticContext  = Node.bSelf;
+    const bool bOuterStatic      = Context.bStaticContext;
+    Context.bStaticContext       = Node.bSelf;
+    const bool bOuterGenericBody = Context.bGenericBody;
+    // A method's own generics (`map<U>`) are not in Context.Generics() — that
+    // span is the enclosing type's — so `U` resolves to nothing exactly like a
+    // type parameter does. Same deferral, same reason.
+    Context.bGenericBody = bOuterGenericBody or not Node.Generics.IsEmpty();
 
     for ( const Frontend::ParamId Id : Node.Params )
     {
@@ -172,6 +181,7 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     }
 
     Context.bStaticContext          = bOuterStatic;
+    Context.bGenericBody            = bOuterGenericBody;
     Context.CurrentMethodReturnType = OuterReturnType;
     Context.LocalTypes.swap( OuterLocalTypes );
     Context.Locals.swap( OuterLocals );
