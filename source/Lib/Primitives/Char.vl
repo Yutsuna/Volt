@@ -1,0 +1,19 @@
+@[Primitive( "u8", 8 ), Literal( CharLiteral )]
+struct Char
+  include Comparable
+  include Hashable
+
+  def <=>( other : Char ) -> Int32
+    if self < other
+      -1
+    elsif self > other
+      1
+    else
+      0
+    end
+  end
+
+  def hash -> UInt64
+    self
+  end
+end
