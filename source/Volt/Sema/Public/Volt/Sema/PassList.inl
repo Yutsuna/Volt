@@ -32,5 +32,6 @@ VOLT_PASS( MagicExpansion, 16, Lowering )
 VOLT_PASS( JsxLowering, 20, Lowering )
 VOLT_PASS( CaseLowering, 22, Lowering )
 VOLT_PASS( TypeChecker, 30, Analysis )
+VOLT_PASS( UnusedChecker, 35, Analysis )
 
 #undef VOLT_PASS
