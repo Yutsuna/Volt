@@ -15,10 +15,8 @@ Program 'samples/Syntax/Loop/ForLoop.vl'
 │        └─ then
 │           └─ ExprStmt @6:5
 │              └─ expr
-│                 └─ Call @6:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @6:5
-│                    └─ args
+│                 └─ RaiseExpr @6:5
+│                    └─ exception
 │                       └─ Interp @6:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @6:11
