@@ -2,7 +2,7 @@
 
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
-#include "Volt/Frontend/AST/Decl.hpp"
+#include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Layout/MemoryLayout.hpp"
 
 #include <cstddef>
@@ -10,6 +10,7 @@
 #include <optional>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -41,8 +42,14 @@ namespace Sema
     struct SigType
     {
 
-        NominalId Base;               // invalid when ParamIndex >= 0
-        std::int32_t ParamIndex = -1; // >= 0 => reference to a generic parameter
+        // `self` in a signature is not a type but a *deferred* one: the
+        // receiver's, whatever it turns out to be. `Comparable#<( other : self )`
+        // must mean `Int32` on an Int32 and `String` on a String, so it cannot
+        // resolve to a nominal at declaration time any more than `T` can.
+        static constexpr std::int32_t SelfParam = -2;
+
+        NominalId Base;               // invalid when ParamIndex != -1
+        std::int32_t ParamIndex = -1; // >= 0 => a generic parameter; SelfParam => `self`
         Core::SmallVec<SigTypeId, 2> Args;
     };
 
@@ -51,6 +58,12 @@ namespace Sema
 
         Field,
         Method,
+        // An `enum` case (`Red`, `Some( value : T )`): a named, self-typed
+        // constant, reachable both as `Enum::Case` (a naked-type access) and
+        // as `.Case` inside a `case self when` pattern (an instance access)
+        // — CheckMemberSelf exempts this kind from the static/instance
+        // split for exactly that reason.
+        EnumCase,
     };
 
     // One entry of a type's interface, published by the serial binder so that
@@ -71,7 +84,26 @@ namespace Sema
         // through the positional argument list, so callers matching Params
         // against Args must skip it.
         Core::SmallVec<bool, 4> ParamIsBlock;
-        bool bSelf = false; // `def self.malloc`
+        // How many of the parameter space's slots belong to the method
+        // rather than to the declaring type. A signature resolves against
+        // the two concatenated — type generics first, method generics after
+        // — so on `Array<T>` the `U` of `def map<U>` is ParamIndex 1. The
+        // receiver answers the first Params.Size() of them; these last
+        // OwnGenerics are holes only the call site can fill.
+        std::uint32_t OwnGenerics = 0;
+        std::uint32_t MinParams   = 0;
+        bool bSelf                = false; // `def self.malloc`
+        // `abstract def`: a contract, not an implementation. A mixin uses
+        // one to state what an including type owes it, and that debt is
+        // what the conformance check collects.
+        bool bAbstract = false;
+        // `@[Apply]`: the member's signature *is* the receiver's type
+        // arguments — result first, then parameters — rather than what it
+        // wrote down. This is how a callable is invoked without the compiler
+        // knowing what a callable is: the stdlib type claiming the FuncType
+        // node marks its own `call`, and arity follows the receiver, which no
+        // fixed declaration could express.
+        bool bApply = false;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
@@ -96,8 +128,13 @@ namespace Sema
         Core::SmallVec<Symbol, 2> Params;
         // The declared interface: fields and methods of the body itself.
         std::vector<Member> Members;
-        NominalId Super;                       // resolved `class X < Y`
-        Core::SmallVec<NominalId, 2> Includes; // resolved mixins
+        // `class X < Y<T>` / `include Enumerable<T>`, kept *as written*, in
+        // the including type's own parameter space: a bare NominalId would
+        // drop the `<T>` and leave a mixin's members talking about a generic
+        // nobody can answer. Instantiate() against the receiver's arguments
+        // turns one of these into the concrete parent.
+        SigTypeId Super;
+        Core::SmallVec<SigTypeId, 2> Includes;
 
         // Per generic parameter, the AST field names feeding it when a node
         // kind is lowered to this type. Empty = the default convention (the
@@ -144,6 +181,8 @@ namespace Sema
                 NominalType &Existing = Types.Get( It->second );
                 Existing.Unit         = Unit;
                 Existing.Decl         = Decl;
+                Existing.Members.clear();
+                Existing.Includes.Clear();
                 return It->second;
             }
 
@@ -168,12 +207,12 @@ namespace Sema
             Types.Get( Id ).LiteralSlots = std::move( Slots );
         }
 
-        void SetSuper ( NominalId Id, NominalId Super )
+        void SetSuper ( NominalId Id, SigTypeId Super )
         {
             Types.Get( Id ).Super = Super;
         }
 
-        void AddInclude ( NominalId Id, NominalId Mixin )
+        void AddInclude ( NominalId Id, SigTypeId Mixin )
         {
             Types.Get( Id ).Includes.PushBack( Mixin );
         }
@@ -181,6 +220,19 @@ namespace Sema
         void AddMember ( NominalId Id, Member Entry )
         {
             Types.Get( Id ).Members.push_back( std::move( Entry ) );
+        }
+
+        [[nodiscard]] std::optional<NominalId> LookupTypeByDecl ( std::uint32_t Unit, Frontend::DeclId Decl ) const
+        {
+            for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
+            {
+                const NominalId Id{ static_cast<std::uint32_t>( Index ) };
+                if ( Types.Get( Id ).Unit == Unit and Types.Get( Id ).Decl == Decl )
+                {
+                    return Id;
+                }
+            }
+            return std::nullopt;
         }
 
         // The member declared by `Decl` inside `Id`'s own body, mutable so the
@@ -209,8 +261,50 @@ namespace Sema
             NominalId Owner;
         };
 
+        // The member `Id`'s *own* body declares, ignoring everything it
+        // inherits. The one step both traversals share: this one, which
+        // answers name existence, and LookupMemberOn (TypeResolve.hpp),
+        // which additionally carries generic arguments down the chain.
+        [[nodiscard]] const Member *OwnMember ( NominalId Id, std::string_view Name ) const
+        {
+            if ( not Id.IsValid() )
+            {
+                return nullptr;
+            }
+
+            // Lookup must never intern: a miss on an unknown name would
+            // otherwise grow the table on every read-only query.
+            const auto Key = Strings.Find( Name );
+            if ( not Key )
+            {
+                return nullptr;
+            }
+
+            for ( const Member &Entry : Types.Get( Id ).Members )
+            {
+                if ( Entry.Name == *Key )
+                {
+                    return &Entry;
+                }
+            }
+            return nullptr;
+        }
+
+        // The nominal a parent link names, dropping its arguments — enough
+        // to answer "does this name exist anywhere above me", which is all
+        // this traversal claims to do.
+        [[nodiscard]] NominalId BaseOf ( SigTypeId Id ) const
+        {
+            return Id.IsValid() ? Sigs.Get( Id ).Base : NominalId{};
+        }
+
         // Own body first, then mixins, then the superclass — transitively.
         // Depth is bounded so a malformed cyclic hierarchy cannot hang sema.
+        //
+        // Name existence only: the MemberRef it hands back carries the
+        // declaring nominal, not an instantiation, so a signature that
+        // mentions the owner's generics cannot be read off it. Typing a
+        // member access goes through LookupMemberOn instead.
         [[nodiscard]] MemberRef LookupMember ( NominalId Id, std::string_view Name, std::uint32_t Depth = 0 ) const
         {
             if ( not Id.IsValid() or Depth > 16 )
@@ -218,28 +312,95 @@ namespace Sema
                 return MemberRef{};
             }
 
-            const auto Key = Strings.Find( Name );
-            if ( not Key )
+            if ( const Member *Own = OwnMember( Id, Name ); Own != nullptr )
             {
-                return MemberRef{};
+                return MemberRef{ .Decl = Own, .Owner = Id };
             }
 
             const NominalType &Type = Types.Get( Id );
-            for ( const Member &Entry : Type.Members )
+            for ( const SigTypeId Mixin : Type.Includes )
             {
-                if ( Entry.Name == *Key )
-                {
-                    return MemberRef{ .Decl = &Entry, .Owner = Id };
-                }
-            }
-            for ( const NominalId Mixin : Type.Includes )
-            {
-                if ( const MemberRef Found = LookupMember( Mixin, Name, Depth + 1 ); Found.Decl != nullptr )
+                if ( const MemberRef Found = LookupMember( BaseOf( Mixin ), Name, Depth + 1 ); Found.Decl != nullptr )
                 {
                     return Found;
                 }
             }
-            return LookupMember( Type.Super, Name, Depth + 1 );
+            return LookupMember( BaseOf( Type.Super ), Name, Depth + 1 );
+        }
+
+        // --- Free (top-level) functions ------------------------------------
+
+        // A `def` declared directly in a module, not inside any type — its
+        // own namespace, so a free function and a type may share a spelling
+        // without colliding. Modelled as a `Member` (Kind == Method) so the
+        // call-checking machinery built for methods (Resolution,
+        // CheckCallArgs, Reinstantiate) applies unchanged: a free function is
+        // simply a method with no receiver.
+        [[nodiscard]] Member *DeclareFunction ( std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+        {
+            const Symbol Key = Strings.Intern( Name );
+            if ( const auto It = FunctionByName.find( Key ); It != FunctionByName.end() )
+            {
+                Member &Existing = Functions[It->second];
+                Existing.Unit    = Unit;
+                Existing.Decl    = Decl;
+                return &Existing;
+            }
+
+            Member Fresh;
+            Fresh.Name              = Key;
+            Fresh.Kind              = EMemberKind::Method;
+            Fresh.Unit              = Unit;
+            Fresh.Decl              = Decl;
+            const std::size_t Index = Functions.size();
+            Functions.push_back( std::move( Fresh ) );
+            FunctionByName.emplace( Key, Index );
+            return &Functions[Index];
+        }
+
+        // The function declared by `Decl` inside `Unit`, mutable so the
+        // signature phase can fill in what the declaration phase could not
+        // yet resolve — mirrors MemberByDecl.
+        [[nodiscard]] Member *FunctionByDecl ( std::uint32_t Unit, Frontend::DeclId Decl )
+        {
+            for ( Member &Entry : Functions )
+            {
+                if ( Entry.Unit == Unit and Entry.Decl == Decl )
+                {
+                    return &Entry;
+                }
+            }
+            return nullptr;
+        }
+
+        [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
+        {
+            const auto Known = Strings.Find( Name );
+            if ( not Known )
+            {
+                return nullptr;
+            }
+            const auto It = FunctionByName.find( *Known );
+            return It != FunctionByName.end() ? &Functions[It->second] : nullptr;
+        }
+
+        // --- Modules -------------------------------------------------------
+
+        // A `module` is a namespace, not a nominal type: its methods are bound
+        // as free functions (Layout/TypeBinder.cpp) and it has no layout, no
+        // `self`, no members. Only its *name* is kept, and only so that
+        // `MathUtils.square( 4 )` can be told apart from a member access on an
+        // unresolved receiver — the first resolves to the free function, the
+        // second is a genuine unknown.
+        void DeclareModule ( std::string_view Name )
+        {
+            Modules.insert( Strings.Intern( Name ) );
+        }
+
+        [[nodiscard]] bool IsModule ( std::string_view Name ) const
+        {
+            const auto Known = Strings.Find( Name );
+            return Known.has_value() and Modules.contains( *Known );
         }
 
         // --- Signature types ----------------------------------------------
@@ -307,11 +468,31 @@ namespace Sema
             return Find( ByNodeKind, NodeKind );
         }
 
+        // --- Exception root ------------------------------------------------
+
+        // The one stdlib type annotated `@[ExceptionRoot]` (Exception.vl).
+        // `raise`/`rescue` reason about it through this binding instead of
+        // the C++ side ever spelling out the Volt type name "Exception".
+        bool SetExceptionRoot ( NominalId Id )
+        {
+            if ( ExceptionRoot.IsValid() and ExceptionRoot != Id )
+            {
+                return false;
+            }
+            ExceptionRoot = Id;
+            return true;
+        }
+
+        [[nodiscard]] std::optional<NominalId> GetExceptionRoot () const
+        {
+            return ExceptionRoot.IsValid() ? std::optional<NominalId>{ ExceptionRoot } : std::nullopt;
+        }
+
         // --- Layouts -----------------------------------------------------
 
         [[nodiscard]] LayoutId AddPrimitive ( Symbol Spelling, std::uint32_t Bits )
         {
-            return Layouts.Add( LayoutNode{ Primitive{ Spelling, Bits } } );
+            return Layouts.Add( LayoutNode{ Primitive{ .Spelling = Spelling, .Bits = Bits } } );
         }
 
         [[nodiscard]] LayoutId AddPointer ( LayoutId Pointee )
@@ -359,6 +540,15 @@ namespace Sema
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, NominalId> ByName;
         std::unordered_map<Symbol, NominalId> ByNodeKind;
+        NominalId ExceptionRoot;
+        // Free functions: not owned by any NominalId, so a plain vector +
+        // name index rather than the Members arrays. Never reallocated once
+        // the serial TypeBinder seam ends, so the raw Member* handed out by
+        // Resolution (TypeCheckerContext.hpp) stays valid through every
+        // (parallel, read-only) TypeChecker run.
+        std::vector<Member> Functions;
+        std::unordered_map<Symbol, std::size_t> FunctionByName;
+        std::unordered_set<Symbol> Modules;
     };
 
 } // namespace Sema

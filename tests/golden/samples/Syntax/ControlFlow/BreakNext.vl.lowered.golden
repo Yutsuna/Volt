@@ -27,11 +27,15 @@ Program 'samples/Syntax/ControlFlow/BreakNext.vl'
 │     │  └─ body
 │     │     ├─ ExprStmt @5:5
 │     │     │  └─ expr
-│     │     │     └─ Assign '+=' @5:7
+│     │     │     └─ Assign '=' @5:7
 │     │     │        ├─ target
 │     │     │        │  └─ Identifier 'i' @5:5
 │     │     │        └─ value
-│     │     │           └─ IntLiteral '1' @5:10
+│     │     │           └─ Binary '+' @5:7
+│     │     │              ├─ lhs
+│     │     │              │  └─ Identifier 'i' @5:5
+│     │     │              └─ rhs
+│     │     │                 └─ IntLiteral '1' @5:10
 │     │     ├─ If @6:10
 │     │     │  ├─ cond
 │     │     │  │  └─ Binary '==' @6:19
@@ -56,11 +60,15 @@ Program 'samples/Syntax/ControlFlow/BreakNext.vl'
 │     │     │     └─ Break @7:5
 │     │     └─ ExprStmt @8:5
 │     │        └─ expr
-│     │           └─ Assign '+=' @8:9
+│     │           └─ Assign '=' @8:9
 │     │              ├─ target
 │     │              │  └─ Identifier 'sum' @8:5
 │     │              └─ value
-│     │                 └─ Identifier 'i' @8:12
+│     │                 └─ Binary '+' @8:9
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'sum' @8:5
+│     │                    └─ rhs
+│     │                       └─ Identifier 'i' @8:12
 │     └─ ExprStmt @10:3
 │        └─ expr
 │           └─ Identifier 'sum' @10:3

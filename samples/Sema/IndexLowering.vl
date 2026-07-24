@@ -1,0 +1,41 @@
+# Subscripting is sugar for a method call. IndexLowering (order 25) rewrites
+#
+#   obj[ a ]        ->  obj.[]( a )
+#   obj[ a ] = v    ->  obj.[]=( a, v )
+#
+# and AssignLowering (order 24) turns `obj[ a ] += v` into the two of them, so
+# no Index node ever reaches the type checker or a backend.
+#
+# Lowering is also what gives an index a type: it now flows through the same
+# CheckCallArgs as any call, so `[]` on an Array<Int32> yields Int32 instead
+# of the invalid type the old inference branch handed back in silence.
+
+def index_read -> Int32
+  numbers = [ 10, 20, 30 ]
+  numbers[0] + numbers[2]
+end
+
+def index_write -> Int32
+  numbers = [ 10, 20, 30 ]
+  numbers[1] = 99
+  numbers[1]
+end
+
+def index_compound -> Int32
+  numbers = [ 10, 20, 30 ]
+  numbers[2] += 5
+  numbers[2]
+end
+
+def index_on_string -> UInt8
+  text = "volt"
+  text[0]
+end
+
+def compound_on_local -> Int32
+  total = 0
+  total += 7
+  total -= 2
+  total *= 3
+  total
+end

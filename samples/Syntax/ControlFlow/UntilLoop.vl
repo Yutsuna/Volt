@@ -1,0 +1,9 @@
+def test_until_loop -> Void
+  i = 0
+  until i >= 10
+    i += 1
+  end
+
+  # Statement modifier
+  i += 1 until i >= 20
+end

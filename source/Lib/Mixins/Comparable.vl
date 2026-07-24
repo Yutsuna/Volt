@@ -5,6 +5,10 @@ mixin Comparable
     ( self <=> other ) == 0
   end
 
+  def ===( other : self ) -> Bool
+    self == other
+  end
+
   def !=( other : self ) -> Bool
     ( self <=> other ) != 0
   end

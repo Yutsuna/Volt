@@ -54,7 +54,23 @@ file( GLOB_RECURSE VOLT_CHECK_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
   ${VOLT_ROOT}/samples/Sema/*.vl )
 list( SORT VOLT_CHECK_SOURCES )
 
-set( VOLT_CHECK_EXPECT_FAIL samples/Sema/RedeclareSameScope.vl )
+set( VOLT_CHECK_EXPECT_FAIL
+  samples/Sema/AbstractConformance.vl
+  samples/Sema/AssignMismatchAssign.vl
+  samples/Sema/AssignMismatchDefault.vl
+  samples/Sema/AssignMismatchLocal.vl
+  samples/Sema/AssignMismatchReturn.vl
+  samples/Sema/AssignMismatchTrailing.vl
+  samples/Sema/CompoundAssignReceiver.vl
+  samples/Sema/NilableUnsupported.vl
+  samples/Sema/DotCallNoReceiver.vl
+  samples/Sema/FreeFunctionArityMismatch.vl
+  samples/Sema/FreeFunctionTypeMismatch.vl
+  samples/Sema/InterpNoToString.vl
+  samples/Sema/NonExhaustiveCase.vl
+  samples/Sema/RedeclareSameScope.vl
+  samples/Sema/UnknownFreeFunction.vl
+  samples/Sema/UnknownMember.vl )
 
 foreach( SOURCE IN LISTS VOLT_CHECK_SOURCES )
   add_test(
@@ -72,6 +88,14 @@ endforeach()
 add_test(
   NAME    ZeroHardcode
   COMMAND ${CMAKE_COMMAND} -P ${VOLT_ROOT}/tests/ZeroHardcode.cmake
+)
+
+# The two AST contracts of rules/core-ast.md, replayed over the whole tree:
+# no residual sugar anywhere, and total typing over source/Lib.
+add_test(
+  NAME    AstInvariant
+  COMMAND ${CMAKE_COMMAND} -DVOLT_BIN=$<TARGET_FILE:Volt>
+          -P ${VOLT_ROOT}/tests/AstInvariant.cmake
 )
 
 add_custom_target( golden-update

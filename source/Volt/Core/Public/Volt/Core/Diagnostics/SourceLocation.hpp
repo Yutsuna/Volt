@@ -36,6 +36,7 @@ namespace Core
         std::uint32_t End   = 0;
 
         [[nodiscard]] constexpr std::uint32_t Length () const noexcept;
+        [[nodiscard]] constexpr SourceRange Head () const noexcept;
         [[nodiscard]] static constexpr SourceRange Merge ( SourceRange Lhs, SourceRange Rhs ) noexcept;
     };
 

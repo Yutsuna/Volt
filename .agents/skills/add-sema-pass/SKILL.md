@@ -31,6 +31,13 @@ description: Recipe to add a Volt semantic pass — one PassList.inl line plus a
    [&](auto&){ /* default */ } }, Context.Ast.Expr(Id))`. Report via
    `Context.Diags` only.
 
+   If the pass **rewrites** nodes, it sweeps the arena by index, copies the
+   source node by value and assigns the slot back — it never holds an arena
+   reference across an `Add()`. This is mandatory, not stylistic: the arena is a
+   `std::vector`, so the lost write shows up as a rewrite that silently depends
+   on file size. Read [`rules/ast-rewrite.md`](../../rules/ast-rewrite.md) and
+   copy the shape from `PipelineLowering.cpp` / `JsxLowering.cpp`.
+
 4. **Constraints:** zero-hardcode (resolve via `TypeStore`, never a Volt type
    name); no shared mutable state — the pass must be safe to run on many files at
    once.

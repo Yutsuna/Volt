@@ -1,0 +1,69 @@
+# The five value positions that must agree with the type they flow into.
+# Before phase C not one of them compared anything: `def r -> Int32 ; "plain" ;
+# end` type-checked cleanly. All five now go through the single predicate
+# `TypeCompat::IsAssignable`, called after constraint propagation so that an
+# unconstrained literal has already been narrowed to the expected type.
+#
+# Everything here is *valid* — the five refusals live in the
+# AssignMismatch*.vl samples.
+
+# 1. Local declaration with a written type.
+def local_decl -> Int32
+  n : Int32 = 42
+  wide : UInt64 = 7
+  text : String = "ok"
+  n
+end
+
+# 2. Assignment to a target whose type is known — local, @ivar, or member.
+struct Counter
+  getter total : UInt64
+
+  def initialize
+    @total = 0
+  end
+
+  def bump( by : UInt64 ) -> Void
+    @total = @total + by
+    local : UInt64 = 1
+    local = local + by
+  end
+end
+
+# 3. `return` against the declared return type.
+def explicit_return -> String
+  return "done"
+end
+
+# 4. A method's trailing expression, same rule as `return`.
+def trailing -> Bool
+  1 == 1
+end
+
+# A `-> Void` method's return type is an invalid SemaTypeId, so its trailing
+# value is checked against nothing — no name is compared to reach that.
+def void_discards_its_tail -> Void
+  99
+end
+
+# 5. Parameter defaults.
+def defaulted( n : Int32 = 5, label : String = "x", wide : UInt64 = 1 ) -> Int32
+  n
+end
+
+# Widening between scalars of one family is allowed, and is what lets every
+# integer width answer `Hashable`'s `hash -> UInt64` contract by returning
+# `self`. Narrowing is not — see AssignMismatchLocal.vl.
+def widening -> UInt64
+  small : Int8 = 3
+  small
+end
+
+# `null` fits any pointer-shaped slot; it is recognised through the node kind
+# `Nil` claims, never through its name.
+def nil_into_pointer -> Void
+  buf : Pointer<UInt8> = Pointer<UInt8>.malloc( 8 )
+  if buf != nil
+    buf.free
+  end
+end

@@ -2,11 +2,14 @@
 
 #include "Sema_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
+#include "Volt/Core/Diagnostics/SourceManager.hpp"
+#include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -25,15 +28,40 @@ namespace Sema
     struct PassStats
     {
 
-        std::size_t JsxLowered       = 0;
-        std::size_t CaseLowered      = 0;
-        std::size_t MacrosExpanded   = 0;
-        std::size_t EnumsLowered     = 0;
-        std::size_t PipelinesLowered = 0;
-        std::size_t ScopesResolved   = 0;
+        std::size_t JsxLowered      = 0;
+        std::size_t CaseLowered     = 0;
+        std::size_t DotCallsLowered = 0;
+        std::size_t AssignsLowered  = 0;
+        std::size_t IndexesLowered  = 0;
+        std::size_t InterpsLowered  = 0;
+        // AstInvariant (order 40). Both must be 0 for the AST contract of
+        // rules/core-ast.md to hold; both are also reported as hard errors, so
+        // these counters are what `check --metrics` shows rather than the
+        // enforcement itself.
+        std::size_t ResidualSugarNodes = 0;
+        std::size_t UntypedValueExprs  = 0;
+        std::size_t MacrosExpanded     = 0;
+        std::size_t EnumsLowered       = 0;
+        std::size_t PipelinesLowered   = 0;
+        std::size_t MagicsExpanded     = 0;
+        std::size_t ScopesResolved     = 0;
         // Not errors: a name ScopeResolver could not bind may be a type or a
         // member — TypeChecker decides later, with type context in hand.
         std::size_t UnresolvedIdentifiers = 0;
+
+        // Fold another unit's counters in, field by field, straight off the
+        // reflected shape of this struct. The Driver used to name two of them
+        // by hand, so every counter added since was collected per file and
+        // then dropped on the floor. Adding a stat stays one field here.
+        void Merge ( const PassStats &Other )
+        {
+            std::array<std::size_t, Meta::FieldCount<PassStats>()> Values{};
+
+            std::size_t Index = 0;
+            Meta::ForEachField( Other, [&] ( std::string_view, const std::size_t &Value ) { Values[Index++] = Value; } );
+            Index = 0;
+            Meta::ForEachField( *this, [&] ( std::string_view, std::size_t &Value ) { Value += Values[Index++]; } );
+        }
     };
 
     class InterfaceRegistry;
@@ -61,6 +89,12 @@ namespace Sema
         Core::DiagEngine::Bag &Diags;
         PassStats &Stats;
         const InterfaceRegistry *Globals = nullptr;
+        // Registered single-threaded before the parallel phase, then read
+        // only — the same contract as Globals. A pass needs it to answer
+        // "where am I": path and line/column behind a SourceRange, which no
+        // AST node carries on its own. Null in tools that never load files;
+        // a pass that depends on it must degrade to a no-op, not crash.
+        const Core::SourceManager *Sources = nullptr;
     };
 
     // A pass is a pure function over a PassContext. New pass = one line in

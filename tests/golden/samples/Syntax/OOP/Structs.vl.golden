@@ -15,16 +15,14 @@ Program 'samples/Syntax/OOP/Structs.vl'
 │        └─ then
 │           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ Call @3:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @3:5
-│                    └─ args
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
 │                       └─ Interp @3:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
+│                             ├─ Identifier '__FILE__' @3:31
 │                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                             └─ Identifier '__LINE__' @3:43
 ├─ Struct 'Point2D' @7:1
 │  └─ body
 │     ├─ Field 'x' getter @8:3

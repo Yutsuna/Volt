@@ -1,4 +1,4 @@
-macro def assert!( condition : Bool ) -> Void
+def assert!( condition : Bool ) -> Void
   if not condition
     raise "Assertion failed"
   end

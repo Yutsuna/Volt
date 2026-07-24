@@ -8,7 +8,8 @@ void Volt::Frontend::Parser::ParseStatementBlock ( StmtList &Out, TokenKind Extr
 {
     SkipTerminators();
     while ( not AtEnd() and not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwElse ) and
-            not Check( TokenKind::KwElsif ) and not Check( ExtraTerminator ) )
+            not Check( TokenKind::KwElsif ) and not Check( TokenKind::KwRescue ) and not Check( TokenKind::KwEnsure ) and
+            not Check( ExtraTerminator ) )
     {
         const std::size_t Before = Pos;
 
@@ -44,6 +45,8 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseStatement ()
         return ParseIf();
     case TokenKind::KwWhile:
         return ParseWhile();
+    case TokenKind::KwUntil:
+        return ParseUntil();
     case TokenKind::KwFor:
         return ParseFor();
     case TokenKind::KwReturn:
@@ -106,6 +109,18 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ApplyModifiers ( StmtId Inner )
         If Node;
         Node.Cond = MakeExpr( Negated, RangeSince( Begin ) );
         Node.Then.PushBack( Inner );
+        return MakeStmt( Node, RangeSince( Begin ) );
+    }
+
+    if ( Accept( TokenKind::KwUntil ) )
+    {
+        const ExprId Cond = ParseExpr( 0 );
+        Unary Negated;
+        Negated.Op      = TokenKind::KwNot;
+        Negated.Operand = Cond;
+        While Node;
+        Node.Cond = MakeExpr( Negated, RangeSince( Begin ) );
+        Node.Body.PushBack( Inner );
         return MakeStmt( Node, RangeSince( Begin ) );
     }
 
@@ -183,6 +198,25 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseWhile ()
     return MakeStmt( Node, RangeSince( Begin ) );
 }
 
+Volt::Frontend::StmtId Volt::Frontend::Parser::ParseUntil ()
+{
+    const std::uint32_t Begin = Here();
+    Expect( TokenKind::KwUntil, "to begin an until loop" );
+
+    const ExprId RawCond = ParseExpr( 0 );
+    Unary Negated;
+    Negated.Op      = TokenKind::KwNot;
+    Negated.Operand = RawCond;
+
+    While Node;
+    Node.Cond = MakeExpr( Negated, RangeSince( Begin ) );
+    SkipTerminators();
+    ParseStatementBlock( Node.Body );
+    Expect( TokenKind::KwEnd, "to close until loop" );
+
+    return MakeStmt( Node, RangeSince( Begin ) );
+}
+
 Volt::Frontend::StmtId Volt::Frontend::Parser::ParseFor ()
 {
     const std::uint32_t Begin = Here();
@@ -237,7 +271,8 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseReturn ()
     // statement modifier (`return if c` / `return unless c`); only parse
     // a value when none of those come next.
     if ( not Check( TokenKind::Newline ) and not Check( TokenKind::Semicolon ) and not Check( TokenKind::Eof ) and
-         not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) )
+         not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) and
+         not Check( TokenKind::KwUntil ) )
     {
         Node.Value = ParseExpr( 0 );
     }
@@ -251,7 +286,8 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseBreak ()
 
     Break Node;
     if ( not Check( TokenKind::Newline ) and not Check( TokenKind::Semicolon ) and not Check( TokenKind::Eof ) and
-         not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) )
+         not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) and
+         not Check( TokenKind::KwUntil ) )
     {
         Node.Value = ParseExpr( 0 );
     }
@@ -265,7 +301,8 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseNext ()
 
     Next Node;
     if ( not Check( TokenKind::Newline ) and not Check( TokenKind::Semicolon ) and not Check( TokenKind::Eof ) and
-         not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) )
+         not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) and
+         not Check( TokenKind::KwUntil ) )
     {
         Node.Value = ParseExpr( 0 );
     }

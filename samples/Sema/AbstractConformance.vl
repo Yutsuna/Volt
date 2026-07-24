@@ -1,0 +1,27 @@
+# A struct or class owes every `abstract def` its mixins declare a real
+# implementation. A mixin owes nothing — it may pass a contract along. This
+# sample is expected to be rejected: `Incomplete` never implements `size`.
+
+mixin Sized
+  abstract def size -> UInt64
+
+  def empty? -> Bool
+    size == 0_u64
+  end
+end
+
+mixin Relayed
+  include Sized
+end
+
+struct Complete
+  include Sized
+
+  def size -> UInt64
+    0_u64
+  end
+end
+
+struct Incomplete
+  include Relayed
+end

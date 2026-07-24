@@ -1,6 +1,6 @@
 @[Literal( ArrayLit )]
 struct Array<T>
-  include Enumerable
+  include Enumerable<T>
 
   getter buffer : Pointer<T>
   getter size : UInt64

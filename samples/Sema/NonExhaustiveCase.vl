@@ -1,0 +1,18 @@
+# `case self when` over an enum must cover every case, or carry an `else`.
+# This one is missing `.Blue` and has no `else` — `check` must reject it.
+
+enum Color
+  Red
+  Green
+  Blue
+
+  def name -> String
+    case self
+    when .Red   then "red"
+    when .Green then "green"
+    end
+  end
+end
+
+color : Color = Color::Red
+color.name

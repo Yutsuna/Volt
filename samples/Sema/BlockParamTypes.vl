@@ -1,0 +1,49 @@
+# A `do | x |` parameter carries no annotation: it takes its type from the
+# `&block` slot the callee declares. An unqualified `each` inside a method
+# body is a call on `self`, so it resolves — and types its block — exactly
+# like `self.each` would.
+
+struct Counter
+  getter limit : Int32
+
+  def initialize( limit : Int32 = 3 )
+    @limit = limit
+  end
+
+  def each( &block : Int32 -> Void ) -> Void
+    i = 0
+    while i < @limit
+      block.call( i )
+      i += 1
+    end
+  end
+
+  def sum -> Int32
+    total = 0
+    each do | value |
+      total += value
+    end
+    total
+  end
+end
+
+def block_param_types -> Void
+  c = Counter.new( 5 )
+  c.each do | value |
+    doubled : Int32 = value * 2
+  end
+  total : Int32 = c.sum
+
+  items = [ 1, 2, 3 ]
+  items.each do | item |
+    squared : Int32 = item * item
+  end
+
+  # `each_with_index` declares `&block : ( T, UInt64 ) -> Void` — two
+  # positional slots on the same `&block`, locking in that a block's
+  # arity is not limited to one parameter.
+  items.each_with_index do | item, index |
+    product : UInt64 = index * 2_u64
+    doubled_item : Int32 = item * 2
+  end
+end

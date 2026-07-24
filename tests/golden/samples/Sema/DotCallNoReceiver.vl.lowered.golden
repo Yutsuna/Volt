@@ -1,0 +1,9 @@
+Program 'samples/Sema/DotCallNoReceiver.vl'
+└─ ExprStmt @11:1
+   └─ expr
+      └─ Call @11:1
+         └─ callee
+            └─ Member 'orphan_call' @11:1
+               └─ object
+                  └─ SelfExpr @11:1
+--- exit 0 ---

@@ -17,19 +17,49 @@ Le Frontend est **lazy** : il ne tente jamais de deviner ou de verrouiller le ty
 - Combinaison d'un parseur d'expressions **Pratt** (basé sur la puissance de liaison / precedence) et d'un parseur à **descente récursive** pour les déclarations et instructions.
 - Construit l'AST en mémoire arène (`Arena<Node, Id>`) sans pointeurs nus (Value AST).
 
-### 3. Lowering Syntaxique (Passes purement syntaxiques)
-Le Frontend contient les passes de lowering qui réécrivent le sucre syntaxique vers des formes AST canoniques avant l'analyse sémantique :
-- **Order 8 — `FunctionalLowering`** : Désucre les sections d'opérateurs/méthodes (`&.+ 5`, `&.trim`), les captures (`&Math.square`) et les compositions (`>>`) en nœuds `Lambda` canoniques avec symboles uniques (`AstContext.MakeUniqueSymbol`).
-- **Order 9 — `PipelineLowering`** : Désucre les chaînages d'opérateurs pipeline (`x |> f`) en appels explicites `f(x)`.
-- **Order 12 — `EnumLowering`** : Désucre les énumérations en structures de types et constantes.
-- **Order 15 — `MacroExpansion`** : Étend les macros déclaratives et les annotations (`@[...]`).
-- **Order 20 — `JsxLowering`** : Réécrit la syntaxe JSX/UI (`<Button />`) en instanciations de composants.
-- **Order 22 — `CaseLowering`** : Réécrit les blocs `case/when` en arbres de décisions conditionnelles (`If/Else`).
+### 3. Lowering Syntaxique (`EPassKind::Lowering`)
+Ces passes réécrivent le sucre en formes AST canoniques **avant** toute analyse
+de type. Elles sont exactement celles que `volt parse --lowered` exécute, dans
+l'ordre du manifeste `Sema/PassList.inl` (la numérotation est l'`Order`, pas un
+compteur contigu). Chacune **balaye l'arène par index** et ne tient jamais une
+référence à travers un `Add()` — l'idiome obligatoire est dans
+[`rules/ast-rewrite.md`](rules/ast-rewrite.md).
+
+- **8 — `FunctionalLowering`** : sections d'opérateurs/méthodes (`&.+ 5`,
+  `&.trim`), captures (`&Math.square`), compositions (`>>`) → nœuds `Lambda`
+  canoniques à symboles uniques (`AstContext::MakeUniqueSymbol`).
+- **9 — `PipelineLowering`** : `x |> f` → `f( x )`.
+- **12 — `EnumLowering`** : énumérations → types + constantes.
+- **15 — `MacroExpansion`** : macros déclaratives + annotations `@[...]`. Retire
+  les `MacroDef` de `TopDecls` en fin de passe (le nœud reste dans l'arène).
+- **16 — `MagicExpansion`** : `__FILE__` / `__LINE__` et consorts.
+- **20 — `JsxLowering`** : `<Button />` → `Volt.JSX.create_element( ... )`.
+- **22 — `CaseLowering`** : `case/when` → liste plate de `WhenClause`
+  (`pattern === target`), jamais une chaîne de `If` (§4.3 de
+  [`rules/core-ast.md`](rules/core-ast.md) : `CaseExpr` reste **noyau**).
+- **23 — `DotCallLowering`** : un `.method` en position d'instruction →
+  `self.method( ... )`. Juste après `CaseLowering`, pour ne pas voler les
+  `DotCall` du motif `when .even?`.
+- **24 — `AssignLowering`** : `x op= v` → `x = x op v`. L'opérateur de base est
+  **dérivé de l'orthographe** (`+=` moins son `=`), pas d'une table.
+- **25 — `IndexLowering`** : `o[ a ]` → `o.[]( a )`, `o[ a ] = v` → `o.[]=( a, v )`.
+  Le cas composé `o[ a ] += v` tombe de la composition avec `AssignLowering` :
+  aucun code dédié.
+- **26 — `InterpLowering`** : `"a#{ x }b"` → concaténation à gauche via
+  `x.to_string`. Après `MacroExpansion`, car une macro peut générer du `#{ ... }`.
+
+`"to_string"`, `"[]"`, `"[]="` sont des **noms de méthodes**, pas des noms de
+type Volt : le garde-fou `ZeroHardcode` reste vert. Voir
+[`rules/zero-hardcode.md`](rules/zero-hardcode.md).
 
 ---
 
 ## Produit en sortie du Frontend
 En sortie du Frontend (`volt parse --lowered`), l'AST est :
-- **Entièrement désucré** (les formes complexes sont réduites à des primitives AST standard).
-- **Non typé strict** (les littéraux comme `10` restent des littéraux nus non contraints).
-- **Prêt pour le MiddleEnd** (aucune hypothèse de type n'a été verrouillée prématurément).
+- **Entièrement désucré** : aucun des **9 nœuds sucre** (`Interp`, `Index`,
+  `DotCall`, `Section`, `Composition`, `Pipeline`, `JsxElement/Fragment/Text`,
+  marqués `VOLT_EXPR_SUGAR` dans `Nodes.inl`) ne survit. La passe `AstInvariant`
+  (Order 40) le vérifie **mécaniquement** à chaque build ; `tests/AstInvariant.cmake`
+  le rejoue sur tout le corpus. Voir [`rules/meta-first.md`](rules/meta-first.md).
+- **Non typé strict** : les littéraux comme `10` restent nus, non contraints.
+- **Prêt pour le MiddleEnd** : aucune hypothèse de type verrouillée trop tôt.

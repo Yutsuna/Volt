@@ -1,0 +1,12 @@
+# VOLT_CHECK_EXPECT_FAIL — `T?` is refused, not implemented.
+#
+# Nilable types need a sum-type model Volt does not have. Before this, the type
+# resolver found no stdlib type claiming the NilableType node kind and returned
+# an invalid type without a word, so every use of `T?` was silently untyped.
+#
+# Written `Int32 ?` with a space on purpose: `?` is a legal identifier
+# character in Volt (`empty?`, `even?`), so `Int32?` lexes as one identifier
+# and never reaches the type parser at all.
+
+def nilable( x : Int32 ? ) -> Void
+end

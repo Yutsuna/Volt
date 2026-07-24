@@ -11,7 +11,8 @@ namespace Sema
     ClosureEnvFrame SynthesizeClosureFrame ( const ScopeTable &Scopes, const UnitTypes &Types, ScopeId ClosureScope )
     {
         ClosureEnvFrame Frame;
-        Frame.Scope = ClosureScope;
+        Frame.Scope    = ClosureScope;
+        Frame.bEscapes = Scopes.Escapes( ClosureScope );
 
         const auto *Captures = Scopes.CapturesOf( ClosureScope );
         if ( Captures == nullptr or Captures->IsEmpty() )
