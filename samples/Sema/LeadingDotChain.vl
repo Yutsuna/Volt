@@ -1,0 +1,42 @@
+# A postfix chain continues across a newline when the next line opens with
+# `.`. Without it the tail links parse as separate statements — orphan
+# DotCall nodes with an implicit `self` receiver — which type-checks by
+# accident and lowers to a wrong program.
+#
+# Only `.` continues a line. `[` and `(` opening a line stay an array
+# literal and a parenthesised expression.
+
+def leading_dot_chain -> String
+  raw = "  ALICE  "
+
+  # Three links over three lines, with a comment between two of them:
+  # the lexer folds blank lines and comments into a single Newline.
+  tidy = raw
+    .trim
+    # a comment between two links must not break the chain
+    .downcase
+
+  tidy
+end
+
+def chain_in_argument( value : String ) -> String
+  value
+end
+
+def leading_dot_in_call -> String
+  raw = "  BOB  "
+
+  chain_in_argument( raw
+    .trim
+    .downcase )
+end
+
+def no_false_continuation -> Int32
+  values = [ 1, 2, 3 ]
+
+  # A line opening with `[` is a fresh array literal, never an index on the
+  # previous line's expression.
+  spare = [ 4, 5 ]
+
+  values[0] + spare[0]
+end

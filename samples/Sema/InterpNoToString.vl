@@ -1,0 +1,17 @@
+# VOLT_CHECK_EXPECT_FAIL
+#
+# `Array<T>#to_string` cannot be written: it would have to call `to_string` on
+# every element, which needs a "T is Stringable" bound, and Volt has no bounds
+# on generic parameters. The deliberate outcome is a refusal, not a silence —
+# interpolating an Array must name the missing member:
+#
+#   type Array has no member 'to_string'
+#
+# This is the diagnostic InterpLowering earns by lowering to a real method
+# call. Before the lowering, an Interp node produced no type at all and this
+# program was accepted without a word.
+
+def stringify_array -> String
+  numbers = [ 1, 2, 3 ]
+  "values = #{ numbers }"
+end

@@ -1,0 +1,6 @@
+# VOLT_CHECK_EXPECT_FAIL — site 3 of 5: an explicit `return` that does not
+# match the declared return type.
+
+def bad_return -> Int32
+  return "plain"
+end

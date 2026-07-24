@@ -1,0 +1,20 @@
+# VOLT_CHECK_EXPECT_FAIL — site 2 of 5: assignment to a target whose type is
+# already known. Covers a local, an @ivar and a member, since the three reach
+# the same check through the same Assign node.
+
+def bad_local_assign -> Void
+  n : Int32 = 1
+  n = "plain"
+end
+
+struct Box
+  getter v : Int32
+
+  def initialize
+    @v = 0
+  end
+
+  def bad_ivar -> Void
+    @v = "plain"
+  end
+end

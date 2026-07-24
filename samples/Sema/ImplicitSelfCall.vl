@@ -1,0 +1,35 @@
+# `.method` with no receiver means "implicit self". DotCallLowering (order 23)
+# rewrites it into `self.method( ... )` before the TypeChecker runs, so the
+# static/instance rules are enforced by the one member check rather than by a
+# second resolution path — and no DotCall node ever reaches a backend.
+#
+# In a static method `self` *is* the type, so `.make` below resolves to the
+# static member, exactly as `Counter.make` would.
+
+struct Counter
+
+  getter value : Int32
+
+  def initialize( value : Int32 ) -> Void
+    @value = value
+  end
+
+  # Implicit self, instance context: resolves to the instance member `step`.
+  def bump -> Int32
+    .step
+  end
+
+  def step -> Int32
+    @value
+  end
+
+  # Implicit self, static context: resolves to the static member `seed`.
+  def self.make -> Int32
+    .seed
+  end
+
+  def self.seed -> Int32
+    0
+  end
+
+end
