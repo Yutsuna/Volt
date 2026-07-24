@@ -41,23 +41,63 @@ func b
 
 ---
 
-## Passes du MiddleEnd
+## Passes du MiddleEnd (`EPassKind::Analysis`)
 
-### 1. Order 10 — `ScopeResolver` (`source/Volt/Sema/Private/Passes/ScopeResolver.cpp`)
-- Parcourt l'AST de manière réflexive pour construire la table des portées lexicales (`ScopeTable`).
-- Déclare les paramètres et variables locales dans leurs portées respectives (`Method`, `Block`, `Branch`).
-- Valide la structure des portées (détecte les redéclarations illégales dans la même portée, autorise le masquage/shadowing dans des portées enfants).
+Le liage des types (`Sema::BindUnitTypes`, `Layout/TypeBinder.cpp`) tourne
+**avant** la phase parallèle, dans le seam sériel du Driver : un `10` d'un
+fichier utilisateur résout vers l'`Int32` déclaré dans `source/Lib/`, donc ce
+liage est cross-unit et ne peut pas être une passe par-fichier. Il enregistre
+aussi les **noms de modules** (`TypeStore::DeclareModule`) : un `module` est un
+namespace, pas un type nominal — ses méthodes sont des fonctions libres.
 
-### 2. Order 30 — `TypeChecker` (`source/Volt/Sema/Private/Passes/TypeChecker.cpp`)
-- Effectue l'inférence de type bidirectionnelle.
-- Gère la table des types (`TypeStore`), le liage des types natifs (`TypeBinder`), et la table des types d'unités (`UnitTypes`).
-- Gère la table des littéraux non contraints (`UnconstrainedLiterals`) et des initialiseurs (`UnconstrainedVarInitializers`).
-- Valide les arités d'appels, les membres d'instance vs statiques (`bStaticContext`), et les signatures de fonctions.
+### 1. Order 10 — `ScopeResolver`
+- Construit la `ScopeTable` (portées `Method`/`Block`/`Branch`), déclare
+  paramètres et locales, calcule les captures de closures et leur `bEscapes`.
+- Rejette les redéclarations dans une même portée, autorise le shadowing enfant.
+
+### 2. Order 30 — `TypeChecker` (`Sema/Private/Passes/TypeChecker/`)
+- Inférence bidirectionnelle sur `UnitTypes` ; `UnconstrainedLiterals` /
+  `UnconstrainedVarInitializers` gèrent l'affinement lazy des littéraux nus.
+- **Ordre impératif à chaque site d'affectation : inférer → contraindre →
+  vérifier.** Contraindre avant d'inférer gèle les enfants (le parent est
+  mémoïsé, le walk n'a jamais lieu).
+- **Assignabilité totale** : un prédicat unique `TypeCompat::IsAssignable`
+  (+ `CheckAssignable( ..., EAssignSite )`) est câblé sur les 5 sites
+  (`LocalDecl`, `Assign`, `Return`, valeur finale de corps, défaut de
+  paramètre). Un type **explicitement déclaré** est strict : aucune conversion
+  implicite, **sauf** l'élargissement scalaire de même famille sans
+  rétrécissement — décision de sémantique du langage, forcée par `hash -> UInt64`,
+  détaillée dans [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
+- **Opérateurs** : `MemberType` enregistre la résolution dans `CalleeResolution`
+  pour `Binary`/`Unary` comme pour `Member` — sur layout primitif/pointeur le
+  backend émet l'instruction, sinon il appelle la méthode. Zéro passe, zéro
+  nœud. Un opérateur exempté de corps doit **quand même** être déclaré.
+- `Nil` (`@[Literal( NilLiteral )]`) assignable à tout `Pointer` ; `T?`
+  (`NilableType`) **refusé bruyamment** (`nilable types are not implemented`).
+- Arités, membres instance vs statique (`bStaticContext`), fonctions libres.
+
+### 3. Order 40 — `AstInvariant`
+Le garde-fou qui rend « 0 dette » **structurel** plutôt qu'instantané. Ne crée
+aucun nœud (seule façon de tourner après `TypeChecker` sans casser l'invariant
+structurel). Deux vérifications, toutes deux erreurs dures :
+- **Aucun sucre résiduel** (ensemble `VOLT_EXPR_SUGAR` généré par le manifeste).
+- **Typage total en position de valeur**, `Context.Metadata` et corps génériques
+  exclus (cf. le contrat d'entrée backend dans
+  [`rules/core-ast.md`](rules/core-ast.md)).
+
+Compteurs remontés par `volt check --metrics` (`PassStats`, agrégé par réflexion).
+
+> **Invariant structurel** : aucune passe créatrice de nœuds après `TypeChecker`.
+> C'est ce qui garantit que tout nœud vu par un backend a un type.
 
 ---
 
 ## Produit en sortie du MiddleEnd
-En sortie du MiddleEnd, l'AST/HIR est :
-- **100 % Résolu** : Chaque variable et identifiant est lié de manière univoque à son site de déclaration dans la `ScopeTable`.
-- **100 % Typé** : Toutes les expressions et littéraux ont un type exact et vérifié (`SemaTypeId`).
-- **100 % Validé** : Zéro ambiguïté ou erreur sémantique résiduelle. Les diagnostics d'erreurs sémantiques sont tous émis.
+En sortie du MiddleEnd, l'AST/HIR livré au backend (voir
+[`rules/core-ast.md`](rules/core-ast.md) pour le contrat complet — **27 nœuds
+noyau**, `CalleeResolution` et `ClosureEnvFrame` déjà calculés) est :
+- **100 % Résolu** : chaque identifiant lié à son site de déclaration.
+- **100 % Typé** — avec une seule nuance, portée par le contrat : typé d'emblée
+  dans du code concret, **typé après substitution** dans un corps générique
+  (`T` de `Array<T>` ne devient un type qu'à la monomorphisation = codegen).
+- **100 % Validé** : tous les diagnostics sémantiques sont émis.
