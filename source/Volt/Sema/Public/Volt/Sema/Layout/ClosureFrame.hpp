@@ -28,6 +28,12 @@ namespace Sema
         std::size_t TotalSize = 0;
         std::size_t Alignment = 1;
         Core::SmallVec<ClosureEnvField, 4> Fields;
+
+        // false only for a closure literal consumed directly at its call
+        // site (ScopeTable::Escapes) — codegen may stack-allocate that
+        // environment. Any other closure, including one with zero captures
+        // that is still stored or returned, keeps the conservative default.
+        bool bEscapes = true;
     };
 
     [[nodiscard]] ClosureEnvFrame
