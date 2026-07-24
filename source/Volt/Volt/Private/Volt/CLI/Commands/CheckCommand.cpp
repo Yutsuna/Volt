@@ -5,6 +5,10 @@
 #include "Volt/Driver/Driver.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 
+#include "Volt/Core/Meta/Reflect.hpp"
+#include "Volt/Sema/Pass.hpp"
+
+#include <cstddef>
 #include <filesystem>
 #include <iostream>
 #include <optional>
@@ -18,6 +22,26 @@ namespace
 {
 
 namespace fs = std::filesystem;
+
+/// One line per non-zero counter, named by the field itself. Nothing here
+/// enumerates the counters: `--metrics` reports whatever PassStats declares,
+/// so a pass that adds one is visible without touching the CLI. This is the
+/// channel the AST-contract counters (ResidualSugarNodes, UntypedValueExprs)
+/// are read through — they are hard errors as well, but a count is what makes
+/// a regression measurable rather than just loud.
+void ReportMetrics ( const Volt::Sema::PassStats &Stats )
+{
+    Volt::Core::FLogger::Info( "metrics:", "check" );
+    Volt::Meta::ForEachField( Stats,
+                              [] ( std::string_view Name, const std::size_t &Value )
+                              {
+                                  if ( Value > 0 )
+                                  {
+                                      Volt::Core::FLogger::Info( "  " + std::string{ Name } + " = " + std::to_string( Value ),
+                                                                 "check" );
+                                  }
+                              } );
+}
 
 /// Walk up from InPath (file or directory) looking for a Project.vl manifest.
 /// Mirrors the historical `Circuit.discover`: a file inside a circuit project
@@ -189,13 +213,13 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     {
         Summary += ", " + std::to_string( TheDriver.Interfaces().Size() ) + " exported decl(s)";
     }
-    if ( Compiled.JsxLowered > 0 )
+    if ( Compiled.Stats.JsxLowered > 0 )
     {
-        Summary += ", " + std::to_string( Compiled.JsxLowered ) + " jsx node(s) lowered";
+        Summary += ", " + std::to_string( Compiled.Stats.JsxLowered ) + " jsx node(s) lowered";
     }
-    if ( Compiled.PipelinesLowered > 0 )
+    if ( Compiled.Stats.PipelinesLowered > 0 )
     {
-        Summary += ", " + std::to_string( Compiled.PipelinesLowered ) + " pipeline operator(s) lowered";
+        Summary += ", " + std::to_string( Compiled.Stats.PipelinesLowered ) + " pipeline operator(s) lowered";
     }
     if ( TheDriver.Graph().ModuleCount() > 0 )
 
@@ -204,6 +228,11 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
                    TheDriver.Graph().NameOf( 0 ) + "`";
     }
     Core::FLogger::Info( Summary, "check" );
+
+    if ( bMetrics )
+    {
+        ReportMetrics( Compiled.Stats );
+    }
     return ExitSuccess;
 }
 
