@@ -1,6 +1,8 @@
 #include "DeclStmtWalker.hpp"
 
+#include "ClosureInferencer.hpp"
 #include "MemberResolver.hpp"
+#include "TypeCompat.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
@@ -142,9 +144,32 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
         Context.LocalTypes[BindingSite{ Id }] = ParamType;
         Context.Locals[Entry.Name]            = ParamType;
         Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ParamType );
+        if ( Entry.Default.IsValid() and ParamType.IsValid() )
+        {
+            Context.ConstrainExprType( Entry.Default, ParamType );
+        }
         InferExpr( Context, Entry.Default );
+        if ( Entry.Default.IsValid() and ParamType.IsValid() )
+        {
+            Context.ConstrainExprType( Entry.Default, ParamType );
+        }
+        CheckAssignable( Context, Entry.Default, ParamType, EAssignSite::ParamDefault );
     }
-    WalkStmts( Context, Node.Body );
+
+    // TrailingType is WalkStmts plus "what did the last ExprStmt evaluate to",
+    // which is the value a body-without-`return` produces. A `-> Void` method
+    // has an invalid return type, so its trailing value is checked against
+    // nothing — which is the correct behaviour, reached without naming a type.
+    const SemaTypeId Trailing = TrailingType( Context, Node.Body );
+    if ( Node.Body.Size() > 0 )
+    {
+        if ( const auto *Last = std::get_if<Frontend::ExprStmt>( &Context.Ctx.Ast.Stmt( Node.Body[Node.Body.Size() - 1] ) );
+             Last != nullptr and Trailing.IsValid() )
+        {
+            Context.ConstrainExprType( Last->Expr, Context.CurrentMethodReturnType );
+            CheckAssignable( Context, Last->Expr, Context.CurrentMethodReturnType, EAssignSite::Trailing );
+        }
+    }
 
     Context.bStaticContext          = bOuterStatic;
     Context.CurrentMethodReturnType = OuterReturnType;
@@ -261,12 +286,24 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
                 {
                     Context.ConstrainExprType( Node.Init, Written );
                 }
-                const SemaTypeId Init                 = InferExpr( Context, Node.Init );
+                const SemaTypeId Init = InferExpr( Context, Node.Init );
+
+                // Constrained a second time, *after* inference: a literal only
+                // enters UnconstrainedLiterals while being inferred, so the
+                // call above — which runs before it, because that is what feeds
+                // ExpectedClosure to a lambda initialiser — cannot narrow it.
+                // Without this second pass `a : UInt64 = 8` reports Int32.
+                if ( Written.IsValid() )
+                {
+                    Context.ConstrainExprType( Node.Init, Written );
+                }
+                CheckAssignable( Context, Node.Init, Written, EAssignSite::LocalDecl );
+
                 const SemaTypeId Bound                = Written.IsValid() ? Written : Init;
                 Context.LocalTypes[BindingSite{ Id }] = Bound;
                 Context.Locals[Node.Name]             = Bound;
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, Bound );
-                if ( not Written.IsValid() and Node.Init.IsValid() )
+                if ( not Written.IsValid() and Node.Init.IsValid() and Context.IsUnconstrainedInit( Node.Init, Init ) )
                 {
                     Context.UnconstrainedVarInitializers[Node.Name] = Node.Init;
                 }
@@ -289,6 +326,11 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
                     Context.ConstrainExprType( Node.Value, Context.CurrentMethodReturnType );
                 }
                 WalkChildren( Context, Node );
+                if ( Node.Value.IsValid() and Context.CurrentMethodReturnType.IsValid() )
+                {
+                    Context.ConstrainExprType( Node.Value, Context.CurrentMethodReturnType );
+                }
+                CheckAssignable( Context, Node.Value, Context.CurrentMethodReturnType, EAssignSite::Return );
             },
             [&] ( const auto &Node ) { WalkChildren( Context, Node ); },
         },

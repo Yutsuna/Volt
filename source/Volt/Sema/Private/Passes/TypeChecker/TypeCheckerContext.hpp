@@ -65,6 +65,20 @@ struct TypeCheckerContext
     std::unordered_map<Symbol, SemaTypeId> Locals{};
     std::unordered_set<std::uint32_t> UnconstrainedLiterals{};
     std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
+
+    // Is `Init` an initialiser that has *no type of its own* — an
+    // unconstrained literal, or something that never resolved?
+    //
+    // Only such a local may be re-typed by the context that first uses it
+    // (`h = 5381` becoming a UInt64 because `hash` returns one). A local whose
+    // initialiser already had a determinate type keeps it: registering
+    // `buf = Pointer<UInt8>.malloc( n )` as re-typable let the first
+    // `memcpy( buf, ... )` rewrite it to `Pointer<Void>` for good, and every
+    // later use then compared against the wrong type.
+    [[nodiscard]] bool IsUnconstrainedInit ( Frontend::ExprId Init, SemaTypeId InitType ) const
+    {
+        return not InitType.IsValid() or UnconstrainedLiterals.contains( Init.Value );
+    }
     // Names of locals declared with a type annotation but no initializer
     // (`x : T` without `= expr`). Marked on declaration, cleared on first
     // assignment, checked on every read — definite assignment analysis.

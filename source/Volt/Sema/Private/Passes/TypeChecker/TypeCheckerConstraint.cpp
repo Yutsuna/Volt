@@ -22,14 +22,22 @@ inline void ConstrainNode ( const Volt::Frontend::Identifier &Node,
                             Volt::Frontend::ExprId Expr,
                             Volt::Sema::SemaTypeId TargetType )
 {
-    Self.Ctx.Values.SetExprType( Expr, TargetType );
-    if ( const auto It = Self.UnconstrainedVarInitializers.find( Node.Name ); It != Self.UnconstrainedVarInitializers.end() )
+    // Only a local whose type came from an unconstrained initializer adopts
+    // the expected type. One that was *written* (`big : UInt64`) keeps its own
+    // and is checked against the context instead, by whichever of the five
+    // sites called this — overwriting it here would make `-> Int32` accept a
+    // trailing `big`, which is exactly the silence phase C exists to remove.
+    const auto It = Self.UnconstrainedVarInitializers.find( Node.Name );
+    if ( It == Self.UnconstrainedVarInitializers.end() )
     {
-        const Volt::Frontend::ExprId InitExpr = It->second;
-        Self.UnconstrainedVarInitializers.erase( It );
-        Self.WriteLocal( Expr, Node.Name, TargetType );
-        Self.ConstrainExprType( InitExpr, TargetType );
+        return;
     }
+
+    const Volt::Frontend::ExprId InitExpr = It->second;
+    Self.UnconstrainedVarInitializers.erase( It );
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
+    Self.WriteLocal( Expr, Node.Name, TargetType );
+    Self.ConstrainExprType( InitExpr, TargetType );
 }
 
 inline void ConstrainNode ( const Volt::Frontend::Ternary &Node,
