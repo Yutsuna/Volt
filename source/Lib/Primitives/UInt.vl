@@ -2,6 +2,8 @@
 struct UInt8
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : UInt8 ) -> Int32
     if self < other
@@ -23,6 +25,8 @@ end
 struct UInt16
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : UInt16 ) -> Int32
     if self < other
@@ -44,6 +48,8 @@ end
 struct UInt32
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : UInt32 ) -> Int32
     if self < other
@@ -68,6 +74,8 @@ end
 struct UInt64
   include Comparable
   include Hashable
+  include Arithmetic
+  include Stringable
 
   def <=>( other : UInt64 ) -> Int32
     if self < other

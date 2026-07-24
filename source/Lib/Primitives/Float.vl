@@ -2,6 +2,7 @@
 struct Float32
   include Comparable
   include Arithmetic
+  include FloatStringable
 
   def <=>( other : Float32 ) -> Int32
     if self < other
@@ -23,6 +24,7 @@ end
 struct Float64
   include Comparable
   include Arithmetic
+  include FloatStringable
 
   def <=>( other : Float64 ) -> Int32
     if self < other
