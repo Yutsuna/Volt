@@ -104,6 +104,12 @@ namespace Frontend
         Core::SourceRange Loc;
     };
 
+    struct SuperExpr
+    {
+
+        Core::SourceRange Loc;
+    };
+
     struct Binary
     {
 
@@ -282,6 +288,22 @@ namespace Frontend
         Core::SourceRange Loc;
         ExprId Lhs;
         ExprId Rhs;
+    };
+
+    struct RaiseExpr
+    {
+        using Self = RaiseExpr;
+        Core::SourceRange Loc;
+        ExprId Exception;
+    };
+
+    struct BeginExpr
+    {
+        using Self = BeginExpr;
+        Core::SourceRange Loc;
+        StmtList Body;
+        StmtList RescueClauses;
+        StmtList EnsureBody;
     };
 
     enum class ExprKind
