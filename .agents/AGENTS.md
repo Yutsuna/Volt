@@ -58,6 +58,11 @@ for. See [`rules/meta-first.md`](rules/meta-first.md).
   value and assigns the slot; it never holds an arena reference across an
   `Add()` — that silently loses the rewrite, depending on file size. See
   [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
+- **The backend consumes a 27-node core AST.** No sugar survives `Lowering`,
+  every value expression is typed (after substitution inside a generic body),
+  and `AstInvariant` (Order 40) checks both on every build. What is refused
+  loudly rather than left to a backend is listed there too. See
+  [`rules/core-ast.md`](rules/core-ast.md).
 - **Unreal C++ style, C++26, `Public/Private`, `-Werror`.** See
   [`rules/cpp-style.md`](rules/cpp-style.md).
 - **The `volt` CLI surface is a contract.** Subcommands (`run`, `repl`, `parse`,
