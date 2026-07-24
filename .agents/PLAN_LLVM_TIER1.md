@@ -163,7 +163,24 @@ Cache `LayoutId → llvm::Type*` in a `DenseMap` on `State`.
 from the host triple (`sys::getDefaultTargetTriple()` — the seam for cross-compilation
 is that one string), and constructs the `Monomorphizer`.
 
-**Declare sweep.** Walk every unit's `Decl` arena; for each concrete `Method` and
+**Declare sweep.** *Amended during implementation:* the sweep's input is the
+**`TypeStore`, not the units' `Decl` arenas**. The store is the build-wide,
+already-resolved interface of every unit, so one pass covers all units at once and
+a `DeclId` — meaningful only inside the arena that minted it — never leaves its
+unit. It runs in `Begin()` (which already holds every `UnitView`), not per
+`EmitUnit`. Two consequences the store made visible:
+
+- Iterating free functions needed `TypeStore::FreeFunctions()`; lookup-by-name
+  answers "is this call resolvable", codegen asks "what must I emit a symbol for".
+- `Pointer<Void>` is a signature whose *argument* names a type the stdlib never
+  declares. `InstanceLayouts::OfSignature` therefore applies `Of()`'s own
+  precedence — an attached layout wins over any substitution — *before*
+  flattening, instead of failing on the unresolvable argument. Symmetrically, an
+  unresolvable **result** is `void`: a `def` with no `-> T` has no return type
+  (`rules/core-ast.md`), and an undeclared one is the same shape. An unresolvable
+  **parameter** stays an error.
+
+For each concrete `Method` and
 free function, create an `llvm::Function` with the mangled name and the signature
 derived from `Member::Params`/`Result` through `TypeMapper`. Parameter order is fixed
 by `abi.md`, once, for all three targets: **`self`, declared params, `ptr %env`**.
