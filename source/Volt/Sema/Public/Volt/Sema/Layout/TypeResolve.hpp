@@ -232,6 +232,8 @@ namespace Sema
                                                                   std::string_view Name,
                                                                   std::uint32_t Depth = 0 );
 
+    [[nodiscard]] SEMA_EXPORT bool IsSubclassOf ( const TypeStore &Store, NominalId Child, NominalId Parent );
+
 } // namespace Sema
 
 } // namespace Volt
