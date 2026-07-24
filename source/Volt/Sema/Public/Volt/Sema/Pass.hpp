@@ -2,6 +2,7 @@
 
 #include "Sema_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
+#include "Volt/Core/Diagnostics/SourceManager.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
@@ -30,6 +31,7 @@ namespace Sema
         std::size_t MacrosExpanded   = 0;
         std::size_t EnumsLowered     = 0;
         std::size_t PipelinesLowered = 0;
+        std::size_t MagicsExpanded   = 0;
         std::size_t ScopesResolved   = 0;
         // Not errors: a name ScopeResolver could not bind may be a type or a
         // member — TypeChecker decides later, with type context in hand.
@@ -61,6 +63,12 @@ namespace Sema
         Core::DiagEngine::Bag &Diags;
         PassStats &Stats;
         const InterfaceRegistry *Globals = nullptr;
+        // Registered single-threaded before the parallel phase, then read
+        // only — the same contract as Globals. A pass needs it to answer
+        // "where am I": path and line/column behind a SourceRange, which no
+        // AST node carries on its own. Null in tools that never load files;
+        // a pass that depends on it must degrade to a no-op, not crash.
+        const Core::SourceManager *Sources = nullptr;
     };
 
     // A pass is a pure function over a PassContext. New pass = one line in
