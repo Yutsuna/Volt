@@ -17,6 +17,23 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
     const std::string_view CleanName = Name.starts_with( '@' ) ? Name.substr( 1 ) : Name;
     auto Found                       = LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Receiver, Receiver, CleanName );
 
+    if ( Found.Decl == nullptr and Context.Ctx.Values.Has( Receiver ) )
+    {
+        const NominalId Nominal = Context.Ctx.Values.Get( Receiver ).Base;
+        if ( Nominal.IsValid() )
+        {
+            const std::string_view NominalName = Context.Ctx.Types.Text( Context.Ctx.Types.Type( Nominal ).Name );
+            if ( NominalName == "IntLiteral" or NominalName == "FloatLiteral" )
+            {
+                if ( const auto FallbackBase = Context.Ctx.Types.LookupNodeKind( NominalName ) )
+                {
+                    const SemaTypeId FallbackType = Context.MakeType( *FallbackBase, {} );
+                    Found = LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, FallbackType, FallbackType, CleanName );
+                }
+            }
+        }
+    }
+
     // `T.new` runs `initialize` but does not *evaluate* to what it returns:
     // a constructor yields the thing constructed. Its declared result is the
     // Void every initializer writes, so the receiver has to be substituted
