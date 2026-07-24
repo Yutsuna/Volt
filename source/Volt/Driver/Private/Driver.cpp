@@ -401,6 +401,11 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
         }
     }
 
+    // Same seam as CompileFiles: without the stdlib nothing claims IntLiteral,
+    // so every literal in a circuit typed as nothing and the whole tree came
+    // out untyped. A circuit is not a different language.
+    LoadStdLib( Refs );
+
     CompileResult Result = CompileRefs( Refs );
     BuildLinkGraph( CircuitName );
 
