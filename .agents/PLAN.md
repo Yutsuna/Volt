@@ -163,6 +163,3 @@ Le MiddleEnd (`Sema`) fait passer 100 % de la suite de tests (97/97 tests verts)
      - **Primitif `Char` & Littéral `CharLiteral` :** Création du fichier `source/Lib/Primitives/Char.vl` avec `@[Primitive( "u8", 8 ), Literal( CharLiteral )] struct Char` incluant `Comparable` et `Hashable`. Résout l'erreur `"no type claims CharLiteral"` pour les littéraux de caractères (ex: `'a'`).
      - **Méthode d'Opérateur `===` & Case Equality :** Ajout du jeton `TripleEq` (`===`) dans `IsOperatorMethodStart` (`ParseDecl.cpp`) pour autoriser le parsing des méthodes d'opérateurs `===`. Ajout de `def ===( other : self ) -> Bool` dans `source/Lib/Mixins/Comparable.vl` (délégué à `self == other`), dotant automatiquement tous les types comparables (dont `Symbol`, `String`, `Int`, `Char`) de l'opérateur `===`.
      - **Couverture & Validation :** Résolution des erreurs de typage sur `when :ok` dans `samples/Syntax/ControlFlow/CaseWhen.vl`. 135/135 tests verts (`volt-build format test`), 16 fichiers stdlib valides (`volt check source/Lib/`), conformité `ZeroHardcode` (0 fuite), et graphe `graphify` mis à jour (`510` nœuds).
-
-3. **[ULTÉRIEUR] Génération de code (Backend / Codegen & WASM - `volt run` / `volt build`) :**
-   - Mise en œuvre de la codegen LLVM AOT, l'interpréteur/JIT et WASM une fois le Frontend et le Middle-End terminés et validés à 100 %.

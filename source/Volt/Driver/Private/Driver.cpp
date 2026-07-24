@@ -96,15 +96,21 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
                                .Scopes  = Unit.Scopes,
                                .Diags   = Bag,
                                .Stats   = Unit.Stats,
-                               .Globals = &Registry };
+                               .Globals = &Registry,
+                               .Sources = &Sources };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{
-        .Ast = Unit.Ast, .Types = Types, .Values = Unit.Types, .Scopes = Unit.Scopes, .Diags = Bag, .Stats = Unit.Stats };
+    Sema::PassContext Context{ .Ast     = Unit.Ast,
+                               .Types   = Types,
+                               .Values  = Unit.Types,
+                               .Scopes  = Unit.Scopes,
+                               .Diags   = Bag,
+                               .Stats   = Unit.Stats,
+                               .Sources = &Sources };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 

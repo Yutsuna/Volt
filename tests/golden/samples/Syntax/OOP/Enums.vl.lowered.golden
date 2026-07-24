@@ -22,9 +22,9 @@ Program 'samples/Syntax/OOP/Enums.vl'
 │                       └─ Interp @3:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
+│                             ├─ StringLiteral 'samples/Syntax/OOP/Enums.vl' @3:31
 │                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                             └─ IntLiteral '3' @3:43
 ├─ Enum 'Color' @9:1
 │  └─ body
 │     ├─ EnumCase 'Red' @10:3

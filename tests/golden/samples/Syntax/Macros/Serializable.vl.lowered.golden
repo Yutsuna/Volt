@@ -54,113 +54,113 @@ Program 'samples/Syntax/Macros/Serializable.vl'
       │     └─ Param 'age' instance_var
       │        └─ decl_type
       │           └─ TypeRef 'Int32' @43:59
-      ├─ Method 'to_string' @1:1
+      ├─ Method 'to_string' @46:3
       │  ├─ return_type
-      │  │  └─ TypeRef 'String' @2:15
+      │  │  └─ TypeRef 'String' @46:3
       │  └─ body
-      │     └─ ExprStmt @3:4
+      │     └─ ExprStmt @46:3
       │        └─ expr
-      │           └─ Binary '+' @6:44
+      │           └─ Binary '+' @46:3
       │              ├─ lhs
-      │              │  └─ Binary '+' @6:1
+      │              │  └─ Binary '+' @46:3
       │              │     ├─ lhs
-      │              │     │  └─ Binary '+' @4:57
+      │              │     │  └─ Binary '+' @46:3
       │              │     │     ├─ lhs
-      │              │     │     │  └─ Binary '+' @4:10
+      │              │     │     │  └─ Binary '+' @46:3
       │              │     │     │     ├─ lhs
-      │              │     │     │     │  └─ Binary '+' @4:2
+      │              │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     ├─ lhs
-      │              │     │     │     │     │  └─ Binary '+' @3:12
+      │              │     │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     │     ├─ lhs
-      │              │     │     │     │     │     │  └─ StringLiteral 'User(' @3:4
+      │              │     │     │     │     │     │  └─ StringLiteral 'User(' @46:3
       │              │     │     │     │     │     └─ rhs
-      │              │     │     │     │     │        └─ Interp @3:29
+      │              │     │     │     │     │        └─ Interp @46:3
       │              │     │     │     │     │           └─ parts
-      │              │     │     │     │     │              ├─ StringLiteral 'name: ' @3:29
-      │              │     │     │     │     │              └─ Member 'to_string' @2:3
+      │              │     │     │     │     │              ├─ StringLiteral 'name: ' @46:3
+      │              │     │     │     │     │              └─ Member 'to_string' @46:3
       │              │     │     │     │     │                 └─ object
-      │              │     │     │     │     │                    └─ InstanceVar '@name' @1:1
+      │              │     │     │     │     │                    └─ InstanceVar '@name' @46:3
       │              │     │     │     │     └─ rhs
-      │              │     │     │     │        └─ StringLiteral ', ' @4:5
+      │              │     │     │     │        └─ StringLiteral ', ' @46:3
       │              │     │     │     └─ rhs
-      │              │     │     │        └─ Interp @4:28
+      │              │     │     │        └─ Interp @46:3
       │              │     │     │           └─ parts
-      │              │     │     │              ├─ StringLiteral 'email: ' @4:28
-      │              │     │     │              └─ Member 'to_string' @2:4
+      │              │     │     │              ├─ StringLiteral 'email: ' @46:3
+      │              │     │     │              └─ Member 'to_string' @46:3
       │              │     │     │                 └─ object
-      │              │     │     │                    └─ InstanceVar '@email' @1:1
+      │              │     │     │                    └─ InstanceVar '@email' @46:3
       │              │     │     └─ rhs
-      │              │     │        └─ StringLiteral ', ' @4:60
+      │              │     │        └─ StringLiteral ', ' @46:3
       │              │     └─ rhs
-      │              │        └─ Interp @6:19
+      │              │        └─ Interp @46:3
       │              │           └─ parts
-      │              │              ├─ StringLiteral 'age: ' @6:19
-      │              │              └─ Member 'to_string' @2:2
+      │              │              ├─ StringLiteral 'age: ' @46:3
+      │              │              └─ Member 'to_string' @46:3
       │              │                 └─ object
-      │              │                    └─ InstanceVar '@age' @1:1
+      │              │                    └─ InstanceVar '@age' @46:3
       │              └─ rhs
-      │                 └─ StringLiteral ')' @8:8
-      ├─ Method 'to_json' @8:21
+      │                 └─ StringLiteral ')' @46:3
+      ├─ Method 'to_json' @46:3
       │  ├─ return_type
-      │  │  └─ TypeRef 'String' @9:10
+      │  │  └─ TypeRef 'String' @46:3
       │  └─ body
-      │     └─ ExprStmt @10:7
+      │     └─ ExprStmt @46:3
       │        └─ expr
-      │           └─ Binary '+' @14:3
+      │           └─ Binary '+' @46:3
       │              ├─ lhs
-      │              │  └─ Binary '+' @12:12
+      │              │  └─ Binary '+' @46:3
       │              │     ├─ lhs
-      │              │     │  └─ Binary '+' @11:83
+      │              │     │  └─ Binary '+' @46:3
       │              │     │     ├─ lhs
-      │              │     │     │  └─ Binary '+' @11:75
+      │              │     │     │  └─ Binary '+' @46:3
       │              │     │     │     ├─ lhs
-      │              │     │     │     │  └─ Binary '+' @11:58
+      │              │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     ├─ lhs
-      │              │     │     │     │     │  └─ Binary '+' @11:26
+      │              │     │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     │     ├─ lhs
-      │              │     │     │     │     │     │  └─ Binary '+' @11:18
+      │              │     │     │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     │     │     ├─ lhs
-      │              │     │     │     │     │     │     │  └─ Binary '+' @11:2
+      │              │     │     │     │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     │     │     │     ├─ lhs
-      │              │     │     │     │     │     │     │     │  └─ Binary '+' @10:11
+      │              │     │     │     │     │     │     │     │  └─ Binary '+' @46:3
       │              │     │     │     │     │     │     │     │     ├─ lhs
-      │              │     │     │     │     │     │     │     │     │  └─ StringLiteral '{' @10:7
+      │              │     │     │     │     │     │     │     │     │  └─ StringLiteral '{' @46:3
       │              │     │     │     │     │     │     │     │     └─ rhs
-      │              │     │     │     │     │     │     │     │        └─ StringLiteral '\"name\": ' @10:28
+      │              │     │     │     │     │     │     │     │        └─ StringLiteral '\"name\": ' @46:3
       │              │     │     │     │     │     │     │     └─ rhs
-      │              │     │     │     │     │     │     │        └─ Member 'to_json' @11:9
+      │              │     │     │     │     │     │     │        └─ Member 'to_json' @46:3
       │              │     │     │     │     │     │     │           └─ object
-      │              │     │     │     │     │     │     │              └─ InstanceVar '@name' @11:4
+      │              │     │     │     │     │     │     │              └─ InstanceVar '@name' @46:3
       │              │     │     │     │     │     │     └─ rhs
-      │              │     │     │     │     │     │        └─ StringLiteral ', ' @11:21
+      │              │     │     │     │     │     │        └─ StringLiteral ', ' @46:3
       │              │     │     │     │     │     └─ rhs
-      │              │     │     │     │     │        └─ StringLiteral '\"email\": ' @11:44
+      │              │     │     │     │     │        └─ StringLiteral '\"email\": ' @46:3
       │              │     │     │     │     └─ rhs
-      │              │     │     │     │        └─ Member 'to_json' @11:66
+      │              │     │     │     │        └─ Member 'to_json' @46:3
       │              │     │     │     │           └─ object
-      │              │     │     │     │              └─ InstanceVar '@email' @11:60
+      │              │     │     │     │              └─ InstanceVar '@email' @46:3
       │              │     │     │     └─ rhs
-      │              │     │     │        └─ StringLiteral ', ' @11:78
+      │              │     │     │        └─ StringLiteral ', ' @46:3
       │              │     │     └─ rhs
-      │              │     │        └─ StringLiteral '\"age\": ' @11:101
+      │              │     │        └─ StringLiteral '\"age\": ' @46:3
       │              │     └─ rhs
-      │              │        └─ Member 'to_json' @13:2
+      │              │        └─ Member 'to_json' @46:3
       │              │           └─ object
-      │              │              └─ InstanceVar '@age' @12:14
+      │              │              └─ InstanceVar '@age' @46:3
       │              └─ rhs
-      │                 └─ StringLiteral '}' @16:10
-      ├─ Method 'from_string' self @16:23
+      │                 └─ StringLiteral '}' @46:3
+      ├─ Method 'from_string' self @46:3
       │  ├─ params
-      │  │  └─ Param 'str'
+      │  │  └─ Param 'str' @46:3
       │  │     └─ decl_type
-      │  │        └─ TypeRef 'String' @18:17
+      │  │        └─ TypeRef 'String' @46:3
       │  └─ return_type
-      │     └─ TypeRef 'self' @18:29
-      └─ Method 'from_json' self @24:7
+      │     └─ TypeRef 'self' @46:3
+      └─ Method 'from_json' self @46:3
          ├─ params
-         │  └─ Param 'json'
+         │  └─ Param 'json' @46:3
          │     └─ decl_type
-         │        └─ TypeRef 'String' @24:34
+         │        └─ TypeRef 'String' @46:3
          └─ return_type
-            └─ TypeRef 'self' @24:46
+            └─ TypeRef 'self' @46:3
 --- exit 0 ---
