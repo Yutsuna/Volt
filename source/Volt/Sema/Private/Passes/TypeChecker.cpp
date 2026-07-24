@@ -48,4 +48,20 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     {
         TypeCheckerPass::WalkStmt( State, Id );
     }
+
+    // Snapshot the settled resolutions into the unit before the pass-local
+    // state dies — inference refines entries in place, so only the final map
+    // is the truth a backend may read (Layout/CalleeMap.hpp).
+    if ( Context.Callees != nullptr )
+    {
+        for ( const auto &[Value, Found] : State.CalleeResolution )
+        {
+            Context.Callees->Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl       = Found.Decl,
+                                                                          .Result     = Found.Result,
+                                                                          .Params     = Found.Params,
+                                                                          .BlockParam = Found.BlockParam,
+                                                                          .Bindings   = Found.Bindings,
+                                                                          .Receiver   = Found.Receiver } );
+        }
+    }
 }
