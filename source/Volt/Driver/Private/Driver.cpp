@@ -423,3 +423,53 @@ void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDu
         Dumper.DumpFile();
     }
 }
+
+std::vector<Volt::Backend::UnitView> Volt::Driver::Driver::MakeBackendViews () const
+{
+    std::vector<Backend::UnitView> Views;
+    Views.reserve( Units.size() );
+
+    std::vector<bool> bEmitted( Units.size(), false );
+
+    const auto Append = [&] ( std::size_t Index )
+    {
+        const CompileUnit &Source = Units[Index];
+        Views.push_back( Backend::UnitView{ .Module  = Source.Module,
+                                            .Path    = Source.Path,
+                                            .Ast     = &Source.Ast,
+                                            .Values  = &Source.Types,
+                                            .Callees = &Source.Callees,
+                                            .Scopes  = &Source.Scopes } );
+        bEmitted[Index] = true;
+    };
+
+    // Dependencies first. A module usually spans several files, so every unit
+    // claiming that module name goes out together, in discovery order.
+    if ( std::vector<CircuitGraph::NodeIndex> Order; Circuit.TopoOrder( Order ) )
+    {
+        for ( const CircuitGraph::NodeIndex Node : Order )
+        {
+            const std::string &Name = Circuit.NameOf( Node );
+            for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+            {
+                if ( not bEmitted[Index] and Units[Index].Module == Name )
+                {
+                    Append( Index );
+                }
+            }
+        }
+    }
+
+    // Whatever the graph did not name: a flat `CompileFiles` build declares no
+    // `@[Link]` edge at all, and the stdlib units are pulled in outside the
+    // circuit. Discovery order already puts source/Lib/ first.
+    for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+    {
+        if ( not bEmitted[Index] )
+        {
+            Append( Index );
+        }
+    }
+
+    return Views;
+}
