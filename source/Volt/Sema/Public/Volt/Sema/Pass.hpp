@@ -3,11 +3,13 @@
 #include "Sema_export.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
+#include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -46,6 +48,20 @@ namespace Sema
         // Not errors: a name ScopeResolver could not bind may be a type or a
         // member — TypeChecker decides later, with type context in hand.
         std::size_t UnresolvedIdentifiers = 0;
+
+        // Fold another unit's counters in, field by field, straight off the
+        // reflected shape of this struct. The Driver used to name two of them
+        // by hand, so every counter added since was collected per file and
+        // then dropped on the floor. Adding a stat stays one field here.
+        void Merge ( const PassStats &Other )
+        {
+            std::array<std::size_t, Meta::FieldCount<PassStats>()> Values{};
+
+            std::size_t Index = 0;
+            Meta::ForEachField( Other, [&] ( std::string_view, const std::size_t &Value ) { Values[Index++] = Value; } );
+            Index = 0;
+            Meta::ForEachField( *this, [&] ( std::string_view, std::size_t &Value ) { Value += Values[Index++]; } );
+        }
     };
 
     class InterfaceRegistry;
