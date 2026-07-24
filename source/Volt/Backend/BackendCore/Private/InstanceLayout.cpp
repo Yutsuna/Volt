@@ -104,6 +104,25 @@ std::span<const std::uint32_t> Volt::Backend::ArgSubtree ( std::span<const std::
     return {};
 }
 
+Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSignature ( Sema::TypeStore &Store,
+                                                                   Sema::SigTypeId Id,
+                                                                   std::span<const std::uint32_t> FlatArgs )
+{
+    if ( not Id.IsValid() )
+    {
+        return Sema::LayoutId{};
+    }
+
+    if ( const Sema::NominalId Base = Store.Sig( Id ).Base; Base.IsValid() )
+    {
+        if ( const Sema::LayoutId Attached = Store.Type( Base ).Layout; Attached.IsValid() )
+        {
+            return Attached;
+        }
+    }
+    return OfSig( Store, Id, FlatArgs, 1 );
+}
+
 Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSig ( Sema::TypeStore &Store,
                                                              Sema::SigTypeId Id,
                                                              std::span<const std::uint32_t> FlatArgs,
