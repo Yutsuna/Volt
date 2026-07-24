@@ -53,6 +53,15 @@ namespace
 //   without annotations) was never resolved is the *Result*: exactly what
 //   feeds a method generic like `map<U>`'s `U`, and exactly what silently
 //   produced `Array<?>` before this check existed.
+[[nodiscard]] bool IsLambdaExpr ( const Volt::Frontend::AstContext &Ast, Volt::Frontend::ExprId Id )
+{
+    if ( not Id.IsValid() )
+    {
+        return false;
+    }
+    return std::holds_alternative<Volt::Frontend::Lambda>( Ast.Expr( Id ) );
+}
+
 [[nodiscard]] bool IsBlockResultInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
                                            Volt::Frontend::ExprId BlockArg,
                                            Volt::Sema::SemaTypeId BlockType )
@@ -385,6 +394,16 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContext &Context, const Frontend::Call &Expr )
 {
+    if ( IsLambdaExpr( Context.Ctx.Ast, Expr.Callee ) and not Expr.Args.IsEmpty() and not Context.ExpectedClosure.IsValid() )
+    {
+        Core::SmallVec<SemaTypeId, 2> ArgTypes;
+        for ( const Frontend::ExprId Arg : Expr.Args )
+        {
+            ArgTypes.PushBack( InferExpr( Context, Arg ) );
+        }
+        Context.ExpectedClosure = ClosureType( Context, "Lambda", SemaTypeId{}, ArgTypes );
+    }
+
     // The callee comes first: resolving it is what fills CalleeResolution,
     // and it depends on neither the arguments nor the block. Only once it is
     // known can the trailing `do ... end` be typed against the `&block` slot
