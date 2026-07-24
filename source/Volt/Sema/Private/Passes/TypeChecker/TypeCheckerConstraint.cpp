@@ -1,6 +1,9 @@
 #include "TypeCheckerConstraint.hpp"
 #include "TypeCheckerContext.hpp"
 
+#include "ExprInferencer.hpp"
+#include "Volt/Frontend/AST/Expr.hpp"
+
 /**
  * Private
  */
@@ -93,6 +96,32 @@ inline void ConstrainNode ( const Volt::Frontend::HashLit &Node,
             Self.ConstrainExprType( Value, Target.Args[1] );
         }
     }
+}
+
+inline void ConstrainNode ( const Volt::Frontend::Lambda &,
+                            Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                            Volt::Frontend::ExprId Expr,
+                            Volt::Sema::SemaTypeId TargetType )
+{
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
+    const Volt::Sema::SemaTypeId OuterExpected = Self.ExpectedClosure;
+    Self.ExpectedClosure                       = TargetType;
+    // Re-infer under the constraint: BindClosureParams will consume
+    // ExpectedClosure and fill the parameter types from the target's slots.
+    static_cast<void>( Volt::Sema::TypeCheckerPass::InferExpr( Self, Expr ) );
+    Self.ExpectedClosure = OuterExpected;
+}
+
+inline void ConstrainNode ( const Volt::Frontend::Block &,
+                            Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                            Volt::Frontend::ExprId Expr,
+                            Volt::Sema::SemaTypeId TargetType )
+{
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
+    const Volt::Sema::SemaTypeId OuterExpected = Self.ExpectedClosure;
+    Self.ExpectedClosure                       = TargetType;
+    static_cast<void>( Volt::Sema::TypeCheckerPass::InferExpr( Self, Expr ) );
+    Self.ExpectedClosure = OuterExpected;
 }
 
 // NOLINTEND(readability-named-parameter, hicpp-named-parameter)
