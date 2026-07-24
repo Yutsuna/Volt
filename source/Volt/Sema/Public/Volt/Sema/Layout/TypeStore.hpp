@@ -90,6 +90,7 @@ namespace Sema
         // receiver answers the first Params.Size() of them; these last
         // OwnGenerics are holes only the call site can fill.
         std::uint32_t OwnGenerics = 0;
+        std::uint32_t MinParams   = 0;
         bool bSelf                = false; // `def self.malloc`
         // `abstract def`: a contract, not an implementation. A mixin uses
         // one to state what an including type owes it, and that debt is
@@ -179,6 +180,8 @@ namespace Sema
                 NominalType &Existing = Types.Get( It->second );
                 Existing.Unit         = Unit;
                 Existing.Decl         = Decl;
+                Existing.Members.clear();
+                Existing.Includes.Clear();
                 return It->second;
             }
 
@@ -216,6 +219,19 @@ namespace Sema
         void AddMember ( NominalId Id, Member Entry )
         {
             Types.Get( Id ).Members.push_back( std::move( Entry ) );
+        }
+
+        [[nodiscard]] std::optional<NominalId> LookupTypeByDecl ( std::uint32_t Unit, Frontend::DeclId Decl ) const
+        {
+            for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
+            {
+                const NominalId Id{ static_cast<std::uint32_t>( Index ) };
+                if ( Types.Get( Id ).Unit == Unit and Types.Get( Id ).Decl == Decl )
+                {
+                    return Id;
+                }
+            }
+            return std::nullopt;
         }
 
         // The member declared by `Decl` inside `Id`'s own body, mutable so the
@@ -432,6 +448,26 @@ namespace Sema
             return Find( ByNodeKind, NodeKind );
         }
 
+        // --- Exception root ------------------------------------------------
+
+        // The one stdlib type annotated `@[ExceptionRoot]` (Exception.vl).
+        // `raise`/`rescue` reason about it through this binding instead of
+        // the C++ side ever spelling out the Volt type name "Exception".
+        bool SetExceptionRoot ( NominalId Id )
+        {
+            if ( ExceptionRoot.IsValid() and ExceptionRoot != Id )
+            {
+                return false;
+            }
+            ExceptionRoot = Id;
+            return true;
+        }
+
+        [[nodiscard]] std::optional<NominalId> GetExceptionRoot () const
+        {
+            return ExceptionRoot.IsValid() ? std::optional<NominalId>{ ExceptionRoot } : std::nullopt;
+        }
+
         // --- Layouts -----------------------------------------------------
 
         [[nodiscard]] LayoutId AddPrimitive ( Symbol Spelling, std::uint32_t Bits )
@@ -484,6 +520,7 @@ namespace Sema
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, NominalId> ByName;
         std::unordered_map<Symbol, NominalId> ByNodeKind;
+        NominalId ExceptionRoot;
         // Free functions: not owned by any NominalId, so a plain vector +
         // name index rather than the Members arrays. Never reallocated once
         // the serial TypeBinder seam ends, so the raw Member* handed out by
