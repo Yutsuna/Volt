@@ -1,0 +1,11 @@
+# VOLT_CHECK_EXPECT_FAIL — `.method` outside a type body has no receiver.
+#
+# DotCallLowering rewrites it into `self.method`, and `self` is only bound
+# inside a struct/class/enum/mixin body. A module is a namespace, not a type:
+# its methods are registered as free functions, so they are called bare
+# (`helper`), never through an implicit receiver.
+#
+# Expected: error: 'self' has no meaning outside a type body — a module is a
+# namespace, not a type
+
+.orphan_call

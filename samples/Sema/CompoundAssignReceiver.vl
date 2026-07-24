@@ -1,0 +1,19 @@
+# VOLT_CHECK_EXPECT_FAIL — a compound assignment reads its target and then
+# writes it, so AssignLowering has to name that target twice. It refuses when
+# doing so would evaluate a call a second time, instead of silently running
+# `make()` twice.
+#
+# Allowed targets are the ones that can be re-read for free: a local, an
+# instance variable, `self`, a literal index of those, and a member of those.
+#
+# Expected: error: '+=' needs a target that can be read twice — assign through
+# a local instead
+
+def make -> Array<Int32>
+  [ 1, 2, 3 ]
+end
+
+def probe -> Int32
+  make()[0] += 1
+  0
+end
