@@ -1,0 +1,5 @@
+# VOLT_CHECK_EXPECT_FAIL — site 5 of 5: a parameter default that does not fit
+# the parameter's declared type.
+
+def bad_default( n : Int32 = "plain" ) -> Void
+end

@@ -15,16 +15,25 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │        └─ then
 │           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ Call @3:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @3:5
-│                    └─ args
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/ControlFlow/IfUnless.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
 ├─ Method 'check_if_statement' @9:1
 │  ├─ params
 │  │  └─ Param 'score'
@@ -105,11 +114,15 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │     │  └─ then
 │     │     └─ ExprStmt @25:3
 │     │        └─ expr
-│     │           └─ Assign '+=' @25:9
+│     │           └─ Assign '=' @25:9
 │     │              ├─ target
 │     │              │  └─ Identifier 'total' @25:3
 │     │              └─ value
-│     │                 └─ Identifier 'amount' @25:12
+│     │                 └─ Binary '+' @25:9
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'total' @25:3
+│     │                    └─ rhs
+│     │                       └─ Identifier 'amount' @25:12
 │     └─ ExprStmt @26:3
 │        └─ expr
 │           └─ Identifier 'total' @26:3
@@ -139,11 +152,15 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │     │  └─ then
 │     │     └─ ExprStmt @31:3
 │     │        └─ expr
-│     │           └─ Assign '+=' @31:9
+│     │           └─ Assign '=' @31:9
 │     │              ├─ target
 │     │              │  └─ Identifier 'total' @31:3
 │     │              └─ value
-│     │                 └─ Identifier 'amount' @31:12
+│     │                 └─ Binary '+' @31:9
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'total' @31:3
+│     │                    └─ rhs
+│     │                       └─ Identifier 'amount' @31:12
 │     └─ ExprStmt @32:3
 │        └─ expr
 │           └─ Identifier 'total' @32:3

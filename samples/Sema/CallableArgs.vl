@@ -1,0 +1,26 @@
+# Exercises `&expr` argument promotion (Parser::PromoteCapturedBlock) from
+# Args into a call's BlockArg slot, and calling a local closure directly
+# through its `@[Apply]` member (MemberResolver::LookupApplyOn) rather than
+# through an explicit `.call`.
+
+def apply_twice( value : Int32, &block : Int32 -> Int32 ) -> Int32
+  block.call( block.call( value ) )
+end
+
+def callable_args_test -> Int32
+  add_one = ( x : Int32 ) => x + 1
+
+  # An unnamed, trailing `&add_one` argument promotes out of Args into
+  # BlockArg — the same slot a `do |x| ... end` would fill.
+  via_capture : Int32 = apply_twice( 5, &add_one )
+
+  # `add_one( 10 )` must route through the same instantiation path as
+  # `add_one.call( 10 )`: both should type as Int32, never as the Proc
+  # value itself.
+  via_call : Int32 = add_one( 10 )
+  via_dot_call : Int32 = add_one.call( 10 )
+
+  via_capture + via_call + via_dot_call
+end
+
+callable_args_test()

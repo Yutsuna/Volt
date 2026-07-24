@@ -1,0 +1,124 @@
+mixin Arithmetic
+  include Comparable
+
+  abstract def +( other : self ) -> self
+  abstract def -( other : self ) -> self
+  abstract def *( other : self ) -> self
+  abstract def /( other : self ) -> self
+  abstract def %( other : self ) -> self
+  abstract def &( other : self ) -> self
+  abstract def |( other : self ) -> self
+  abstract def ^( other : self ) -> self
+  abstract def <<( count : self ) -> self
+  abstract def >>( count : self ) -> self
+  abstract def ~ -> self
+
+  def negate -> self
+    -self
+  end
+
+  def min( other : self ) -> self
+    self < other ? self : other
+  end
+
+  def max( other : self ) -> self
+    self > other ? self : other
+  end
+
+  def abs -> self
+    self >= 0 ? self : -self
+  end
+
+  def successor -> self
+    self + 1
+  end
+
+  def predecessor -> self
+    self - 1
+  end
+
+  def between?( min : self, max : self ) -> Bool
+    self >= min and self <= max
+  end
+
+  def zero? -> Bool
+    self == 0
+  end
+
+  def non_zero? -> Bool
+    self != 0
+  end
+
+  def positive? -> Bool
+    self > 0
+  end
+
+  def negative? -> Bool
+    self < 0
+  end
+
+  def even? -> Bool
+    self % 2 == 0
+  end
+
+  def odd? -> Bool
+    self % 2 != 0
+  end
+
+  def power_of_two? -> Bool
+    self > 0 and ( self & ( self - 1 ) ) == 0
+  end
+
+  def power_of?( base : self ) -> Bool
+    if base <= 1
+      self == base
+    else
+      power_of_two? and ( self / base ).power_of?( base )
+    end
+  end
+
+  def divisible_by?( divisor : self ) -> Bool
+    divisor != 0 and self % divisor == 0
+  end
+
+  def clamp( min : self, max : self ) -> self
+    if self < min
+      min
+    elsif self > max
+      max
+    else
+      self
+    end
+  end
+
+  def distance( other : self ) -> self
+    (self - other).abs
+  end
+
+  def square -> self
+    self * self
+  end
+
+  def double -> self
+    self * 2
+  end
+
+  def half -> self
+    self / 2
+  end
+
+  def cube -> self
+    self * self * self
+  end
+
+  def pow( exponent : self ) -> self
+    result = 1
+    i = 0
+    while i < exponent
+      result *= self
+      i += 1
+    end
+    result
+  end
+
+end

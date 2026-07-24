@@ -15,16 +15,14 @@ Program 'samples/Syntax/OOP/Mixins.vl'
 │        └─ then
 │           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ Call @3:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @3:5
-│                    └─ args
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
 │                       └─ Interp @3:11
 │                          └─ parts
 │                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
+│                             ├─ Identifier '__FILE__' @3:31
 │                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                             └─ Identifier '__LINE__' @3:43
 ├─ Mixin 'Identifiable' @7:1
 │  └─ body
 │     └─ Method 'id_prefix' @8:3
@@ -55,8 +53,8 @@ Program 'samples/Syntax/OOP/Mixins.vl'
 │              └─ expr
 │                 └─ Interp @22:5
 │                    └─ parts
-│                       ├─ Identifier 'id_prefix' @1:1
-│                       └─ InstanceVar '@serial' @1:1
+│                       ├─ Identifier 'id_prefix' @22:8
+│                       └─ InstanceVar '@serial' @22:20
 ├─ ExprStmt @26:1
 │  └─ expr
 │     └─ Assign '=' @26:8

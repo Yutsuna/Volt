@@ -1,0 +1,7 @@
+# VOLT_CHECK_EXPECT_FAIL — site 4 of 5: a method's trailing expression, which
+# is its value when no `return` is written. This is the case §3.3 of the plan
+# opened with, and the one that used to be accepted in complete silence.
+
+def bad_trailing -> Int32
+  "plain"
+end

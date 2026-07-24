@@ -169,16 +169,28 @@ namespace Frontend
         [[nodiscard]] ExprId ParseArrayLiteral ();
         [[nodiscard]] ExprId ParseHashLiteral ();
         [[nodiscard]] ExprId ParseStringLiteral ( const Token &Tok );
-        [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range );
+        [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range, std::uint32_t BaseOffset );
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
         [[nodiscard]] ExprId ParseDoBlock ();
         [[nodiscard]] ExprId ParseCaseExpr ();
+        // Shared `while rescue ... end` + optional `ensure ... end` tail,
+        // used by both the `begin` expression and a method's implicit
+        // rescue. The caller has already filled `Node.Body`; this fills
+        // `Node.RescueClauses` and `Node.EnsureBody` in place.
+        void ParseRescueEnsure ( BeginExpr &Node );
         [[nodiscard]] ExprId ParseDotCall ();
         // Attach a trailing block to the call it follows: mutates `Lhs` in
         // place if it is already a bare `Call` with no block yet (`each do`),
         // otherwise wraps it in a new `Call` (e.g. a bare identifier callee).
         [[nodiscard]] ExprId AttachTrailingBlock ( ExprId Lhs, ExprId BlockId, std::uint32_t Begin );
         void ParseCallArguments ( ExprList &Args, SymbolList &ArgNames, TokenKind Close );
+
+        // `f( &g )` writes the capture inside the argument list but means it
+        // for the block slot: `&` marks a callable, and at a call site a
+        // marked trailing argument fills `&block` — the same rule as Ruby's
+        // `f( &blk )`. Deciding it here, from what was written, keeps Sema
+        // free of any guess about which argument "looks like" a block.
+        void PromoteCapturedBlock ( Call &Node );
         [[nodiscard]] bool CanStartCommandArgument () const;
 
         // --- Grammar: statements (ParseStmt.cpp) -------------------------
@@ -187,6 +199,7 @@ namespace Frontend
         [[nodiscard]] StmtId ParseIf ();
         [[nodiscard]] StmtId ParseElsif ();
         [[nodiscard]] StmtId ParseWhile ();
+        [[nodiscard]] StmtId ParseUntil ();
         [[nodiscard]] StmtId ParseFor ();
         [[nodiscard]] StmtId ParseReturn ();
         [[nodiscard]] StmtId ParseBreak ();

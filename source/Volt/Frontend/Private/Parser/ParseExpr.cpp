@@ -1,3 +1,4 @@
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
@@ -6,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <variant>
 
 namespace
 {
@@ -45,6 +47,7 @@ bool Volt::Frontend::Parser::CanStartCommandArgument () const
     case TokenKind::KwFalse:
     case TokenKind::KwNil:
     case TokenKind::KwSelf:
+    case TokenKind::KwSuper:
         return true;
     default:
         return false;
@@ -211,9 +214,12 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
 
     if ( Kind == TokenKind::Amp )
     {
-        // Check if followed by identifier/constant/member (Static capture: &Math.square)
+        // Static capture: `&Math.square`, `&transform`, and — so that a
+        // composed point-free chain needs no intermediate name — a
+        // parenthesised expression, `&( ( &.+ 10 ) >> ( &.* 2 ) )`.
         if ( Pos + 1 < Tokens.size() and
-             ( Tokens[Pos + 1].Kind == TokenKind::Identifier or Tokens[Pos + 1].Kind == TokenKind::Constant ) )
+             ( Tokens[Pos + 1].Kind == TokenKind::Identifier or Tokens[Pos + 1].Kind == TokenKind::Constant or
+               Tokens[Pos + 1].Kind == TokenKind::LParen ) )
         {
             Advance();
             Section Node;
@@ -245,6 +251,36 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
     }
 
     return ParsePrimary();
+}
+
+void Volt::Frontend::Parser::ParseRescueEnsure ( BeginExpr &Node )
+{
+    while ( Accept( TokenKind::KwRescue ) )
+    {
+        const std::uint32_t RescueBegin = Here();
+        RescueClause RescueNode;
+        if ( Check( TokenKind::Identifier ) )
+        {
+            RescueNode.VarName = InternText( Advance() );
+            if ( Accept( TokenKind::Colon ) )
+            {
+                RescueNode.ExceptionType = ParseType();
+            }
+        }
+        else if ( Accept( TokenKind::Colon ) )
+        {
+            RescueNode.ExceptionType = ParseType();
+        }
+        SkipTerminators();
+        ParseStatementBlock( RescueNode.Body );
+        Node.RescueClauses.PushBack( MakeStmt( RescueNode, RangeSince( RescueBegin ) ) );
+    }
+
+    if ( Accept( TokenKind::KwEnsure ) )
+    {
+        SkipTerminators();
+        ParseStatementBlock( Node.EnsureBody );
+    }
 }
 
 Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
@@ -310,6 +346,54 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
         return MakeExpr( Node, RangeSince( Begin ) );
     }
 
+    case TokenKind::KwSuper:
+    {
+        Advance();
+        const ExprId SuperNode = MakeExpr( SuperExpr{}, RangeSince( Begin ) );
+        if ( Check( TokenKind::LParen ) )
+        {
+            Call Node;
+            Node.Callee = SuperNode;
+            Expect( TokenKind::LParen, "to open super arguments" );
+            ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
+            Expect( TokenKind::RParen, "to close super arguments" );
+            return ParsePostfix( MakeExpr( Node, RangeSince( Begin ) ) );
+        }
+        return ParsePostfix( SuperNode );
+    }
+
+    case TokenKind::KwRaise:
+    {
+        Advance();
+        ExprId Arg{};
+        if ( CanStartCommandArgument() or
+             not( Check( TokenKind::Newline ) or Check( TokenKind::Semicolon ) or Check( TokenKind::Eof ) or
+                  Check( TokenKind::KwEnd ) or Check( TokenKind::KwRescue ) or Check( TokenKind::KwEnsure ) or
+                  Check( TokenKind::KwElse ) or Check( TokenKind::KwElsif ) or Check( TokenKind::RParen ) or
+                  Check( TokenKind::RBracket ) or Check( TokenKind::RBrace ) ) )
+        {
+            // A string/interp argument is sugar for `Exception.new(msg)`, but
+            // the parser has no TypeStore to resolve the exception root
+            // type's name — Sema's RaiseExpr handler performs that desugar
+            // once the root is known (see @[ExceptionRoot]).
+            Arg = ParseExpr( 0 );
+        }
+        RaiseExpr Node;
+        Node.Exception = Arg;
+        return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
+    case TokenKind::KwBegin:
+    {
+        Advance();
+        SkipTerminators();
+        BeginExpr Node;
+        ParseStatementBlock( Node.Body );
+        ParseRescueEnsure( Node );
+        Expect( TokenKind::KwEnd, "to close begin block" );
+        return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
     case TokenKind::InstanceVar:
     {
         const Symbol Text = InternText( Advance() );
@@ -368,6 +452,33 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
 {
     for ( ;; )
     {
+        // A chain continues on the next line when that line opens with `.`:
+        //
+        //     clean = users
+        //       .filter( ... )   # a comment here is fine: the lexer folds
+        //       .map( ... )      # blank lines and comments into one Newline
+        //
+        // Without this, the tail links parse as separate statements — two
+        // orphan DotCall nodes with an implicit `self` receiver, i.e. a
+        // silently wrong program rather than a syntax error.
+        //
+        // `Dot` only. `LBracket` and `LParen` opening a line are an array
+        // literal and a parenthesised expression, and `&.` (AmpDot) starts a
+        // section — none of them may be swallowed as a continuation.
+        if ( Check( TokenKind::Newline ) )
+        {
+            std::size_t Ahead = 0;
+            while ( PeekKind( Ahead ) == TokenKind::Newline )
+            {
+                ++Ahead;
+            }
+            if ( PeekKind( Ahead ) != TokenKind::Dot )
+            {
+                break;
+            }
+            SkipNewlines();
+        }
+
         const std::uint32_t Begin = Here();
 
         if ( Accept( TokenKind::Dot ) or Accept( TokenKind::ColonColon ) )
@@ -400,6 +511,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
             Node.Callee = Lhs;
             ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
             Expect( TokenKind::RParen, "to close call arguments" );
+            PromoteCapturedBlock( Node );
             Lhs = MakeExpr( Node, RangeSince( Begin ) );
         }
         else if ( Accept( TokenKind::LBracket ) )
@@ -457,6 +569,41 @@ void Volt::Frontend::Parser::ParseCallArguments ( ExprList &Args, SymbolList &Ar
     } while ( Accept( TokenKind::Comma ) );
     bNoDoBlock = Saved;
     SkipNewlines();
+}
+
+void Volt::Frontend::Parser::PromoteCapturedBlock ( Call &Node )
+{
+    if ( Node.BlockArg.IsValid() or Node.Args.IsEmpty() )
+    {
+        return;
+    }
+
+    // Only the trailing argument, and only an unnamed one: `f( fn: &g )`
+    // names a positional slot on purpose, and a capture in the middle of
+    // the list is an ordinary Proc value.
+    const std::size_t Last = Node.Args.Size() - 1;
+    if ( Node.ArgNames[Last].IsValid() )
+    {
+        return;
+    }
+
+    const ExprKind Kind = KindOf( Context.Expr( Node.Args[Last] ) );
+    if ( Kind != ExprKind::Section and Kind != ExprKind::Composition and Kind != ExprKind::Lambda )
+    {
+        return;
+    }
+
+    Node.BlockArg = Node.Args[Last];
+
+    ExprList Args;
+    SymbolList Names;
+    for ( std::size_t Index = 0; Index < Last; ++Index )
+    {
+        Args.PushBack( Node.Args[Index] );
+        Names.PushBack( Node.ArgNames[Index] );
+    }
+    Node.Args     = std::move( Args );
+    Node.ArgNames = std::move( Names );
 }
 
 Volt::Frontend::ExprId Volt::Frontend::Parser::AttachTrailingBlock ( ExprId Lhs, ExprId BlockId, std::uint32_t Begin )
@@ -654,6 +801,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseCommandCallArgs ( ExprId Cal
     {
         Node.BlockArg = ParseDoBlock();
     }
+    PromoteCapturedBlock( Node );
 
     return MakeExpr( Node, RangeSince( Start.Begin ) );
 }
@@ -856,7 +1004,10 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
             }
 
             const std::string_view ExprText = Raw.substr( Index + 2, Cursor - ( Index + 2 ) );
-            Node.Parts.PushBack( ParseSubExpression( ExprText, Tok.Range ) );
+            // Raw is a verbatim slice of the file starting one byte past the
+            // opening quote, so a fragment offset maps back exactly.
+            const auto Base = static_cast<std::uint32_t>( Tok.Range.Begin + 1 + Index + 2 );
+            Node.Parts.PushBack( ParseSubExpression( ExprText, Tok.Range, Base ) );
 
             Index        = Cursor + 1;
             LiteralStart = Index;
@@ -877,12 +1028,22 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
     return MakeExpr( Node, Tok.Range );
 }
 
-Volt::Frontend::ExprId Volt::Frontend::Parser::ParseSubExpression ( std::string_view Text, Core::SourceRange Range )
+Volt::Frontend::ExprId
+Volt::Frontend::Parser::ParseSubExpression ( std::string_view Text, Core::SourceRange Range, std::uint32_t BaseOffset )
 {
+    // The sub-lexer numbers the fragment from zero, so every node it builds
+    // would claim to live at the very start of the file. The fragment is a
+    // verbatim slice of the source, so sliding the new nodes by its absolute
+    // offset restores each one's real position.
+    const ArenaMark Mark = MarkArenas( Context );
+
     Lexer SubLexer( Context.FileId(), Text, Interner, Diagnostics );
     std::vector<Token> SubTokens = SubLexer.Tokenize();
     Parser SubParser( std::move( SubTokens ), Context, Diagnostics );
     const ExprId Result = SubParser.ParseExpr( 0 );
+
+    ShiftLocsSince( Context, Mark, BaseOffset );
+
     if ( Result.IsValid() )
     {
         return Result;

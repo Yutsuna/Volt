@@ -15,8 +15,8 @@ namespace Frontend
     struct ExprStmt
     {
 
-        Core::SourceRange Loc;
-        ExprId Expr;
+        Core::SourceRange Loc{};
+        ExprId Expr{};
     };
 
     // `if Cond ... [else ...] end`. An `elsif` chain is represented as a
@@ -24,61 +24,71 @@ namespace Frontend
     struct If
     {
 
-        Core::SourceRange Loc;
-        ExprId Cond;
-        StmtList Then;
-        StmtList Else;
+        Core::SourceRange Loc{};
+        ExprId Cond{};
+        StmtList Then{};
+        StmtList Else{};
     };
 
     struct While
     {
 
-        Core::SourceRange Loc;
-        ExprId Cond;
-        StmtList Body;
+        Core::SourceRange Loc{};
+        ExprId Cond{};
+        StmtList Body{};
     };
 
     // `return [Value]` — Value is invalid for a bare `return`.
     struct Return
     {
 
-        Core::SourceRange Loc;
-        ExprId Value;
+        Core::SourceRange Loc{};
+        ExprId Value{};
     };
 
     // `break [Value]` — Value is invalid for a bare `break`.
     struct Break
     {
 
-        Core::SourceRange Loc;
-        ExprId Value;
+        Core::SourceRange Loc{};
+        ExprId Value{};
     };
 
     // `next [Value]` — Value is invalid for a bare `next`.
     struct Next
     {
 
-        Core::SourceRange Loc;
-        ExprId Value;
+        Core::SourceRange Loc{};
+        ExprId Value{};
     };
 
     // `Name : DeclType = Init` — DeclType and/or Init may be invalid.
     struct LocalDecl
     {
 
-        Core::SourceRange Loc;
-        Symbol Name;
-        TypeId DeclType;
-        ExprId Init;
+        Core::SourceRange Loc{};
+        Symbol Name{};
+        TypeId DeclType{};
+        ExprId Init{};
     };
 
     // `when Pattern1, Pattern2 then Body...`
     struct WhenClause
     {
 
-        Core::SourceRange Loc;
-        ExprList Patterns;
-        StmtList Body;
+        Core::SourceRange Loc{};
+        ExprList Patterns{};
+        StmtList Body{};
+    };
+
+    // `rescue [VarName] [: ExceptionType] Body...`
+    struct RescueClause
+    {
+        using Self = RescueClause;
+        Core::SourceRange Loc{};
+        Symbol VarName{};
+        TypeId ExceptionType{};
+        StmtList Body{};
     };
 
     enum class StmtKind

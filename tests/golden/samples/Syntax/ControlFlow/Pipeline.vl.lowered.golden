@@ -15,16 +15,25 @@ Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 │        └─ then
 │           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ Call @3:5
-│                    ├─ callee
-│                    │  └─ Identifier 'raise' @3:5
-│                    └─ args
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @1:1
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @1:1
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/ControlFlow/Pipeline.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
 ├─ Method 'double' @8:1
 │  ├─ params
 │  │  └─ Param 'x'

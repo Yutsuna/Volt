@@ -2,8 +2,8 @@
 #include "Volt/CLI/CommandColor.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
-#include "Volt/CLI/Version.hpp"
 #include "Volt/Core/Log/Logger.hpp"
+#include "Volt/Core/Support/Version.hpp"
 
 #include <iostream>
 #include <print>
@@ -55,7 +55,8 @@ std::int32_t Volt::CLI::FVersionCommand::Execute ( std::span<const std::string_v
 
     Core::FLogger::Flush();
     std::println( "{}\n{} {} (0x{:06x})", Paint( AnsiYellowBold, "Volt Language", bColor ),
-                  Paint( AnsiGreen, "Version: ", bColor ), Paint( AnsiYellowBold, VoltVersion, bColor ), CombinedVersion );
+                  Paint( AnsiGreen, "Version: ", bColor ), Paint( AnsiYellowBold, Core::VoltVersion, bColor ),
+                  Core::CombinedVersion );
 
     return ExitSuccess;
 }

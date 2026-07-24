@@ -1,5 +1,7 @@
 bin/
 build/
+!.agents/skills/build/
+!.claude/skills/build/
 !scripts/build
 .direnv/
 .cache/

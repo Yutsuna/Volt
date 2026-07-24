@@ -1,0 +1,122 @@
+@[External( "libc", "backtrace" )]
+external def libc_backtrace( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Int32
+
+@[External( "libc", "backtrace_symbols" )]
+external def libc_backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<UInt8>>
+
+
+#{
+  @class Exception
+  @brief Represents an exception that occurred in the program.
+  @example raise Exception.new( "An exception occurred" )
+#}
+@[ExceptionRoot]
+class Exception
+  getter message   : String
+  getter backtrace : Array<String>
+
+  setter max_frames : Int32
+
+  def initialize( @message : String = "An exception occurred", @max_frames : Int32 = 64 )
+    @backtrace = capture_backtrace()
+  end
+
+  def inspect -> String
+    "#{@message}\n" + format_backtrace()
+  end
+
+  def to_string -> String
+    @message
+  end
+
+  def capture_backtrace -> Array<String>
+    effective_max = @max_frames > 0 ? @max_frames : 64
+    buffer = Pointer<Pointer<Void>>.malloc( effective_max * sizeof Pointer<Void> )
+    frames_count = libc_backtrace( buffer, effective_max )
+
+    frames = Array<String>.new( frames_count )
+
+    if frames_count > 0
+      symbols = libc_backtrace_symbols( buffer, frames_count )
+      if symbols != nil
+        i = 0
+        while i < frames_count
+          raw_sym = *( symbols + i )
+          if raw_sym != nil
+            sym_len = c_string_length( raw_sym )
+            frames.push( String.new( raw_sym, sym_len ) )
+          end
+          i += 1
+        end
+
+        symbols.free
+      end
+    end
+
+    buffer.free
+    frames
+  end
+
+  # `len` is annotated, not left to the `_u64` suffix: Sema does not read
+  # integer literal suffixes, so `len = 0_u64` would be an Int32 that the
+  # surrounding `ptr + len` was then free to retype.
+  def c_string_length( ptr : Pointer<UInt8> ) -> UInt64
+    len : UInt64 = 0
+    while *( ptr + len ) != 0_u8
+      len += 1_u64
+    end
+    len
+  end
+
+  def format_backtrace -> String
+    result = ""
+    i = 0_u64
+    while i < @backtrace.size
+      result = result + "  from " + @backtrace[ i ] + "\n"
+      i += 1
+    end
+    result
+  end
+end
+
+
+class ArgumentError < Exception
+  def initialize( message : String )
+    super( message )
+  end
+end
+
+
+class IndexError < Exception
+  def initialize( message : String )
+    super( message )
+  end
+end
+
+
+class KeyError < Exception
+  def initialize( message : String )
+    super( message )
+  end
+end
+
+
+class ZeroDivisionError < Exception
+  def initialize( message : String )
+    super( message )
+  end
+end
+
+
+class TypeError < Exception
+  def initialize( message : String )
+    super( message )
+  end
+end
+
+
+class RuntimeError < Exception
+  def initialize( message : String )
+    super( message )
+  end
+end

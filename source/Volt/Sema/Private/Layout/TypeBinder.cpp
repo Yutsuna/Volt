@@ -113,6 +113,15 @@ namespace Sema
                                              .Super    = Frontend::TypeId{} },
                                    Pending );
                         },
+                        [&] ( const Frontend::Enum &Type )
+                        {
+                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
+                                             .Id       = Id,
+                                             .Generics = &Type.Generics,
+                                             .Body     = &Type.Body,
+                                             .Super    = Frontend::TypeId{} },
+                                   Pending );
+                        },
                         [] ( const auto & ) {},
                     },
                     Node );
@@ -120,6 +129,53 @@ namespace Sema
                 // Annotations bind to the declaration they precede, and never
                 // carry past it.
                 Pending.clear();
+            }
+        }
+
+        // Walk the declarations of one scope, invoking Visit for every `def`
+        // declared directly in a module — never one nested inside a
+        // Class/Struct/Mixin/Component body, which DeclareMembers already
+        // owns. Recurses into nested modules only, mirroring ForEachTypeDecl,
+        // so the two traversals can never desync on what counts as
+        // "top-level".
+        template <typename DeclContainer, typename Fn>
+        void ForEachFreeFunction ( const Frontend::AstContext &Ast, const DeclContainer &Decls, Fn &&Visit )
+        {
+            for ( const Frontend::DeclId Id : Decls )
+            {
+                if ( not Id.IsValid() )
+                {
+                    continue;
+                }
+
+                std::visit(
+                    Meta::Overloaded{
+                        [&] ( const Frontend::Module &Nested ) { ForEachFreeFunction( Ast, Nested.Body, Visit ); },
+                        [&] ( const Frontend::Method &Entry ) { Visit( Id, Entry ); },
+                        [] ( const auto & ) {},
+                    },
+                    Ast.Decl( Id ) );
+            }
+        }
+
+        // Record every module name, nested ones included. Names only — a
+        // module has no members of its own: ForEachTypeDecl already hoisted
+        // its types and ForEachFreeFunction its methods. See
+        // TypeStore::DeclareModule for why the name alone is worth keeping.
+        template <typename DeclContainer>
+        void DeclareModules ( const Frontend::AstContext &Ast, const DeclContainer &Decls, TypeStore &Store )
+        {
+            for ( const Frontend::DeclId Id : Decls )
+            {
+                if ( not Id.IsValid() )
+                {
+                    continue;
+                }
+                if ( const auto *Nested = std::get_if<Frontend::Module>( &Ast.Decl( Id ) ) )
+                {
+                    Store.DeclareModule( Ast.Text( Nested->Name ) );
+                    DeclareModules( Ast, Nested->Body, Store );
+                }
             }
         }
 
@@ -196,16 +252,47 @@ namespace Sema
                 return Store.AddAggregate( std::move( Agg ) );
             }
 
-            // Every field and method of the body becomes a member, with its
-            // signature still unresolved — phase B fills those in.
+            // `Id` instantiated with its own generic parameters, in order —
+            // what `self` means inside `Id`'s own body. This is the result
+            // type of every enum case: `Optional<T>::Some`/`::None` both
+            // produce an `Optional<T>`, not a bare `Optional`.
+            [[nodiscard]] SigTypeId SelfSigOf ( NominalId Id )
+            {
+                SigType Self;
+                Self.Base = Id;
+                for ( std::size_t Index = 0; Index < Store.Type( Id ).Params.Size(); ++Index )
+                {
+                    SigType Param;
+                    Param.ParamIndex = static_cast<std::int32_t>( Index );
+                    Self.Args.PushBack( Store.AddSig( std::move( Param ) ) );
+                }
+                return Store.AddSig( std::move( Self ) );
+            }
+
+            // Every field, method and enum case of the body becomes a
+            // member, with its signature still unresolved — phase B fills
+            // those in. (An enum case's Result is the one exception: it is
+            // already fully known here, since it never depends on anything
+            // but the enum's own identity.)
             void DeclareMembers ( NominalId Id, const Frontend::DeclList &Body )
             {
+                bool bApply = false;
+
                 for ( const Frontend::DeclId Child : Body )
                 {
                     if ( not Child.IsValid() )
                     {
                         continue;
                     }
+
+                    // Annotations bind to the member they precede, exactly as
+                    // they do at file scope.
+                    if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Ast.Decl( Child ) ) )
+                    {
+                        bApply = bApply or Ast.Text( Anno->Name ) == "Apply";
+                        continue;
+                    }
+
                     std::visit(
                         Meta::Overloaded{
                             [&] ( const Frontend::Field &Entry )
@@ -220,16 +307,30 @@ namespace Sema
                             [&] ( const Frontend::Method &Entry )
                             {
                                 Member Slot;
-                                Slot.Name  = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind  = EMemberKind::Method;
-                                Slot.Unit  = Unit;
-                                Slot.Decl  = Child;
-                                Slot.bSelf = Entry.bSelf;
+                                Slot.Name      = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind      = EMemberKind::Method;
+                                Slot.Unit      = Unit;
+                                Slot.Decl      = Child;
+                                Slot.bSelf     = Entry.bSelf;
+                                Slot.bApply    = bApply;
+                                Slot.bAbstract = Entry.bAbstract;
+                                Store.AddMember( Id, std::move( Slot ) );
+                            },
+                            [&] ( const Frontend::EnumCase &Entry )
+                            {
+                                Member Slot;
+                                Slot.Name   = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind   = EMemberKind::EnumCase;
+                                Slot.Unit   = Unit;
+                                Slot.Decl   = Child;
+                                Slot.Result = SelfSigOf( Id );
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [] ( const auto & ) {},
                         },
                         Ast.Decl( Child ) );
+
+                    bApply = false;
                 }
             }
 
@@ -283,8 +384,6 @@ namespace Sema
                 DeclareMembers( Id, *Decl.Body );
 
                 LayoutId Layout;
-                std::string_view NodeKind;
-                Core::SourceRange NodeKindLoc;
 
                 for ( const PendingAnnotation &Anno : Pending )
                 {
@@ -312,9 +411,41 @@ namespace Sema
                                     "@[Literal] expects a node kind, e.g. @[Literal( IntLiteral )]" );
                             continue;
                         }
-                        NodeKind    = Ast.Text( Kind->Name );
-                        NodeKindLoc = Anno.Loc;
-                        Store.SetLiteralSlots( Id, ReadLiteralSlots( Anno.Args ) );
+                        // Bound here rather than after the loop: a type may
+                        // claim several node kinds by repeating the
+                        // annotation — `@[Literal( FuncType ), Literal( Lambda )]`
+                        // — which is how one stdlib type covers a family of
+                        // syntactic shapes that denote the same thing.
+                        const std::string_view NodeKind = Ast.Text( Kind->Name );
+
+                        // Two types claiming the same node kind would make the
+                        // type of `10` depend on stdlib file order. Refuse.
+                        if ( not Store.BindNodeKind( NodeKind, Id ) )
+                        {
+                            Report( Core::ESeverity::Error, Anno.Loc,
+                                    "node kind '" + std::string{ NodeKind } +
+                                        "' is already claimed by another type; only one type may wrap it" );
+                            continue;
+                        }
+
+                        // Extra arguments name the AST fields feeding each
+                        // generic parameter; an annotation that carries none
+                        // must not wipe what a sibling annotation set.
+                        if ( Anno.Args.Size() > 1 )
+                        {
+                            Store.SetLiteralSlots( Id, ReadLiteralSlots( Anno.Args ) );
+                        }
+                    }
+                    else if ( AnnoName == "ExceptionRoot" )
+                    {
+                        // The one stdlib type `raise`/`rescue` reason about
+                        // without the C++ side ever spelling out "Exception".
+                        if ( not Store.SetExceptionRoot( Id ) )
+                        {
+                            Report( Core::ESeverity::Error, Anno.Loc,
+                                    "@[ExceptionRoot] is already claimed by another type; only one type may be the "
+                                    "exception root" );
+                        }
                     }
                 }
 
@@ -329,20 +460,14 @@ namespace Sema
                 {
                     Store.AttachLayout( Id, Layout );
                 }
+            }
 
-                if ( NodeKind.empty() )
-                {
-                    return;
-                }
-
-                // Two types claiming the same node kind would make the type of
-                // `10` depend on stdlib file order. Refuse instead.
-                if ( not Store.BindNodeKind( NodeKind, Id ) )
-                {
-                    Report( Core::ESeverity::Error, NodeKindLoc,
-                            "node kind '" + std::string{ NodeKind } +
-                                "' is already claimed by another type; only one type may wrap it" );
-                }
+            // A top-level `def`: same identity-first shape as BindType, minus
+            // a layout — a function has no memory representation of its own.
+            void BindFunction ( Frontend::DeclId Id, const Frontend::Method &Entry )
+            {
+                static_cast<void>( Store.DeclareFunction( Ast.Text( Entry.Name ), Unit, Id ) );
+                ++Bound;
             }
         };
 
@@ -353,37 +478,64 @@ namespace Sema
 
             const Frontend::AstContext &Ast;
             TypeStore &Store;
+            Core::DiagEngine::Bag &Diags;
             std::uint32_t Unit   = 0;
             std::size_t Resolved = 0;
 
-            // The nominal a written annotation names, ignoring its arguments:
-            // what `< Super` and `include` need.
-            [[nodiscard]] NominalId NominalOf ( Frontend::TypeId Id, std::span<const Symbol> Generics )
+            void Report ( Core::ESeverity Severity, Core::SourceRange Loc, const std::string &Message )
+            {
+                Diags.Report( Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
+            }
+
+            // A defaulted parameter followed by a non-defaulted one would
+            // make positional argument matching silently wrong — the caller
+            // can never supply the later required slot without also
+            // supplying the earlier optional one. `&block` never occupies a
+            // positional slot, so it neither counts as defaulted nor breaks
+            // the run of defaults before it.
+            void CheckTrailingDefaults ( const Frontend::ParamList &Params )
+            {
+                bool bSeenDefault = false;
+                for ( const Frontend::ParamId ParamRef : Params )
+                {
+                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                    if ( ParamNode.bIsBlock )
+                    {
+                        continue;
+                    }
+                    if ( ParamNode.Default.IsValid() )
+                    {
+                        bSeenDefault = true;
+                        continue;
+                    }
+                    if ( bSeenDefault )
+                    {
+                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                                "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                    "' has no default value but follows a parameter that does" );
+                    }
+                }
+            }
+
+            // A written parent link (`< Y<T>`, `include Enumerable<T>`) kept
+            // whole. Its arguments live in the *including* type's parameter
+            // space, so `include Enumerable<T>` on `Array<T>` stores a
+            // reference to parameter 0 — resolved once a receiver says what
+            // that T is.
+            [[nodiscard]] SigTypeId ParentOf ( Frontend::TypeId Id, std::span<const Symbol> Generics )
             {
                 SigSink Sink{ Store };
-                const SigTypeId Written = ResolveTypeExpr( Ast, Store, Generics, Sink, Id );
-                if ( not Written.IsValid() )
-                {
-                    return NominalId{};
-                }
-                return Store.Sig( Written ).Base;
+                return ResolveTypeExpr( Ast, Store, Generics, Sink, Id );
             }
 
             void Resolve ( const TypeDecl &Decl )
             {
-                const auto Found = Store.LookupType( Decl.Name );
+                const auto Found = Store.LookupTypeByDecl( Unit, Decl.Id );
                 if ( not Found )
                 {
                     return;
                 }
                 const NominalId Id = *Found;
-
-                // Only the unit that declared the type resolves it: a name
-                // re-declared elsewhere belongs to whoever won phase A.
-                if ( Store.Type( Id ).Unit != Unit or Store.Type( Id ).Decl != Decl.Id )
-                {
-                    return;
-                }
 
                 // The AST's own symbols: ResolveTypeExpr matches a written
                 // name against these, and the store's interner is a different
@@ -392,7 +544,7 @@ namespace Sema
 
                 if ( Decl.Super.IsValid() )
                 {
-                    Store.SetSuper( Id, NominalOf( Decl.Super, Generics ) );
+                    Store.SetSuper( Id, ParentOf( Decl.Super, Generics ) );
                 }
 
                 for ( const Frontend::DeclId Child : *Decl.Body )
@@ -405,7 +557,7 @@ namespace Sema
                         Meta::Overloaded{
                             [&] ( const Frontend::Include &Entry )
                             {
-                                if ( const NominalId Mixin = NominalOf( Entry.Target, Generics ); Mixin.IsValid() )
+                                if ( const SigTypeId Mixin = ParentOf( Entry.Target, Generics ); Mixin.IsValid() )
                                 {
                                     Store.AddInclude( Id, Mixin );
                                 }
@@ -422,11 +574,59 @@ namespace Sema
                             },
                             [&] ( const Frontend::Method &Entry )
                             {
+                                // One parameter space, the type's followed by
+                                // the method's: `def map<U>` on `Array<T>`
+                                // resolves T to index 0 and U to index 1, so
+                                // a single ParamIndex addresses both and
+                                // Instantiate needs no second concept.
+                                Core::SmallVec<Symbol, 4> Space;
+                                for ( const Symbol Name : *Decl.Generics )
+                                {
+                                    Space.PushBack( Name );
+                                }
+                                for ( const Symbol Name : Entry.Generics )
+                                {
+                                    Space.PushBack( Name );
+                                }
+                                const std::span<const Symbol> Scope{ Space.begin(), Space.Size() };
+
+                                CheckTrailingDefaults( Entry.Params );
+
                                 SigSink Sink{ Store };
-                                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Generics, Sink, Entry.ReturnType );
+                                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
                                 Core::SmallVec<SigTypeId, 4> Params;
                                 Core::SmallVec<bool, 4> ParamIsBlock;
+                                std::uint32_t MinParams = 0;
                                 for ( const Frontend::ParamId ParamRef : Entry.Params )
+                                {
+                                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                                    Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
+                                    ParamIsBlock.PushBack( ParamNode.bIsBlock );
+                                    if ( not ParamNode.bIsBlock and not ParamNode.Default.IsValid() )
+                                    {
+                                        ++MinParams;
+                                    }
+                                }
+                                if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
+                                {
+                                    Slot->Result       = Result;
+                                    Slot->Params       = std::move( Params );
+                                    Slot->ParamIsBlock = std::move( ParamIsBlock );
+                                    Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
+                                    Slot->MinParams    = MinParams;
+                                    ++Resolved;
+                                }
+                            },
+                            [&] ( const Frontend::EnumCase &Entry )
+                            {
+                                // A case is never itself generic — its
+                                // payload (`Some( value : T )`) only ever
+                                // references the enum's own parameters, so
+                                // no space concatenation like Method's.
+                                SigSink Sink{ Store };
+                                Core::SmallVec<SigTypeId, 4> Params;
+                                Core::SmallVec<bool, 4> ParamIsBlock;
+                                for ( const Frontend::ParamId ParamRef : Entry.Payload )
                                 {
                                     const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
                                     Params.PushBack( ResolveTypeExpr( Ast, Store, Generics, Sink, ParamNode.DeclType ) );
@@ -434,7 +634,6 @@ namespace Sema
                                 }
                                 if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
                                 {
-                                    Slot->Result       = Result;
                                     Slot->Params       = std::move( Params );
                                     Slot->ParamIsBlock = std::move( ParamIsBlock );
                                     ++Resolved;
@@ -444,6 +643,43 @@ namespace Sema
                         },
                         Ast.Decl( Child ) );
                 }
+            }
+
+            // A top-level `def`: no owner, so its parameter space is its own
+            // generics alone — no type generics to prepend.
+            void ResolveFunction ( Frontend::DeclId Id, const Frontend::Method &Entry )
+            {
+                Member *Slot = Store.FunctionByDecl( Unit, Id );
+                if ( Slot == nullptr )
+                {
+                    return;
+                }
+
+                CheckTrailingDefaults( Entry.Params );
+
+                const std::span<const Symbol> Scope{ Entry.Generics.begin(), Entry.Generics.Size() };
+
+                SigSink Sink{ Store };
+                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
+                Core::SmallVec<SigTypeId, 4> Params;
+                Core::SmallVec<bool, 4> ParamIsBlock;
+                std::uint32_t MinParams = 0;
+                for ( const Frontend::ParamId ParamRef : Entry.Params )
+                {
+                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                    Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
+                    ParamIsBlock.PushBack( ParamNode.bIsBlock );
+                    if ( not ParamNode.bIsBlock and not ParamNode.Default.IsValid() )
+                    {
+                        ++MinParams;
+                    }
+                }
+                Slot->Result       = Result;
+                Slot->Params       = std::move( Params );
+                Slot->ParamIsBlock = std::move( ParamIsBlock );
+                Slot->OwnGenerics  = static_cast<std::uint32_t>( Entry.Generics.Size() );
+                Slot->MinParams    = MinParams;
+                ++Resolved;
             }
         };
 
@@ -455,16 +691,20 @@ namespace Sema
         Binder Bind{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls, [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> &Pending )
                          { Bind.BindType( Decl, Pending ); } );
+        ForEachFreeFunction( Ast, Ast.TopDecls,
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Bind.BindFunction( Id, Entry ); } );
+        DeclareModules( Ast, Ast.TopDecls, Store );
         return Bind.Bound;
     }
 
     std::size_t
     ResolveUnitSignatures ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags )
     {
-        static_cast<void>( Diags );
-        SignatureResolver Step{ .Ast = Ast, .Store = Store, .Unit = Unit };
+        SignatureResolver Step{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls,
                          [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> & ) { Step.Resolve( Decl ); } );
+        ForEachFreeFunction( Ast, Ast.TopDecls,
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Step.ResolveFunction( Id, Entry ); } );
         return Step.Resolved;
     }
 

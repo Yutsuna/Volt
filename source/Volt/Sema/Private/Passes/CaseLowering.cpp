@@ -14,141 +14,131 @@
 #include <utility>
 #include <variant>
 
-namespace Volt
+namespace
 {
 
-namespace Sema
+using namespace Volt;
+
+class CaseRewriter
 {
 
-    namespace
+public:
+
+    explicit CaseRewriter ( Frontend::AstContext &InContext ) : Context( InContext )
     {
-
-        using namespace Frontend;
-
-        class CaseRewriter
-        {
-
-        public:
-
-            explicit CaseRewriter ( AstContext &InContext ) : Context( InContext )
-            {
-            }
-
-            std::size_t Run ()
-            {
-                const std::size_t OriginalExprCount = Context.ExprCount();
-                std::size_t Rewritten               = 0;
-
-                for ( std::size_t Index = 0; Index < OriginalExprCount; ++Index )
-                {
-                    const ExprId Id{ static_cast<ExprId::ValueType>( Index ) };
-                    if ( KindOf( Context.Expr( Id ) ) == ExprKind::CaseExpr )
-                    {
-                        LowerCaseNode( Id );
-                        ++Rewritten;
-                    }
-                }
-
-                return Rewritten;
-            }
-
-        private:
-
-            void LowerCaseNode ( ExprId CaseId )
-            {
-                CaseExpr Case = std::get<CaseExpr>( Context.Expr( CaseId ) );
-
-                const ExprId TargetId = Case.Target;
-                const bool bHasTarget = TargetId.IsValid();
-
-                ExprId SelfTarget{};
-                if ( !bHasTarget )
-                {
-                    SelfExpr SelfNode;
-                    SelfNode.Loc = Case.Loc;
-                    SelfTarget   = Context.Add( ExprNode{ SelfNode } );
-                }
-
-                for ( const StmtId ClauseId : Case.Clauses )
-                {
-                    if ( !ClauseId.IsValid() or KindOf( Context.Stmt( ClauseId ) ) != StmtKind::WhenClause )
-                    {
-                        continue;
-                    }
-
-                    WhenClause &Clause = std::get<WhenClause>( Context.Stmt( ClauseId ) );
-
-                    ExprList DesugaredPatterns;
-                    for ( const ExprId PatternId : Clause.Patterns )
-                    {
-                        if ( !PatternId.IsValid() )
-                        {
-                            continue;
-                        }
-
-                        ExprId ProcessedPattern = PatternId;
-
-                        if ( KindOf( Context.Expr( PatternId ) ) == ExprKind::DotCall )
-                        {
-                            const DotCall &Dot = std::get<DotCall>( Context.Expr( PatternId ) );
-
-                            Frontend::Member Mem;
-                            Mem.Loc            = Dot.Loc;
-                            Mem.Object         = bHasTarget ? TargetId : SelfTarget;
-                            Mem.Name           = Dot.Method;
-                            const ExprId MemId = Context.Add( ExprNode{ Mem } );
-
-                            Call CallNode;
-                            CallNode.Loc      = Dot.Loc;
-                            CallNode.Callee   = MemId;
-                            CallNode.Args     = Dot.Args;
-                            CallNode.ArgNames = Dot.ArgNames;
-                            ProcessedPattern  = Context.Add( ExprNode{ CallNode } );
-                        }
-                        else if ( bHasTarget )
-                        {
-                            const Core::SourceRange PatternLoc = std::visit(
-                                [] ( const auto &N ) -> Core::SourceRange
-                                {
-                                    using T = std::decay_t<decltype( N )>;
-                                    if constexpr ( std::is_same_v<T, std::monostate> )
-                                    {
-                                        return {};
-                                    }
-                                    else
-                                    {
-                                        return N.Loc;
-                                    }
-                                },
-                                Context.Expr( PatternId ) );
-
-                            Binary TripleEqNode;
-                            TripleEqNode.Loc = PatternLoc;
-                            TripleEqNode.Op  = TokenKind::TripleEq;
-                            TripleEqNode.Lhs = PatternId;
-                            TripleEqNode.Rhs = TargetId;
-                            ProcessedPattern = Context.Add( ExprNode{ TripleEqNode } );
-                        }
-
-                        DesugaredPatterns.PushBack( ProcessedPattern );
-                    }
-
-                    Clause.Patterns = std::move( DesugaredPatterns );
-                }
-
-                Context.Expr( CaseId ) = ExprNode{ std::move( Case ) };
-            }
-
-            AstContext &Context;
-        };
-
-    } // namespace
-
-    void CaseLowering ( PassContext &Context )
-    {
-        Context.Stats.CaseLowered += CaseRewriter( Context.Ast ).Run();
     }
 
-} // namespace Sema
+    std::size_t Run ()
+    {
+        const std::size_t OriginalExprCount = Context.ExprCount();
+        std::size_t Rewritten               = 0;
 
-} // namespace Volt
+        for ( std::size_t Index = 0; Index < OriginalExprCount; ++Index )
+        {
+            const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+            if ( KindOf( Context.Expr( Id ) ) == Frontend::ExprKind::CaseExpr )
+            {
+                LowerCaseNode( Id );
+                ++Rewritten;
+            }
+        }
+
+        return Rewritten;
+    }
+
+private:
+
+    void LowerCaseNode ( Frontend::ExprId CaseId )
+    {
+        Frontend::CaseExpr Case = std::get<Frontend::CaseExpr>( Context.Expr( CaseId ) );
+
+        const Frontend::ExprId TargetId = Case.Target;
+        const bool bHasTarget           = TargetId.IsValid();
+
+        Frontend::ExprId SelfTarget{};
+        if ( not bHasTarget )
+        {
+            Frontend::SelfExpr SelfNode;
+            SelfNode.Loc = Case.Loc;
+            SelfTarget   = Context.Add( Frontend::ExprNode{ SelfNode } );
+        }
+
+        for ( const Frontend::StmtId ClauseId : Case.Clauses )
+        {
+            if ( not ClauseId.IsValid() or KindOf( Context.Stmt( ClauseId ) ) != Frontend::StmtKind::WhenClause )
+            {
+                continue;
+            }
+
+            Frontend::WhenClause &Clause = std::get<Frontend::WhenClause>( Context.Stmt( ClauseId ) );
+
+            Frontend::ExprList DesugaredPatterns;
+            for ( const Frontend::ExprId PatternId : Clause.Patterns )
+            {
+                if ( not PatternId.IsValid() )
+                {
+                    continue;
+                }
+
+                Frontend::ExprId ProcessedPattern = PatternId;
+
+                if ( KindOf( Context.Expr( PatternId ) ) == Frontend::ExprKind::DotCall )
+                {
+                    const Frontend::DotCall &Dot = std::get<Frontend::DotCall>( Context.Expr( PatternId ) );
+
+                    Frontend::Member Mem;
+                    Mem.Loc                      = Dot.Loc;
+                    Mem.Object                   = bHasTarget ? TargetId : SelfTarget;
+                    Mem.Name                     = Dot.Method;
+                    const Frontend::ExprId MemId = Context.Add( Frontend::ExprNode{ Mem } );
+
+                    Frontend::Call CallNode;
+                    CallNode.Loc      = Dot.Loc;
+                    CallNode.Callee   = MemId;
+                    CallNode.Args     = Dot.Args;
+                    CallNode.ArgNames = Dot.ArgNames;
+                    ProcessedPattern  = Context.Add( Frontend::ExprNode{ CallNode } );
+                }
+                else if ( bHasTarget )
+                {
+                    const Core::SourceRange PatternLoc = std::visit(
+                        [] ( const auto &Node ) -> Core::SourceRange
+                        {
+                            using T = std::decay_t<decltype( Node )>;
+                            if constexpr ( std::is_same_v<T, std::monostate> )
+                            {
+                                return {};
+                            }
+                            else
+                            {
+                                return Node.Loc;
+                            }
+                        },
+                        Context.Expr( PatternId ) );
+
+                    Frontend::Binary TripleEqNode;
+                    TripleEqNode.Loc = PatternLoc;
+                    TripleEqNode.Op  = Frontend::TokenKind::TripleEq;
+                    TripleEqNode.Lhs = PatternId;
+                    TripleEqNode.Rhs = TargetId;
+                    ProcessedPattern = Context.Add( Frontend::ExprNode{ TripleEqNode } );
+                }
+
+                DesugaredPatterns.PushBack( ProcessedPattern );
+            }
+
+            Clause.Patterns = std::move( DesugaredPatterns );
+        }
+
+        Context.Expr( CaseId ) = Frontend::ExprNode{ std::move( Case ) };
+    }
+
+    Frontend::AstContext &Context;
+};
+
+} // namespace
+
+void Volt::Sema::CaseLowering ( PassContext &Context )
+{
+    Context.Stats.CaseLowered += CaseRewriter( Context.Ast ).Run();
+}

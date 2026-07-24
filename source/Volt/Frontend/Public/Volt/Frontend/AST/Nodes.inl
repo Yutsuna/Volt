@@ -8,6 +8,18 @@
 #ifndef VOLT_EXPR
     #define VOLT_EXPR( Name )
 #endif
+// A *sugar* expression: one the Lowering passes must have removed from the
+// arena before TypeChecker runs. It is an ordinary VOLT_EXPR for every
+// consumer that does not care — the enum and the variant still see all 36
+// nodes — so marking one costs a single line here. Only a consumer that
+// defines VOLT_EXPR_SUGAR itself tells the two apart, which is how the
+// AstInvariant pass builds its membership set without a switch.
+//
+// Adding a sugar node = one line. Forgetting to lower it = a build error,
+// not a discovery made three months later inside a backend.
+#ifndef VOLT_EXPR_SUGAR
+    #define VOLT_EXPR_SUGAR( Name ) VOLT_EXPR( Name )
+#endif
 #ifndef VOLT_STMT
     #define VOLT_STMT( Name )
 #endif
@@ -31,27 +43,30 @@ VOLT_EXPR( HashLit )
 VOLT_EXPR( Identifier )
 VOLT_EXPR( InstanceVar )
 VOLT_EXPR( SelfExpr )
+VOLT_EXPR( SuperExpr )
 VOLT_EXPR( Binary )
 VOLT_EXPR( Unary )
 VOLT_EXPR( Ternary )
 VOLT_EXPR( Assign )
 VOLT_EXPR( Call )
 VOLT_EXPR( Block )
-VOLT_EXPR( Index )
+VOLT_EXPR_SUGAR( Index )
 VOLT_EXPR( Member )
 VOLT_EXPR( GenericInst )
 VOLT_EXPR( SizeOf )
 VOLT_EXPR( Deref )
-VOLT_EXPR( Interp )
-VOLT_EXPR( JsxElement )
-VOLT_EXPR( JsxFragment )
-VOLT_EXPR( JsxText )
+VOLT_EXPR_SUGAR( Interp )
+VOLT_EXPR_SUGAR( JsxElement )
+VOLT_EXPR_SUGAR( JsxFragment )
+VOLT_EXPR_SUGAR( JsxText )
 VOLT_EXPR( CaseExpr )
-VOLT_EXPR( DotCall )
-VOLT_EXPR( Pipeline )
+VOLT_EXPR_SUGAR( DotCall )
+VOLT_EXPR_SUGAR( Pipeline )
 VOLT_EXPR( Lambda )
-VOLT_EXPR( Section )
-VOLT_EXPR( Composition )
+VOLT_EXPR_SUGAR( Section )
+VOLT_EXPR_SUGAR( Composition )
+VOLT_EXPR( RaiseExpr )
+VOLT_EXPR( BeginExpr )
 
 // --- Statements ------------------------------------------------------------
 VOLT_STMT( ExprStmt )
@@ -62,6 +77,7 @@ VOLT_STMT( Break )
 VOLT_STMT( Next )
 VOLT_STMT( LocalDecl )
 VOLT_STMT( WhenClause )
+VOLT_STMT( RescueClause )
 
 // --- Declarations ----------------------------------------------------------
 VOLT_DECL( Module )
@@ -87,6 +103,7 @@ VOLT_TYPE( FixedArrayType )
 VOLT_TYPE( FuncType )
 
 #undef VOLT_EXPR
+#undef VOLT_EXPR_SUGAR
 #undef VOLT_STMT
 #undef VOLT_DECL
 #undef VOLT_TYPE

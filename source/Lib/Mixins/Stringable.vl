@@ -1,0 +1,58 @@
+# A single decimal-rendering algorithm, written once against `self`.
+#
+# InterpLowering rewrites `"n = #{ x }"` into `"n = " + x.to_string`, so every
+# type that can appear inside an interpolation must answer `to_string`. Rather
+# than one hand-written body per integer width, the algorithm lives here and
+# every width simply `include Stringable`.
+#
+# It is deliberately expressed in `self` arithmetic and String concatenation
+# only — no raw byte store into a `Pointer<UInt8>` buffer. A byte store would
+# force a `self` value into a `UInt8` slot, and Volt has no conversion between
+# integer widths, so the store would be a genuine type error the moment
+# assignability is checked. Concatenating one-character literals keeps every
+# operand at exactly one type.
+
+mixin Stringable
+  # `self / 10` and `self % 10` are the whole algorithm; a type that includes
+  # Stringable must therefore be arithmetic. Declared here as contracts rather
+  # than assumed, so a non-arithmetic includer fails at the mixin, not deep
+  # inside `to_string`.
+  include Comparable
+
+  abstract def /( other : self ) -> self
+  abstract def %( other : self ) -> self
+  abstract def -( other : self ) -> self
+
+  # Ten explicit branches instead of an index into "0123456789": subscripting a
+  # String takes a UInt64 and yields a UInt8, so it would mix widths with `self`
+  # at two points. Ten comparisons cost nothing and stay width-honest.
+  def digit_char -> String
+    d = self % 10
+    return "0" if d == 0
+    return "1" if d == 1
+    return "2" if d == 2
+    return "3" if d == 3
+    return "4" if d == 4
+    return "5" if d == 5
+    return "6" if d == 6
+    return "7" if d == 7
+    return "8" if d == 8
+    "9"
+  end
+
+  def to_string -> String
+    return "0" if self == 0
+
+    # False for every unsigned width — the branch is dead there, not wrong.
+    negative = self < 0
+    n = negative ? 0 - self : self
+
+    result = ""
+    while n > 0
+      result = n.digit_char + result
+      n = n / 10
+    end
+
+    negative ? "-" + result : result
+  end
+end

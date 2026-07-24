@@ -1,0 +1,20 @@
+# `when Enum::Case` (an explicit receiver, as opposed to the `.Case` sugar)
+# desugars to `pattern === target` (CaseLowering). No enum declares `===`
+# itself, so this exercises the structural exemption `IsBuiltinOpOn` grants
+# an enum's own case set — and exhaustiveness must still see through it.
+
+enum TrafficLight
+  Red
+  Yellow
+  Green
+end
+
+def describe ( light : TrafficLight ) -> String
+  case light
+  when TrafficLight::Red    then "stop"
+  when TrafficLight::Yellow then "caution"
+  when TrafficLight::Green  then "go"
+  end
+end
+
+describe( TrafficLight::Red )

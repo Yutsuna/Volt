@@ -1,0 +1,40 @@
+# `case self when` over an enum-typed scrutinee is held to exhaustiveness:
+# every case must be covered, or the `case` must carry an `else`.
+
+enum TrafficLight
+  Red
+  Yellow
+  Green
+
+  # Every case covered, no `else` needed.
+  def next_light -> self
+    case self
+    when .Red    then TrafficLight::Green
+    when .Yellow then TrafficLight::Red
+    when .Green  then TrafficLight::Yellow
+    end
+  end
+end
+
+# An `else` covers whatever is left unmentioned, so a partial `when` list
+# must not be diagnosed once one is present.
+enum Direction
+  North
+  South
+  East
+  West
+
+  def is_north -> Bool
+    case self
+    when .North then true
+    else             false
+    end
+  end
+end
+
+def light_cycle -> self
+  light : TrafficLight = TrafficLight::Red
+  light.next_light
+end
+
+light_cycle()

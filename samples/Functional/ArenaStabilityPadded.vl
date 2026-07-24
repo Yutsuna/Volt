@@ -1,0 +1,35 @@
+# Twin of ArenaStability.vl, preceded by four unrelated defs so the
+# expression arena reallocates at different points. Before the index sweep,
+# this padding alone changed how many Section nodes survived Lowering
+# (measured: 1 residual at pad 0..3, 2 at pad 4..7) — the tell-tale of a
+# reference held across an arena Add(). The lowered dump of both files must
+# now contain no Section and no Composition.
+
+def pad_one -> Int32
+  1
+end
+
+def pad_two -> Int32
+  2
+end
+
+def pad_three -> Int32
+  3
+end
+
+def pad_four -> Int32
+  4
+end
+
+module ArenaDemo
+
+  def self.run -> Void
+    users = [ " alice ", "   " ]
+
+    kept = users.filter( (&.empty?.!) )
+    tidy = users.map( (&.trim) >> (&.prefix("usr_")) )
+  end
+
+end
+
+ArenaDemo.run

@@ -1,0 +1,70 @@
+# Fixed-point decimal rendering for floating-point widths.
+#
+# Separate from `Stringable` rather than a specialisation of it: the integer
+# algorithm peels digits with `n / 10`, which on a float keeps the fraction and
+# yields nonsense. The two share a shape, not a body.
+#
+# There is no truncation intrinsic in Volt, and none is needed: `n % 1.0` is
+# exactly the fractional part, so `n - ( n % 1.0 )` is the integer part, using
+# only the `%` and `-` that `Arithmetic` already contracts.
+
+mixin FloatStringable
+  include Comparable
+
+  abstract def *( other : self ) -> self
+  abstract def /( other : self ) -> self
+  abstract def %( other : self ) -> self
+  abstract def -( other : self ) -> self
+
+  def truncate -> self
+    self - ( self % 1.0 )
+  end
+
+  # `self` is expected to already be a whole number in 0.0 ..< 10.0 — the
+  # caller has peeled it with `% 10.0` and `truncate`.
+  def digit_char -> String
+    return "0" if self < 1.0
+    return "1" if self < 2.0
+    return "2" if self < 3.0
+    return "3" if self < 4.0
+    return "4" if self < 5.0
+    return "5" if self < 6.0
+    return "6" if self < 7.0
+    return "7" if self < 8.0
+    return "8" if self < 9.0
+    "9"
+  end
+
+  def to_string -> String
+    negative = self < 0.0
+    n = negative ? 0.0 - self : self
+
+    whole = n.truncate
+    result = ""
+    if whole < 1.0
+      result = "0"
+    else
+      m = whole
+      while m >= 1.0
+        d = ( m % 10.0 ).truncate
+        result = d.digit_char + result
+        m = ( m - d ) / 10.0
+      end
+    end
+
+    # Six fixed decimals, no rounding: peel one digit at a time so the
+    # multiply never has to hold all six at once.
+    result = result + "."
+    f = n - whole
+    i = 0
+    while i < 6
+      f = f * 10.0
+      d = f.truncate
+      result = result + d.digit_char
+      f = f - d
+      i += 1
+    end
+
+    negative ? "-" + result : result
+  end
+end
