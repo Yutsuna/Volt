@@ -105,13 +105,22 @@ private:
         {
             return;
         }
+
+        // Written inside a generic definition, where `T` is not yet a type.
+        // Deferred until instantiation, which is monomorphisation, which is
+        // codegen — the contract a backend gets is "typed once instantiated",
+        // see rules/core-ast.md.
+        if ( Context.Values.IsDeferred( Id ) )
+        {
+            return;
+        }
         if ( Context.Values.ExprType( Id ).IsValid() )
         {
             return;
         }
 
         ++Context.Stats.UntypedValueExprs;
-        Report( Id, "expression in value position was never given a type" );
+        Report( Id, std::string{ Frontend::NodeName( Context.Ast.Expr( Id ) ) } + " in value position was never given a type" );
     }
 
     /// Mark every ExprId a backend will ask for a value at. Written as one
