@@ -57,6 +57,18 @@ namespace Backend
         //     reports as a middle-end contract violation rather than guessing.
         [[nodiscard]] Sema::LayoutId Of ( Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs );
 
+        // The layout a *declared signature* resolves to — a parameter, a
+        // result, a field — with `FlatArgs` answering whatever generic
+        // parameters it mentions.
+        //
+        // An attached layout short-circuits the substitution entirely, by the
+        // same rule Of() states: `@[Primitive]` fixes a shape whatever the
+        // arguments are. That is not an optimisation but the only correct
+        // reading of `Pointer<Void>` — the argument names a type the stdlib
+        // never declares, yet the pointer's shape does not depend on it.
+        [[nodiscard]] Sema::LayoutId
+        OfSignature ( Sema::TypeStore &Store, Sema::SigTypeId Id, std::span<const std::uint32_t> FlatArgs );
+
         [[nodiscard]] std::size_t InstantiationCount () const
         {
             return Cache.size();
@@ -64,8 +76,7 @@ namespace Backend
 
     private:
 
-        // The layout a declared signature resolves to, with `FlatArgs`
-        // answering its generic parameter references.
+        // OfSignature's recursive half, carrying the depth bound.
         [[nodiscard]] Sema::LayoutId
         OfSig ( Sema::TypeStore &Store, Sema::SigTypeId Id, std::span<const std::uint32_t> FlatArgs, std::uint32_t Depth );
 
