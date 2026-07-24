@@ -140,6 +140,23 @@ namespace Frontend
             return Decls.Size();
         }
 
+        /// The remaining slot counts, for a caller that needs to bracket the
+        /// nodes one nested parse appended (see Parser::ParseSubExpression).
+        [[nodiscard]] std::size_t StmtCount () const
+        {
+            return Stmts.Size();
+        }
+
+        [[nodiscard]] std::size_t TypeCount () const
+        {
+            return Types.Size();
+        }
+
+        [[nodiscard]] std::size_t ParamCount () const
+        {
+            return Params.Size();
+        }
+
         // --- Top-level items ---------------------------------------------
 
         std::vector<DeclId> TopDecls;
