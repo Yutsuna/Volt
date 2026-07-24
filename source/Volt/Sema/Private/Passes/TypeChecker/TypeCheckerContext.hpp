@@ -55,6 +55,12 @@ struct TypeCheckerContext
     const Frontend::SymbolList *SelfGenerics = nullptr;
     SemaTypeId SelfValue{};
 
+    // Are we inside a generic definition's own body — `Array<T>`, `map<U>`?
+    // Every type written there that mentions a parameter resolves to nothing
+    // (UnitSink::Param), by design, so the expressions built on it carry no
+    // type either. That is deferral, not a gap: see UnitTypes::MarkDeferred.
+    bool bGenericBody = false;
+
     // Locals of the method body being walked, keyed by the
     // declaration site ScopeResolver published: structural keys, so
     // two locals in sibling scopes can never collide.

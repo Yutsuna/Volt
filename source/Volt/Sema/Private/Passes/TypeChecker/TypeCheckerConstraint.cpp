@@ -11,6 +11,22 @@
 namespace
 {
 
+// Infer a child, then push the expectation into it. The inference is what
+// makes the second half work at all: a constraint applied *before* the
+// expression tree has been walked — which is what every one of the five
+// assignment sites does, so that a closure initialiser gets its
+// ExpectedClosure — stamps the parent through SetExprType, and InferExpr
+// memoises on exactly that stamp. The parent then never gets walked, and its
+// operands stay untyped forever. `doubled : Int32 = value * 2` typed the
+// Binary and left both `value` and `2` with no type at all.
+inline void ConstrainChild ( Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                             Volt::Frontend::ExprId Child,
+                             Volt::Sema::SemaTypeId TargetType )
+{
+    static_cast<void>( Volt::Sema::TypeCheckerPass::InferExpr( Self, Child ) );
+    Self.ConstrainExprType( Child, TargetType );
+}
+
 // NOLINTBEGIN(readability-named-parameter, hicpp-named-parameter)
 inline void
 ConstrainNode ( const auto &, Volt::Sema::TypeCheckerPass::TypeCheckerContext &, Volt::Frontend::ExprId, Volt::Sema::SemaTypeId )
@@ -45,8 +61,8 @@ inline void ConstrainNode ( const Volt::Frontend::Ternary &Node,
                             Volt::Frontend::ExprId Expr,
                             Volt::Sema::SemaTypeId TargetType )
 {
-    Self.ConstrainExprType( Node.Then, TargetType );
-    Self.ConstrainExprType( Node.Else, TargetType );
+    ConstrainChild( Self, Node.Then, TargetType );
+    ConstrainChild( Self, Node.Else, TargetType );
     Self.Ctx.Values.SetExprType( Expr, TargetType );
 }
 
@@ -55,8 +71,8 @@ inline void ConstrainNode ( const Volt::Frontend::Binary &Node,
                             Volt::Frontend::ExprId Expr,
                             Volt::Sema::SemaTypeId TargetType )
 {
-    Self.ConstrainExprType( Node.Lhs, TargetType );
-    Self.ConstrainExprType( Node.Rhs, TargetType );
+    ConstrainChild( Self, Node.Lhs, TargetType );
+    ConstrainChild( Self, Node.Rhs, TargetType );
     Self.Ctx.Values.SetExprType( Expr, TargetType );
 }
 
@@ -76,7 +92,7 @@ inline void ConstrainNode ( const Volt::Frontend::ArrayLit &Node,
     {
         for ( const Volt::Frontend::ExprId Elem : Node.Elements )
         {
-            Self.ConstrainExprType( Elem, Target.Args[0] );
+            ConstrainChild( Self, Elem, Target.Args[0] );
         }
     }
 }
@@ -97,11 +113,11 @@ inline void ConstrainNode ( const Volt::Frontend::HashLit &Node,
     {
         for ( const Volt::Frontend::ExprId Key : Node.Keys )
         {
-            Self.ConstrainExprType( Key, Target.Args[0] );
+            ConstrainChild( Self, Key, Target.Args[0] );
         }
         for ( const Volt::Frontend::ExprId Value : Node.Values )
         {
-            Self.ConstrainExprType( Value, Target.Args[1] );
+            ConstrainChild( Self, Value, Target.Args[1] );
         }
     }
 }
