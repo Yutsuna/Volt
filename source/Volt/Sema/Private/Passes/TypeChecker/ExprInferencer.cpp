@@ -408,11 +408,14 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     if ( Known.has_value() and Known->IsValid() )
                     {
                         Context.ConstrainExprType( Expr.Value, *Known );
+                        // Definite assignment: variable is now initialized.
+                        Context.UninitializedLocals.erase( Target->Name );
                     }
                     else
                     {
                         Context.WriteLocal( Expr.Target, Target->Name, Value );
                         Context.UnconstrainedVarInitializers[Target->Name] = Expr.Value;
+                        Context.UninitializedLocals.erase( Target->Name );
                     }
                 }
                 static_cast<void>( InferExpr( Context, Expr.Target ) );
@@ -456,7 +459,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 {
                     static_cast<void>( InferExpr( Context, Mutable.Exception ) );
                 }
-                return Context.NoReturnType();
+                return TypeCheckerContext::NoReturnType();
             },
             [&] ( const Frontend::BeginExpr &Expr ) -> SemaTypeId
             {
@@ -611,9 +614,30 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     // in a parameter has to learn its type from the actual argument first,
     // or every call to `def id<U>( x : U )` would be reported as a mismatch
     // against a slot nothing had filled.
-    for ( const Frontend::ExprId Arg : Expr.Args )
+    for ( std::size_t ArgIdx = 0; ArgIdx < Expr.Args.Size(); ++ArgIdx )
     {
+        const Frontend::ExprId Arg = Expr.Args[ArgIdx];
+
+        // When the argument is a closure literal and the callee declares a
+        // callable parameter at that position, feed the parameter's type as
+        // ExpectedClosure so the closure's unannotated parameters get their
+        // types — the same mechanism BlockArg already uses for trailing
+        // blocks, extended here to positional arguments.
+        const bool bArgIsClosure = Arg.IsValid() and ( std::holds_alternative<Frontend::Lambda>( Context.Ctx.Ast.Expr( Arg ) ) or
+                                                       std::holds_alternative<Frontend::Block>( Context.Ctx.Ast.Expr( Arg ) ) );
+        const SemaTypeId OuterExpected = Context.ExpectedClosure;
+
+        if ( bArgIsClosure and ArgIdx < Found.Params.Size() and Found.Params[ArgIdx].IsValid() )
+        {
+            Context.ExpectedClosure = Found.Params[ArgIdx];
+        }
+
         static_cast<void>( InferExpr( Context, Arg ) );
+
+        if ( bArgIsClosure )
+        {
+            Context.ExpectedClosure = OuterExpected;
+        }
     }
     UnifyArgs( Context, Found, Expr.Args );
     CheckCallArgs( Context, Expr.Loc, Found, Expr.Args );
