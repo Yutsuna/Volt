@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <unordered_map>
 #include <unordered_set>
@@ -383,6 +384,15 @@ namespace Sema
                 }
             }
             return nullptr;
+        }
+
+        // Every free function of the build, in declaration order. Lookup by
+        // name answers "is this call resolvable"; codegen asks the opposite
+        // question — "what must I emit a symbol for" — and that one needs the
+        // whole set, so it is exposed rather than re-derived from the ASTs.
+        [[nodiscard]] std::span<const Member> FreeFunctions () const
+        {
+            return Functions;
         }
 
         [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
