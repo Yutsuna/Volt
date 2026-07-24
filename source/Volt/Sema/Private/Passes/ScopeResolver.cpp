@@ -205,6 +205,18 @@ namespace Sema
                                 WalkStmt( Child, BodyScope );
                             }
                         },
+                        [&] ( const Frontend::RescueClause &Node )
+                        {
+                            const ScopeId RescueScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                            if ( Node.VarName.IsValid() )
+                            {
+                                DeclareOrReport( RescueScope, Node.VarName, BindingSite{ Id }, Node.Loc );
+                            }
+                            for ( const Frontend::StmtId Child : Node.Body )
+                            {
+                                WalkStmt( Child, RescueScope );
+                            }
+                        },
                         // Declares in the current scope, does not open one:
                         // statement-order visibility falls out of the walk.
                         // The initializer resolves *before* the name exists,
@@ -314,6 +326,29 @@ namespace Sema
                             for ( const Frontend::ExprId Arg : Node.Args )
                             {
                                 WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
+                            }
+                        },
+                        // The main body and `ensure` are separate Branch
+                        // scopes, same as If/While — a local declared inside
+                        // `begin ... end` must not leak into the enclosing
+                        // scope. Each RescueClause pushes and populates its
+                        // own Branch scope already (WalkStmt above), so its
+                        // clauses are simply walked in Current here.
+                        [&] ( const Frontend::BeginExpr &Node )
+                        {
+                            const ScopeId BodyScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                            for ( const Frontend::StmtId Child : Node.Body )
+                            {
+                                WalkStmt( Child, BodyScope );
+                            }
+                            for ( const Frontend::StmtId Clause : Node.RescueClauses )
+                            {
+                                WalkStmt( Clause, Current );
+                            }
+                            const ScopeId EnsureScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                            for ( const Frontend::StmtId Child : Node.EnsureBody )
+                            {
+                                WalkStmt( Child, EnsureScope );
                             }
                         },
                         [&] ( const auto &Node ) { WalkFields( Node, Current ); },
