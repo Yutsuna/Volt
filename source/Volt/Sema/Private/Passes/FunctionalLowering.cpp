@@ -1,290 +1,280 @@
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
-#include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
-#include "Volt/Frontend/AST/Stmt.hpp"
+#include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Pass.hpp"
 
-#include <string>
 #include <string_view>
 #include <type_traits>
 #include <variant>
 
-namespace Volt
+namespace
 {
 
-namespace Sema
+using namespace Volt;
+
+class FunctionalRewriter
 {
 
-    namespace
+public:
+
+    explicit FunctionalRewriter ( Frontend::AstContext &InContext ) : Context( InContext )
     {
-
-        using namespace Frontend;
-
-        class FunctionalRewriter
-        {
-
-        public:
-
-            explicit FunctionalRewriter ( AstContext &InContext ) : Context( InContext )
-            {
-            }
-
-            void Run ()
-            {
-                for ( const DeclId Id : Context.TopDecls )
-                {
-                    WalkDecl( Id );
-                }
-                for ( const StmtId Id : Context.TopStmts )
-                {
-                    WalkStmt( Id );
-                }
-            }
-
-        private:
-
-            void WalkDecl ( DeclId Id )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-                std::visit(
-                    Meta::Overloaded{
-                        [&] ( auto &Node ) { WalkFields( Node ); },
-                    },
-                    Context.Decl( Id ) );
-            }
-
-            void WalkStmt ( StmtId Id )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-                std::visit(
-                    Meta::Overloaded{
-                        [&] ( auto &Node ) { WalkFields( Node ); },
-                    },
-                    Context.Stmt( Id ) );
-            }
-
-            void WalkExpr ( ExprId &Id )
-            {
-                if ( not Id.IsValid() )
-                {
-                    return;
-                }
-
-                // Rewrite bottom-up
-                std::visit(
-                    Meta::Overloaded{
-                        [&] ( auto &Node ) { WalkFields( Node ); },
-                    },
-                    Context.Expr( Id ) );
-
-                const ExprKind Kind = KindOf( Context.Expr( Id ) );
-                if ( Kind == ExprKind::Section )
-                {
-                    Id = LowerSection( Id );
-                }
-                else if ( Kind == ExprKind::Composition )
-                {
-                    Id = LowerComposition( Id );
-                }
-            }
-
-            template <typename NodeType> void WalkFields ( NodeType &Node )
-            {
-                if constexpr ( Meta::Reflected<NodeType> )
-                {
-                    Meta::ForEachField( Node,
-                                        [&] ( std::string_view, auto &Field )
-                                        {
-                                            using FieldType = std::remove_reference_t<decltype( Field )>;
-                                            if constexpr ( std::is_same_v<FieldType, ExprId> )
-                                            {
-                                                WalkExpr( Field );
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, ExprList> )
-                                            {
-                                                for ( ExprId &Child : Field )
-                                                {
-                                                    WalkExpr( Child );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, StmtId> )
-                                            {
-                                                WalkStmt( Field );
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, StmtList> )
-                                            {
-                                                for ( StmtId &Child : Field )
-                                                {
-                                                    WalkStmt( Child );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, DeclList> )
-                                            {
-                                                for ( DeclId &Child : Field )
-                                                {
-                                                    WalkDecl( Child );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<FieldType, ParamList> )
-                                            {
-                                                for ( ParamId &Child : Field )
-                                                {
-                                                    WalkExpr( Context.GetParam( Child ).Default );
-                                                }
-                                            }
-                                        } );
-                }
-            }
-
-            [[nodiscard]] ExprId LowerSection ( ExprId SectionId )
-            {
-                const Section Sec = std::get<Section>( Context.Expr( SectionId ) );
-
-                const Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
-
-                Param P;
-                P.Loc             = Sec.Loc;
-                P.Name            = ParamName;
-                P.DeclType        = TypeId{};
-                P.Default         = ExprId{};
-                const ParamId PId = Context.Add( P );
-
-                ParamList Params;
-                Params.PushBack( PId );
-
-                Identifier IdNode;
-                IdNode.Loc          = Sec.Loc;
-                IdNode.Name         = ParamName;
-                const ExprId IdExpr = Context.Add( IdNode );
-
-                ExprId BodyExpr{};
-
-                if ( Sec.Kind == ESectionKind::InstanceMethod )
-                {
-                    Frontend::Member M;
-                    M.Loc            = Sec.Loc;
-                    M.Object         = IdExpr;
-                    M.Name           = Sec.Target;
-                    const ExprId MId = Context.Add( M );
-
-                    Call C;
-                    C.Loc    = Sec.Loc;
-                    C.Callee = MId;
-                    C.Args   = Sec.Args;
-                    for ( std::size_t i = 0; i < Sec.Args.Size(); ++i )
-                    {
-                        C.ArgNames.PushBack( Symbol{} );
-                    }
-                    BodyExpr = Context.Add( C );
-                }
-                else if ( Sec.Kind == ESectionKind::Operator )
-                {
-                    Frontend::Member M;
-                    M.Loc            = Sec.Loc;
-                    M.Object         = IdExpr;
-                    M.Name           = Sec.Target;
-                    const ExprId MId = Context.Add( M );
-
-                    Call C;
-                    C.Loc    = Sec.Loc;
-                    C.Callee = MId;
-                    C.Args   = Sec.Args;
-                    for ( std::size_t i = 0; i < Sec.Args.Size(); ++i )
-                    {
-                        C.ArgNames.PushBack( Symbol{} );
-                    }
-                    BodyExpr = Context.Add( C );
-                }
-                else if ( Sec.Kind == ESectionKind::StaticCapture )
-                {
-                    Call C;
-                    C.Loc    = Sec.Loc;
-                    C.Callee = Sec.TargetExpr;
-                    C.Args.PushBack( IdExpr );
-                    C.ArgNames.PushBack( Symbol{} );
-                    BodyExpr = Context.Add( C );
-                }
-
-                if ( Sec.bNegated )
-                {
-                    Unary U;
-                    U.Loc     = Sec.Loc;
-                    U.Op      = TokenKind::Bang;
-                    U.Operand = BodyExpr;
-                    BodyExpr  = Context.Add( U );
-                }
-
-                Lambda L;
-                L.Loc        = Sec.Loc;
-                L.Params     = Params;
-                L.ReturnType = ExprId{};
-                L.Body       = BodyExpr;
-                return Context.Add( L );
-            }
-
-            [[nodiscard]] ExprId LowerComposition ( ExprId CompId )
-            {
-                const Composition Comp = std::get<Composition>( Context.Expr( CompId ) );
-
-                const Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
-
-                Param P;
-                P.Loc             = Comp.Loc;
-                P.Name            = ParamName;
-                P.DeclType        = TypeId{};
-                P.Default         = ExprId{};
-                const ParamId PId = Context.Add( P );
-
-                ParamList Params;
-                Params.PushBack( PId );
-
-                Identifier IdNode;
-                IdNode.Loc          = Comp.Loc;
-                IdNode.Name         = ParamName;
-                const ExprId IdExpr = Context.Add( IdNode );
-
-                Call InnerCall;
-                InnerCall.Loc    = Comp.Loc;
-                InnerCall.Callee = Comp.Lhs;
-                InnerCall.Args.PushBack( IdExpr );
-                InnerCall.ArgNames.PushBack( Symbol{} );
-                const ExprId InnerExpr = Context.Add( InnerCall );
-
-                Call OuterCall;
-                OuterCall.Loc    = Comp.Loc;
-                OuterCall.Callee = Comp.Rhs;
-                OuterCall.Args.PushBack( InnerExpr );
-                OuterCall.ArgNames.PushBack( Symbol{} );
-                const ExprId OuterExpr = Context.Add( OuterCall );
-
-                Lambda L;
-                L.Loc        = Comp.Loc;
-                L.Params     = Params;
-                L.ReturnType = ExprId{};
-                L.Body       = OuterExpr;
-                return Context.Add( L );
-            }
-
-            AstContext &Context;
-        };
-
-    } // namespace
-
-    // Order 8 — rewrite Section and Composition nodes into standard Lambda nodes.
-    void FunctionalLowering ( PassContext &Context )
-    {
-        FunctionalRewriter Rewriter{ Context.Ast };
-        Rewriter.Run();
     }
 
-} // namespace Sema
+    void Run ()
+    {
+        for ( const Frontend::DeclId Id : Context.TopDecls )
+        {
+            WalkDecl( Id );
+        }
+        for ( const Frontend::StmtId Id : Context.TopStmts )
+        {
+            WalkStmt( Id );
+        }
+    }
 
-} // namespace Volt
+private:
+
+    void WalkDecl ( Frontend::DeclId Id )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+        std::visit(
+            Meta::Overloaded{
+                [&] ( auto &Node ) { WalkFields( Node ); },
+            },
+            Context.Decl( Id ) );
+    }
+
+    void WalkStmt ( Frontend::StmtId Id )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+        std::visit(
+            Meta::Overloaded{
+                [&] ( auto &Node ) { WalkFields( Node ); },
+            },
+            Context.Stmt( Id ) );
+    }
+
+    void WalkExpr ( Frontend::ExprId &Id )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        // Rewrite bottom-up
+        std::visit(
+            Meta::Overloaded{
+                [&] ( auto &Node ) { WalkFields( Node ); },
+            },
+            Context.Expr( Id ) );
+
+        const Frontend::ExprKind Kind = KindOf( Context.Expr( Id ) );
+        if ( Kind == Frontend::ExprKind::Section )
+        {
+            Id = LowerSection( Id );
+        }
+        else if ( Kind == Frontend::ExprKind::Composition )
+        {
+            Id = LowerComposition( Id );
+        }
+    }
+
+    template <typename NodeType> void WalkFields ( NodeType &Node )
+    {
+        if constexpr ( Meta::Reflected<NodeType> )
+        {
+            Meta::ForEachField( Node,
+                                [&] ( std::string_view, auto &Field )
+                                {
+                                    using FieldType = std::remove_reference_t<decltype( Field )>;
+                                    if constexpr ( std::is_same_v<FieldType, Frontend::ExprId> )
+                                    {
+                                        WalkExpr( Field );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::ExprList> )
+                                    {
+                                        for ( Frontend::ExprId &Child : Field )
+                                        {
+                                            WalkExpr( Child );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::StmtId> )
+                                    {
+                                        WalkStmt( Field );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::StmtList> )
+                                    {
+                                        for ( Frontend::StmtId &Child : Field )
+                                        {
+                                            WalkStmt( Child );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::DeclList> )
+                                    {
+                                        for ( Frontend::DeclId &Child : Field )
+                                        {
+                                            WalkDecl( Child );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Volt::Frontend::ParamList> )
+                                    {
+                                        for ( Frontend::ParamId &Child : Field )
+                                        {
+                                            WalkExpr( Context.GetParam( Child ).Default );
+                                        }
+                                    }
+                                } );
+        }
+    }
+
+    // WARN: this is so hardcoded
+    // TODO: refactor to avoid redundancy
+
+    [[nodiscard]] Frontend::ExprId LowerSection ( Frontend::ExprId SectionId )
+    {
+        const Volt::Frontend::Section Sec  = std::get<Volt::Frontend::Section>( Context.Expr( SectionId ) );
+        const Volt::Core::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
+
+        Frontend::Param Param;
+        Param.Loc                         = Sec.Loc;
+        Param.Name                        = ParamName;
+        Param.DeclType                    = Frontend::TypeId{};
+        Param.Default                     = Frontend::ExprId{};
+        const Volt::Frontend::ParamId PId = Context.Add( Param );
+
+        Frontend::ParamList Params;
+        Params.PushBack( PId );
+
+        Frontend::Identifier IdNode;
+        IdNode.Loc                    = Sec.Loc;
+        IdNode.Name                   = ParamName;
+        const Frontend::ExprId IdExpr = Context.Add( IdNode );
+
+        Frontend::ExprId BodyExpr{};
+
+        if ( Sec.Kind == Frontend::ESectionKind::InstanceMethod )
+        {
+            Frontend::Member Mem;
+            Mem.Loc                    = Sec.Loc;
+            Mem.Object                 = IdExpr;
+            Mem.Name                   = Sec.Target;
+            const Frontend::ExprId MId = Context.Add( Mem );
+
+            Frontend::Call Cal;
+            Cal.Loc    = Sec.Loc;
+            Cal.Callee = MId;
+            Cal.Args   = Sec.Args;
+            for ( std::size_t Idx = 0; Idx < Sec.Args.Size(); ++Idx )
+            {
+                Cal.ArgNames.PushBack( Frontend::Symbol{} );
+            }
+            BodyExpr = Context.Add( Cal );
+        }
+        else if ( Sec.Kind == Frontend::ESectionKind::Operator )
+        {
+            Frontend::Member Mem;
+            Mem.Loc                    = Sec.Loc;
+            Mem.Object                 = IdExpr;
+            Mem.Name                   = Sec.Target;
+            const Frontend::ExprId MId = Context.Add( Mem );
+
+            Frontend::Call Cal;
+            Cal.Loc    = Sec.Loc;
+            Cal.Callee = MId;
+            Cal.Args   = Sec.Args;
+            for ( std::size_t Idx = 0; Idx < Sec.Args.Size(); ++Idx )
+            {
+                Cal.ArgNames.PushBack( Frontend::Symbol{} );
+            }
+            BodyExpr = Context.Add( Cal );
+        }
+        else if ( Sec.Kind == Frontend::ESectionKind::StaticCapture )
+        {
+            Frontend::Call Cal;
+            Cal.Loc    = Sec.Loc;
+            Cal.Callee = Sec.TargetExpr;
+            Cal.Args.PushBack( IdExpr );
+            Cal.ArgNames.PushBack( Frontend::Symbol{} );
+            BodyExpr = Context.Add( Cal );
+        }
+
+        if ( Sec.bNegated )
+        {
+            Frontend::Unary Un;
+            Un.Loc     = Sec.Loc;
+            Un.Op      = Frontend::TokenKind::Bang;
+            Un.Operand = BodyExpr;
+            BodyExpr   = Context.Add( Un );
+        }
+
+        Frontend::Lambda Lam;
+        Lam.Loc        = Sec.Loc;
+        Lam.Params     = Params;
+        Lam.ReturnType = Frontend::ExprId{};
+        Lam.Body       = BodyExpr;
+        return Context.Add( Lam );
+    }
+
+    [[nodiscard]] Frontend::ExprId LowerComposition ( Frontend::ExprId CompId )
+    {
+        const Frontend::Composition Comp = std::get<Frontend::Composition>( Context.Expr( CompId ) );
+
+        const Frontend::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
+
+        Frontend::Param Param;
+        Param.Loc                         = Comp.Loc;
+        Param.Name                        = ParamName;
+        Param.DeclType                    = Frontend::TypeId{};
+        Param.Default                     = Frontend::ExprId{};
+        const Volt::Frontend::ParamId PId = Context.Add( Param );
+
+        Frontend::ParamList Params;
+        Params.PushBack( PId );
+
+        Frontend::Identifier IdNode;
+        IdNode.Loc                    = Comp.Loc;
+        IdNode.Name                   = ParamName;
+        const Frontend::ExprId IdExpr = Context.Add( IdNode );
+
+        Frontend::Call InnerCall;
+        InnerCall.Loc    = Comp.Loc;
+        InnerCall.Callee = Comp.Lhs;
+        InnerCall.Args.PushBack( IdExpr );
+        InnerCall.ArgNames.PushBack( Frontend::Symbol{} );
+        const Frontend::ExprId InnerExpr = Context.Add( InnerCall );
+
+        Frontend::Call OuterCall;
+        OuterCall.Loc    = Comp.Loc;
+        OuterCall.Callee = Comp.Rhs;
+        OuterCall.Args.PushBack( InnerExpr );
+        OuterCall.ArgNames.PushBack( Frontend::Symbol{} );
+        const Frontend::ExprId OuterExpr = Context.Add( OuterCall );
+
+        Frontend::Lambda Lam;
+        Lam.Loc        = Comp.Loc;
+        Lam.Params     = Params;
+        Lam.ReturnType = Frontend::ExprId{};
+        Lam.Body       = OuterExpr;
+        return Context.Add( Lam );
+    }
+
+    Frontend::AstContext &Context;
+};
+
+} // namespace
+
+// Order 8 — rewrite Section and Composition nodes into standard Lambda nodes.
+void Volt::Sema::FunctionalLowering ( Volt::Sema::PassContext &Context )
+{
+    FunctionalRewriter Rewriter{ Context.Ast };
+    Rewriter.Run();
+}
