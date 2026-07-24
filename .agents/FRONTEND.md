@@ -1,65 +1,43 @@
 # Frontend Architecture — Parsing & Syntactic Lowering
 
-## Rôle du Frontend
-Le Frontend de Volt a pour rôle de transformer le code source en un **Arbre de Syntaxe Abstraite (AST)** propre et d'**abaisser tout le sucre syntaxique**. 
+## Role of the Frontend
+The role of the Volt Frontend is to transform raw source code into a clean **Value Abstract Syntax Tree (AST)** and **desugar all syntactic sugar**.
 
-Le Frontend est **lazy** : il ne tente jamais de deviner ou de verrouiller le type des expressions ou des identifiants lorsqu'il y a un doute. Son objectif est de produire un AST sans ambiguïté syntaxique, prêt à être analysé par le MiddleEnd.
+The Frontend is **lazy**: it never attempts to guess or lock down the type of expressions or identifiers when there is ambiguity. Its sole objective is to produce an AST free of syntactic ambiguity, ready to be processed by the MiddleEnd.
 
 ---
 
-## Composants du Frontend
+## Frontend Components
 
 ### 1. Lexer (`source/Volt/Frontend/Lexer/`)
-- Transforme le texte source en un flux de jetons (`Token`).
-- Défini de manière déclarative par les manifestes de tokens (`TokenKind.inl`).
+- Transforms source text into a stream of tokens (`Token`).
+- Defined declaratively via token manifests (`TokenKind.inl`).
 
 ### 2. Parser (`source/Volt/Frontend/Parser/`)
-- Combinaison d'un parseur d'expressions **Pratt** (basé sur la puissance de liaison / precedence) et d'un parseur à **descente récursive** pour les déclarations et instructions.
-- Construit l'AST en mémoire arène (`Arena<Node, Id>`) sans pointeurs nus (Value AST).
+- A combination of a **Pratt** expression parser (based on precedence / binding power) and a **recursive descent** parser for declarations and statements.
+- Constructs the AST in arena memory (`Arena<Node, Id>`) without raw pointers (Value AST).
 
-### 3. Lowering Syntaxique (`EPassKind::Lowering`)
-Ces passes réécrivent le sucre en formes AST canoniques **avant** toute analyse
-de type. Elles sont exactement celles que `volt parse --lowered` exécute, dans
-l'ordre du manifeste `Sema/PassList.inl` (la numérotation est l'`Order`, pas un
-compteur contigu). Chacune **balaye l'arène par index** et ne tient jamais une
-référence à travers un `Add()` — l'idiome obligatoire est dans
-[`rules/ast-rewrite.md`](rules/ast-rewrite.md).
+### 3. Syntactic Lowering (`EPassKind::Lowering`)
+These passes rewrite syntactic sugar into canonical AST forms **before** any type analysis. They correspond exactly to what `volt parse --lowered` executes, in the order defined by the manifest `Sema/PassList.inl` (the numbering represents the pass `Order`, not a contiguous counter). Each pass **sweeps the arena by index** and never holds an arena reference across an `Add()` invocation — the mandatory idiom is documented in [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
 
-- **8 — `FunctionalLowering`** : sections d'opérateurs/méthodes (`&.+ 5`,
-  `&.trim`), captures (`&Math.square`), compositions (`>>`) → nœuds `Lambda`
-  canoniques à symboles uniques (`AstContext::MakeUniqueSymbol`).
-- **9 — `PipelineLowering`** : `x |> f` → `f( x )`.
-- **12 — `EnumLowering`** : énumérations → types + constantes.
-- **15 — `MacroExpansion`** : macros déclaratives + annotations `@[...]`. Retire
-  les `MacroDef` de `TopDecls` en fin de passe (le nœud reste dans l'arène).
-- **16 — `MagicExpansion`** : `__FILE__` / `__LINE__` et consorts.
-- **20 — `JsxLowering`** : `<Button />` → `Volt.JSX.create_element( ... )`.
-- **22 — `CaseLowering`** : `case/when` → liste plate de `WhenClause`
-  (`pattern === target`), jamais une chaîne de `If` (§4.3 de
-  [`rules/core-ast.md`](rules/core-ast.md) : `CaseExpr` reste **noyau**).
-- **23 — `DotCallLowering`** : un `.method` en position d'instruction →
-  `self.method( ... )`. Juste après `CaseLowering`, pour ne pas voler les
-  `DotCall` du motif `when .even?`.
-- **24 — `AssignLowering`** : `x op= v` → `x = x op v`. L'opérateur de base est
-  **dérivé de l'orthographe** (`+=` moins son `=`), pas d'une table.
-- **25 — `IndexLowering`** : `o[ a ]` → `o.[]( a )`, `o[ a ] = v` → `o.[]=( a, v )`.
-  Le cas composé `o[ a ] += v` tombe de la composition avec `AssignLowering` :
-  aucun code dédié.
-- **26 — `InterpLowering`** : `"a#{ x }b"` → concaténation à gauche via
-  `x.to_string`. Après `MacroExpansion`, car une macro peut générer du `#{ ... }`.
+- **8 — `FunctionalLowering`**: Operator/method sections (`&.+ 5`, `&.trim`), captures (`&Math.square`), compositions (`>>`) → canonical `Lambda` nodes with unique symbols generated via `AstContext::MakeUniqueSymbol`.
+- **9 — `PipelineLowering`**: `x |> f` → `f( x )`.
+- **12 — `EnumLowering`**: Enums → structs + static constants.
+- **15 — `MacroExpansion`**: Declarative macros + `@[...]` annotations. Removes `MacroDef` nodes from `TopDecls` at the end of the pass (the node slot remains in the arena).
+- **16 — `MagicExpansion`**: `__FILE__` / `__LINE__` and related magic constants.
+- **20 — `JsxLowering`**: `<Button />` → `Volt.JSX.create_element( ... )`.
+- **22 — `CaseLowering`**: `case/when` → flat list of `WhenClause` entries (`pattern === target`), never an `If` chain (§4.3 of [`rules/core-ast.md`](rules/core-ast.md): `CaseExpr` remains **core**).
+- **23 — `DotCallLowering`**: A `.method` in statement position → `self.method( ... )`. Runs immediately after `CaseLowering` to avoid stealing `DotCall` nodes from `when .even?` pattern arms.
+- **24 — `AssignLowering`**: `x op= v` → `x = x op v`. The base operator is **derived from token spelling** (`+=` minus its trailing `=`), rather than a hardcoded lookup table.
+- **25 — `IndexLowering`**: `o[ a ]` → `o.[]( a )`, `o[ a ] = v` → `o.[]=( a, v )`. The compound case `o[ a ] += v` falls out automatically from composition with `AssignLowering`: no dedicated code required.
+- **26 — `InterpLowering`**: `"a#{ x }b"` → left-associative string concatenation via `x.to_string`. Runs after `MacroExpansion`, as macros may generate `#{ ... }` interpolation constructs.
 
-`"to_string"`, `"[]"`, `"[]="` sont des **noms de méthodes**, pas des noms de
-type Volt : le garde-fou `ZeroHardcode` reste vert. Voir
-[`rules/zero-hardcode.md`](rules/zero-hardcode.md).
+`"to_string"`, `"[]"`, `"[]="` are **method names**, not Volt type names: the `ZeroHardcode` rule remains strictly preserved. See [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
 
 ---
 
-## Produit en sortie du Frontend
-En sortie du Frontend (`volt parse --lowered`), l'AST est :
-- **Entièrement désucré** : aucun des **9 nœuds sucre** (`Interp`, `Index`,
-  `DotCall`, `Section`, `Composition`, `Pipeline`, `JsxElement/Fragment/Text`,
-  marqués `VOLT_EXPR_SUGAR` dans `Nodes.inl`) ne survit. La passe `AstInvariant`
-  (Order 40) le vérifie **mécaniquement** à chaque build ; `tests/AstInvariant.cmake`
-  le rejoue sur tout le corpus. Voir [`rules/meta-first.md`](rules/meta-first.md).
-- **Non typé strict** : les littéraux comme `10` restent nus, non contraints.
-- **Prêt pour le MiddleEnd** : aucune hypothèse de type verrouillée trop tôt.
+## Frontend Output Artifact
+At the exit of the Frontend (`volt parse --lowered`), the AST is:
+- **Fully Desugared**: None of the **9 sugar nodes** (`Interp`, `Index`, `DotCall`, `Section`, `Composition`, `Pipeline`, `JsxElement/Fragment/Text`, marked `VOLT_EXPR_SUGAR` in `Nodes.inl`) survive. The `AstInvariant` pass (Order 40) validates this **mechanically** on every build; `tests/AstInvariant.cmake` replays it across the entire codebase corpus. See [`rules/meta-first.md`](rules/meta-first.md).
+- **Strictly Un-typed**: Literals such as `10` remain raw and unconstrained.
+- **MiddleEnd Ready**: No early type assumptions are locked in prematurely.
