@@ -1,0 +1,138 @@
+Program 'samples/Sema/UnconstrainedLiterals.vl'
+├─ Method 'take_float' @8:1
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Float32' @8:25
+│  ├─ return_type
+│  │  └─ TypeRef 'Float32' @8:38
+│  └─ body
+│     └─ ExprStmt @9:3
+│        └─ expr
+│           └─ Identifier 'value' @9:3
+├─ Method 'float_literal_inference' @15:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Float32' @15:32
+│  └─ body
+│     └─ ExprStmt @16:3
+│        └─ expr
+│           └─ Call @16:13
+│              ├─ callee
+│              │  └─ Identifier 'take_float' @16:3
+│              └─ args
+│                 └─ FloatLiteral '2.5' @16:15
+├─ Method 'sum_all' @19:1
+│  ├─ params
+│  │  └─ Param 'values'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Array' @19:23
+│  │           └─ generics
+│  │              └─ TypeRef 'UInt64' @19:29
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @19:42
+│  └─ body
+│     ├─ LocalDecl 'total' @20:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'UInt64' @20:11
+│     │  └─ init
+│     │     └─ IntLiteral '0' @20:20
+│     ├─ ExprStmt @21:3
+│     │  └─ expr
+│     │     └─ Call @21:3
+│     │        ├─ callee
+│     │        │  └─ Member 'each' @21:3
+│     │        │     └─ object
+│     │        │        └─ Identifier 'values' @21:16
+│     │        └─ block_arg
+│     │           └─ Block @21:3
+│     │              ├─ params
+│     │              │  └─ Param 'value' @21:7
+│     │              └─ body
+│     │                 └─ ExprStmt @22:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @22:11
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'total' @22:5
+│     │                          └─ value
+│     │                             └─ Identifier 'value' @22:14
+│     └─ ExprStmt @24:3
+│        └─ expr
+│           └─ Identifier 'total' @24:3
+├─ Method 'array_literal_inference' @27:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @27:32
+│  └─ body
+│     ├─ LocalDecl 'fixed' @31:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Array' @31:11
+│     │  │     └─ generics
+│     │  │        └─ TypeRef 'UInt64' @31:17
+│     │  └─ init
+│     │     └─ ArrayLit @31:27
+│     │        └─ elements
+│     │           ├─ IntLiteral '1' @31:29
+│     │           ├─ IntLiteral '2' @31:32
+│     │           └─ IntLiteral '3' @31:35
+│     ├─ LocalDecl 'via_call' @35:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'UInt64' @35:14
+│     │  └─ init
+│     │     └─ Call @35:30
+│     │        ├─ callee
+│     │        │  └─ Identifier 'sum_all' @35:23
+│     │        └─ args
+│     │           └─ ArrayLit @35:32
+│     │              └─ elements
+│     │                 ├─ IntLiteral '4' @35:34
+│     │                 ├─ IntLiteral '5' @35:37
+│     │                 └─ IntLiteral '6' @35:40
+│     └─ ExprStmt @37:3
+│        └─ expr
+│           └─ Binary '+' @37:14
+│              ├─ lhs
+│              │  └─ Member 'size' @37:8
+│              │     └─ object
+│              │        └─ Identifier 'fixed' @37:3
+│              └─ rhs
+│                 └─ Identifier 'via_call' @37:16
+├─ Method 'hash_literal_inference' @40:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @40:31
+│  └─ body
+│     ├─ LocalDecl 'counts' @44:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Hash' @44:12
+│     │  │     └─ generics
+│     │  │        ├─ TypeRef 'String' @44:17
+│     │  │        └─ TypeRef 'UInt64' @44:25
+│     │  └─ init
+│     │     └─ HashLit @44:35
+│     │        ├─ keys
+│     │        │  ├─ StringLiteral 'bytes' @44:37
+│     │        │  └─ StringLiteral 'extra' @44:51
+│     │        └─ values
+│     │           ├─ IntLiteral '3' @44:48
+│     │           └─ IntLiteral '1' @44:62
+│     └─ ExprStmt @45:3
+│        └─ expr
+│           └─ Index @45:9
+│              ├─ object
+│              │  └─ Identifier 'counts' @45:3
+│              └─ args
+│                 └─ StringLiteral 'extra' @45:10
+├─ ExprStmt @48:1
+│  └─ expr
+│     └─ Call @48:24
+│        └─ callee
+│           └─ Identifier 'float_literal_inference' @48:1
+├─ ExprStmt @49:1
+│  └─ expr
+│     └─ Call @49:24
+│        └─ callee
+│           └─ Identifier 'array_literal_inference' @49:1
+└─ ExprStmt @50:1
+   └─ expr
+      └─ Call @50:23
+         └─ callee
+            └─ Identifier 'hash_literal_inference' @50:1
+--- exit 0 ---
