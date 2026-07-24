@@ -65,9 +65,13 @@ namespace Core
             return std::nullopt;
         }
 
+        /// An invalid handle resolves to the empty view rather than reading out
+        /// of bounds: a node whose name failed to parse still reaches every
+        /// consumer downstream (the driver runs Sema over a unit that reported
+        /// syntax errors), and a bare `Views[Handle.Value]` turns that into UB.
         [[nodiscard]] std::string_view Resolve ( Symbol Handle ) const
         {
-            return Views[Handle.Value];
+            return Handle.IsValid() and Handle.Value < Views.size() ? Views[Handle.Value] : std::string_view{};
         }
 
         [[nodiscard]] std::size_t Size () const
