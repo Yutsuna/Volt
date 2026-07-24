@@ -206,8 +206,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
     Result.Errors = Diagnostics.ErrorTotal();
     for ( const CompileUnit &Unit : Units )
     {
-        Result.JsxLowered += Unit.Stats.JsxLowered;
-        Result.PipelinesLowered += Unit.Stats.PipelinesLowered;
+        Result.Stats.Merge( Unit.Stats );
     }
     return Result;
 }
