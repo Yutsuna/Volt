@@ -48,6 +48,7 @@ namespace
     case Volt::Frontend::TokenKind::Star:
     case Volt::Frontend::TokenKind::Slash:
     case Volt::Frontend::TokenKind::Percent:
+    case Volt::Frontend::TokenKind::TripleEq:
     case Volt::Frontend::TokenKind::EqEq:
     case Volt::Frontend::TokenKind::NotEq:
     case Volt::Frontend::TokenKind::Lt:
