@@ -5,6 +5,7 @@
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Sema/Layout/CalleeMap.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
@@ -95,6 +96,11 @@ namespace Sema
         // AST node carries on its own. Null in tools that never load files;
         // a pass that depends on it must degrade to a no-op, not crash.
         const Core::SourceManager *Sources = nullptr;
+        // The unit's callee resolutions, snapshotted once at the end of
+        // TypeChecker so a backend can read them after the pass dies (see
+        // Layout/CalleeMap.hpp). Null in tools that stop before codegen —
+        // the snapshot is then simply skipped.
+        UnitCallees *Callees = nullptr;
     };
 
     // A pass is a pure function over a PassContext. New pass = one line in

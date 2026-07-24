@@ -59,6 +59,10 @@ namespace Driver
         Frontend::AstContext Ast;
         // Expression types inferred for this unit alone (see SemaType.hpp).
         Sema::UnitTypes Types;
+        // Callee resolutions snapshotted for this unit alone at the end of
+        // TypeChecker (see Layout/CalleeMap.hpp) — the backend's read side
+        // of the rules/core-ast.md operator/call protocol.
+        Sema::UnitCallees Callees;
         // Lexical scopes + name bindings resolved for this unit alone
         // (see Scope/ScopeTable.hpp).
         Sema::ScopeTable Scopes;

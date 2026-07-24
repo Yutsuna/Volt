@@ -14,6 +14,10 @@ VoltAddModules(
   Frontend
   Sema
   Driver
+  Backend/BackendCore
+  Backend/BackendVM
+  Backend/BackendLLVM
+  Backend/BackendWASM
   Volt
 )
 
