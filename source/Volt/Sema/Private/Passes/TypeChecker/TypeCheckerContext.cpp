@@ -1,5 +1,6 @@
 #include "TypeCheckerContext.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 
 /**
  * Ctor
@@ -45,90 +46,6 @@ void Volt::Sema::TypeCheckerPass::TypeCheckerContext::WriteLocal ( Frontend::Exp
         Ctx.Values.SetSiteType( Bound->Site, Type );
     }
     Locals[Name] = Type;
-}
-
-void Volt::Sema::TypeCheckerPass::TypeCheckerContext::ConstrainExprType ( Frontend::ExprId Expr, SemaTypeId TargetType )
-{
-    if ( not Expr.IsValid() or not TargetType.IsValid() )
-    {
-        return;
-    }
-
-    if ( UnconstrainedLiterals.contains( Expr.Value ) )
-    {
-        Ctx.Values.SetExprType( Expr, TargetType );
-        UnconstrainedLiterals.erase( Expr.Value );
-        return;
-    }
-
-    const auto &Node = Ctx.Ast.Expr( Expr );
-
-    if ( const auto *IdNode = std::get_if<Frontend::Identifier>( &Node ) )
-    {
-        Ctx.Values.SetExprType( Expr, TargetType );
-        if ( const auto It = UnconstrainedVarInitializers.find( IdNode->Name ); It != UnconstrainedVarInitializers.end() )
-        {
-            const Frontend::ExprId InitExpr = It->second;
-            UnconstrainedVarInitializers.erase( It );
-            WriteLocal( Expr, IdNode->Name, TargetType );
-            ConstrainExprType( InitExpr, TargetType );
-        }
-        return;
-    }
-
-    if ( const auto *Ternary = std::get_if<Frontend::Ternary>( &Node ) )
-    {
-        ConstrainExprType( Ternary->Then, TargetType );
-        ConstrainExprType( Ternary->Else, TargetType );
-        Ctx.Values.SetExprType( Expr, TargetType );
-        return;
-    }
-
-    if ( const auto *Binary = std::get_if<Frontend::Binary>( &Node ) )
-    {
-        ConstrainExprType( Binary->Lhs, TargetType );
-        ConstrainExprType( Binary->Rhs, TargetType );
-        Ctx.Values.SetExprType( Expr, TargetType );
-        return;
-    }
-
-    if ( const auto *ArrLit = std::get_if<Frontend::ArrayLit>( &Node ) )
-    {
-        Ctx.Values.SetExprType( Expr, TargetType );
-        if ( Ctx.Values.Has( TargetType ) )
-        {
-            const SemaType &Target = Ctx.Values.Get( TargetType );
-            if ( not Target.Args.IsEmpty() )
-            {
-                for ( const Frontend::ExprId Elem : ArrLit->Elements )
-                {
-                    ConstrainExprType( Elem, Target.Args[0] );
-                }
-            }
-        }
-        return;
-    }
-
-    if ( const auto *HashLitNode = std::get_if<Frontend::HashLit>( &Node ) )
-    {
-        Ctx.Values.SetExprType( Expr, TargetType );
-        if ( Ctx.Values.Has( TargetType ) )
-        {
-            const SemaType &Target = Ctx.Values.Get( TargetType );
-            if ( Target.Args.Size() >= 2 )
-            {
-                for ( const Frontend::ExprId Key : HashLitNode->Keys )
-                {
-                    ConstrainExprType( Key, Target.Args[0] );
-                }
-                for ( const Frontend::ExprId Value : HashLitNode->Values )
-                {
-                    ConstrainExprType( Value, Target.Args[1] );
-                }
-            }
-        }
-        return;
-    }
 }
 
 std::span<const Volt::Sema::Symbol> Volt::Sema::TypeCheckerPass::TypeCheckerContext::Generics () const
