@@ -22,6 +22,7 @@
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
 #include <charconv>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -138,9 +139,16 @@ namespace Sema
         // owns. Recurses into nested modules only, mirroring ForEachTypeDecl,
         // so the two traversals can never desync on what counts as
         // "top-level".
+        //
+        // Annotations accumulate onto the `def` they precede exactly as they
+        // do in ForEachTypeDecl: `@[External( "libc", "malloc" )]` sits on a
+        // free function in the stdlib, so dropping them here would lose every
+        // C symbol in the build.
         template <typename DeclContainer, typename Fn>
         void ForEachFreeFunction ( const Frontend::AstContext &Ast, const DeclContainer &Decls, Fn &&Visit )
         {
+            std::vector<PendingAnnotation> Pending;
+
             for ( const Frontend::DeclId Id : Decls )
             {
                 if ( not Id.IsValid() )
@@ -148,13 +156,23 @@ namespace Sema
                     continue;
                 }
 
+                const Frontend::DeclNode &Node = Ast.Decl( Id );
+
+                if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Node ) )
+                {
+                    Pending.push_back( PendingAnnotation{ .Name = Anno->Name, .Args = Anno->Args, .Loc = Anno->Loc } );
+                    continue;
+                }
+
                 std::visit(
                     Meta::Overloaded{
                         [&] ( const Frontend::Module &Nested ) { ForEachFreeFunction( Ast, Nested.Body, Visit ); },
-                        [&] ( const Frontend::Method &Entry ) { Visit( Id, Entry ); },
+                        [&] ( const Frontend::Method &Entry ) { Visit( Id, Entry, Pending ); },
                         [] ( const auto & ) {},
                     },
-                    Ast.Decl( Id ) );
+                    Node );
+
+                Pending.clear();
             }
         }
 
@@ -196,6 +214,37 @@ namespace Sema
             // so strtoul would read past the end of the string block.
             std::from_chars( Raw.data(), Raw.data() + Raw.size(), Bits );
             return Bits;
+        }
+
+        // `@[External( "libc" [, "malloc"] )]` — the library to link and the C
+        // symbol to link against. The symbol defaults to the declaration's own
+        // spelling, which is the common case (`external def memcpy`); Volt
+        // only names it explicitly when the two differ (`libc_malloc` wrapping
+        // `malloc`, because a bare `malloc` inside a struct would name that
+        // struct's own method).
+        //
+        // Nothing here is a Volt type name: the strings are link-time
+        // identifiers, exactly like `@[Primitive]`'s opaque spelling
+        // (rules/zero-hardcode.md).
+        void ReadExternal ( const Frontend::AstContext &Ast,
+                            TypeStore &Store,
+                            const std::vector<PendingAnnotation> &Pending,
+                            std::string_view DefaultSymbol,
+                            Member &Slot )
+        {
+            for ( const PendingAnnotation &Anno : Pending )
+            {
+                if ( Ast.Text( Anno.Name ) != "External" )
+                {
+                    continue;
+                }
+
+                const auto Library = Anno.Args.Size() >= 1 ? Frontend::AsStringText( Ast, Anno.Args[0] ) : std::nullopt;
+                const auto Symbol  = Anno.Args.Size() >= 2 ? Frontend::AsStringText( Ast, Anno.Args[1] ) : std::nullopt;
+
+                Slot.ExternLib    = Store.Intern( Library.value_or( std::string_view{} ) );
+                Slot.ExternSymbol = Store.Intern( Symbol.value_or( DefaultSymbol ) );
+            }
         }
 
         // The layout of a type annotation's field, when the field's type name
@@ -277,6 +326,7 @@ namespace Sema
             void DeclareMembers ( NominalId Id, const Frontend::DeclList &Body )
             {
                 bool bApply = false;
+                std::vector<PendingAnnotation> Pending;
 
                 for ( const Frontend::DeclId Child : Body )
                 {
@@ -290,6 +340,7 @@ namespace Sema
                     if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Ast.Decl( Child ) ) )
                     {
                         bApply = bApply or Ast.Text( Anno->Name ) == "Apply";
+                        Pending.push_back( PendingAnnotation{ .Name = Anno->Name, .Args = Anno->Args, .Loc = Anno->Loc } );
                         continue;
                     }
 
@@ -314,6 +365,7 @@ namespace Sema
                                 Slot.bSelf     = Entry.bSelf;
                                 Slot.bApply    = bApply;
                                 Slot.bAbstract = Entry.bAbstract;
+                                ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), Slot );
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [&] ( const Frontend::EnumCase &Entry )
@@ -331,6 +383,7 @@ namespace Sema
                         Ast.Decl( Child ) );
 
                     bApply = false;
+                    Pending.clear();
                 }
             }
 
@@ -464,9 +517,11 @@ namespace Sema
 
             // A top-level `def`: same identity-first shape as BindType, minus
             // a layout — a function has no memory representation of its own.
-            void BindFunction ( Frontend::DeclId Id, const Frontend::Method &Entry )
+            void
+            BindFunction ( Frontend::DeclId Id, const Frontend::Method &Entry, const std::vector<PendingAnnotation> &Pending )
             {
-                static_cast<void>( Store.DeclareFunction( Ast.Text( Entry.Name ), Unit, Id ) );
+                Member *Slot = Store.DeclareFunction( Ast.Text( Entry.Name ), Unit, Id );
+                ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), *Slot );
                 ++Bound;
             }
         };
@@ -692,7 +747,8 @@ namespace Sema
         ForEachTypeDecl( Ast, Ast.TopDecls, [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> &Pending )
                          { Bind.BindType( Decl, Pending ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,
-                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Bind.BindFunction( Id, Entry ); } );
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry,
+                                   const std::vector<PendingAnnotation> &Pending ) { Bind.BindFunction( Id, Entry, Pending ); } );
         DeclareModules( Ast, Ast.TopDecls, Store );
         return Bind.Bound;
     }
@@ -704,7 +760,8 @@ namespace Sema
         ForEachTypeDecl( Ast, Ast.TopDecls,
                          [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> & ) { Step.Resolve( Decl ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,
-                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry ) { Step.ResolveFunction( Id, Entry ); } );
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry, const std::vector<PendingAnnotation> & )
+                             { Step.ResolveFunction( Id, Entry ); } );
         return Step.Resolved;
     }
 
