@@ -222,7 +222,13 @@ namespace Sema
                 }
             }
 
-            void WalkExpr ( Frontend::ExprId Id, ScopeId Current )
+            // bDirectCallArg marks an expression written directly as a
+            // call's trailing block / bare argument — the one syntactic
+            // position a closure is guaranteed to be fully consumed before
+            // the enclosing statement ends. It is not propagated into child
+            // expressions: only the argument slot itself is a direct
+            // position, not whatever it happens to contain.
+            void WalkExpr ( Frontend::ExprId Id, ScopeId Current, bool bDirectCallArg = false )
             {
                 if ( not Id.IsValid() )
                 {
@@ -251,6 +257,7 @@ namespace Sema
                         {
                             const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
                             Context.Scopes.SetScopeOfExpr( Id, Inner );
+                            Context.Scopes.SetEscapes( Inner, not bDirectCallArg );
                             WalkParams( Node.Params, Inner );
                             for ( const Frontend::StmtId Child : Node.Body )
                             {
@@ -261,8 +268,25 @@ namespace Sema
                         {
                             const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Block );
                             Context.Scopes.SetScopeOfExpr( Id, Inner );
+                            Context.Scopes.SetEscapes( Inner, not bDirectCallArg );
                             WalkParams( Node.Params, Inner );
                             WalkExpr( Node.Body, Inner );
+                        },
+                        [&] ( const Frontend::Call &Node )
+                        {
+                            WalkExpr( Node.Callee, Current );
+                            for ( const Frontend::ExprId Arg : Node.Args )
+                            {
+                                WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
+                            }
+                            WalkExpr( Node.BlockArg, Current, /*bDirectCallArg=*/true );
+                        },
+                        [&] ( const Frontend::DotCall &Node )
+                        {
+                            for ( const Frontend::ExprId Arg : Node.Args )
+                            {
+                                WalkExpr( Arg, Current, /*bDirectCallArg=*/true );
+                            }
                         },
                         [&] ( const auto &Node ) { WalkFields( Node, Current ); },
                     },
