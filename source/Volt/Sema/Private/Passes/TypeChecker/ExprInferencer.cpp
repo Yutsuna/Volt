@@ -624,9 +624,23 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     {
                         ExceptionType = Context.MakeType( *ExcOpt, {} );
                     }
+                    // Recorded whether or not the clause binds a name: a backend
+                    // matching this clause's filter against the in-flight exception's
+                    // dynamic type needs the *resolved* nominal regardless of whether
+                    // the clause also captures it, and re-resolving Clause.ExceptionType
+                    // itself would be semantic analysis in codegen. Keyed by the
+                    // clause's own StmtId — ScopeResolver's BindingSite{Id} for a
+                    // RescueClause, the same site a bound variable's slot uses below.
+                    Context.Ctx.Values.SetSiteType( BindingSite{ ClauseId }, ExceptionType );
                     if ( Clause.VarName.IsValid() )
                     {
-                        Context.WriteLocal( Frontend::ExprId{}, Clause.VarName, ExceptionType );
+                        // WriteLocal resolves its Site through Scopes.BindingOf(Use), a
+                        // *use* -> declaration index — there is no "use" expression for a
+                        // rescue clause's own binding, only its declaration, so it cannot
+                        // reach SetSiteType above. Name-based typing still goes through
+                        // Locals/LocalTypes exactly as DeclStmtWalker's LocalDecl does.
+                        Context.LocalTypes[BindingSite{ ClauseId }] = ExceptionType;
+                        Context.Locals[Clause.VarName]              = ExceptionType;
                     }
                     Context.RescueVarStack.push_back( Clause.VarName );
                     const SemaTypeId ClauseType = TrailingType( Context, Clause.Body );
