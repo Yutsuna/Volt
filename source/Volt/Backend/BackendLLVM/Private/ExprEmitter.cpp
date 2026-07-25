@@ -199,11 +199,20 @@ template <typename Row> [[nodiscard]] const Row *FindRow ( std::span<const Row> 
     std::size_t End = 0;
     while ( End < Digits.size() )
     {
-        const char Ch   = Digits[End];
-        const int Value = ( Ch >= '0' and Ch <= '9' )   ? Ch - '0'
-                          : ( Ch >= 'a' and Ch <= 'f' ) ? Ch - 'a' + 10
-                          : ( Ch >= 'A' and Ch <= 'F' ) ? Ch - 'A' + 10
-                                                        : 99;
+        const char Ch = Digits[End];
+        int Value     = 99;
+        if ( Ch >= '0' and Ch <= '9' )
+        {
+            Value = Ch - '0';
+        }
+        else if ( Ch >= 'a' and Ch <= 'f' )
+        {
+            Value = Ch - 'a' + 10;
+        }
+        else if ( Ch >= 'A' and Ch <= 'F' )
+        {
+            Value = Ch - 'A' + 10;
+        }
         if ( Value >= Radix )
         {
             break;
@@ -414,7 +423,8 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStore ( llvm::Value *Address, 
     // An aggregate is only ever an address, so assigning one is a copy — and
     // its size is LayoutEngine's, the single ABI authority, not sizeof-anything
     // the emitter recomputes.
-    const SizeAlign Measure = Layouts->Of( Shape );
+    const SizeAlign Measure =
+        Layouts->Of( Shape ); // NOLINT(bugprone-unchecked-optional-access) — Layouts is always emplaced before any emission
     static_cast<void>( Builder->CreateMemCpy( Address, llvm::MaybeAlign( Measure.Alignment ), Value,
                                               llvm::MaybeAlign( Measure.Alignment ), Builder->getInt64( Measure.Size ) ) );
 }
@@ -915,7 +925,7 @@ std::string_view Volt::Backend::Llvm::LlvmBackend::State::SpellingOf ( Sema::Lay
     return std::holds_alternative<Sema::Pointer>( Node ) ? std::string_view{ "ptr" } : std::string_view{};
 }
 
-llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::CoerceWidth ( llvm::Value *Value, llvm::Type *Target )
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::CoerceWidth ( llvm::Value *Value, llvm::Type *Target ) const
 {
     // TypeCompat's IsWideningScalar accepts an `i8` where a `u64` is expected
     // (rules/zero-hardcode.md: Volt has no integer conversion at all, so `hash`
@@ -1150,8 +1160,10 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitTernary ( Frontend::Ex
         Shape = Then->getType();
     }
     llvm::PHINode *Result = Builder->CreatePHI( Shape, 2, "ternary" );
-    Result->addIncoming( CoerceWidth( Then, Shape ), ThenEnd );
-    Result->addIncoming( CoerceWidth( Else, Shape ), ElseEnd );
+    Result->addIncoming(
+        CoerceWidth( Then, Shape ),
+        ThenEnd ); // NOLINT(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
+    Result->addIncoming( CoerceWidth( Else, Shape ), ElseEnd ); // NOLINT(clang-analyzer-security.ArrayBound)
     return Result;
 }
 
