@@ -1,0 +1,1198 @@
+// ExprEmitter.cpp — the value-producing core nodes.
+//
+// One `std::visit` site for the whole category (core-interfaces.md): per-node
+// dispatch is never virtual and never a `switch` over kinds, and a node the
+// contract says cannot reach a backend falls into the `auto` arm and is
+// reported by name rather than guessed at.
+//
+// Two conventions hold throughout, and everything else follows from them:
+//
+//   - A scalar evaluates to a register; an **aggregate evaluates to a `ptr`**
+//     at its storage (abi.md: aggregates by pointer). So `EmitExpr` on a
+//     struct-shaped expression hands back an address, and `EmitStore` moves it
+//     with a memcpy sized by LayoutEngine.
+//   - Nothing here decides a type. Every shape comes from `Values->ExprType`
+//     through InstanceLayouts, every callee from `Callees->Get`, every binding
+//     from `Scopes->BindingOf`. When one of those is missing the emitter says
+//     so and stops — a middle-end whose own invariants (rules/core-ast.md) say
+//     it cannot happen is worth a loud report, never a repair.
+
+#include "LlvmState.hpp"
+
+#include "Volt/Core/Meta/Overloaded.hpp"
+#include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Frontend/Lexer/Token.hpp"
+
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/GlobalVariable.h>
+
+#include <charconv>
+#include <cstdint>
+#include <span>
+#include <string>
+#include <variant>
+#include <vector>
+
+namespace
+{
+
+using namespace Volt;
+
+// --- The primitive instruction manifest ------------------------------------
+
+// The family a spelling belongs to. Derived from one character, which is the
+// whole vocabulary rules/zero-hardcode.md grants the C++ side: `"i32"` selects
+// signed instructions because it starts with `i`, not because anything here
+// knows it was written `Int32`.
+enum class EOpFamily : std::uint8_t
+{
+
+    None,
+    SInt,
+    UInt,
+    Float,
+};
+
+// The unary forms, which are not BinaryOps rows: each needs the operand's own
+// width or type to build its constant.
+enum class EUnaryOp : std::uint8_t
+{
+
+    Neg,        // 0 - x
+    FNeg,       // fneg x
+    BitNot,     // x xor -1
+    LogicalNot, // x xor true — the i1 case
+};
+
+struct BinOpRow
+{
+
+    EOpFamily Family = EOpFamily::None;
+    Frontend::TokenKind Op{};
+    llvm::Instruction::BinaryOps Opcode{};
+};
+
+struct CmpRow
+{
+
+    EOpFamily Family = EOpFamily::None;
+    Frontend::TokenKind Op{};
+    llvm::CmpInst::Predicate Predicate{};
+};
+
+struct UnOpRow
+{
+
+    EOpFamily Family = EOpFamily::None;
+    Frontend::TokenKind Op{};
+    EUnaryOp Kind{};
+};
+
+constexpr BinOpRow BinOps[] = {
+#define VOLT_LLVM_BINOP( Family, Token, Opcode )                                                                                 \
+    BinOpRow{ EOpFamily::Family, Frontend::TokenKind::Token, llvm::Instruction::BinaryOps::Opcode },
+#include "Instructions.inl"
+};
+
+constexpr CmpRow Cmps[] = {
+#define VOLT_LLVM_CMP( Family, Token, Predicate )                                                                                \
+    CmpRow{ EOpFamily::Family, Frontend::TokenKind::Token, llvm::CmpInst::Predicate },
+#include "Instructions.inl"
+};
+
+constexpr UnOpRow UnOps[] = {
+#define VOLT_LLVM_UNOP( Family, Token, Kind ) UnOpRow{ EOpFamily::Family, Frontend::TokenKind::Token, EUnaryOp::Kind },
+#include "Instructions.inl"
+};
+
+template <typename Row> [[nodiscard]] const Row *FindRow ( std::span<const Row> Rows, EOpFamily Family, Frontend::TokenKind Op )
+{
+    for ( const Row &Entry : Rows )
+    {
+        if ( Entry.Family == Family and Entry.Op == Op )
+        {
+            return &Entry;
+        }
+    }
+    return nullptr;
+}
+
+// The family of an opaque spelling. `"ptr"` joins the unsigned integers: an
+// address has no sign bit, so `p < q` is `icmp ult` — and pointer `+`/`-` never
+// reach a table row at all, being address arithmetic.
+[[nodiscard]] EOpFamily FamilyOf ( std::string_view Spelling )
+{
+    if ( Spelling.empty() )
+    {
+        return EOpFamily::None;
+    }
+    if ( Spelling == "ptr" )
+    {
+        return EOpFamily::UInt;
+    }
+
+    switch ( Spelling.front() )
+    {
+    case 'i':
+        return EOpFamily::SInt;
+    case 'u':
+        return EOpFamily::UInt;
+    case 'f':
+        return EOpFamily::Float;
+    default:
+        return EOpFamily::None;
+    }
+}
+
+// --- Literal lexemes -------------------------------------------------------
+
+// The parser keeps a literal's raw lexeme and leaves decoding to whoever needs
+// a value (Expr.hpp). Underscores are separators anywhere in the digits, and a
+// `_u64`-style suffix is *parsed and then ignored* — that is a recorded
+// middle-end gap (rules/core-ast.md: `0_u64` types as the IntLiteral claimant),
+// and honouring it here would make the backend disagree with the type Sema
+// assigned. The width comes from the layout, always.
+[[nodiscard]] bool DecodeInteger ( std::string_view Text, std::uint64_t &Out )
+{
+    int Radix = 10;
+    if ( Text.size() > 2 and Text[0] == '0' )
+    {
+        switch ( Text[1] )
+        {
+        case 'x':
+        case 'X':
+            Radix = 16;
+            Text  = Text.substr( 2 );
+            break;
+        case 'b':
+        case 'B':
+            Radix = 2;
+            Text  = Text.substr( 2 );
+            break;
+        case 'o':
+        case 'O':
+            Radix = 8;
+            Text  = Text.substr( 2 );
+            break;
+        default:
+            break;
+        }
+    }
+
+    std::string Digits;
+    Digits.reserve( Text.size() );
+    for ( const char Ch : Text )
+    {
+        if ( Ch == '_' )
+        {
+            // A suffix opens with the same character a separator uses, so the
+            // two are told apart by what follows: `1_000` continues in digits,
+            // `0_u64` does not.
+            continue;
+        }
+        Digits.push_back( Ch );
+    }
+
+    // Trim a trailing type suffix: everything from the first character that is
+    // not a digit of this radix.
+    std::size_t End = 0;
+    while ( End < Digits.size() )
+    {
+        const char Ch   = Digits[End];
+        const int Value = ( Ch >= '0' and Ch <= '9' )   ? Ch - '0'
+                          : ( Ch >= 'a' and Ch <= 'f' ) ? Ch - 'a' + 10
+                          : ( Ch >= 'A' and Ch <= 'F' ) ? Ch - 'A' + 10
+                                                        : 99;
+        if ( Value >= Radix )
+        {
+            break;
+        }
+        ++End;
+    }
+    if ( End == 0 )
+    {
+        return false;
+    }
+
+    const char *Begin       = Digits.data();
+    const auto [Ptr, Error] = std::from_chars( Begin, Begin + End, Out, Radix );
+    return Error == std::errc{} and Ptr == Begin + End;
+}
+
+[[nodiscard]] bool DecodeFloat ( std::string_view Text, double &Out )
+{
+    std::string Digits;
+    Digits.reserve( Text.size() );
+    for ( const char Ch : Text )
+    {
+        if ( Ch != '_' )
+        {
+            Digits.push_back( Ch );
+        }
+    }
+
+    const char *Begin       = Digits.data();
+    const auto [Ptr, Error] = std::from_chars( Begin, Begin + Digits.size(), Out );
+    return Error == std::errc{} and Ptr != Begin;
+}
+
+// A char literal's raw lexeme, escapes resolved. Kept minimal and explicit:
+// this is the lexer's alphabet, not a Volt type's.
+[[nodiscard]] bool DecodeChar ( std::string_view Text, std::uint64_t &Out )
+{
+    if ( Text.size() >= 2 and ( Text.front() == '\'' or Text.front() == '"' ) )
+    {
+        Text = Text.substr( 1, Text.size() - 2 );
+    }
+    if ( Text.empty() )
+    {
+        return false;
+    }
+
+    if ( Text.front() != '\\' )
+    {
+        Out = static_cast<std::uint8_t>( Text.front() );
+        return true;
+    }
+    if ( Text.size() < 2 )
+    {
+        return false;
+    }
+
+    switch ( Text[1] )
+    {
+    case 'n':
+        Out = '\n';
+        return true;
+    case 't':
+        Out = '\t';
+        return true;
+    case 'r':
+        Out = '\r';
+        return true;
+    case '0':
+        Out = 0;
+        return true;
+    case '\\':
+    case '\'':
+    case '"':
+        Out = static_cast<std::uint8_t>( Text[1] );
+        return true;
+    default:
+        return false;
+    }
+}
+
+} // namespace
+
+// ---------------------------------------------------------------------------
+// Places
+// ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::ExprId Id )
+{
+    if ( Failed() or Frame.Unit == nullptr or not Id.IsValid() )
+    {
+        return nullptr;
+    }
+
+    const Frontend::AstContext &Ast = *Frame.Unit->Ast;
+
+    return std::visit(
+        Meta::Overloaded{
+            [this, Id] ( const Frontend::Identifier & ) -> llvm::Value *
+            {
+                // The binding is ScopeResolver's answer, never a re-resolution:
+                // a name the resolver did not bind is not a name this emitter
+                // may go looking for.
+                const Sema::Binding *Bound = Frame.Unit->Scopes->BindingOf( Id );
+                if ( Bound == nullptr )
+                {
+                    static_cast<void>( Fail( "llvm: an identifier reached codegen with no scope binding" ) );
+                    return nullptr;
+                }
+
+                const auto It = Frame.Slots.find( Bound->Site );
+                if ( It == Frame.Slots.end() )
+                {
+                    // A local declared in a branch the walk has not reached is
+                    // impossible; a *captured* one is a closure, which is a
+                    // separate phase and says so.
+                    static_cast<void>( Fail( "llvm: '" + std::string( Frame.Unit->Ast->Text( Bound->Name ) ) +
+                                             "' has no slot in this function — a capture needs the closure emitter" ) );
+                    return nullptr;
+                }
+                return It->second;
+            },
+            [this, Id] ( const Frontend::InstanceVar &Node ) -> llvm::Value *
+            {
+                if ( Frame.Self == nullptr )
+                {
+                    static_cast<void>( Fail( "llvm: '@" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) +
+                                             "' outside a method with a receiver" ) );
+                    return nullptr;
+                }
+                return FieldAddress( Frame.Self, Frame.SelfLayout, Frame.Unit->Ast->Text( Node.Name ), Id );
+            },
+            [this, Id] ( const Frontend::Member &Node ) -> llvm::Value *
+            {
+                llvm::Value *Object = EmitExpr( Node.Object );
+                if ( Object == nullptr )
+                {
+                    return nullptr;
+                }
+                return FieldAddress( Object, LayoutOfExpr( Node.Object ), Frame.Unit->Ast->Text( Node.Name ), Id );
+            },
+            // `*p = v`: the place *is* the pointer the operand evaluates to.
+            [this] ( const Frontend::Deref &Node ) -> llvm::Value * { return EmitExpr( Node.Operand ); },
+            [this, Id] ( const auto & ) -> llvm::Value *
+            {
+                static_cast<void>( Fail( "llvm: " + std::string( Frontend::NodeName( Frame.Unit->Ast->Expr( Id ) ) ) +
+                                         " is not an assignable place" ) );
+                return nullptr;
+            } },
+        Ast.Expr( Id ) );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::FieldAddress ( llvm::Value *Object,
+                                                                     Sema::LayoutId Shape,
+                                                                     std::string_view Name,
+                                                                     Frontend::ExprId Id )
+{
+    llvm::Type *Struct = TypeOfLayout( Shape );
+    if ( Struct == nullptr or not Struct->isStructTy() )
+    {
+        static_cast<void>( Fail( "llvm: field '" + std::string( Name ) + "' on a receiver with no aggregate layout" ) );
+        return nullptr;
+    }
+
+    // The index is the field's position in the *layout*, which is declaration
+    // order (abi.md) — the same order TypeMapper built the LLVM struct in, and
+    // the same one VerifyAggregateAbi already cross-checked against
+    // LayoutEngine. So a struct GEP and LayoutEngine::FieldOffset name the same
+    // byte by construction.
+    const Sema::Aggregate &Fields = std::get<Sema::Aggregate>( Build->Types->Get( Shape ) );
+    for ( std::size_t Index = 0; Index < Fields.Fields.Size(); ++Index )
+    {
+        if ( Build->Types->Text( Fields.Fields[Index].Name ) == Name )
+        {
+            return Builder->CreateStructGEP( Struct, Object, static_cast<unsigned>( Index ), "field." + std::string( Name ) );
+        }
+    }
+
+    static_cast<void>(
+        Fail( "llvm: no field '" + std::string( Name ) + "' in the layout of expression " + std::to_string( Id.Value ) ) );
+    return nullptr;
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::EmitStore ( llvm::Value *Address, llvm::Value *Value, Sema::LayoutId Shape )
+{
+    if ( Address == nullptr or Value == nullptr or Failed() )
+    {
+        return;
+    }
+
+    if ( not IsAggregate( Shape ) )
+    {
+        static_cast<void>( Builder->CreateStore( Value, Address ) );
+        return;
+    }
+
+    // An aggregate is only ever an address, so assigning one is a copy — and
+    // its size is LayoutEngine's, the single ABI authority, not sizeof-anything
+    // the emitter recomputes.
+    const SizeAlign Measure = Layouts->Of( Shape );
+    static_cast<void>( Builder->CreateMemCpy( Address, llvm::MaybeAlign( Measure.Alignment ), Value,
+                                              llvm::MaybeAlign( Measure.Alignment ), Builder->getInt64( Measure.Size ) ) );
+}
+
+// ---------------------------------------------------------------------------
+// Values
+// ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprId Id )
+{
+    if ( Failed() or Frame.Unit == nullptr or not Id.IsValid() )
+    {
+        return nullptr;
+    }
+
+    const Frontend::AstContext &Ast = *Frame.Unit->Ast;
+
+    return std::visit(
+        Meta::Overloaded{
+            // --- Terminals -------------------------------------------------
+            [this, Id] ( const Frontend::IntLiteral &Node ) -> llvm::Value * { return EmitIntLiteral( Id, Node ); },
+            [this, Id] ( const Frontend::FloatLiteral &Node ) -> llvm::Value * { return EmitFloatLiteral( Id, Node ); },
+            [this, Id] ( const Frontend::CharLiteral &Node ) -> llvm::Value * { return EmitCharLiteral( Id, Node ); },
+            [this, Id] ( const Frontend::BoolLiteral &Node ) -> llvm::Value *
+            {
+                llvm::Type *Shape = TypeOfExpr( Id );
+                if ( Shape == nullptr or not Shape->isIntegerTy() )
+                {
+                    static_cast<void>( Fail( "llvm: the type claiming BoolLiteral has no integer layout" ) );
+                    return nullptr;
+                }
+                return llvm::ConstantInt::get( Shape, Node.Value ? 1 : 0 );
+            },
+            [this, Id] ( const Frontend::NilLiteral & ) -> llvm::Value *
+            {
+                // Null of whatever shape the type claiming NilLiteral resolves
+                // to — a `ptr` today, and nothing here depends on that.
+                llvm::Type *Shape = TypeOfExpr( Id );
+                if ( Shape == nullptr )
+                {
+                    static_cast<void>( Fail( "llvm: the type claiming NilLiteral has no resolved layout" ) );
+                    return nullptr;
+                }
+                return llvm::Constant::getNullValue( Shape );
+            },
+            [this, Id] ( const Frontend::StringLiteral &Node ) -> llvm::Value * { return EmitStringLiteral( Id, Node ); },
+            [this, Id] ( const Frontend::SymbolLiteral &Node ) -> llvm::Value *
+            {
+                // A symbol is an interned identity, and the *name* behind it
+                // needs a runtime interner table — refused loudly upstream
+                // (rules/core-ast.md), so only the identity is emitted here.
+                llvm::Type *Shape = TypeOfExpr( Id );
+                if ( Shape == nullptr or not Shape->isIntegerTy() )
+                {
+                    static_cast<void>( Fail( "llvm: the type claiming SymbolLiteral has no integer layout" ) );
+                    return nullptr;
+                }
+                return llvm::ConstantInt::get( Shape, Node.Name.Value );
+            },
+            [this, Id] ( const Frontend::ArrayLit & ) -> llvm::Value * { return FailAggregateLiteral( Id, "ArrayLit" ); },
+            [this, Id] ( const Frontend::HashLit & ) -> llvm::Value * { return FailAggregateLiteral( Id, "HashLit" ); },
+
+            // --- Access ----------------------------------------------------
+            [this, Id] ( const Frontend::Identifier & ) -> llvm::Value * { return LoadPlace( Id ); },
+            [this, Id] ( const Frontend::InstanceVar & ) -> llvm::Value * { return LoadPlace( Id ); },
+            [this, Id] ( const Frontend::Member & ) -> llvm::Value * { return LoadPlace( Id ); },
+            [this, Id] ( const Frontend::Deref & ) -> llvm::Value * { return LoadPlace( Id ); },
+            [this] ( const Frontend::SelfExpr & ) -> llvm::Value *
+            {
+                if ( Frame.Self == nullptr )
+                {
+                    static_cast<void>( Fail( "llvm: `self` outside a method with a receiver" ) );
+                }
+                return Frame.Self;
+            },
+            // `super` is the same receiver: which body it reaches was decided
+            // by Sema and travels in the call's CalleeEntry, not in the value.
+            [this] ( const Frontend::SuperExpr & ) -> llvm::Value *
+            {
+                if ( Frame.Self == nullptr )
+                {
+                    static_cast<void>( Fail( "llvm: `super` outside a method with a receiver" ) );
+                }
+                return Frame.Self;
+            },
+
+            // --- Operations ------------------------------------------------
+            [this, Id] ( const Frontend::Call &Node ) -> llvm::Value * { return EmitCall( Id, Node ); },
+            [this] ( const Frontend::Assign &Node ) -> llvm::Value *
+            {
+                llvm::Value *Value = EmitExpr( Node.Value );
+                llvm::Value *Place = EmitAddress( Node.Target );
+                if ( Value == nullptr or Place == nullptr )
+                {
+                    return nullptr;
+                }
+                // AssignLowering (order 24) desugared every compound form, so
+                // exactly one shape of Assign reaches here: a store.
+                EmitStore( Place, Value, LayoutOfExpr( Node.Target ) );
+                return Value;
+            },
+            [this, Id] ( const Frontend::Ternary &Node ) -> llvm::Value * { return EmitTernary( Id, Node ); },
+
+            // --- Operators -------------------------------------------------
+            [this, Id] ( const Frontend::Binary &Node ) -> llvm::Value * { return EmitBinary( Id, Node ); },
+            [this, Id] ( const Frontend::Unary &Node ) -> llvm::Value * { return EmitUnary( Id, Node ); },
+
+            // --- Control ---------------------------------------------------
+            [this, Id] ( const Frontend::CaseExpr &Node ) -> llvm::Value * { return EmitCase( Id, Node ); },
+            [this] ( const Frontend::BeginExpr & ) -> llvm::Value *
+            {
+                static_cast<void>( Fail( "llvm: `begin/rescue` needs the exception emitter (backend phase 6)" ) );
+                return nullptr;
+            },
+            [this] ( const Frontend::RaiseExpr & ) -> llvm::Value *
+            {
+                static_cast<void>( Fail( "llvm: `raise` needs the exception emitter (backend phase 6)" ) );
+                return nullptr;
+            },
+
+            // --- Closures --------------------------------------------------
+            [this] ( const Frontend::Lambda & ) -> llvm::Value *
+            {
+                static_cast<void>( Fail( "llvm: a lambda needs the closure emitter (backend phase 5)" ) );
+                return nullptr;
+            },
+            [this] ( const Frontend::Block & ) -> llvm::Value *
+            {
+                static_cast<void>( Fail( "llvm: a block needs the closure emitter (backend phase 5)" ) );
+                return nullptr;
+            },
+
+            // --- Inert -----------------------------------------------------
+            // Neither carries a runtime value, and neither is descended into
+            // (rules/core-ast.md). GenericInst is a *spelling* of a type in
+            // value position — the Call wrapping it is what emits anything.
+            [] ( const Frontend::GenericInst & ) -> llvm::Value * { return nullptr; },
+            [this, Id] ( const Frontend::SizeOf & ) -> llvm::Value * { return EmitSizeOf( Id ); },
+
+            [this, Id] ( const auto & ) -> llvm::Value *
+            {
+                // Sugar, by elimination: AstInvariant (order 40) proves none
+                // survives Lowering, so reaching this is a middle-end bug and
+                // is named as one.
+                static_cast<void>( Fail( "llvm: " + std::string( Frontend::NodeName( Frame.Unit->Ast->Expr( Id ) ) ) +
+                                         " reached codegen — no Lowering pass removed it" ) );
+                return nullptr;
+            } },
+        Ast.Expr( Id ) );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::LoadPlace ( Frontend::ExprId Id )
+{
+    llvm::Value *Address = EmitAddress( Id );
+    if ( Address == nullptr )
+    {
+        return nullptr;
+    }
+
+    const Sema::LayoutId Shape = LayoutOfExpr( Id );
+    // An aggregate never leaves its storage: its value *is* the address.
+    if ( IsAggregate( Shape ) )
+    {
+        return Address;
+    }
+
+    llvm::Type *Loaded = TypeOfLayout( Shape );
+    if ( Loaded == nullptr )
+    {
+        static_cast<void>( Fail( "llvm: expression " + std::to_string( Id.Value ) + " has no resolved layout to load" ) );
+        return nullptr;
+    }
+    return Builder->CreateLoad( Loaded, Address );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::FailAggregateLiteral ( Frontend::ExprId Id, std::string_view Kind )
+{
+    // The claiming type's aggregate is `{ data, size }` or similar: filling it
+    // means allocating a backing buffer and knowing which field holds what.
+    // Both are the *stdlib's* business (abi.md: the compiler has no object
+    // model), and neither is recorded anywhere a backend may read — so this is
+    // a genuine middle-end gap, reported by name rather than papered over with
+    // a field-order convention that would silently corrupt any other shape.
+    static_cast<void>( Fail( "llvm: " + std::string( Kind ) + " at expression " + std::to_string( Id.Value ) +
+                             " needs the claiming type's construction protocol, which the middle-end does not record" ) );
+    return nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// Literals
+// ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIntLiteral ( Frontend::ExprId Id, const Frontend::IntLiteral &Node )
+{
+    // The width comes from the type that claimed IntLiteral through
+    // `@[Literal]`, resolved by Sema onto this very expression — never from a
+    // default the compiler picked.
+    llvm::Type *Shape = TypeOfExpr( Id );
+    if ( Shape == nullptr or not Shape->isIntegerTy() )
+    {
+        static_cast<void>(
+            Fail( "llvm: integer literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) + "' has no integer layout" ) );
+        return nullptr;
+    }
+
+    std::uint64_t Value = 0;
+    if ( not DecodeInteger( Frame.Unit->Ast->Text( Node.Raw ), Value ) )
+    {
+        static_cast<void>(
+            Fail( "llvm: cannot decode integer literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) + "'" ) );
+        return nullptr;
+    }
+    return llvm::ConstantInt::get( Shape, Value );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitFloatLiteral ( Frontend::ExprId Id, const Frontend::FloatLiteral &Node )
+{
+    llvm::Type *Shape = TypeOfExpr( Id );
+    if ( Shape == nullptr or not Shape->isFloatingPointTy() )
+    {
+        static_cast<void>( Fail( "llvm: float literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) +
+                                 "' has no floating-point layout" ) );
+        return nullptr;
+    }
+
+    double Value = 0.0;
+    if ( not DecodeFloat( Frame.Unit->Ast->Text( Node.Raw ), Value ) )
+    {
+        static_cast<void>(
+            Fail( "llvm: cannot decode float literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) + "'" ) );
+        return nullptr;
+    }
+    return llvm::ConstantFP::get( Shape, Value );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCharLiteral ( Frontend::ExprId Id, const Frontend::CharLiteral &Node )
+{
+    llvm::Type *Shape = TypeOfExpr( Id );
+    if ( Shape == nullptr or not Shape->isIntegerTy() )
+    {
+        static_cast<void>( Fail( "llvm: the type claiming CharLiteral has no integer layout" ) );
+        return nullptr;
+    }
+
+    std::uint64_t Value = 0;
+    if ( not DecodeChar( Frame.Unit->Ast->Text( Node.Raw ), Value ) )
+    {
+        static_cast<void>(
+            Fail( "llvm: cannot decode character literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) + "'" ) );
+        return nullptr;
+    }
+    return llvm::ConstantInt::get( Shape, Value );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitStringLiteral ( Frontend::ExprId Id,
+                                                                          const Frontend::StringLiteral &Node )
+{
+    const std::string_view Text = Frame.Unit->Ast->Text( Node.Value );
+    const Sema::LayoutId Shape  = LayoutOfExpr( Id );
+    llvm::Type *Struct          = TypeOfLayout( Shape );
+    if ( Struct == nullptr or not Struct->isStructTy() )
+    {
+        static_cast<void>( Fail( "llvm: the type claiming StringLiteral has no aggregate layout" ) );
+        return nullptr;
+    }
+
+    // The bytes themselves: a private constant, deduplicated by the module.
+    llvm::Constant *Bytes = Builder->CreateGlobalString( Text, ".str", 0, Mod.get() );
+
+    // The aggregate is the stdlib's, and the emitter reads its *shape*, not its
+    // field names: a pointer slot takes the bytes, an integer slot takes the
+    // length. Anything else is a shape this emitter has no way to fill, and it
+    // says so instead of writing into whichever field happened to be first.
+    auto *Layout = llvm::cast<llvm::StructType>( Struct );
+    std::vector<llvm::Constant *> Slots;
+    Slots.reserve( Layout->getNumElements() );
+    for ( unsigned Index = 0; Index < Layout->getNumElements(); ++Index )
+    {
+        llvm::Type *Slot = Layout->getElementType( Index );
+        if ( Slot->isPointerTy() )
+        {
+            Slots.push_back( Bytes );
+        }
+        else if ( Slot->isIntegerTy() )
+        {
+            Slots.push_back( llvm::ConstantInt::get( Slot, Text.size() ) );
+        }
+        else
+        {
+            static_cast<void>( Fail( "llvm: the type claiming StringLiteral has a field this emitter cannot fill — "
+                                     "a string literal is a pointer to bytes plus a length" ) );
+            return nullptr;
+        }
+    }
+
+    // The literal is a constant, so it lives in a private global rather than an
+    // alloca: an aggregate is addressed (abi.md), and this address is valid for
+    // the whole program.
+    auto *Storage = new llvm::GlobalVariable( *Mod, Layout, true, llvm::GlobalValue::PrivateLinkage,
+                                              llvm::ConstantStruct::get( Layout, Slots ), ".strlit" );
+    Storage->setUnnamedAddr( llvm::GlobalValue::UnnamedAddr::Global );
+    return Storage;
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitSizeOf ( Frontend::ExprId Id )
+{
+    // `sizeof T` names a type in a *TypeId*, and nothing between the parser and
+    // here records which nominal that resolved to: TypeChecker types the
+    // expression (a width) without publishing the operand. Resolving the name
+    // here would be semantic analysis in codegen, which the architecture
+    // forbids — so this is reported as the middle-end gap it is. The fix is
+    // upstream: one recorded NominalId per SizeOf node.
+    static_cast<void>( Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) +
+                             " — the middle-end records no nominal for its operand" ) );
+    return nullptr;
+}
+
+// ---------------------------------------------------------------------------
+// Operators
+// ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBinary ( Frontend::ExprId Id, const Frontend::Binary &Node )
+{
+    // The protocol, in the one order that keeps a backend free of member
+    // lookup (rules/core-ast.md): the resolution first, the instruction only
+    // when there is none.
+    if ( const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Id );
+         Entry != nullptr and Entry->Decl != nullptr and not Entry->Decl->bAbstract )
+    {
+        return EmitResolvedCall( Id, *Entry, Node.Lhs, std::span<const Frontend::ExprId>{ &Node.Rhs, 1 } );
+    }
+
+    // `and` / `or` are spelled operators that short-circuit, so they are
+    // control flow and never a table row.
+    if ( Node.Op == Frontend::TokenKind::KwAnd or Node.Op == Frontend::TokenKind::AndAnd or
+         Node.Op == Frontend::TokenKind::KwOr or Node.Op == Frontend::TokenKind::OrOr )
+    {
+        return EmitShortCircuit( Node );
+    }
+
+    const Sema::LayoutId Shape      = LayoutOfExpr( Node.Lhs );
+    const std::string_view Spelling = SpellingOf( Shape );
+    const EOpFamily Family          = FamilyOf( Spelling );
+    if ( Family == EOpFamily::None )
+    {
+        static_cast<void>( Fail( "llvm: operator '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +
+                                 "' is neither resolved to a method nor carried by a primitive receiver" ) );
+        return nullptr;
+    }
+
+    // Pointer arithmetic is heterogeneous — `( offset : UInt64 ) -> Pointer<T>`
+    // declared on the pointer nominal itself — so it is an address computation
+    // with the pointee's stride, not an opcode.
+    if ( Spelling == "ptr" and ( Node.Op == Frontend::TokenKind::Plus or Node.Op == Frontend::TokenKind::Minus ) )
+    {
+        return EmitPointerArith( Node );
+    }
+
+    llvm::Value *Lhs = EmitExpr( Node.Lhs );
+    llvm::Value *Rhs = EmitExpr( Node.Rhs );
+    if ( Lhs == nullptr or Rhs == nullptr )
+    {
+        return nullptr;
+    }
+
+    if ( const BinOpRow *Row = FindRow( std::span<const BinOpRow>{ BinOps }, Family, Node.Op ); Row != nullptr )
+    {
+        return Builder->CreateBinOp( Row->Opcode, Lhs, CoerceWidth( Rhs, Lhs->getType() ) );
+    }
+    if ( const CmpRow *Row = FindRow( std::span<const CmpRow>{ Cmps }, Family, Node.Op ); Row != nullptr )
+    {
+        return Family == EOpFamily::Float ? Builder->CreateFCmp( Row->Predicate, Lhs, Rhs )
+                                          : Builder->CreateICmp( Row->Predicate, Lhs, CoerceWidth( Rhs, Lhs->getType() ) );
+    }
+
+    static_cast<void>( Fail( "llvm: no machine instruction for '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +
+                             "' on a '" + std::string( Spelling ) + "' receiver" ) );
+    return nullptr;
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitUnary ( Frontend::ExprId Id, const Frontend::Unary &Node )
+{
+    if ( const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Id );
+         Entry != nullptr and Entry->Decl != nullptr and not Entry->Decl->bAbstract )
+    {
+        return EmitResolvedCall( Id, *Entry, Node.Operand, {} );
+    }
+
+    const std::string_view Spelling = SpellingOf( LayoutOfExpr( Node.Operand ) );
+    const EOpFamily Family          = FamilyOf( Spelling );
+    const UnOpRow *Row              = FindRow( std::span<const UnOpRow>{ UnOps }, Family, Node.Op );
+    if ( Row == nullptr )
+    {
+        static_cast<void>( Fail( "llvm: no machine instruction for unary '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +
+                                 "' on a '" + std::string( Spelling ) + "' operand" ) );
+        return nullptr;
+    }
+
+    llvm::Value *Operand = EmitExpr( Node.Operand );
+    if ( Operand == nullptr )
+    {
+        return nullptr;
+    }
+
+    switch ( Row->Kind )
+    {
+    case EUnaryOp::Neg:
+        return Builder->CreateNeg( Operand );
+    case EUnaryOp::FNeg:
+        return Builder->CreateFNeg( Operand );
+    case EUnaryOp::BitNot:
+        return Builder->CreateNot( Operand );
+    case EUnaryOp::LogicalNot:
+        // `xor true` on the one-bit shape, which is what `not` means; on a
+        // wider integer the same row would silently mean something else, so it
+        // is refused rather than reinterpreted.
+        if ( not Operand->getType()->isIntegerTy( 1 ) )
+        {
+            static_cast<void>( Fail( "llvm: logical '" + std::string( Frontend::TokenSpelling( Node.Op ) ) + "' on a '" +
+                                     std::string( Spelling ) + "' operand that is not one bit wide" ) );
+            return nullptr;
+        }
+        return Builder->CreateXor( Operand, Builder->getTrue() );
+    }
+    return nullptr;
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitPointerArith ( const Frontend::Binary &Node )
+{
+    // The pointee is the first generic argument of whichever stdlib type
+    // claimed PointerType — "Pointer" is not a name this compiler knows
+    // (rules/core-ast.md).
+    const Sema::UnitTypes &Values   = *Frame.Unit->Values;
+    const Sema::SemaTypeId Receiver = Values.ExprType( Node.Lhs );
+    if ( not Values.Has( Receiver ) or Values.Get( Receiver ).Args.Size() == 0 )
+    {
+        static_cast<void>( Fail( "llvm: pointer arithmetic on a receiver with no pointee argument" ) );
+        return nullptr;
+    }
+
+    llvm::Type *Pointee = TypeOfLayout( LayoutOfValue( Values, Values.Get( Receiver ).Args[0] ) );
+    if ( Pointee == nullptr )
+    {
+        static_cast<void>( Fail( "llvm: pointer arithmetic whose pointee has no resolved layout" ) );
+        return nullptr;
+    }
+
+    llvm::Value *Base   = EmitExpr( Node.Lhs );
+    llvm::Value *Offset = EmitExpr( Node.Rhs );
+    if ( Base == nullptr or Offset == nullptr )
+    {
+        return nullptr;
+    }
+
+    Offset = CoerceWidth( Offset, Builder->getInt64Ty() );
+    if ( Node.Op == Frontend::TokenKind::Minus )
+    {
+        Offset = Builder->CreateNeg( Offset );
+    }
+    return Builder->CreateGEP( Pointee, Base, Offset );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitShortCircuit ( const Frontend::Binary &Node )
+{
+    const bool bAnd = Node.Op == Frontend::TokenKind::KwAnd or Node.Op == Frontend::TokenKind::AndAnd;
+
+    llvm::Value *Lhs = EmitExpr( Node.Lhs );
+    if ( Lhs == nullptr )
+    {
+        return nullptr;
+    }
+
+    llvm::BasicBlock *Origin = Builder->GetInsertBlock();
+    llvm::BasicBlock *Rest   = llvm::BasicBlock::Create( Context, bAnd ? "and.rhs" : "or.rhs", Frame.Fn );
+    llvm::BasicBlock *Merge  = llvm::BasicBlock::Create( Context, bAnd ? "and.end" : "or.end", Frame.Fn );
+
+    // `a and b` evaluates b only when a held; `a or b` only when it did not.
+    static_cast<void>( bAnd ? Builder->CreateCondBr( Lhs, Rest, Merge ) : Builder->CreateCondBr( Lhs, Merge, Rest ) );
+
+    Builder->SetInsertPoint( Rest );
+    llvm::Value *Rhs = EmitExpr( Node.Rhs );
+    if ( Rhs == nullptr )
+    {
+        return nullptr;
+    }
+    llvm::BasicBlock *RhsEnd = Builder->GetInsertBlock();
+    static_cast<void>( Builder->CreateBr( Merge ) );
+
+    Builder->SetInsertPoint( Merge );
+    llvm::PHINode *Result = Builder->CreatePHI( Lhs->getType(), 2, "logic" );
+    Result->addIncoming( bAnd ? Builder->getFalse() : Builder->getTrue(), Origin );
+    Result->addIncoming( Rhs, RhsEnd );
+    return Result;
+}
+
+std::string_view Volt::Backend::Llvm::LlvmBackend::State::SpellingOf ( Sema::LayoutId Id ) const
+{
+    if ( not Id.IsValid() or Build == nullptr or Build->Types == nullptr )
+    {
+        return {};
+    }
+    const Sema::LayoutNode &Node = Build->Types->Get( Id );
+    if ( const auto *Scalar = std::get_if<Sema::Primitive>( &Node ); Scalar != nullptr and Scalar->Spelling.IsValid() )
+    {
+        return Build->Types->Text( Scalar->Spelling );
+    }
+    // A Pointer layout is an address just as `@[Primitive("ptr")]` is, and the
+    // two must select the same instructions.
+    return std::holds_alternative<Sema::Pointer>( Node ) ? std::string_view{ "ptr" } : std::string_view{};
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::CoerceWidth ( llvm::Value *Value, llvm::Type *Target )
+{
+    // TypeCompat's IsWideningScalar accepts an `i8` where a `u64` is expected
+    // (rules/zero-hardcode.md: Volt has no integer conversion at all, so `hash`
+    // would be unwritable without it). That decision was Sema's; here it is
+    // simply honoured with the zext the machine needs. Signedness deliberately
+    // does not enter the rule, and a zext is what "same family, never
+    // narrowing" means on the wire.
+    if ( Value == nullptr or Target == nullptr or Value->getType() == Target )
+    {
+        return Value;
+    }
+    if ( Value->getType()->isIntegerTy() and Target->isIntegerTy() and
+         Value->getType()->getIntegerBitWidth() < Target->getIntegerBitWidth() )
+    {
+        return Builder->CreateZExt( Value, Target );
+    }
+    return Value;
+}
+
+// ---------------------------------------------------------------------------
+// Calls
+// ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node )
+{
+    if ( Node.BlockArg.IsValid() )
+    {
+        static_cast<void>( Fail( "llvm: a call with a trailing block needs the closure emitter (backend phase 5)" ) );
+        return nullptr;
+    }
+
+    const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Node.Callee );
+    if ( Entry == nullptr or Entry->Decl == nullptr )
+    {
+        static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
+                                 " carries no callee resolution — TypeChecker records one for every call it accepts" ) );
+        return nullptr;
+    }
+
+    // The receiver is the callee's own object, when the callee is a member
+    // access. A free function's callee is an Identifier and has none.
+    Frontend::ExprId Receiver;
+    if ( const auto *Access = std::get_if<Frontend::Member>( &Frame.Unit->Ast->Expr( Node.Callee ) ); Access != nullptr )
+    {
+        Receiver = Access->Object;
+    }
+
+    return EmitResolvedCall( Id, *Entry, Receiver, std::span<const Frontend::ExprId>{ Node.Args.begin(), Node.Args.Size() } );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Frontend::ExprId Id,
+                                                                         const Sema::CalleeEntry &Entry,
+                                                                         Frontend::ExprId Receiver,
+                                                                         std::span<const Frontend::ExprId> Args )
+{
+    const Sema::UnitTypes &Values = *Frame.Unit->Values;
+
+    // The owner and the instantiation both come out of the entry Sema recorded:
+    // NominalIds are the cross-unit currency, and the flattened bindings are
+    // the same encoding the mangler and the layout cache key on.
+    Sema::NominalId Owner;
+    if ( Values.Has( Entry.Receiver ) )
+    {
+        Owner = Values.Get( Entry.Receiver ).Base;
+    }
+
+    std::vector<std::uint32_t> FlatArgs;
+    for ( const Sema::SemaTypeId Binding : Entry.Bindings )
+    {
+        FlattenValueType( Values, Binding, FlatArgs );
+    }
+
+    llvm::Function *Callee = FunctionFor( *Entry.Decl, Owner, FlatArgs );
+    if ( Callee == nullptr )
+    {
+        return nullptr;
+    }
+
+    std::vector<llvm::Value *> Actuals;
+    Actuals.reserve( Args.size() + 1 );
+
+    // abi.md's order, and the same one the declare sweep built the signature
+    // with: `self` first, then the declared parameters.
+    const bool bExternal = Entry.Decl->ExternSymbol.IsValid();
+    if ( Owner.IsValid() and not Entry.Decl->bSelf and not bExternal )
+    {
+        if ( not Receiver.IsValid() )
+        {
+            static_cast<void>(
+                Fail( "llvm: instance call at expression " + std::to_string( Id.Value ) + " has no receiver expression" ) );
+            return nullptr;
+        }
+        llvm::Value *Self = EmitExpr( Receiver );
+        if ( Self == nullptr )
+        {
+            return nullptr;
+        }
+        Actuals.push_back( Self );
+    }
+
+    for ( const Frontend::ExprId Arg : Args )
+    {
+        llvm::Value *Value = EmitExpr( Arg );
+        if ( Value == nullptr )
+        {
+            return nullptr;
+        }
+        Actuals.push_back( Value );
+    }
+
+    llvm::FunctionType *Signature = Callee->getFunctionType();
+    if ( Actuals.size() != Signature->getNumParams() )
+    {
+        static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) + " passes " +
+                                 std::to_string( Actuals.size() ) + " arguments to a signature taking " +
+                                 std::to_string( Signature->getNumParams() ) ) );
+        return nullptr;
+    }
+    for ( std::size_t Index = 0; Index < Actuals.size(); ++Index )
+    {
+        Actuals[Index] = CoerceWidth( Actuals[Index], Signature->getParamType( static_cast<unsigned>( Index ) ) );
+    }
+
+    return Builder->CreateCall( Callee, Actuals );
+}
+
+// ---------------------------------------------------------------------------
+// Control
+// ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitTernary ( Frontend::ExprId Id, const Frontend::Ternary &Node )
+{
+    llvm::Value *Cond = EmitExpr( Node.Cond );
+    if ( Cond == nullptr )
+    {
+        return nullptr;
+    }
+
+    // Two blocks and a phi, never a `select`: both arms are arbitrary
+    // expressions, and `select` would evaluate the one not taken.
+    llvm::BasicBlock *ThenBlock = llvm::BasicBlock::Create( Context, "ternary.then", Frame.Fn );
+    llvm::BasicBlock *ElseBlock = llvm::BasicBlock::Create( Context, "ternary.else", Frame.Fn );
+    llvm::BasicBlock *Merge     = llvm::BasicBlock::Create( Context, "ternary.end", Frame.Fn );
+    static_cast<void>( Builder->CreateCondBr( Cond, ThenBlock, ElseBlock ) );
+
+    Builder->SetInsertPoint( ThenBlock );
+    llvm::Value *Then = EmitExpr( Node.Then );
+    if ( Then == nullptr )
+    {
+        return nullptr;
+    }
+    llvm::BasicBlock *ThenEnd = Builder->GetInsertBlock();
+    static_cast<void>( Builder->CreateBr( Merge ) );
+
+    Builder->SetInsertPoint( ElseBlock );
+    llvm::Value *Else = EmitExpr( Node.Else );
+    if ( Else == nullptr )
+    {
+        return nullptr;
+    }
+    llvm::BasicBlock *ElseEnd = Builder->GetInsertBlock();
+    static_cast<void>( Builder->CreateBr( Merge ) );
+
+    Builder->SetInsertPoint( Merge );
+    llvm::Type *Shape = TypeOfExpr( Id );
+    if ( Shape == nullptr )
+    {
+        Shape = Then->getType();
+    }
+    llvm::PHINode *Result = Builder->CreatePHI( Shape, 2, "ternary" );
+    Result->addIncoming( CoerceWidth( Then, Shape ), ThenEnd );
+    Result->addIncoming( CoerceWidth( Else, Shape ), ElseEnd );
+    return Result;
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCase ( Frontend::ExprId Id, const Frontend::CaseExpr &Node )
+{
+    // After CaseLowering (order 22) this is a flat list of
+    // `WhenClause{ Patterns: [expr Bool], Body }` — the pattern *is* the test,
+    // and the scrutinee has already been folded into it. So the emission is a
+    // conditional ladder and nothing more; that flatness is exactly why
+    // CaseExpr stayed core (rules/core-ast.md).
+    if ( Node.Target.IsValid() )
+    {
+        static_cast<void>( Fail( "llvm: a `case` still carrying its target reached codegen — CaseLowering folds it "
+                                 "into each clause's patterns" ) );
+        return nullptr;
+    }
+
+    const Frontend::AstContext &Ast = *Frame.Unit->Ast;
+    llvm::BasicBlock *Merge         = llvm::BasicBlock::Create( Context, "case.end", Frame.Fn );
+
+    // A `case` in value position needs a slot: its clauses are statement lists,
+    // so their results converge through storage rather than a phi over blocks
+    // whose count is not known until the ladder is built.
+    llvm::Type *Shape      = TypeOfExpr( Id );
+    llvm::AllocaInst *Slot = nullptr;
+    if ( Shape != nullptr and not IsAggregate( LayoutOfExpr( Id ) ) )
+    {
+        Slot = MakeTemp( Shape, "case.result" );
+    }
+
+    const auto EmitBody = [&] ( const Frontend::StmtList &Body )
+    {
+        // The clause's value is its trailing expression, stored rather than
+        // returned — the same tail rule the function body uses.
+        for ( std::size_t Index = 0; Index < Body.Size() and not Terminated(); ++Index )
+        {
+            const bool bLast = Index + 1 == Body.Size();
+            if ( bLast and Slot != nullptr )
+            {
+                if ( const auto *Tail = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Index] ) ); Tail != nullptr )
+                {
+                    llvm::Value *Value = EmitExpr( Tail->Expr );
+                    if ( Value != nullptr )
+                    {
+                        static_cast<void>( Builder->CreateStore( CoerceWidth( Value, Shape ), Slot ) );
+                    }
+                    continue;
+                }
+            }
+            EmitStmt( Body[Index], false );
+        }
+        if ( not Terminated() )
+        {
+            static_cast<void>( Builder->CreateBr( Merge ) );
+        }
+    };
+
+    for ( const Frontend::StmtId ClauseId : Node.Clauses )
+    {
+        const auto *Clause = std::get_if<Frontend::WhenClause>( &Ast.Stmt( ClauseId ) );
+        if ( Clause == nullptr )
+        {
+            static_cast<void>( Fail( "llvm: a `case` clause is not a WhenClause" ) );
+            return nullptr;
+        }
+
+        llvm::BasicBlock *Body = llvm::BasicBlock::Create( Context, "when.body", Frame.Fn );
+        llvm::BasicBlock *Next = llvm::BasicBlock::Create( Context, "when.next", Frame.Fn );
+
+        // Several patterns on one clause are alternatives: any match enters the
+        // body, so each falls through to the next test rather than to `Next`.
+        for ( std::size_t Index = 0; Index < Clause->Patterns.Size(); ++Index )
+        {
+            llvm::Value *Test = EmitExpr( Clause->Patterns[Index] );
+            if ( Test == nullptr )
+            {
+                return nullptr;
+            }
+            const bool bLast         = Index + 1 == Clause->Patterns.Size();
+            llvm::BasicBlock *Missed = bLast ? Next : llvm::BasicBlock::Create( Context, "when.alt", Frame.Fn );
+            static_cast<void>( Builder->CreateCondBr( Test, Body, Missed ) );
+            Builder->SetInsertPoint( Missed );
+        }
+        if ( Clause->Patterns.Size() == 0 )
+        {
+            static_cast<void>( Builder->CreateBr( Next ) );
+            Builder->SetInsertPoint( Next );
+        }
+
+        llvm::BasicBlock *Resume = Builder->GetInsertBlock();
+        Builder->SetInsertPoint( Body );
+        EmitBody( Clause->Body );
+        Builder->SetInsertPoint( Resume );
+
+        if ( Failed() )
+        {
+            return nullptr;
+        }
+    }
+
+    EmitBody( Node.ElseBody );
+
+    Builder->SetInsertPoint( Merge );
+    if ( Slot == nullptr )
+    {
+        return nullptr;
+    }
+    return Builder->CreateLoad( Shape, Slot, "case" );
+}
