@@ -108,26 +108,6 @@ namespace Backend
             bool bClosure = false;
         };
 
-        // How far Finalize takes the module. `--emit` stops early; the default
-        // runs the whole way to a linked artifact.
-        enum class EEmitStage : std::uint8_t
-        {
-
-            Ir     = 0,
-            Object = 1,
-            Link   = 2,
-        };
-
-        struct EmitOptions
-        {
-
-            EEmitStage Stage      = EEmitStage::Link;
-            std::uint8_t OptLevel = 0;
-            bool bLto             = false;
-            bool bDebugInfo       = true;
-            std::string OutputPath;
-        };
-
     } // namespace Llvm
 
 } // namespace Backend
@@ -240,12 +220,48 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::FunctionType *
     FunctionTypeOf ( const Sema::Member &Entry, Sema::NominalId Owner, std::span<const std::uint32_t> FlatArgs );
 
+    // The layout a *declared* signature type means for a member of `Owner`
+    // instantiated at `FlatArgs` — `InstanceLayouts::OfSignature`, except for
+    // `self` (`SigType::SelfParam`), which that function refuses by design:
+    // its own refusal is for a *field* typed `self` (there is no such
+    // instance to embed one by value), but `other : self` / `-> self` on a
+    // method (Comparable#<, Arithmetic#+, rules/zero-hardcode.md's own
+    // example) is the ordinary, load-bearing case — the receiver's own
+    // layout, exactly like the leading `self` parameter FunctionTypeOf
+    // already computes with `Instances.Of( Store, Owner, FlatArgs )`.
+    [[nodiscard]] Sema::LayoutId SignatureLayoutOf ( Sema::TypeStore &Store,
+                                                     Sema::SigTypeId Id,
+                                                     Sema::NominalId Owner,
+                                                     std::span<const std::uint32_t> FlatArgs );
+
     // --- Declare sweep (LlvmEmitter.cpp) ----------------------------------
 
     // Create an llvm::Function for every concrete method and free function of
     // the build, before any body is emitted, so a call to a callee declared in
     // another unit — or later in this one — resolves with no fixup pass.
     void DeclareAll ();
+
+    // A `mixin`'s own concrete (non-`abstract`) methods are generic over
+    // `self` in the exact sense a type parameter is: `Arithmetic#min`'s
+    // `other : self` means "whichever type includes me", so it has no
+    // signature — let alone a body — until an *including* type is the
+    // receiver, the same way `Array<T>#push` has none until `T` is fixed.
+    // Neither DeclareAll nor DefineAll may treat the mixin itself as that
+    // receiver: `Store.Type( Id ).Params.Size() > 0` (the generic-owner
+    // exclusion both sweeps already apply) does not catch it, since a mixin
+    // commonly declares no generic parameters of its own. Detected by
+    // reading the declaring unit's own AST node kind — the one fact the
+    // TypeStore does not carry, since `Struct`/`Class`/`Mixin`/`Enum` collapse
+    // to one `NominalType` shape at bind time (TypeBinder.cpp's `TypeDecl`).
+    //
+    // A call to an inherited default (`x.min( y )` on a concrete receiver) is
+    // therefore not yet reachable through this backend: the resolved callee's
+    // `Decl` still names the mixin's own `Member`, and nothing routes it
+    // through `Monomorphizer` the way a generic call site does. Refused by
+    // name in EmitResolvedCall rather than silently mis-emitted against the
+    // mixin's own (meaningless) empty layout — recorded as a middle-end gap
+    // in llvm.md pending that follow-up.
+    [[nodiscard]] bool IsMixinOwner ( Sema::NominalId Id ) const;
 
     // One declaration. Returns null when the member is not something codegen
     // emits a symbol for (abstract, generic, a field), which is not a failure.
@@ -514,4 +530,41 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // discovers — a generic method calling another generic method — until
     // the queue is empty.
     void DrainMonomorphizer ();
+
+    // --- Optimise & emit (Optimizer.cpp) -----------------------------------
+
+    // llvm::verifyModule over the finished module. A failure here is an
+    // emitter bug, never a Volt source error (rules/core-ast.md's contract
+    // means the module the middle-end describes is always well-formed), so it
+    // is reported with the offending function named, not guessed at.
+    [[nodiscard]] bool VerifyModule ();
+
+    // PassBuilder's own default pipelines, chosen by Options.OptLevel /
+    // Options.bLto: O0 for a dev build (buildO0DefaultPipeline — the minimal
+    // semantically-required set, principally mem2reg, since the emitter
+    // relies on it to turn its allocas back into registers), O2/O3 otherwise.
+    // `bLto` selects O3 rather than a real cross-module LTO run: one
+    // llvm::Module already holds the whole build (llvm.md), so there is
+    // nothing to link across yet — a later per-unit-module change is what
+    // would make this a genuine ThinLTO pipeline.
+    void RunOptimizationPipeline () const;
+
+    // Write the module as textual IR to Path — the `--emit ir` artifact.
+    [[nodiscard]] bool EmitIrFile ( std::string_view Path );
+
+    // TargetMachine::addPassesToEmitFile — the `--emit obj` artifact, and the
+    // input Linker.cpp hands to the system linker for `--emit` unset (Link).
+    [[nodiscard]] bool EmitObjectFile ( std::string_view Path );
+
+    // --- Linking (Linker.cpp) ----------------------------------------------
+
+    // Every distinct @[External] library the build names, in first-seen
+    // order — `libc`, `libm`, ... — read off the TypeStore's own members
+    // rather than re-scanned from any AST, the same way SymbolOf reads a
+    // single member's ExternSymbol.
+    [[nodiscard]] std::vector<std::string> ExternLibraries () const;
+
+    // Drive the system linker (mold, then LLD, then whatever `cc` picks) to
+    // turn ObjectPath into a linked executable at OutputPath.
+    [[nodiscard]] bool LinkExecutable ( std::string_view ObjectPath, std::string_view OutputPath );
 };
