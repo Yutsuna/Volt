@@ -182,6 +182,20 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
             static_cast<void>( Sema::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
         }
 
+        // Every unit's Phase A is done, so every type this build declares
+        // exists; attach the structural layout of every non-@[Primitive] one
+        // now, before any signature is resolved. Indexed the same way
+        // Member::Unit / NominalType::Unit are — discovery order — so this
+        // is the array ResolveStructLayouts recurses across when a field
+        // names an aggregate declared in a different file.
+        std::vector<const Frontend::AstContext *> UnitAsts;
+        UnitAsts.reserve( Units.size() );
+        for ( const CompileUnit &Unit : Units )
+        {
+            UnitAsts.push_back( &Unit.Ast );
+        }
+        Sema::ResolveStructLayouts( UnitAsts, Types );
+
         // Still serial, still the same seam, but a second pass: a signature
         // may name a type declared in a file that comes later, so every name
         // must exist before any signature is resolved — otherwise stdlib file
@@ -220,6 +234,8 @@ void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
     {
         return;
     }
+
+    const std::size_t Start = Refs.size();
     for ( const fs::directory_entry &It : fs::recursive_directory_iterator( LibDir, Ec ) )
     {
         if ( It.is_regular_file() and IsSourceFile( It.path() ) )
@@ -228,6 +244,19 @@ void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
                 SourceRef{ .Path = It.path().string(), .Module = "Core", .bComponent = IsComponentPath( It.path().string() ) } );
         }
     }
+
+    // `recursive_directory_iterator` follows readdir() order, which is
+    // filesystem-dependent, not alphabetical. TypeBinder's Phase A binds each
+    // file's layout in the same pass it declares the type (TypeBinder.cpp,
+    // `BindType`), so a field naming a type from a file visited later in this
+    // walk (e.g. `String#data : Pointer<UInt8>` when "Pointer.vl" has not
+    // been bound yet) silently resolves to an invalid LayoutId — a bug no
+    // existing test caught, since TypeChecker never reads Layout and only
+    // codegen (BackendLLVM) does. A stable, deterministic order is the fix:
+    // sorted by path, `Primitives/Pointer.vl` binds before
+    // `Primitives/String.vl` on every filesystem.
+    std::sort( Refs.begin() + static_cast<std::ptrdiff_t>( Start ), Refs.end(),
+               [] ( const SourceRef &A, const SourceRef &B ) { return A.Path < B.Path; } );
 }
 
 Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vector<std::string> &Paths )
