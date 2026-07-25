@@ -200,7 +200,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitRaise ( Frontend::Expr
         return nullptr;
     }
 
-    const Sema::UnitTypes &Values = *Frame.Unit->Values;
+    const Sema::UnitTypes &Values = *Frame.Values;
     const Sema::SemaTypeId Ty     = Values.ExprType( Node.Exception );
     if ( not Values.Has( Ty ) or not Values.Get( Ty ).Base.IsValid() )
     {
@@ -257,7 +257,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitBeginTail ( const Frontend::St
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBegin ( Frontend::ExprId Id, const Frontend::BeginExpr &Node )
 {
     const Frontend::AstContext &Ast = *Frame.Unit->Ast;
-    const Sema::UnitTypes &Values   = *Frame.Unit->Values;
+    const Sema::UnitTypes &Values   = *Frame.Values;
 
     // A `begin` in value position needs a slot for the same reason `case`
     // does: its body and every clause are statement lists, so their results
