@@ -1,6 +1,9 @@
 #include "Volt/BackendCore/InstanceLayout.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cstddef>
+#include <string_view>
 #include <utility>
 
 namespace
@@ -140,6 +143,39 @@ Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSig ( Sema::TypeStore &St
     return Of( Store, Base, std::span<const std::uint32_t>{ Tree }.subspan( 2 ) );
 }
 
+bool Volt::Backend::InstanceLayouts::IsCallable ( const Sema::TypeStore &Store, Sema::NominalId Base )
+{
+    // One type claims all three node kinds today (`Proc`), but nothing here
+    // depends on that: each is asked for separately, exactly as the literal
+    // protocol does.
+    constexpr std::array<std::string_view, 3> Kinds{ "FuncType", "Lambda", "Block" };
+    return std::ranges::any_of( Kinds,
+                                [&Store, Base] ( const std::string_view NodeKind )
+                                {
+                                    const auto Claimant = Store.LookupNodeKind( NodeKind );
+                                    return Claimant.has_value() and *Claimant == Base;
+                                } );
+}
+
+Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::ClosurePair ( Sema::TypeStore &Store )
+{
+    if ( Pair.IsValid() )
+    {
+        return Pair;
+    }
+
+    // Two addresses: the code to enter, and the environment to enter it with.
+    // Both are `Pointer` rather than an `@[Primitive("ptr")]` spelling, so the
+    // pair's size follows the target's pointer size through LayoutEngine — the
+    // wasm encoding of an address is four bytes, and this shape must follow it.
+    Sema::Aggregate Shape;
+    Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( "code" ), .Type = Store.AddPointer( Sema::LayoutId{} ) } );
+    Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( "env" ), .Type = Store.AddPointer( Sema::LayoutId{} ) } );
+
+    Pair = Store.AddAggregate( std::move( Shape ) );
+    return Pair;
+}
+
 Volt::Sema::LayoutId
 Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs )
 {
@@ -165,6 +201,19 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     {
         Cache.emplace( std::move( Key ), Attached );
         return Attached;
+    }
+
+    // A callable's shape is the one thing the stdlib cannot write down: the
+    // type claiming FuncType/Lambda/Block declares no field, because `{ code,
+    // env }` is an ABI decision, fixed once for the three targets in
+    // .agents/backend/abi.md. Materialising it here — rather than in one
+    // emitter — is what keeps a closure written by native codegen readable by
+    // the VM's and wasm's rules.
+    if ( IsCallable( Store, Base ) )
+    {
+        const Sema::LayoutId Shape = ClosurePair( Store );
+        Cache.emplace( std::move( Key ), Shape );
+        return Shape;
     }
 
     // Claim the key before descending: a generic that reaches itself through a
