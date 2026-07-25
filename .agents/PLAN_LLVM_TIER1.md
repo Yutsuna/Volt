@@ -443,6 +443,46 @@ Layouts come from Phase 0.3, keyed the same way. `Monomorphizer::Seen` dedupes
 globally, so `Array<Int32>` instantiates once per build and recursive generics
 terminate.
 
+*Amended during implementation.* `MonoRequest` as originally sketched (`Base`
+NominalId + `Args`) is exactly `InstanceLayouts`' own key — sufficient for a
+*layout*, ambiguous for a *body*: `Array<Int32>` alone says nothing about
+whether a request means `push`, `pop`, or `map`. Redesigned to
+`{ Owner, Name, Args }`, `Owner`/`Name` naming the member the same way
+`Member::Name` does.
+
+The upstream addition the plan anticipated ("if substitution starts looking
+like inference, push a `Reinstantiate` helper back into Sema") turned out to
+be load-bearing rather than optional: a generic body's parameter types come
+from the already-resolved `Member::Params` (`SigTypeId`) through the public
+`Sema::Instantiate`, but *every other expression* in the body has no
+resolved type at all inside the shared per-unit `UnitTypes` — not merely an
+invalid one, an *absent* one, because `UnitTypes::OfExpr` is one slot per
+`ExprId` and a generic body's `ExprId`s are shared by every instantiation
+that ever calls it. `Sema::ReinstantiateBody` (`Sema/Layout/Instantiate.hpp`,
+`Private/Passes/TypeChecker/Reinstantiate.cpp`) is that helper: it re-enters
+the type checker's own `TrailingType`/`InferExpr`/`ConstrainExprType` over
+one member's body with `self` and its generics bound to the request's
+concrete `FlatArgs`, into a fresh `InstantiatedBody{ Values, Callees }`
+scoped to just this instantiation. `FunctionFrame` grew two fields,
+`Values`/`Callees`, read by every emitter function in place of
+`Frame.Unit->Values`/`->Callees` — a concrete body sets them to its own
+unit's, a monomorphised one to the request's overlay, and nothing downstream
+of `EmitExpr`/`EmitStmt` can tell the two apart.
+
+State: `volt-build llvm` clean under `-Werror`; 193/193 green; `volt-build
+llvm tidy` clean except the same pre-existing `EmitTernary`/`EmitBinary`
+clang-analyzer false positive against LLVM 22's own `CmpInst`/`User`
+internals noted in phase 6, reproduced identically, not introduced here;
+`volt-build asan llvm`, `ubsan llvm`, and `tsan llvm` all clean.
+`graphify update source/Volt` run.
+
+Unchanged honest limit: still nothing calls `Begin`/`EmitUnit`/`Finalize`
+from a real CLI path — every sweep in this plan, monomorphisation included,
+compiles and is wired to itself but has never executed against a generic
+sample. There is no `samples/Codegen/` corpus yet to exercise a monomorphised
+`Array<Int32>#push`-shaped instantiation end-to-end; that arrives with
+phases 8 + 9, same as every phase before this one.
+
 ---
 
 ## Phase 8 — Optimise, emit, link

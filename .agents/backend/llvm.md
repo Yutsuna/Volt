@@ -369,6 +369,73 @@ on; if that convention is ever violated by an aggregate-returning `.new`, it
 is the pre-existing gap surfacing, not a new one, and is deferred to the same
 phase-8 verifier work that gap already names.
 
+## Monomorphisation — `MonoEmitter.cpp`
+
+A generic type's members carry no signature (`FunctionTypeOf` needs concrete
+`Params`/`Result`, which only exist once arguments are known) and a generic
+method's own body carries no per-expression type either: `TypeChecker`'s
+first pass over `Array<T>#push` or `def map<U>` runs with `self` bound to a
+*placeholder* instantiation — every one of the type's own generic slots
+invalid — so any expression whose type touches `T` or `U` is `MarkDeferred`
+rather than guessed at (`rules/core-ast.md`). `DeclareAll`/`DefineAll` both
+skip a generic owner and a member with `OwnGenerics > 0` outright for exactly
+this reason.
+
+**Why the unit's own `UnitTypes`/`UnitCallees` cannot answer for a generic
+body.** Both hold exactly one entry per `ExprId`, because `TypeChecker` runs
+once per unit. A generic body's `ExprId`s are shared by *every* instantiation
+that ever calls it — `Array<Int32>#push` and `Array<String>#push` are the
+same AST nodes — so neither map could hold more than one instantiation's
+answer even if the first pass had computed one.
+
+**The request.** `EmitResolvedCall` already builds `FlatArgs` — the pre-order
+NominalId flattening of `CalleeEntry::Bindings` (owner's own generics first,
+then the method's) — to drive `FunctionFor`/`Instances.OfSignature`. When the
+callee's owner is generic or the member has its own generics, that same call
+also enqueues a `MonoRequest{ Owner, Name, Args }` on `State::Mono`
+(`BackendCore::Monomorphizer`) — `Owner`+`Name` name the member (a type-shaped
+key alone is ambiguous: `Array<Int32>` says nothing about *which* member),
+`Key()` dedupes globally so `Array<Int32>#push` is only ever drained once no
+matter how many call sites reach it, and recursive generics terminate the
+same way a recursive layout does.
+
+**The one semantic step, and where it lives.** `Finalize()` calls
+`DrainMonomorphizer()`, which pops the queue until empty (draining a body can
+itself discover further instantiations — a generic method calling another —
+so this runs to a fixpoint, not once). For each request,
+`Sema::ReinstantiateBody( Store, Ast, Scopes, Member, Owner, FlatArgs )`
+(`Sema/Layout/Instantiate.hpp`) re-runs the type checker's own expression
+inferencer over the member's declared body into a **fresh**
+`InstantiatedBody{ Values, Callees }`, with `self` and the method's generics
+bound to `FlatArgs` — decoded straight into fresh `SemaTypeId`s, since
+`NominalId` is the cross-unit, instantiation-independent currency — instead
+of the placeholder holes the first pass left. Parameter and result types come
+from the already-resolved `Member::Params`/`Result` (`SigTypeId`) through the
+public `Sema::Instantiate`, never by re-deriving them from written syntax:
+`ResolveTypeExpr`'s `UnitSink::Param` always refuses a generic reference by
+design (the concrete-body case it exists for can never write one), so it is
+structurally the wrong tool for this. Once `self` and the parameters carry
+concrete `SemaTypeId`s, every expression built on them — calls, operators,
+field access — resolves through the exact same `LookupMemberOn` /
+`UnifySig` machinery a non-generic body already trusts, because it *is* that
+machinery, invoked a second time.
+
+This is monomorphisation's only semantic step, and it stays in Sema on
+purpose (`rules/core-ast.md`: zero type inference in a backend) — a backend
+decides *when* to instantiate, never *how* to type what it finds.
+`EmitMonomorphizedBody` then walks the AST exactly as `DefineMember` walks a
+concrete body — same parameter-binding loop, same tail rule — except
+`FunctionFrame::Values`/`Callees` (new fields, alongside the pre-existing
+`Unit`) point at the overlay's `Values`/`Callees` rather than at
+`Unit->Values`/`Unit->Callees`; `Unit`/`Ast`/`Scopes` stay the declaring
+unit's own, since a generic body's lexical structure does not change under
+instantiation, only its types do. Every other emitter function already reads
+types and callee resolutions through `Frame.Values`/`Frame.Callees` rather
+than through `Frame.Unit` directly, so a concrete body (which sets both to
+its own unit's) and a monomorphised one (which sets both to the request's
+overlay) are indistinguishable to `ExprEmitter`/`StmtEmitter`/
+`ClosureEmitter`/`ExceptionEmitter` — the whole point of the seam.
+
 ## Optimisation & emission
 
 - `PassBuilder` default pipelines: `-O0` + `-g` for `volt build` dev flavour,
