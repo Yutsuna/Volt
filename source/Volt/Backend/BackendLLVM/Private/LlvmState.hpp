@@ -14,6 +14,7 @@
 #include "Volt/BackendCore/Mangler.hpp"
 #include "Volt/BackendCore/Monomorphizer.hpp"
 #include "Volt/BackendLLVM/LlvmEmitter.hpp"
+#include "Volt/Sema/Layout/ClosureFrame.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
@@ -64,6 +65,14 @@ namespace Backend
             // would only add a memcpy nothing reads.
             std::unordered_map<Sema::BindingSite, llvm::Value *, Sema::BindingSiteHash> Slots;
             std::vector<LoopFrame> Loops;
+            // The innermost enclosing `begin`'s dispatch block, in *this*
+            // function only — Tier 1 exceptions never cross a call boundary by
+            // unwinding, so a call into another llvm::Function starts with an
+            // empty stack of its own (backend/llvm.md). A `raise`, or a call
+            // the post-call check finds pending, branches to `.back()`; an
+            // empty stack means "no handler in this function", which is the
+            // poisoned early return instead.
+            std::vector<llvm::BasicBlock *> Rescues;
             // The unit being walked: types, callees and scopes all come from
             // it, and a call into another unit reads that unit's view instead.
             const UnitView *Unit = nullptr;
@@ -80,6 +89,13 @@ namespace Backend
             // Non-void functions return the value of their last expression, so
             // a tail ExprStmt emits `ret` rather than dropping its value.
             bool bReturnsValue = false;
+            // True while a closure body is being emitted. Two things read it:
+            // `self` and `@x`, which have no receiver here because
+            // ClosureEnvFrame captures *bindings* and records no receiver, so
+            // the failure names that hole rather than "outside a method"; and
+            // `next`, which in a closure with no enclosing loop is the block's
+            // own result, not a loop continuation.
+            bool bClosure = false;
         };
 
         // How far Finalize takes the module. `--emit` stops early; the default
@@ -137,11 +153,32 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // LayoutId -> llvm::Type*. One entry per distinct memory shape, so an
     // aggregate is structurally created once no matter how many types share it.
     std::unordered_map<std::uint32_t, llvm::Type *> TypeCache;
+    // A closure body has no mangled symbol — it is private to the module and
+    // reached only through the `{ code, env }` pair — so its name is only ever
+    // read by a human. This counter is what keeps those names distinct.
+    std::uint32_t ClosureCount = 0;
     // Mangled symbol -> the declaration created by the declare sweep. Keyed by
     // the symbol rather than by DeclId because a DeclId is only meaningful
     // inside the arena that minted it, while a symbol is the cross-unit
     // currency the linker uses too.
     std::unordered_map<std::string, llvm::Function *> Functions;
+
+    // --- Exceptions (ExceptionEmitter.cpp), lazily created ----------------
+
+    // The in-flight exception: an address (`ExcValue`) plus the raised
+    // object's own NominalId (`ExcTag`), thread-local because the transport is
+    // per-thread state, not a value carried by any signature (abi.md reserves
+    // no channel for it). `ExcTag == NominalId::InvalidValue` means "nothing
+    // is in flight" — the same sentinel TypedId already uses for "no id",
+    // reused rather than inventing a second one.
+    llvm::GlobalVariable *ExcValue = nullptr;
+    llvm::GlobalVariable *ExcTag   = nullptr;
+    // `NominalId -> its immediate Super's NominalId, or InvalidValue`, one row
+    // per type the store declares, built once from TypeStore::Type(Id).Super —
+    // the same chain Sema's own IsSubclassOf walks (TypeResolve.cpp). A
+    // `rescue` clause tests membership by walking this at runtime, since the
+    // dynamic side of the test is only known once a program actually raises.
+    llvm::GlobalVariable *Ancestry = nullptr;
 
     // --- Per-function scratch --------------------------------------------
 
@@ -293,6 +330,12 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // address.
     void EmitStore ( llvm::Value *Address, llvm::Value *Value, Sema::LayoutId Shape );
 
+    // The report for a receiver-less `self` / `super` / `@x`. Inside a closure
+    // body the hole is a different one and is named as such: ClosureEnvFrame
+    // captures *bindings*, and a receiver is not one, so there is nothing for
+    // the body to reach `self` through.
+    [[nodiscard]] std::string MissingSelf ( std::string_view What ) const;
+
     // Address of a place, then the load of it — one per node kind that is both
     // a place and a value (`x`, `@x`, `o.x`, `*p`).
     [[nodiscard]] llvm::Value *LoadPlace ( Frontend::ExprId Id );
@@ -333,9 +376,113 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // The one call site every resolved callee goes through — an explicit
     // `Call`, and a `Binary`/`Unary` whose operator resolved to a method
     // (rules/core-ast.md: the two are the same emission, told apart only by
-    // where the receiver and the operands come from).
+    // where the receiver and the operands come from). `Block` is the trailing
+    // `do ... end`, which fills the callee's `&block` slot rather than a
+    // positional one and is invalid for every other caller.
     [[nodiscard]] llvm::Value *EmitResolvedCall ( Frontend::ExprId Id,
                                                   const Sema::CalleeEntry &Entry,
                                                   Frontend::ExprId Receiver,
-                                                  std::span<const Frontend::ExprId> Args );
+                                                  std::span<const Frontend::ExprId> Args,
+                                                  Frontend::ExprId Block = Frontend::ExprId{} );
+
+    // --- Closures (ClosureEmitter.cpp) ------------------------------------
+
+    // The closure *value*, uniform across the three backends (abi.md): the
+    // two-slot `{ ptr code, ptr env }` aggregate — hence, like every
+    // aggregate, an address.
+    [[nodiscard]] llvm::StructType *ClosurePairType ();
+
+    // A `( x ) => expr` and a `do | x | ... end` differ only in what their
+    // body is, so both land in EmitClosure with one of the two filled.
+    [[nodiscard]] llvm::Value *EmitLambda ( Frontend::ExprId Id, const Frontend::Lambda &Node );
+    [[nodiscard]] llvm::Value *EmitBlock ( Frontend::ExprId Id, const Frontend::Block &Node );
+    [[nodiscard]] llvm::Value *EmitClosure ( Frontend::ExprId Id,
+                                             const Frontend::ParamList &Params,
+                                             Frontend::ExprId Body,
+                                             const Frontend::StmtList *Stmts );
+
+    // The private function a closure body compiles to: declared parameters in
+    // order, then `ptr %env` trailing (abi.md fixes that order for all three
+    // targets). Emitted under a nested FunctionFrame, so the enclosing body's
+    // slots and insert point are restored on the way out.
+    [[nodiscard]] llvm::Function *EmitClosureBody ( Frontend::ExprId Id,
+                                                    const Sema::ClosureEnvFrame &Env,
+                                                    const Frontend::ParamList &Params,
+                                                    Frontend::ExprId Body,
+                                                    const Frontend::StmtList *Stmts );
+
+    // Bind every capture to a slot inside the closure body: an env field holds
+    // the *address* of the captured binding, so loading one yields exactly what
+    // FunctionFrame::Slots holds for a local — a place.
+    void BindCaptures ( const Sema::ClosureEnvFrame &Env, llvm::Value *Environment );
+
+    // The environment, allocated in the *enclosing* function: SynthesizeClosureFrame
+    // already fixed its size, alignment and every field offset, and this only
+    // fills it. Null when the closure captures nothing, which is a valid env
+    // no field is ever read out of.
+    [[nodiscard]] llvm::Value *EmitClosureEnv ( Frontend::ExprId Id, const Sema::ClosureEnvFrame &Env );
+
+    // `next [value]` inside a closure body with no loop of its own: the block
+    // ends this invocation and hands `value` back, so it is a `ret`. Kept here
+    // rather than in StmtEmitter because it is the closure protocol, not the
+    // loop one — the two only share a keyword.
+    void EmitBlockNext ( Frontend::ExprId Value );
+
+    // An indirect call through a closure value: `f( x )` on a local holding a
+    // callable, and `block.call( x )` on a `&block` parameter, are the same
+    // emission — the callee's `@[Apply]` member says the signature is the
+    // receiver's own type arguments (result first, then parameters).
+    [[nodiscard]] llvm::Value *EmitApplyCall ( Frontend::ExprId Id,
+                                               const Sema::CalleeEntry &Entry,
+                                               Frontend::ExprId Receiver,
+                                               std::span<const Frontend::ExprId> Args );
+
+    // --- Exceptions, Tier 1 (ExceptionEmitter.cpp) ------------------------
+    //
+    // "setjmp/sigsetjmp-free personality-less unwinding" (llvm.md): `raise`
+    // never touches the C stack directly. It stores the exception into
+    // thread-local state and takes the *poisoned path* — a branch to the
+    // innermost `begin` in this function, or an early return carrying no
+    // value, exactly as if the raising call itself had returned. Every
+    // ordinary (non-`@[External]`) call this emitter makes is followed by a
+    // check of that same state, so a `raise` several calls deep unwinds one
+    // `ret` at a time until some caller's frame is inside a `begin`.
+
+    // The thread-local exception-value / exception-tag globals, created once
+    // per module on first use.
+    [[nodiscard]] llvm::GlobalVariable *ExceptionValueSlot ();
+    [[nodiscard]] llvm::GlobalVariable *ExceptionTagSlot ();
+
+    // `NominalId -> immediate Super`, one row per declared type, emitted once
+    // as module-level constant data.
+    [[nodiscard]] llvm::GlobalVariable *AncestryTable ();
+
+    // True (i1) when `Dynamic` (a NominalId, as loaded from ExceptionTagSlot)
+    // names `Target` or one of its ancestors — the same reflexive, depth-bounded
+    // walk IsSubclassOf performs in Sema, done here at runtime because the
+    // dynamic side is only known once a program actually raises.
+    [[nodiscard]] llvm::Value *EmitAncestorTest ( llvm::Value *Dynamic, Sema::NominalId Target );
+
+    // The exit every raising path shares once it decides *this* function does
+    // not handle it: branch to `Frame.Rescues.back()` when this function has
+    // an active `begin`, otherwise an early return of a poisoned value (`ret
+    // void` / `ret zeroinitializer`) — the propagation step a caller's own
+    // post-call check will observe.
+    void EmitPoisonedPath ();
+
+    // Checked after every call to Volt code (never after an `@[External]`
+    // call, which cannot raise a Volt exception): branches to EmitPoisonedPath
+    // when ExceptionTagSlot is no longer NominalId::InvalidValue, otherwise
+    // falls through. Splits the current block; the caller's Builder insertion
+    // point is left in the fallthrough half.
+    void EmitExceptionCheck ();
+
+    [[nodiscard]] llvm::Value *EmitRaise ( Frontend::ExprId Id, const Frontend::RaiseExpr &Node );
+    [[nodiscard]] llvm::Value *EmitBegin ( Frontend::ExprId Id, const Frontend::BeginExpr &Node );
+
+    // The shared tail rule Begin's own body and each RescueClause's body use:
+    // the trailing expression of a StmtList, stored into `Slot` rather than
+    // returned — `Begin`'s value converges through storage, like `CaseExpr`'s,
+    // since its clauses are statement lists whose count is not fixed structure.
+    void EmitBeginTail ( const Frontend::StmtList &Body, llvm::AllocaInst *Slot, llvm::Type *Shape );
 };
