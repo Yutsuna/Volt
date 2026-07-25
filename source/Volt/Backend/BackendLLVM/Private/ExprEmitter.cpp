@@ -735,6 +735,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitSizeOf ( Frontend::Exp
 // Operators
 // ---------------------------------------------------------------------------
 
+// NOLINTBEGIN(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBinary ( Frontend::ExprId Id, const Frontend::Binary &Node )
 {
     // The protocol, in the one order that keeps a backend free of member
@@ -793,6 +794,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBinary ( Frontend::Exp
                              "' on a '" + std::string( Spelling ) + "' receiver" ) );
     return nullptr;
 }
+// NOLINTEND(clang-analyzer-security.ArrayBound)
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitUnary ( Frontend::ExprId Id, const Frontend::Unary &Node )
 {
@@ -876,6 +878,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitPointerArith ( const F
     return Builder->CreateGEP( Pointee, Base, Offset );
 }
 
+// NOLINTBEGIN(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitShortCircuit ( const Frontend::Binary &Node )
 {
     const bool bAnd = Node.Op == Frontend::TokenKind::KwAnd or Node.Op == Frontend::TokenKind::AndAnd;
@@ -908,6 +911,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitShortCircuit ( const F
     Result->addIncoming( Rhs, RhsEnd );
     return Result;
 }
+// NOLINTEND(clang-analyzer-security.ArrayBound)
 
 std::string_view Volt::Backend::Llvm::LlvmBackend::State::SpellingOf ( Sema::LayoutId Id ) const
 {
@@ -1120,6 +1124,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
 // Control
 // ---------------------------------------------------------------------------
 
+// NOLINTBEGIN(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitTernary ( Frontend::ExprId Id, const Frontend::Ternary &Node )
 {
     llvm::Value *Cond = EmitExpr( Node.Cond );
@@ -1160,12 +1165,11 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitTernary ( Frontend::Ex
         Shape = Then->getType();
     }
     llvm::PHINode *Result = Builder->CreatePHI( Shape, 2, "ternary" );
-    Result->addIncoming(
-        CoerceWidth( Then, Shape ),
-        ThenEnd ); // NOLINT(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
-    Result->addIncoming( CoerceWidth( Else, Shape ), ElseEnd ); // NOLINT(clang-analyzer-security.ArrayBound)
+    Result->addIncoming( CoerceWidth( Then, Shape ), ThenEnd );
+    Result->addIncoming( CoerceWidth( Else, Shape ), ElseEnd );
     return Result;
 }
+// NOLINTEND(clang-analyzer-security.ArrayBound)
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCase ( Frontend::ExprId Id, const Frontend::CaseExpr &Node )
 {
