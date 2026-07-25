@@ -168,11 +168,11 @@ Volt::Sema::LayoutId Volt::Backend::Llvm::LlvmBackend::State::LayoutOfValue ( co
 
 Volt::Sema::LayoutId Volt::Backend::Llvm::LlvmBackend::State::LayoutOfExpr ( Frontend::ExprId Id )
 {
-    if ( Frame.Unit == nullptr or Frame.Unit->Values == nullptr )
+    if ( Frame.Unit == nullptr or Frame.Values == nullptr )
     {
         return Sema::LayoutId{};
     }
-    return LayoutOfValue( *Frame.Unit->Values, Frame.Unit->Values->ExprType( Id ) );
+    return LayoutOfValue( *Frame.Values, Frame.Values->ExprType( Id ) );
 }
 
 llvm::Type *Volt::Backend::Llvm::LlvmBackend::State::TypeOfExpr ( Frontend::ExprId Id )
