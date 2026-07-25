@@ -26,22 +26,29 @@ namespace Volt
 namespace Backend
 {
 
-    // One requested instantiation: the generic declaration plus its concrete
-    // arguments, each itself a flattened pre-order NominalId spelling so
-    // nested generics (`Array<Array<Int32>>`) key exactly.
+    // One requested instantiation: which member, and its concrete bindings.
+    // `Base`+`Args` alone (a type-shaped key) is enough for a *layout*
+    // (`InstanceLayouts::Of`, keyed independently and without going through
+    // this queue at all) but not for a *body*: a generic type can declare
+    // several members, and `Array<Int32>` says nothing about which of
+    // `push`/`pop`/`map` is meant. `Owner`+`Name` names the member; `Args` is
+    // the pre-order flattening of `CalleeEntry::Bindings` — the owner's own
+    // generics first, then the method's — the same encoding InstanceLayouts
+    // and Mangler read, so a layout, a symbol and a queue entry can never
+    // disagree about which instantiation they mean.
     struct MonoRequest
     {
 
-        Sema::NominalId Base;
-        // Pre-order flattening of the argument type trees: for each node,
-        // its NominalId then its own argument count.
+        Sema::NominalId Owner; // invalid for a free function
+        Sema::Symbol Name;     // interned in the TypeStore, like Member::Name
         std::vector<std::uint32_t> Args;
 
         [[nodiscard]] std::vector<std::uint32_t> Key () const
         {
             std::vector<std::uint32_t> Flat;
-            Flat.reserve( 1 + Args.size() );
-            Flat.push_back( Base.Value );
+            Flat.reserve( 2 + Args.size() );
+            Flat.push_back( Owner.Value );
+            Flat.push_back( Name.Value );
             Flat.insert( Flat.end(), Args.begin(), Args.end() );
             return Flat;
         }
