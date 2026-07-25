@@ -355,7 +355,7 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // The zext TypeCompat's widening rule implies. Sema already decided an
     // `i8` is acceptable where a `u64` is expected (rules/zero-hardcode.md);
     // this only carries that decision onto the wire.
-    [[nodiscard]] llvm::Value *CoerceWidth ( llvm::Value *Value, llvm::Type *Target );
+    [[nodiscard]] llvm::Value *CoerceWidth ( llvm::Value *Value, llvm::Type *Target ) const;
 
     // Per-node emission. Each takes the node it was dispatched on, so the
     // single std::visit site in EmitExpr stays a table of one-liners.
