@@ -251,7 +251,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
                 // `x : UInt64 = 0` is storage of the declared width, and the
                 // initialiser widens into it.
                 const Sema::BindingSite Site{ Id };
-                const Sema::LayoutId Shape = LayoutOfValue( *Frame.Unit->Values, Frame.Unit->Values->SiteType( Site ) );
+                const Sema::LayoutId Shape = LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Site ) );
                 llvm::Type *Slot           = TypeOfLayout( Shape );
                 if ( Slot == nullptr )
                 {
