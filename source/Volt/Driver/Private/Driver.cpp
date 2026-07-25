@@ -434,7 +434,11 @@ std::vector<Volt::Backend::UnitView> Volt::Driver::Driver::MakeBackendViews () c
     const auto Append = [&] ( std::size_t Index )
     {
         const CompileUnit &Source = Units[Index];
-        Views.push_back( Backend::UnitView{ .Module  = Source.Module,
+        // The ordinal is the *discovery* index — the very one BindUnitTypes
+        // stamped on every Member and NominalType — not the position in this
+        // reordered vector.
+        Views.push_back( Backend::UnitView{ .Ordinal = static_cast<std::uint32_t>( Index ),
+                                            .Module  = Source.Module,
                                             .Path    = Source.Path,
                                             .Ast     = &Source.Ast,
                                             .Values  = &Source.Types,
