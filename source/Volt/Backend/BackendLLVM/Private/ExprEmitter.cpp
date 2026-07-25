@@ -290,6 +290,17 @@ template <typename Row> [[nodiscard]] const Row *FindRow ( std::span<const Row> 
 // Places
 // ---------------------------------------------------------------------------
 
+std::string Volt::Backend::Llvm::LlvmBackend::State::MissingSelf ( std::string_view What ) const
+{
+    if ( Frame.bClosure )
+    {
+        return "llvm: " + std::string( What ) +
+               " inside a closure body — SynthesizeClosureFrame captures bindings, and a receiver is not one, so nothing "
+               "carries `self` into the environment";
+    }
+    return "llvm: " + std::string( What ) + " outside a method with a receiver";
+}
+
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::ExprId Id )
 {
     if ( Failed() or Frame.Unit == nullptr or not Id.IsValid() )
@@ -317,10 +328,12 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
                 if ( It == Frame.Slots.end() )
                 {
                     // A local declared in a branch the walk has not reached is
-                    // impossible; a *captured* one is a closure, which is a
-                    // separate phase and says so.
+                    // impossible, and a captured one was bound from the
+                    // environment on entry — so what is left is a name
+                    // ScopeResolver bound outside this body without recording
+                    // it as a capture.
                     static_cast<void>( Fail( "llvm: '" + std::string( Frame.Unit->Ast->Text( Bound->Name ) ) +
-                                             "' has no slot in this function — a capture needs the closure emitter" ) );
+                                             "' has no slot in this function, and no capture of it was recorded" ) );
                     return nullptr;
                 }
                 return It->second;
@@ -329,8 +342,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
             {
                 if ( Frame.Self == nullptr )
                 {
-                    static_cast<void>( Fail( "llvm: '@" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) +
-                                             "' outside a method with a receiver" ) );
+                    static_cast<void>( Fail( MissingSelf( "'@" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) + "'" ) ) );
                     return nullptr;
                 }
                 return FieldAddress( Frame.Self, Frame.SelfLayout, Frame.Unit->Ast->Text( Node.Name ), Id );
@@ -413,7 +425,12 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStore ( llvm::Value *Address, 
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprId Id )
 {
-    if ( Failed() or Frame.Unit == nullptr or not Id.IsValid() )
+    // `Terminated()` here as well as in `EmitStmts`: a `raise` (or a call the
+    // post-call check found pending) can end the current block mid-expression
+    // — e.g. a non-tail argument — and every remaining sub-expression of the
+    // one being built is genuinely unreachable. Nothing here decides that; it
+    // only refuses to append instructions after it.
+    if ( Failed() or Terminated() or Frame.Unit == nullptr or not Id.IsValid() )
     {
         return nullptr;
     }
@@ -474,7 +491,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             {
                 if ( Frame.Self == nullptr )
                 {
-                    static_cast<void>( Fail( "llvm: `self` outside a method with a receiver" ) );
+                    static_cast<void>( Fail( MissingSelf( "`self`" ) ) );
                 }
                 return Frame.Self;
             },
@@ -484,7 +501,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             {
                 if ( Frame.Self == nullptr )
                 {
-                    static_cast<void>( Fail( "llvm: `super` outside a method with a receiver" ) );
+                    static_cast<void>( Fail( MissingSelf( "`super`" ) ) );
                 }
                 return Frame.Self;
             },
@@ -512,28 +529,12 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
 
             // --- Control ---------------------------------------------------
             [this, Id] ( const Frontend::CaseExpr &Node ) -> llvm::Value * { return EmitCase( Id, Node ); },
-            [this] ( const Frontend::BeginExpr & ) -> llvm::Value *
-            {
-                static_cast<void>( Fail( "llvm: `begin/rescue` needs the exception emitter (backend phase 6)" ) );
-                return nullptr;
-            },
-            [this] ( const Frontend::RaiseExpr & ) -> llvm::Value *
-            {
-                static_cast<void>( Fail( "llvm: `raise` needs the exception emitter (backend phase 6)" ) );
-                return nullptr;
-            },
+            [this, Id] ( const Frontend::BeginExpr &Node ) -> llvm::Value * { return EmitBegin( Id, Node ); },
+            [this, Id] ( const Frontend::RaiseExpr &Node ) -> llvm::Value * { return EmitRaise( Id, Node ); },
 
             // --- Closures --------------------------------------------------
-            [this] ( const Frontend::Lambda & ) -> llvm::Value *
-            {
-                static_cast<void>( Fail( "llvm: a lambda needs the closure emitter (backend phase 5)" ) );
-                return nullptr;
-            },
-            [this] ( const Frontend::Block & ) -> llvm::Value *
-            {
-                static_cast<void>( Fail( "llvm: a block needs the closure emitter (backend phase 5)" ) );
-                return nullptr;
-            },
+            [this, Id] ( const Frontend::Lambda &Node ) -> llvm::Value * { return EmitLambda( Id, Node ); },
+            [this, Id] ( const Frontend::Block &Node ) -> llvm::Value * { return EmitBlock( Id, Node ); },
 
             // --- Inert -----------------------------------------------------
             // Neither carries a runtime value, and neither is descended into
@@ -940,12 +941,6 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::CoerceWidth ( llvm::Value 
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node )
 {
-    if ( Node.BlockArg.IsValid() )
-    {
-        static_cast<void>( Fail( "llvm: a call with a trailing block needs the closure emitter (backend phase 5)" ) );
-        return nullptr;
-    }
-
     const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Node.Callee );
     if ( Entry == nullptr or Entry->Decl == nullptr )
     {
@@ -955,21 +950,43 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCall ( Frontend::ExprI
     }
 
     // The receiver is the callee's own object, when the callee is a member
-    // access. A free function's callee is an Identifier and has none.
+    // access. A free function's callee is an Identifier and has none — unless
+    // the resolution is `@[Apply]`, where the callee expression *is* the
+    // callable being invoked: `f( x )` on a local holding a closure.
     Frontend::ExprId Receiver;
     if ( const auto *Access = std::get_if<Frontend::Member>( &Frame.Unit->Ast->Expr( Node.Callee ) ); Access != nullptr )
     {
         Receiver = Access->Object;
     }
+    else if ( Entry->Decl->bApply )
+    {
+        Receiver = Node.Callee;
+    }
 
-    return EmitResolvedCall( Id, *Entry, Receiver, std::span<const Frontend::ExprId>{ Node.Args.begin(), Node.Args.Size() } );
+    return EmitResolvedCall( Id, *Entry, Receiver, std::span<const Frontend::ExprId>{ Node.Args.begin(), Node.Args.Size() },
+                             Node.BlockArg );
 }
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Frontend::ExprId Id,
                                                                          const Sema::CalleeEntry &Entry,
                                                                          Frontend::ExprId Receiver,
-                                                                         std::span<const Frontend::ExprId> Args )
+                                                                         std::span<const Frontend::ExprId> Args,
+                                                                         Frontend::ExprId Block )
 {
+    // `@[Apply]` resolves to a member that has no body and no symbol: the
+    // callable being invoked is the receiver, and the call goes through its
+    // `{ code, env }` pair rather than to a mangled name.
+    if ( Entry.Decl->bApply )
+    {
+        if ( Block.IsValid() )
+        {
+            static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
+                                     " passes a trailing block to a callable, whose type carries positional arguments only" ) );
+            return nullptr;
+        }
+        return EmitApplyCall( Id, Entry, Receiver, Args );
+    }
+
     const Sema::UnitTypes &Values = *Frame.Unit->Values;
 
     // The owner and the instantiation both come out of the entry Sema recorded:
@@ -1015,14 +1032,53 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         Actuals.push_back( Self );
     }
 
-    for ( const Frontend::ExprId Arg : Args )
+    // The declared parameters, in their own order — which is not the argument
+    // list's: a `&block` slot binds through the call's trailing `do ... end`
+    // and is skipped by positional matching (TypeStore::Member), so the two are
+    // walked together rather than one being assumed to be the other.
+    std::size_t Positional = 0;
+    bool bBlockBound       = false;
+    for ( std::size_t Index = 0; Index < Entry.Decl->Params.Size(); ++Index )
     {
+        const bool bBlockSlot = Index < Entry.Decl->ParamIsBlock.Size() and Entry.Decl->ParamIsBlock[Index];
+
+        Frontend::ExprId Arg;
+        if ( bBlockSlot )
+        {
+            Arg         = Block;
+            bBlockBound = true;
+        }
+        else if ( Positional < Args.size() )
+        {
+            Arg = Args[Positional];
+            ++Positional;
+        }
+
+        if ( not Arg.IsValid() )
+        {
+            // A parameter with a default is filled at the call site by no pass:
+            // `Param::Default` is a spelling the middle-end never materialises
+            // into the argument list, so the omission stops here by name.
+            static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
+                                     " supplies no argument for parameter " + std::to_string( Index ) + " of '" +
+                                     std::string( Build->Types->Text( Entry.Decl->Name ) ) + "'" ) );
+            return nullptr;
+        }
+
         llvm::Value *Value = EmitExpr( Arg );
         if ( Value == nullptr )
         {
             return nullptr;
         }
         Actuals.push_back( Value );
+    }
+
+    if ( Block.IsValid() and not bBlockBound )
+    {
+        static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
+                                 " carries a trailing block, and '" + std::string( Build->Types->Text( Entry.Decl->Name ) ) +
+                                 "' declares no `&block` parameter to bind it to" ) );
+        return nullptr;
     }
 
     llvm::FunctionType *Signature = Callee->getFunctionType();
@@ -1038,7 +1094,16 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         Actuals[Index] = CoerceWidth( Actuals[Index], Signature->getParamType( static_cast<unsigned>( Index ) ) );
     }
 
-    return Builder->CreateCall( Callee, Actuals );
+    llvm::Value *Result = Builder->CreateCall( Callee, Actuals );
+
+    // An `@[External]` symbol is C, and C cannot raise a Volt exception — the
+    // thread-local state it might happen to read was some *other* Volt call's,
+    // never its own, so the post-call check only runs for Volt code.
+    if ( not bExternal )
+    {
+        EmitExceptionCheck();
+    }
+    return Result;
 }
 
 // ---------------------------------------------------------------------------
