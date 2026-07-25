@@ -179,6 +179,29 @@ Each is refused by a message naming the hole rather than guessed at, per
   is reachable from valid source and cannot be a hard failure. It lowers to
   `unreachable`, which is the honest reading of "the middle-end promised
   control never gets here".
+- **No allocation entry point is marked, so an escaping environment cannot be
+  allocated.** `bEscapes == true` with at least one capture needs a heap env,
+  and `abi.md` is explicit that "heap" means a call to the stdlib's annotated
+  allocator — a linked symbol, not compiler behaviour. `@[External]` records a
+  C symbol *per member*, but nothing marks one member as *the* allocator, so
+  the emitter would have to name `malloc` itself, which
+  `rules/zero-hardcode.md` forbids. Refused by a message naming the hole. An
+  escaping closure that captures **nothing** is unaffected: its env is null.
+  The fix is upstream and small — one annotation (`@[Allocator]`, say) read in
+  the same `PendingAnnotation` loop that already handles `@[External]`.
+- **A closure body cannot reach `self`.** `ClosureEnvFrame` captures
+  *bindings*, and a receiver is not one, so a `do … end` inside a method that
+  touches `self` or `@x` has nothing to reach it through. Reported as that,
+  not as "outside a method" — `Frame.bClosure` is what distinguishes the two
+  messages. The fix is upstream: record the receiver as a capture, or add a
+  `bCapturesSelf` to the frame.
+- **`abi.md` fixes how an aggregate travels *into* a call, not out of one.**
+  "Aggregates by pointer" covers parameters; a *returned* aggregate has no
+  rule, so `FunctionTypeOf` gives it the struct type by value while `EmitExpr`
+  hands back an address — the two disagree, and the IR verifier in phase 8 is
+  where it will surface. This predates the closure work (any method returning
+  the type that claims `StringLiteral` has it) and is one decision — sret, or
+  by-value returns — to be written into `abi.md` before phase 8.
 - **Integer literal suffixes are parsed and ignored** (already recorded in
   `rules/core-ast.md`). The decoder trims the suffix and takes its width from
   the *layout*, always — honouring the suffix here would make the backend
@@ -187,28 +210,164 @@ Each is refused by a message naming the hole rather than guessed at, per
 ## Closures — `ClosureEnvFrame` is already computed
 
 `SynthesizeClosureFrame` hands the emitter `{ Fields[offset], TotalSize,
-Alignment, bEscapes }`:
+Alignment, bEscapes }`, and `ClosureEmitter.cpp` allocates that shape and fills
+it. Nothing here decides what is captured or where a field lives.
 
-- Lambda body → a private function taking `ptr %env` as leading parameter.
-- `bEscapes == false` (literal consumed at its call site): env is an
-  `alloca` in the caller — zero heap.
-- `bEscapes == true`: env is heap-allocated through the stdlib allocation
-  entry point (an `@[External]`-annotated function, so the backend calls a
-  symbol, not a hardcoded runtime).
-- The closure *value* is the `{ ptr fn, ptr env }` pair aggregate; calling a
-  `Block`/callable goes through `bApply` resolution like any call.
+- A `Lambda` and a `Block` differ only in what their body is — an expression
+  against a statement list — so both go through one `EmitClosure`. The body
+  compiles to a **private** `llvm::Function`: it is reached through its pair,
+  never by symbol, so it has no mangling and takes no part in the declare
+  sweep's symbol table.
+- Parameters are the declared ones **then `ptr %env`**, the trailing position
+  `abi.md` fixes for all three targets. The env parameter is present even when
+  nothing is captured, so a call site needs no second signature — an empty
+  environment is a null pointer, not a missing argument.
+- Parameter types come from `UnitTypes::SiteType( BindingSite{ ParamId } )`,
+  the only place `| i |` in `arr.each do | i |` has a type at all; the result
+  is `Args[0]` of the callable type Sema gave the closure itself.
+- `bEscapes == false` (ScopeResolver proved the literal is consumed at its
+  call site): the env is an `alloca` in the caller — zero heap, the common
+  `do … end` case.
+- The body is emitted under a **nested `FunctionFrame`**, with the enclosing
+  frame's slots, loop stack and insert point saved and restored around it.
+  The frame carries `bClosure`, which two things read (below).
+
+### Captures are addresses, and that is what makes them ordinary
+
+An env field holds the **address** of the captured binding, never a copy of
+its value. Two consequences, both load-bearing:
+
+- inside the body a capture is bound by `load ptr` out of the env, which
+  yields exactly what `FunctionFrame::Slots` holds for every other binding —
+  a place. So `x` reads and writes identically whether it is local or
+  captured, and no node kind learns about closures;
+- it is the only reading the frame's uniform pointer-sized fields support:
+  `SynthesizeClosureFrame` gives every capture the same slot regardless of its
+  type, which no by-value copy of an arbitrary aggregate could use. The
+  emitter checks each offset still fits the target's pointer size rather than
+  assuming the two agree.
+
+### The closure value is a layout, not an emitter-local shape
+
+`{ code, env }` is `abi.md`'s, shared by the three targets — and the stdlib
+type claiming `FuncType` / `Lambda` / `Block` declares *no field*, because that
+shape is an ABI decision no Volt declaration could express. So it is
+materialised in **`BackendCore::InstanceLayouts`**, next to the generic
+instantiation it resembles: a nominal claiming one of those three node kinds
+resolves to an aggregate of two `Pointer` fields (`Pointer`, not an
+`@[Primitive("ptr")]` spelling, so the pair's size follows the target's pointer
+size through `LayoutEngine`).
+
+Putting it there rather than in one emitter is what makes a local, a field, a
+parameter and an argument holding a callable all agree on the shape — and what
+will let the VM and wasm read a closure this backend wrote. The claim is asked
+of the store through `@[Literal]`, the same protocol that identifies the type
+behind `nil` or a string literal, so no Volt type name enters.
+
+### Invoking one: `@[Apply]` is the whole protocol
+
+`f( x )` on a local holding a callable and `block.call( x )` on a `&block`
+parameter are the *same* emission. `MemberResolver` resolves both to the
+member the callable's type annotates `@[Apply]`, and records that the signature
+is the receiver's own type arguments — result first, then the parameters. The
+emitter therefore:
+
+```
+Entry.Decl->bApply  ->  load { code, env } from the receiver, build the
+                        FunctionType from Entry.Result / Entry.Params, and
+                        call `code` indirectly with `env` appended
+otherwise           ->  direct call to the mangled symbol, as before
+```
+
+This is the one place a `FunctionType` is built from a *type* rather than from
+a declaration — a callable has no declaration to build it from. The receiver
+expression is the callee's object for a `Member`, and the callee expression
+itself for a bare `f( x )`.
+
+A trailing `do … end` fills the callee's `&block` slot, which is **not** a
+positional one: `Member::ParamIsBlock` marks it, positional matching skips it
+(`MemberResolver`), and `EmitResolvedCall` therefore walks the declared
+parameters and the argument list together rather than assuming they are the
+same sequence.
+
+### `next` in a block is a `ret`
+
+Inside a closure body with no loop of its own, `next [value]` ends *this
+invocation* and hands the value back — so it emits `ret`, not a branch. The
+same keyword means "continue" only when there is a loop in this frame to
+continue, and `Frame.bClosure` is what tells the two apart. `break` in the same
+position is a non-local exit from the method that invoked the block; that needs
+an unwinding transport, so it is refused and named as the exception emitter's
+(tier 1, below).
 
 ## Exceptions — `RaiseExpr` / `BeginExpr`, two tiers
 
-Tier 1 (first implementation): **setjmp/sigsetjmp-free personality-less
-unwinding is not attempted** — `begin/rescue` lowers to an out-parameter
-error slot: `raise` stores the exception object (rooted at the
-`@[ExceptionRoot]` nominal) into a thread-local slot and returns down a
-poisoned path; `rescue` clauses test the slot's dynamic nominal id. Simple,
-portable, correct, and identical semantics to the VM.
+Tier 1 (implemented, `ExceptionEmitter.cpp`): **setjmp/sigsetjmp-free
+personality-less unwinding is not attempted** — `raise` never touches the C
+stack directly. It stores the exception's address plus its own NominalId into
+two thread-local globals (`volt.exc.value` / `volt.exc.tag`,
+`NominalId::InvalidValue` meaning "nothing in flight" — the sentinel `TypedId`
+already uses, not a second one) and takes the *poisoned path*: a branch to the
+innermost `begin` **this function** owns (`FunctionFrame::Rescues`, a stack
+exactly like `Loops`), or — with none — an early return carrying no value,
+exactly as if the raising call had simply returned.
+
+Every ordinary (non-`@[External]`) call this emitter makes is followed by
+`EmitExceptionCheck`: load the tag, and if it is no longer `InvalidValue`,
+take the same poisoned path. So a `raise` several calls deep unwinds one `ret`
+at a time until some caller's frame is inside a `begin` — simple, portable,
+correct, identical semantics to what the VM will do, and it costs the calling
+convention nothing: no signature reserves a channel for it (`abi.md`).
+
+`rescue` clause matching compares the raised object's NominalId (loaded from
+the tag global) against each clause's own resolved filter —
+`Values->SiteType( BindingSite{ ClauseId } )`, which `ExprInferencer` now
+records for *every* clause, bound variable or not, since the ancestry test
+needs the target regardless of whether the clause also captures it — by
+walking `volt.exc.ancestry`, a `[N x i32]` global (`NominalId -> immediate
+Super`) built once per module from `TypeStore::Type(Id).Super`. The walk is
+the same reflexive, depth-bounded one `IsSubclassOf` performs in Sema
+(`TypeResolve.cpp`), done here at runtime because only the *dynamic* side of
+the test is unknown at compile time — the emitter never re-resolves a filter
+type itself.
+
+`begin`/`rescue`/`ensure` compiles to four blocks: `Dispatch` (clause ladder),
+`Ensure`, `Merge`, plus each clause's own body block. The `Rescues` stack
+target changes twice, which is what makes `ensure` run on every path without
+a raise inside a handler re-entering its own clause ladder:
+
+- while emitting the body, the target is `Dispatch` — the body's own raises
+  (or a pending call) get first refusal from this begin's clauses;
+- while emitting each clause's body, the target is `Ensure` directly — a
+  raise from inside a handler skips straight past clause matching (it must
+  not be caught by the same `rescue`) but still runs this `ensure`;
+- while emitting `ensure` itself, the stack has been popped back to whatever
+  was active outside this `begin` — its own raises propagate normally, they
+  do not re-enter this `ensure`.
+
+Falling through every clause with nothing matching leaves the thread-local
+state exactly as `Dispatch` found it, so a second check *after* `ensure`
+re-propagates it (branch to the outer `Rescues.back()`, or the same poisoned
+return) rather than needing separate plumbing for "unhandled". A rescue
+variable's slot is bound exactly like a `LocalDecl`'s — `SlotFor` at
+`BindingSite{ ClauseId }`, then `EmitStore` (a memcpy for the aggregate
+exception object) — and the thread-local state is cleared *before* the
+handler body runs, so a call inside it is checked against whatever *it*
+raises, never the exception it is currently handling.
+
 Tier 2 (once hot): Itanium zero-cost EH — `invoke` + `landingpad` with a
-custom personality; the clause matching logic is unchanged, only the
-transport differs. The choice is an emitter flag, not an AST concern.
+custom personality; the clause matching logic (the ancestry walk above) is
+unchanged, only the transport differs. The choice is an emitter flag, not an
+AST concern.
+
+**Known interaction, not fixed here:** constructing the raised object via
+`SomeError.new(...)` goes through the pre-existing aggregate-*return* gap
+(phase 5's note: abi.md fixes how an aggregate travels *into* a call, not
+*out* of one). `EmitRaise` trusts `EmitExpr(Node.Exception)` to hand back a
+`ptr` per the "aggregates are addresses" convention every other node relies
+on; if that convention is ever violated by an aggregate-returning `.new`, it
+is the pre-existing gap surfacing, not a new one, and is deferred to the same
+phase-8 verifier work that gap already names.
 
 ## Optimisation & emission
 
