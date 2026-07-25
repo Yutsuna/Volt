@@ -275,6 +275,8 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
     Frame               = FunctionFrame{};
     Frame.Fn            = Fn;
     Frame.Unit          = &Unit;
+    Frame.Values        = Unit.Values;
+    Frame.Callees       = Unit.Callees;
     Frame.Owner         = Owner;
     Frame.Entry         = llvm::BasicBlock::Create( Context, "entry", Fn );
     Frame.bReturnsValue = not Fn->getReturnType()->isVoidTy();
@@ -441,6 +443,16 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
 
 Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
 {
+    if ( Impl->Failed() )
+    {
+        return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message };
+    }
+
+    // Every unit is defined by now, so every instantiation a concrete body
+    // could ever discover has been enqueued. A drained body can itself
+    // enqueue more — a generic method calling another generic method — so
+    // this drains to a fixpoint rather than once.
+    Impl->DrainMonomorphizer();
     if ( Impl->Failed() )
     {
         return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message };
