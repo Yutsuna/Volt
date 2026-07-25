@@ -8,8 +8,11 @@
 
 #include "Volt/Frontend/AST/AstContext.hpp"
 
+#include <llvm/ADT/SmallString.h>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/MC/TargetRegistry.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/FileUtilities.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/TargetParser/Host.h>
 
@@ -96,6 +99,18 @@ llvm::Type *Volt::Backend::Llvm::LlvmBackend::State::ParamTypeOfLayout ( Sema::L
     return Shape->isStructTy() ? llvm::PointerType::get( Context, 0 ) : Shape;
 }
 
+Volt::Sema::LayoutId Volt::Backend::Llvm::LlvmBackend::State::SignatureLayoutOf ( Sema::TypeStore &Store,
+                                                                                  Sema::SigTypeId Id,
+                                                                                  Sema::NominalId Owner,
+                                                                                  std::span<const std::uint32_t> FlatArgs )
+{
+    if ( Id.IsValid() and Store.Sig( Id ).ParamIndex == Sema::SigType::SelfParam )
+    {
+        return Instances.Of( Store, Owner, FlatArgs );
+    }
+    return Instances.OfSignature( Store, Id, FlatArgs );
+}
+
 llvm::FunctionType *Volt::Backend::Llvm::LlvmBackend::State::FunctionTypeOf ( const Sema::Member &Entry,
                                                                               Sema::NominalId Owner,
                                                                               std::span<const std::uint32_t> FlatArgs )
@@ -132,7 +147,7 @@ llvm::FunctionType *Volt::Backend::Llvm::LlvmBackend::State::FunctionTypeOf ( co
             continue;
         }
 
-        llvm::Type *Slot = ParamTypeOfLayout( Instances.OfSignature( Store, Entry.Params[Index], FlatArgs ) );
+        llvm::Type *Slot = ParamTypeOfLayout( SignatureLayoutOf( Store, Entry.Params[Index], Owner, FlatArgs ) );
         if ( Slot == nullptr )
         {
             static_cast<void>( Fail( "llvm: parameter " + std::to_string( Index ) + " of '" +
@@ -147,7 +162,7 @@ llvm::FunctionType *Volt::Backend::Llvm::LlvmBackend::State::FunctionTypeOf ( co
     // return whose nominal the stdlib never defines. Both are `void`; neither
     // is guessed at.
     llvm::Type *Result =
-        Entry.Result.IsValid() ? TypeOfLayout( Instances.OfSignature( Store, Entry.Result, FlatArgs ) ) : nullptr;
+        Entry.Result.IsValid() ? TypeOfLayout( SignatureLayoutOf( Store, Entry.Result, Owner, FlatArgs ) ) : nullptr;
     if ( Result == nullptr )
     {
         Result = llvm::Type::getVoidTy( Context );
@@ -211,6 +226,25 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::DeclareMember ( const S
     return FunctionFor( Entry, Owner, {} );
 }
 
+bool Volt::Backend::Llvm::LlvmBackend::State::IsMixinOwner ( Sema::NominalId Id ) const
+{
+    if ( not Id.IsValid() or Build == nullptr )
+    {
+        return false;
+    }
+
+    const Sema::TypeStore &Store  = *Build->Types;
+    const Sema::NominalType &Type = Store.Type( Id );
+    for ( const UnitView &View : Build->Units )
+    {
+        if ( View.Ordinal == Type.Unit and View.Ast != nullptr )
+        {
+            return std::holds_alternative<Frontend::Mixin>( View.Ast->Decl( Type.Decl ) );
+        }
+    }
+    return false;
+}
+
 void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
 {
     Sema::TypeStore &Store = *Build->Types;
@@ -225,7 +259,10 @@ void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
 
         // A generic type's members have no shape until its arguments are
         // fixed; `Array<Int32>#push` is minted by the monomorphiser instead.
-        if ( Store.Type( Id ).Params.Size() > 0 )
+        // A mixin's own concrete methods are generic over `self` in exactly
+        // the same sense, and no less so for declaring zero `<T>`s of its
+        // own — IsMixinOwner is the check that catches it (see LlvmState.hpp).
+        if ( Store.Type( Id ).Params.Size() > 0 or IsMixinOwner( Id ) )
         {
             continue;
         }
@@ -365,7 +402,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
     for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
     {
         const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
-        if ( Store.Type( Id ).Params.Size() > 0 )
+        if ( Store.Type( Id ).Params.Size() > 0 or IsMixinOwner( Id ) )
         {
             continue;
         }
@@ -397,6 +434,11 @@ Volt::Backend::Llvm::LlvmBackend::~LlvmBackend () = default;
 Volt::Backend::Llvm::LlvmBackend::LlvmBackend ( LlvmBackend && ) noexcept = default;
 
 Volt::Backend::Llvm::LlvmBackend &Volt::Backend::Llvm::LlvmBackend::operator=( LlvmBackend && ) noexcept = default;
+
+void Volt::Backend::Llvm::LlvmBackend::SetOptions ( EmitOptions InOptions )
+{
+    Impl->Options = std::move( InOptions );
+}
 
 void Volt::Backend::Llvm::LlvmBackend::Begin ( const BackendInput &Input )
 {
@@ -443,9 +485,12 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
 
 Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
 {
+    const auto MakeFailure = [this] ()
+    { return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message }; };
+
     if ( Impl->Failed() )
     {
-        return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message };
+        return MakeFailure();
     }
 
     // Every unit is defined by now, so every instantiation a concrete body
@@ -455,9 +500,68 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
     Impl->DrainMonomorphizer();
     if ( Impl->Failed() )
     {
-        return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message };
+        return MakeFailure();
     }
 
-    return EmitResult{
-        .Status = EEmitStatus::Unimplemented, .Artifact = {}, .Message = "llvm backend: emission not implemented yet" };
+    // A broken module past this point is an emitter bug (rules/core-ast.md
+    // guarantees the middle-end never hands over anything the module
+    // verifier could reject), never a Volt source error — VerifyModule names
+    // the offending function rather than the caller guessing.
+    if ( not Impl->VerifyModule() )
+    {
+        return MakeFailure();
+    }
+
+    // Runs even at -O0: PassBuilder's O0 pipeline is the minimal
+    // semantically-required set, principally mem2reg, and the emitter itself
+    // never builds SSA (llvm.md, "every alloca goes in the entry block") —
+    // it depends on this pass to promote them back to registers.
+    Impl->RunOptimizationPipeline();
+
+    const std::string ModuleName = Impl->Mod->getName().str();
+    const std::string BaseName   = ModuleName.empty() ? std::string( "volt" ) : ModuleName;
+
+    if ( Impl->Options.Stage == EEmitStage::Ir )
+    {
+        const std::string Path = Impl->Options.OutputPath.empty() ? BaseName + ".ll" : Impl->Options.OutputPath;
+        if ( not Impl->EmitIrFile( Path ) )
+        {
+            return MakeFailure();
+        }
+        return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = Path, .Message = {} };
+    }
+
+    if ( Impl->Options.Stage == EEmitStage::Object )
+    {
+        const std::string Path = Impl->Options.OutputPath.empty() ? BaseName + ".o" : Impl->Options.OutputPath;
+        if ( not Impl->EmitObjectFile( Path ) )
+        {
+            return MakeFailure();
+        }
+        return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = Path, .Message = {} };
+    }
+
+    // Link: the object file is a temporary intermediate — nothing downstream
+    // of the linker ever reads it — removed once the link either succeeds or
+    // fails.
+    llvm::SmallString<128> TempObject;
+    if ( const std::error_code Error = llvm::sys::fs::createTemporaryFile( BaseName, "o", TempObject ) )
+    {
+        static_cast<void>( Impl->Fail( "llvm: could not create a temporary object file: " + Error.message() ) );
+        return MakeFailure();
+    }
+    const llvm::FileRemover ObjectCleanup( TempObject.str() );
+
+    if ( not Impl->EmitObjectFile( TempObject.str() ) )
+    {
+        return MakeFailure();
+    }
+
+    const std::string OutputPath = Impl->Options.OutputPath.empty() ? std::string( "a.out" ) : Impl->Options.OutputPath;
+    if ( not Impl->LinkExecutable( TempObject.str(), OutputPath ) )
+    {
+        return MakeFailure();
+    }
+
+    return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = OutputPath, .Message = {} };
 }
