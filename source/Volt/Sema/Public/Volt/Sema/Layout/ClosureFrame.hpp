@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
@@ -36,8 +37,9 @@ namespace Sema
         bool bEscapes = true;
     };
 
-    [[nodiscard]] ClosureEnvFrame
-    SynthesizeClosureFrame ( const ScopeTable &Scopes, const UnitTypes &Types, ScopeId ClosureScope );
+    [[nodiscard]] SEMA_EXPORT ClosureEnvFrame SynthesizeClosureFrame ( const ScopeTable &Scopes,
+                                                                       const UnitTypes &Types,
+                                                                       ScopeId ClosureScope );
 
 } // namespace Sema
 
