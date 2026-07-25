@@ -92,6 +92,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::AncestryTable ()
     return Ancestry;
 }
 
+// NOLINTBEGIN(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAncestorTest ( llvm::Value *Dynamic, Sema::NominalId Target )
 {
     llvm::Type *Int32Ty         = llvm::Type::getInt32Ty( Context );
@@ -113,8 +114,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAncestorTest ( llvm::V
     // this always reaches one of the two exits.
     Builder->SetInsertPoint( Loop );
     llvm::PHINode *Current = Builder->CreatePHI( Int32Ty, 2, "ancestor.cur" );
-    Current->addIncoming(
-        Dynamic, Preheader ); // NOLINT(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
+    Current->addIncoming( Dynamic, Preheader );
     llvm::Value *IsMatch = Builder->CreateICmpEQ( Current, TargetConst, "ancestor.match" );
     static_cast<void>( Builder->CreateCondBr( IsMatch, Done, CheckNone ) );
 
@@ -134,6 +134,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAncestorTest ( llvm::V
     Result->addIncoming( Builder->getFalse(), CheckNone );
     return Result;
 }
+// NOLINTEND(clang-analyzer-security.ArrayBound)
 
 void Volt::Backend::Llvm::LlvmBackend::State::EmitPoisonedPath ()
 {
