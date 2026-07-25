@@ -113,7 +113,8 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAncestorTest ( llvm::V
     // this always reaches one of the two exits.
     Builder->SetInsertPoint( Loop );
     llvm::PHINode *Current = Builder->CreatePHI( Int32Ty, 2, "ancestor.cur" );
-    Current->addIncoming( Dynamic, Preheader );
+    Current->addIncoming(
+        Dynamic, Preheader ); // NOLINT(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
     llvm::Value *IsMatch = Builder->CreateICmpEQ( Current, TargetConst, "ancestor.match" );
     static_cast<void>( Builder->CreateCondBr( IsMatch, Done, CheckNone ) );
 
