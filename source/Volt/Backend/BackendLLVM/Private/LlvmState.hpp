@@ -73,9 +73,19 @@ namespace Backend
             // empty stack means "no handler in this function", which is the
             // poisoned early return instead.
             std::vector<llvm::BasicBlock *> Rescues;
-            // The unit being walked: types, callees and scopes all come from
-            // it, and a call into another unit reads that unit's view instead.
+            // The unit being walked: Ast and Scopes always come from it (a
+            // generic body's lexical structure does not change under
+            // instantiation, only its types do), and a call into another
+            // unit reads that unit's view instead.
             const UnitView *Unit = nullptr;
+            // Where an expression's type and a call's resolution come from.
+            // A concrete body reads its own unit's (Unit->Values/Callees,
+            // set alongside Unit); a monomorphised one reads the per-request
+            // overlay Sema::ReinstantiateBody returned, since UnitTypes/
+            // UnitCallees hold one answer per ExprId and a generic body's
+            // ExprIds are shared by every instantiation.
+            const Sema::UnitTypes *Values    = nullptr;
+            const Sema::UnitCallees *Callees = nullptr;
             // Where every `alloca` goes, whatever block the walk is in when it
             // needs one. Keeping them all in the entry block is what lets
             // mem2reg promote them, which is why the emitter never builds SSA.
@@ -485,4 +495,23 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // returned — `Begin`'s value converges through storage, like `CaseExpr`'s,
     // since its clauses are statement lists whose count is not fixed structure.
     void EmitBeginTail ( const Frontend::StmtList &Body, llvm::AllocaInst *Slot, llvm::Type *Shape );
+
+    // --- Monomorphisation (MonoEmitter.cpp) --------------------------------
+
+    // The member a request names, plus the UnitView that declares it (its
+    // Ast/Scopes are what ReinstantiateBody re-types the body against). Null
+    // when the store declares no such member — a middle-end contract
+    // violation, reported by the caller.
+    [[nodiscard]] const Sema::Member *LookupMonoMember ( const MonoRequest &Request, const UnitView **OutUnit ) const;
+
+    // One instantiation: resolve the member, get or declare its Function
+    // (FunctionFor's own cache makes this idempotent), reinstantiate the
+    // body under Sema::ReinstantiateBody's overlay, and emit it exactly as
+    // DefineMember emits a concrete one.
+    void EmitMonomorphizedBody ( const MonoRequest &Request );
+
+    // Every request discovered so far, and everything a drained body itself
+    // discovers — a generic method calling another generic method — until
+    // the queue is empty.
+    void DrainMonomorphizer ();
 };
