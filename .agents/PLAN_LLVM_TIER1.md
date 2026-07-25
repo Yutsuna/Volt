@@ -189,11 +189,32 @@ Generic declarations are *skipped* — they have no signature until instantiated
 and C linkage. Doing this for all units first is what makes forward references across
 units resolve without a second fixup pass.
 
-**Define sweep.** For each unit in link order, fill the bodies. Per function:
-entry block, `alloca` every parameter and `LocalDecl` slot (mem2reg cleans them up —
-this is why the emitter never does its own SSA construction), then emit the statement
-list. Instantiation requests discovered while walking land in the `Monomorphizer` and
-are drained by `MonoEmitter` before `Finalize`.
+**Define sweep.** *Amended during implementation:* symmetric with the declare
+sweep, and for the same reason — it reads the **`TypeStore`**, keeping the members
+whose `Member::Unit` equals this view's ordinal, rather than walking the unit's
+`Decl` arena and searching the store back by `DeclId`.
+
+That test needed one new fact, and it is the only upstream addition this phase
+made: **`UnitView::Ordinal`** (`BackendCore/BackendInput.hpp`), filled from the
+*discovery* index in `Driver::MakeBackendViews`. `Member::Unit` is discovery
+order; `BackendInput::Units` is circuit *link* order; the two diverge as soon
+as a circuit has edges, so the bridge has to be carried, not recomputed. Full
+rationale in `.agents/backend/core-interfaces.md`.
+
+Per function: entry block, then bind the parameters in `abi.md`'s order — read
+here exactly as `FunctionTypeOf` wrote it, since the two are one contract.
+A scalar parameter gets an `alloca` (so assigning to a parameter works, and
+mem2reg undoes it); an **aggregate parameter is already its own slot**, arriving
+as a pointer to the caller's storage, so it is registered directly. Then emit
+the statement list. Instantiation requests discovered while walking land in the
+`Monomorphizer` and are drained by `MonoEmitter` before `Finalize`.
+
+The define sweep applies the declare sweep's exclusions plus one: an
+`@[External]` member *has* a symbol — it is declared, and calls to it link —
+but its body is outside Volt. `SymbolOf` is the single place that decides
+between the C spelling verbatim and the mangled scheme, and both sweeps now go
+through it (`DeclareMember` previously mangled `@[External]` names, which would
+have emitted a call to `_V…malloc` instead of `malloc`).
 
 **Dispatch shape**, verbatim from `core-interfaces.md` — per-node dispatch is never
 virtual, and there is exactly one `std::visit` site per category:
