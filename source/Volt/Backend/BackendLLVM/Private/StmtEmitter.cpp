@@ -200,22 +200,37 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
             {
                 if ( Frame.Loops.empty() )
                 {
-                    static_cast<void>( Fail( "llvm: `break` outside a loop reached codegen" ) );
+                    // Inside a closure with no loop of its own, `break` leaves
+                    // the *iterating* method — a non-local exit out of a frame
+                    // this one does not own. That needs an unwinding transport,
+                    // which is the exception emitter's, not a branch.
+                    static_cast<void>( Fail( Frame.bClosure
+                                                 ? "llvm: `break` inside a closure body is a non-local exit from the method "
+                                                   "that invoked it, which needs the exception transport (backend phase 6)"
+                                                 : "llvm: `break` outside a loop reached codegen" ) );
                     return;
                 }
                 // `break v` yields a value out of a loop, and a `while` has no
-                // value to yield it as — the shape it would need is the block
-                // protocol, which is the closure phase's.
+                // value to yield it as.
                 if ( Node.Value.IsValid() )
                 {
                     static_cast<void>( Fail( "llvm: `break` with a value at statement " + std::to_string( Id.Value ) +
-                                             " needs the closure emitter (backend phase 5)" ) );
+                                             " — a `while` has no value to yield it as" ) );
                     return;
                 }
                 static_cast<void>( Builder->CreateBr( Frame.Loops.back().Merge ) );
             },
             [this, Id] ( const Frontend::Next &Node )
             {
+                // In a closure with no enclosing loop, `next` *is* the block's
+                // result: it ends this invocation, which is a `ret`, not a
+                // branch. The same word means "continue" only when there is a
+                // loop in this frame to continue.
+                if ( Frame.Loops.empty() and Frame.bClosure )
+                {
+                    EmitBlockNext( Node.Value );
+                    return;
+                }
                 if ( Frame.Loops.empty() )
                 {
                     static_cast<void>( Fail( "llvm: `next` outside a loop reached codegen" ) );
@@ -224,7 +239,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
                 if ( Node.Value.IsValid() )
                 {
                     static_cast<void>( Fail( "llvm: `next` with a value at statement " + std::to_string( Id.Value ) +
-                                             " needs the closure emitter (backend phase 5)" ) );
+                                             " — a `while` iteration has no value to carry" ) );
                     return;
                 }
                 static_cast<void>( Builder->CreateBr( Frame.Loops.back().Latch ) );
