@@ -51,6 +51,9 @@ namespace Backend
         //   - the nominal already carries a layout (`@[Primitive]`, or a
         //     non-generic aggregate TypeBinder could already compute) — use it,
         //     arguments and all: `Pointer<T>` is `ptr` for every T;
+        //   - the nominal claims a closure node kind (`FuncType` / `Lambda` /
+        //     `Block`) — the `{ code, env }` pair abi.md fixes for all three
+        //     targets, which no stdlib declaration could express;
         //   - a generic aggregate — substitute into its declared fields and
         //     build the aggregate here;
         //   - nothing resolvable — an invalid LayoutId, which the caller
@@ -80,7 +83,19 @@ namespace Backend
         [[nodiscard]] Sema::LayoutId
         OfSig ( Sema::TypeStore &Store, Sema::SigTypeId Id, std::span<const std::uint32_t> FlatArgs, std::uint32_t Depth );
 
+        // Is this the type a written signature, a lambda and a trailing block
+        // all denote? Asked of the store through `@[Literal]`, the same
+        // mechanism that identifies the type behind `nil` or a string literal
+        // — no Volt type name enters (rules/zero-hardcode.md).
+        [[nodiscard]] static bool IsCallable ( const Sema::TypeStore &Store, Sema::NominalId Base );
+
+        // `{ code, env }`, memoised. A callable's arity and result live in its
+        // *type*, never in its memory shape, so one layout serves every
+        // instantiation — which is why this is not keyed on the arguments.
+        [[nodiscard]] Sema::LayoutId ClosurePair ( Sema::TypeStore &Store );
+
         std::map<std::vector<std::uint32_t>, Sema::LayoutId> Cache;
+        Sema::LayoutId Pair;
     };
 
     // The `Index`-th top-level argument subtree of a MonoRequest-encoded
