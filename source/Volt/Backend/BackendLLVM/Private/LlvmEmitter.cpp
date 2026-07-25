@@ -6,12 +6,17 @@
 
 #include "LlvmState.hpp"
 
+#include "Volt/Frontend/AST/AstContext.hpp"
+
+#include <llvm/IR/BasicBlock.h>
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/TargetParser/Host.h>
 
 #include <mutex>
+#include <string>
 #include <utility>
+#include <variant>
 
 // The concept is the contract; breaking the signature is a compile error here,
 // not a discovery made at the Driver's runtime seam.
@@ -151,6 +156,41 @@ llvm::FunctionType *Volt::Backend::Llvm::LlvmBackend::State::FunctionTypeOf ( co
     return llvm::FunctionType::get( Result, Params, false );
 }
 
+std::string Volt::Backend::Llvm::LlvmBackend::State::SymbolOf ( const Sema::Member &Entry,
+                                                                Sema::NominalId Owner,
+                                                                std::span<const std::uint32_t> FlatArgs ) const
+{
+    // An @[External] member never enters the mangling scheme: the whole point
+    // of that boundary is that the linker and a C compiler agree on the name,
+    // so the recorded C spelling is used verbatim.
+    if ( Entry.ExternSymbol.IsValid() )
+    {
+        return std::string( Build->Types->Text( Entry.ExternSymbol ) );
+    }
+    return MangleFunction( *Build->Types, Entry, Owner, FlatArgs );
+}
+
+llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::FunctionFor ( const Sema::Member &Entry,
+                                                                       Sema::NominalId Owner,
+                                                                       std::span<const std::uint32_t> FlatArgs )
+{
+    const std::string Symbol = SymbolOf( Entry, Owner, FlatArgs );
+    if ( const auto It = Functions.find( Symbol ); It != Functions.end() )
+    {
+        return It->second;
+    }
+
+    llvm::FunctionType *Signature = FunctionTypeOf( Entry, Owner, FlatArgs );
+    if ( Signature == nullptr )
+    {
+        return nullptr;
+    }
+
+    llvm::Function *Fn = llvm::Function::Create( Signature, llvm::Function::ExternalLinkage, Symbol, Mod.get() );
+    Functions.emplace( Symbol, Fn );
+    return Fn;
+}
+
 llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::DeclareMember ( const Sema::Member &Entry, Sema::NominalId Owner )
 {
     // A field is storage, not code. An `abstract def` is a contract: either an
@@ -168,21 +208,7 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::DeclareMember ( const S
         return nullptr;
     }
 
-    const std::string Symbol = MangleFunction( *Build->Types, Entry, Owner, {} );
-    if ( const auto It = Functions.find( Symbol ); It != Functions.end() )
-    {
-        return It->second;
-    }
-
-    llvm::FunctionType *Signature = FunctionTypeOf( Entry, Owner, {} );
-    if ( Signature == nullptr )
-    {
-        return nullptr;
-    }
-
-    llvm::Function *Fn = llvm::Function::Create( Signature, llvm::Function::ExternalLinkage, Symbol, Mod.get() );
-    Functions.emplace( Symbol, Fn );
-    return Fn;
+    return FunctionFor( Entry, Owner, {} );
 }
 
 void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
@@ -213,6 +239,150 @@ void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
     for ( const Sema::Member &Entry : Store.FreeFunctions() )
     {
         static_cast<void>( DeclareMember( Entry, Sema::NominalId{} ) );
+    }
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member &Entry,
+                                                             Sema::NominalId Owner,
+                                                             const UnitView &Unit )
+{
+    // The same four exclusions the declare sweep applies, plus @[External]:
+    // that one *has* a symbol — it is declared, and calls to it link — but its
+    // body lives outside Volt, so there is nothing here to emit.
+    if ( Entry.Kind != Sema::EMemberKind::Method or Entry.bAbstract or Entry.OwnGenerics > 0 or Entry.ExternSymbol.IsValid() )
+    {
+        return;
+    }
+
+    const auto *Node = std::get_if<Frontend::Method>( &Unit.Ast->Decl( Entry.Decl ) );
+    if ( Node == nullptr )
+    {
+        static_cast<void>( Fail( "llvm: the store calls '" + std::string( Build->Types->Text( Entry.Name ) ) +
+                                 "' a method, but its declaration in " + std::string( Unit.Path ) + " is not one" ) );
+        return;
+    }
+
+    llvm::Function *Fn = FunctionFor( Entry, Owner, {} );
+    if ( Fn == nullptr or not Fn->empty() )
+    {
+        return;
+    }
+
+    Sema::TypeStore &Store = *Build->Types;
+
+    // A fresh frame per function: a slot left over from the previous body
+    // would resolve a name to storage that no longer exists.
+    Frame               = FunctionFrame{};
+    Frame.Fn            = Fn;
+    Frame.Unit          = &Unit;
+    Frame.Owner         = Owner;
+    Frame.Entry         = llvm::BasicBlock::Create( Context, "entry", Fn );
+    Frame.bReturnsValue = not Fn->getReturnType()->isVoidTy();
+    Builder->SetInsertPoint( Frame.Entry );
+
+    // Parameter order is abi.md's, and it is read here exactly as
+    // FunctionTypeOf wrote it — the two are one contract, so `self` leads under
+    // the same condition in both.
+    unsigned Index = 0;
+    if ( Owner.IsValid() and not Entry.bSelf )
+    {
+        Frame.SelfLayout = Instances.Of( Store, Owner, {} );
+        Frame.Self       = Fn->getArg( 0 );
+        Frame.Self->setName( "self" );
+        Index = 1;
+    }
+
+    for ( const Frontend::ParamId ParamRef : Node->Params )
+    {
+        if ( Index >= Fn->arg_size() )
+        {
+            static_cast<void>( Fail( "llvm: '" + std::string( Store.Text( Entry.Name ) ) +
+                                     "' declares more parameters in its AST than in its signature" ) );
+            return;
+        }
+
+        const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
+        llvm::Argument *Arg             = Fn->getArg( Index );
+        Arg->setName( Unit.Ast->Text( Declared.Name ) );
+        ++Index;
+
+        // An aggregate already arrives as a pointer to storage, which *is* its
+        // slot; only a scalar needs an alloca, and it needs one so that
+        // assigning to a parameter works and mem2reg can undo it.
+        const Sema::BindingSite Site{ ParamRef };
+        if ( Arg->getType()->isPointerTy() )
+        {
+            Frame.Slots.emplace( Site, Arg );
+            continue;
+        }
+
+        llvm::Value *Slot = SlotFor( Site, Arg->getType(), Unit.Ast->Text( Declared.Name ) );
+        if ( Slot == nullptr )
+        {
+            static_cast<void>( Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
+                                     std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
+            return;
+        }
+        static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+    }
+
+    EmitStmts( Node->Body, Frame.bReturnsValue );
+
+    if ( not Terminated() )
+    {
+        if ( Frame.bReturnsValue )
+        {
+            // Falling off the end of a value-returning body. Volt has no
+            // definite-return analysis (an `if` with no `else` in tail position
+            // is accepted), so this path is reachable from valid source and
+            // cannot be a hard failure — `unreachable` is the honest lowering:
+            // it says "the middle-end promised control never gets here". Listed
+            // as a middle-end gap in .agents/backend/llvm.md.
+            static_cast<void>( Builder->CreateUnreachable() );
+        }
+        else
+        {
+            static_cast<void>( Builder->CreateRetVoid() );
+        }
+    }
+
+    Frame = FunctionFrame{};
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
+{
+    Sema::TypeStore &Store = *Build->Types;
+
+    // Symmetric with DeclareAll, and for the same reason: the store is the
+    // resolved interface of the whole build, so the sweep asks "which of these
+    // members does *this* unit hold a body for" rather than walking a Decl
+    // arena and searching the store back. `Member::Unit` is the declaring
+    // unit's *discovery* ordinal, which is what UnitView::Ordinal carries —
+    // deliberately not the view's index, since the views are in circuit link
+    // order and the two diverge as soon as a circuit has edges.
+    for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+    {
+        const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
+        if ( Store.Type( Id ).Params.Size() > 0 )
+        {
+            continue;
+        }
+
+        for ( const Sema::Member &Entry : Store.Type( Id ).Members )
+        {
+            if ( Entry.Unit == Unit.Ordinal )
+            {
+                DefineMember( Entry, Id, Unit );
+            }
+        }
+    }
+
+    for ( const Sema::Member &Entry : Store.FreeFunctions() )
+    {
+        if ( Entry.Unit == Unit.Ordinal )
+        {
+            DefineMember( Entry, Sema::NominalId{}, Unit );
+        }
     }
 }
 
@@ -253,13 +423,20 @@ void Volt::Backend::Llvm::LlvmBackend::Begin ( const BackendInput &Input )
     Impl->DeclareAll();
 }
 
-Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( [[maybe_unused]] const UnitView &Unit )
+Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const UnitView &Unit )
 {
     if ( Impl->Failed() )
     {
         return EEmitStatus::Error;
     }
-    return EEmitStatus::Unimplemented;
+
+    if ( Unit.Ast == nullptr or Unit.Values == nullptr or Unit.Callees == nullptr or Unit.Scopes == nullptr )
+    {
+        return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) + "' reached the backend with no sema output" );
+    }
+
+    Impl->DefineAll( Unit );
+    return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
 }
 
 Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
