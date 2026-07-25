@@ -1018,6 +1018,38 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         FlattenValueType( Values, Binding, FlatArgs );
     }
 
+    // A member `Owner` does not itself own (found on some ancestor or mixin
+    // instead — LookupMember's own doc: "the MemberRef it hands back carries
+    // the declaring nominal, not an instantiation") has no body defined
+    // against *this* receiver: DefineAll only ever defines a member under the
+    // NominalId that owns it in `Store.Type( Id ).Members`, never under every
+    // type that merely inherits it. A mixin's own default (`Arithmetic#min`)
+    // is additionally never defined at all — IsMixinOwner excludes it from
+    // both sweeps, since its `self` means "whichever type includes me" and
+    // has no signature until one does. Per-including-type instantiation of an
+    // inherited default is a real, understood gap (llvm.md), not something to
+    // paper over by emitting a call to a symbol nothing ever defines.
+    if ( Owner.IsValid() )
+    {
+        bool bOwnMember = false;
+        for ( const Sema::Member &Candidate : Build->Types->Type( Owner ).Members )
+        {
+            if ( &Candidate == Entry.Decl )
+            {
+                bOwnMember = true;
+                break;
+            }
+        }
+        if ( not bOwnMember )
+        {
+            static_cast<void>( Fail( "llvm: '" + std::string( Build->Types->Text( Entry.Decl->Name ) ) +
+                                     "' is inherited (from a mixin or a superclass) rather than declared on its "
+                                     "receiver's own type; per-including-type instantiation of an inherited default "
+                                     "method is not yet implemented" ) );
+            return nullptr;
+        }
+    }
+
     // A generic owner or a method with its own generics has no body yet —
     // DeclareAll/DefineAll both skip it outright, since neither sweep knows
     // the arguments this call site just fixed. FunctionFor below still
