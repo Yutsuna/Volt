@@ -13,6 +13,8 @@
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Type.h>
 
+#include <cstdint>
+#include <span>
 #include <string>
 #include <variant>
 #include <vector>
@@ -125,6 +127,66 @@ llvm::Type *Volt::Backend::Llvm::LlvmBackend::State::TypeOfLayout ( Sema::Layout
         TypeCache.emplace( Id.Value, Result );
     }
     return Result;
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::FlattenValueType ( const Sema::UnitTypes &Values,
+                                                                 Sema::SemaTypeId Id,
+                                                                 std::vector<std::uint32_t> &Out ) const
+{
+    if ( not Values.Has( Id ) )
+    {
+        return;
+    }
+
+    const Sema::SemaType &Value = Values.Get( Id );
+    Out.push_back( Value.Base.Value );
+    Out.push_back( static_cast<std::uint32_t>( Value.Args.Size() ) );
+    for ( const Sema::SemaTypeId Arg : Value.Args )
+    {
+        FlattenValueType( Values, Arg, Out );
+    }
+}
+
+Volt::Sema::LayoutId Volt::Backend::Llvm::LlvmBackend::State::LayoutOfValue ( const Sema::UnitTypes &Values, Sema::SemaTypeId Id )
+{
+    if ( not Values.Has( Id ) or Build == nullptr or Build->Types == nullptr )
+    {
+        return Sema::LayoutId{};
+    }
+
+    // The head's own arguments are what an instantiation is keyed on; the two
+    // header words in front of them belong to the head itself.
+    std::vector<std::uint32_t> Flat;
+    FlattenValueType( Values, Id, Flat );
+    if ( Flat.size() < 2 )
+    {
+        return Sema::LayoutId{};
+    }
+
+    return Instances.Of( *Build->Types, Sema::NominalId{ Flat[0] }, std::span<const std::uint32_t>{ Flat }.subspan( 2 ) );
+}
+
+Volt::Sema::LayoutId Volt::Backend::Llvm::LlvmBackend::State::LayoutOfExpr ( Frontend::ExprId Id )
+{
+    if ( Frame.Unit == nullptr or Frame.Unit->Values == nullptr )
+    {
+        return Sema::LayoutId{};
+    }
+    return LayoutOfValue( *Frame.Unit->Values, Frame.Unit->Values->ExprType( Id ) );
+}
+
+llvm::Type *Volt::Backend::Llvm::LlvmBackend::State::TypeOfExpr ( Frontend::ExprId Id )
+{
+    return TypeOfLayout( LayoutOfExpr( Id ) );
+}
+
+bool Volt::Backend::Llvm::LlvmBackend::State::IsAggregate ( Sema::LayoutId Id ) const
+{
+    if ( not Id.IsValid() or Build == nullptr or Build->Types == nullptr )
+    {
+        return false;
+    }
+    return Sema::KindOf( Build->Types->Get( Id ) ) == Sema::LayoutKind::Aggregate;
 }
 
 void Volt::Backend::Llvm::LlvmBackend::State::VerifyAggregateAbi ( [[maybe_unused]] Sema::LayoutId Id,
