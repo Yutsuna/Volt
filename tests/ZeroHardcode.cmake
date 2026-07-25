@@ -13,7 +13,10 @@ file( GLOB_RECURSE SCANNED_FILES
   ${ROOT}/source/Volt/Frontend/*.inl
   ${ROOT}/source/Volt/Sema/*.hpp
   ${ROOT}/source/Volt/Sema/*.cpp
-  ${ROOT}/source/Volt/Sema/*.inl )
+  ${ROOT}/source/Volt/Sema/*.inl
+  ${ROOT}/source/Volt/Backend/*.hpp
+  ${ROOT}/source/Volt/Backend/*.cpp
+  ${ROOT}/source/Volt/Backend/*.inl )
 list( SORT SCANNED_FILES )
 
 set( VIOLATIONS "" )
@@ -57,4 +60,4 @@ if( VIOLATIONS )
     "ZeroHardcode: Volt type names leaked into the C++ compiler:\n${VIOLATIONS}"
   )
 endif()
-message( STATUS "ZeroHardcode: no hardcoded Volt type names in Frontend/Sema" )
+message( STATUS "ZeroHardcode: no hardcoded Volt type names in Frontend/Sema/Backend" )
