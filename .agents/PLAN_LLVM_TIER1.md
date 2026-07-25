@@ -487,18 +487,184 @@ phases 8 + 9, same as every phase before this one.
 
 ## Phase 8 — Optimise, emit, link
 
-`Finalize()`:
+**Status: implemented, builds clean, 193/193 green — but end-to-end is blocked on
+one open Sema bug found while first exercising it (see "Known-open" below). Not
+yet committed.**
 
-1. `llvm::verifyModule` — a failure here is `EEmitStatus::Error`, an emitter bug, and
-   must print the offending function.
-2. `PassBuilder` default pipelines: `O0` + `-g` for the dev flavour, `O2` (`O3`
-   opt-in) for release, full LTO only under `--lto`.
-3. `TargetMachine::addPassesToEmitFile` → ELF/Mach-O/COFF object.
-4. `Linker.cpp` drives the system linker, **preferring mold then LLD** — the same
-   preference `cmake/VoltOptions.cmake` already encodes for the compiler's own build —
-   passing `-l<ExternLib>` for each distinct `@[External]` library named by the build.
-5. `EmitResult::Artifact` is the output path; `--emit ir`/`--emit obj` stop after
-   steps 2 and 3 respectively.
+`Finalize()` now does, in order:
+
+1. `Impl->VerifyModule()` (`Optimizer.cpp`) — `llvm::verifyModule`, then
+   `llvm::verifyFunction` per function to name the offending one. A failure is
+   `EEmitStatus::Error`, never a Volt source diagnostic.
+2. `Impl->RunOptimizationPipeline()` (`Optimizer.cpp`) — `PassBuilder` default
+   pipelines: `buildO0DefaultPipeline` (still runs mem2reg, which the emitter
+   depends on — it never builds SSA itself) at `OptLevel 0`, `buildPerModuleDefaultPipeline`
+   at O1/O2/O3. `bLto` selects O3, not real cross-module LTO — there is only one
+   `llvm::Module` per build so far, so "LTO" has nothing outside itself to link
+   against yet; this is noted as a stub, honestly, in the code.
+3. `Impl->EmitIrFile` / `Impl->EmitObjectFile` (`Optimizer.cpp`) — textual IR via
+   `Module::print`, object via `TargetMachine::addPassesToEmitFile` (legacy
+   `PassManager`, still the correct API on LLVM 22).
+4. `Impl->LinkExecutable` (`Linker.cpp`) — finds a C driver (`cc`, then `clang`,
+   then `gcc`) on `PATH` via `llvm::sys::findProgramByName` and shells out to it
+   with `-fuse-ld=mold`/`-fuse-ld=lld` when present (mold preferred, matching
+   `cmake/VoltOptions.cmake`), plus `-l<name>` for every distinct `@[External]`
+   library the whole build names (`State::ExternLibraries`, walking the
+   `TypeStore` the same way `DeclareAll` does). A C driver, not a raw `ld`
+   invocation — it alone knows this host's CRT objects and default libc.
+5. `EmitResult::Artifact` is the output path; `EmitOptions::Stage` (`Ir` /
+   `Object` / `Link`) stops after steps 3/4/5 respectively. The intermediate
+   object file for a `Link`-stage build is a real temp file
+   (`llvm::sys::fs::createTemporaryFile` + `llvm::FileRemover`), not the final
+   artifact.
+
+**Upstream addition beyond the plan:** `EmitOptions`/`EEmitStage` were moved from
+`LlvmState.hpp` (Private) into the public `LlvmEmitter.hpp`, and `LlvmBackend`
+grew `void SetOptions( EmitOptions )`. Neither carries an LLVM type, so this
+doesn't violate "no LLVM header escapes the module"; it exists because
+`Finalize()` needs an output path and a stage *from somewhere*, and Phase 9
+(`BuildCommand`) is what will call `SetOptions` from the parsed `-o`/`--emit`/`-O`
+flags. Without it Phase 8 had no way to be driven at all.
+
+### What actually happened when this ran for the first time
+
+Nothing in this plan had ever called `Begin`/`EmitUnit`/`Finalize` before now —
+every phase since 3 said so explicitly. Doing that for the first time (a small
+throwaway C++ harness driving `Driver` + `LlvmBackend` directly, not the CLI,
+which is still Phase 9) surfaced **four real, pre-existing bugs**, none of them
+in this session's own Phase 8 code, all now fixed and covered by the existing
+193-test suite staying green throughout:
+
+1. **Missing `SEMA_EXPORT`.** `Sema::SynthesizeClosureFrame`
+   (`Sema/Public/Volt/Sema/Layout/ClosureFrame.hpp`) had no export macro, so
+   `libBackendLLVM_d.so` failed to load with an undefined symbol the moment
+   anything outside the statically-linked `Volt_d` binary touched it — exactly
+   the failure mode `rules/shared-lib-exports.md` predicts, just never
+   triggered before because nothing had loaded this module standalone. Fixed
+   with one `SEMA_EXPORT`.
+2. **Stdlib bind order was filesystem-dependent.** `Driver::LoadStdLib` walked
+   `source/Lib` with `fs::recursive_directory_iterator` and never sorted the
+   result. `TypeBinder`'s Phase A binds one file at a time, so a field naming a
+   type from a file the walk hadn't reached yet resolved to an invalid
+   `LayoutId` — silently, since nothing before codegen ever reads
+   `NominalType::Layout`. Mitigated by sorting `LoadStdLib`'s refs
+   (`Driver.cpp`), and then fixed at the root (next point).
+3. **`FunctionTypeOf` never resolved a `self`-typed parameter or return
+   (`other : self`, `-> self` — `Arithmetic#min`/`#+`, `Comparable#<=>`, …).**
+   `InstanceLayouts::OfSignature`/`FlattenSig` explicitly refuse `SigType::SelfParam`
+   (that refusal is correct for a *field* typed `self`, which cannot exist, but
+   wrong for a *method parameter*, which is the ordinary, load-bearing case
+   `rules/zero-hardcode.md` itself uses as the canonical example). Fixed with a
+   new `State::SignatureLayoutOf` in `LlvmEmitter.cpp` that special-cases
+   `SelfParam` to `Instances.Of( Store, Owner, FlatArgs )` — the same
+   computation `FunctionTypeOf` already does for the leading receiver.
+4. **`TypeBinder`'s own two-phase contract ("declaring every name (phase A)
+   must complete... before any signature is resolved (phase B)") was violated
+   for *structural* layouts.** `Binder::BindType` (Phase A) called
+   `AggregateOf`/`FieldLayoutOf` — a raw AST name lookup — inline, per type, as
+   each file was bound, so a field naming an aggregate declared in a
+   *different* file (`Exception#message : String`, `String` itself naming
+   `Pointer<UInt8>`/`UInt64`) depended on nothing but stdlib file order,
+   exactly like point 2 but one level deeper (struct-referencing-struct, not
+   just struct-referencing-primitive — sorting alone cannot fix this in
+   general). Fixed by adding a **third phase**, `Sema::ResolveStructLayouts`
+   (`TypeBinder.hpp`/`.cpp`, called once from `Driver.cpp` right after Phase
+   A's loop): a recursive, memoised, cross-unit resolver — `EnsureStructLayout`
+   — that, given every unit's `AstContext*` indexed by discovery ordinal, jumps
+   into whichever file actually declares a referenced type and resolves it on
+   demand, depth-bounded (32) against a genuine cycle. This is a real,
+   moderate-sized upstream change (new exported Sema function, new Driver call
+   site), beyond "minimal" by the plan's own Phase-0 standard, but was load-bearing:
+   without it, `DeclareAll` — which declares every concrete member of the
+   *whole* stdlib, not just what a user program reaches — can never finish for
+   any build, since `Exception` (stdlib-core, always present) always fails.
+
+Also added, directly in `BackendLLVM` (not a Sema fix): `LlvmBackend::State::IsMixinOwner`
+and an explicit refusal in `EmitResolvedCall`. A `mixin`'s own concrete
+(non-`abstract`) method — `Arithmetic#min`/`#max` — is generic over `self` in
+exactly the sense a type parameter is (`other`'s type means "whichever type
+includes me"), but declares zero `<T>`s of its own, so the existing
+generic-owner exclusion (`Params.Size() > 0`) never caught it. `DeclareAll`/`DefineAll`
+now skip a mixin's own body outright (`IsMixinOwner`, checked via the
+declaring unit's raw AST node kind, since `Struct`/`Class`/`Mixin`/`Enum`
+collapse to one `NominalType` shape at bind time and carry no "is this a
+mixin" bit). A call site that resolves to a member `Owner` does not itself own
+(`x.min( y )` on a concrete `Int32` — the callee's `Decl` still names
+`Arithmetic`'s own `Member`) is refused **loudly, by name**, in
+`EmitResolvedCall`, rather than being allowed to emit a call to a symbol
+nothing ever defines (an "undefined symbol" at link time, further from the
+actual cause). This is *not* a full fix — see "Known-open" below.
+
+### Known-open, not fixed here
+
+**Calling an inherited default method has no instantiation path.** The
+`IsMixinOwner` refusal above stops the crash and names the gap, but the real
+fix — routing an inherited-member call through the *same* `Monomorphizer`/
+`Sema::ReinstantiateBody` machinery Phase 7 already built for generics (since
+"a mixin's `self` is unresolved until an including type is the receiver" is
+structurally identical to "a generic's `T` is unresolved until a call site
+fixes it" — `ReinstantiateBody`'s `Context.SelfType = Owner; Context.SelfValue = Self;`
+already looks general enough to accept a concrete, non-generic `Owner` with no
+code change) — was not implemented. It needs: (a) `LookupMonoMember`
+(`MonoEmitter.cpp`) to search inherited members via `TypeStore::LookupMember`
+instead of only `Store.Type( Owner ).Members`; (b) `EmitResolvedCall`'s
+mono-enqueue condition (currently `bGenericOwner or Entry.Decl->OwnGenerics > 0`,
+gated on `not FlatArgs.empty()`) to also enqueue when the resolved `Decl` is
+not among `Owner`'s own `Members` — the `bOwnMember` check already added for
+the refusal path is exactly the signal needed, so wire it to `Mono.Enqueue`
+instead of `Fail` once (a) is done. Estimated small once attempted, but
+untried — flagged rather than guessed at, per this project's own standard.
+
+**Still not proven to run end-to-end.** The last blocker actually hit while
+building a throwaway harness sample (`samples/Sema/Assignability.vl`, chosen
+for being small and already a passing `Golden` fixture) was exactly the
+inherited-mixin-default gap above (`Exception`'s and `Arithmetic`'s own bodies
+are unconditionally walked by `DeclareAll`/`DefineAll` since they're part of
+the always-loaded stdlib, regardless of whether the sample calls them) — i.e.
+the harness got past every other stage (verify, optimise, IR emission) and
+was blocked specifically here. **No sample has yet produced a linked,
+executed binary.** `--emit ir`/`--emit obj` are untested beyond "the code
+compiles"; `Linker.cpp`'s `cc`/mold/lld invocation has never actually run.
+The throwaway harness (`llvm_smoke.cpp`) lived only in the scratchpad and was
+not committed — Phase 9's `BuildCommand` + a `samples/Codegen/` corpus is the
+right place to make this a permanent, repeatable test, per the plan's own
+Verification section.
+
+### Files touched this phase
+
+- `source/Volt/Backend/BackendLLVM/Private/Optimizer.cpp` (new)
+- `source/Volt/Backend/BackendLLVM/Private/Linker.cpp` (new)
+- `source/Volt/Backend/BackendLLVM/Public/Volt/BackendLLVM/LlvmEmitter.hpp` (`EmitOptions`/`EEmitStage` moved in, `SetOptions` added)
+- `source/Volt/Backend/BackendLLVM/Private/LlvmState.hpp` (new `State` method declarations; `SignatureLayoutOf`, `IsMixinOwner`, the Phase 8 group)
+- `source/Volt/Backend/BackendLLVM/Private/LlvmEmitter.cpp` (`Finalize()` rewritten; `SignatureLayoutOf`, `IsMixinOwner`; `DeclareAll`/`DefineAll` skip mixin owners)
+- `source/Volt/Backend/BackendLLVM/Private/ExprEmitter.cpp` (`EmitResolvedCall`'s inherited-member refusal)
+- `source/Volt/Sema/Public/Volt/Sema/Layout/ClosureFrame.hpp` (`SEMA_EXPORT`)
+- `source/Volt/Sema/Public/Volt/Sema/Layout/TypeBinder.hpp` / `Private/Layout/TypeBinder.cpp` (new `ResolveStructLayouts` phase)
+- `source/Volt/Driver/Private/Driver.cpp` (`LoadStdLib` sort; calls `ResolveStructLayouts`)
+
+State: `volt-build llvm debug test` clean under `-Werror`, 193/193 green,
+throughout every fix above. `volt-build llvm tidy` **not run to completion this
+session** (the last invocation was interrupted) — run it before considering
+this phase closed. `graphify update .` **not run this session** — do it before
+closing, per `rules/graphify.md`. Nothing committed — this is all working-tree
+state, per `rules/` / memory ("no autonomous commits").
+
+### Next up
+
+1. Run `volt-build llvm tidy` to completion and fix anything beyond the
+   pre-existing `EmitTernary`/`EmitBinary` clang-analyzer false positive noted
+   in phases 6–7.
+2. Implement the inherited-default-method monomorphisation path above — this
+   is very likely required before *any* real program can reach a linked
+   binary, since the always-loaded stdlib itself exercises it.
+3. Get one sample all the way through `Ir` → `Object` → `Link` → executed,
+   confirming exit code/stdout — the acceptance test this plan has deferred
+   since Phase 4.
+4. `graphify update .`.
+5. Phase 9 (`volt build` CLI): this is what turns the throwaway harness into a
+   real, permanent, repeatable path (`tests/LlvmIr.cmake`, `tests/LlvmRun.cmake`,
+   `samples/Codegen/`) — Phase 8 cannot be fully verified per this plan's own
+   Verification section without it.
 
 ---
 
