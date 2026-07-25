@@ -68,7 +68,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitClosure ( Frontend::Ex
     // The captures, their offsets and whether the environment escapes are all
     // read here and never recomputed: ScopeResolver proved the escape, and
     // SynthesizeClosureFrame laid the fields out.
-    const Sema::ClosureEnvFrame Env = Sema::SynthesizeClosureFrame( *Frame.Unit->Scopes, *Frame.Unit->Values, Scope );
+    const Sema::ClosureEnvFrame Env = Sema::SynthesizeClosureFrame( *Frame.Unit->Scopes, *Frame.Values, Scope );
 
     llvm::Function *Code = EmitClosureBody( Id, Env, Params, Body, Stmts );
     if ( Code == nullptr )
@@ -351,7 +351,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitApplyCall ( Frontend::
         return nullptr;
     }
 
-    const Sema::UnitTypes &Values = *Frame.Unit->Values;
+    const Sema::UnitTypes &Values = *Frame.Values;
 
     // `@[Apply]` means the signature *is* the receiver's own type arguments,
     // and MemberResolver already unpacked them into the entry: result first,
