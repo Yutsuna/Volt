@@ -233,7 +233,34 @@ std::visit( Meta::Overloaded{
 ## Phase 4 — The 27 nodes
 
 Follows the mapping table in `.agents/backend/llvm.md` exactly. Notes on the parts
-that are easy to get wrong:
+that are easy to get wrong.
+
+*Amended during implementation.* Four things the plan did not anticipate, all
+now recorded in `.agents/backend/llvm.md`:
+
+- **Aggregates are addresses, everywhere.** `EmitExpr` on a struct-shaped
+  expression yields a `ptr` at its storage, never a loaded struct. This makes
+  GEP, `memcpy` and by-pointer parameter passing uniform, and it is why
+  `FunctionFrame::Slots` holds `llvm::Value*` rather than `AllocaInst*`.
+- **Implicit return is a *structural* tail rule**, not a typing one:
+  `EmitStmts( List, bTail )`, where only a trailing `ExprStmt` (emit `ret`) and
+  an `If` (recurse into both branches) read the flag. The stdlib depends on it
+  — `Int8#<=>` ends in an `if/elsif/else` with no `return`. It asks nothing of
+  Sema, which is the only reason it may live in a backend at all; a `Lowering`
+  doing this would have to type the `Return`s it creates, which §"no pass after
+  `TypeChecker`" forbids.
+- **`Ternary` is always two blocks + phi.** The plan's "`select` when both arms
+  are trivially pure" was dropped: both arms are arbitrary expressions, and
+  `select` evaluates the one not taken. The optimiser recovers `select` where it
+  is legal; the emitter must not decide purity.
+- **Three refusals are genuine middle-end gaps, not deferrals** —
+  `ArrayLit`/`HashLit` (no recorded construction protocol), `SizeOf` (no nominal
+  for its operand), and a value-returning body falling off its end (no
+  definite-return analysis, so it lowers to `unreachable`). Each names the hole.
+
+Not yet exercised: nothing calls `Begin`/`EmitUnit` — `Driver` has
+`MakeBackendViews` but no caller, and `Finalize` is still `Unimplemented`. The
+first real run of both sweeps arrives with Phase 8 + Phase 9 (`--emit ir`).
 
 **Literals.** The claiming type comes from `TypeStore::LookupNodeKind( "IntLiteral" )`
 etc. — the compiler learns the width from *that type's* `Primitive` layout, never
