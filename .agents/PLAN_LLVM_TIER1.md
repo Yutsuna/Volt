@@ -260,7 +260,9 @@ now recorded in `.agents/backend/llvm.md`:
 
 Not yet exercised: nothing calls `Begin`/`EmitUnit` — `Driver` has
 `MakeBackendViews` but no caller, and `Finalize` is still `Unimplemented`. The
-first real run of both sweeps arrives with Phase 8 + Phase 9 (`--emit ir`).
+first real run of both sweeps — and of the closures in phase 5 — arrives with
+Phase 8 + Phase 9 (`--emit ir`). Everything through phase 5 therefore compiles
+and is wired to itself, and has never executed.
 
 **Literals.** The claiming type comes from `TypeStore::LookupNodeKind( "IntLiteral" )`
 etc. — the compiler learns the width from *that type's* `Primitive` layout, never
@@ -310,15 +312,46 @@ table is the reason `CaseExpr` stayed core.
 `{ Fields[Offset], TotalSize, Alignment, bEscapes }` — already computed, never
 recomputed here.
 
-- Lambda/Block body → a private `llvm::Function` with `ptr %env` as its **leading**
-  parameter (`abi.md` ordering).
+- Lambda/Block body → a private `llvm::Function` with `ptr %env` **trailing** the
+  declared parameters. *Corrected during implementation:* this line read
+  "leading", which contradicted `abi.md`'s single ordering statement (`self`,
+  declared params, `env`) and the signature `FunctionTypeOf` already writes.
+  `abi.md` is the authority; the env trails.
 - `bEscapes == false` → env is an `alloca` in the caller. Zero heap; this is the
   common case for a `do … end` consumed at its call site, and `ScopeTable::Escapes`
   already proves it.
-- `bEscapes == true` → heap through the stdlib's `@[External]` allocator (Phase 0.1
-  gives the emitter its symbol) — "heap" is a linked symbol, not compiler behaviour.
+- `bEscapes == true` → heap through the stdlib's `@[External]` allocator.
+  *Refused during implementation:* Phase 0.1 records a C symbol **per member**,
+  and nothing marks one member as *the* allocation entry point — so there is no
+  allocator to call without the emitter naming `malloc` itself, which
+  `rules/zero-hardcode.md` forbids. Reported by a message naming the hole. An
+  escaping closure with **no captures** is unaffected: its env is null.
 - The closure *value* is uniformly `{ ptr fn, ptr env }`; invoking one goes through
   `Member::bApply` resolution like any other call.
+
+*Amended during implementation.* Four things the plan did not anticipate, all
+recorded in `.agents/backend/llvm.md` and `abi.md`:
+
+- **The pair is a layout, not an emitter-local shape.** The stdlib type
+  claiming `FuncType`/`Lambda`/`Block` declares no field — `{ code, env }` is an
+  ABI decision no Volt declaration can express — so a callable's *layout* was
+  invalid, and a local holding one would have been zero bytes wide. It is
+  materialised in `BackendCore::InstanceLayouts` (two `Pointer` fields, so the
+  size follows the target's pointer size), which is also what will let the VM
+  and wasm read a closure this backend wrote.
+- **A capture is stored by address.** The frame gives every capture the same
+  pointer-sized slot whatever its type; by-reference is the only reading that
+  supports, and it makes a capture indistinguishable from a local inside the
+  body — both are a place in `FunctionFrame::Slots`.
+- **`next` in a block is a `ret`, not a branch** (and `break` there is a
+  non-local exit, deferred to phase 6). `FunctionFrame::bClosure` tells the two
+  senses of the keyword apart.
+- **A closure body cannot reach `self`.** `ClosureEnvFrame` captures bindings,
+  and a receiver is not one — a genuine upstream hole, reported as itself
+  rather than as "outside a method".
+
+Also done here, from the Verification section below: `tests/ZeroHardcode.cmake`
+now scans `source/Volt/Backend` as well.
 
 ---
 
@@ -337,6 +370,50 @@ identical to what the VM will do:
 Tier 2 (Itanium `invoke`/`landingpad` + custom personality) is an emitter flag with
 identical clause-matching logic — deliberately out of scope here, and explicitly not
 an AST concern.
+
+*Amended during implementation.* Two things the plan did not spell out, both
+now recorded in `llvm.md`'s Exceptions section:
+
+- **"Poisoned path" needed a concrete propagation rule.** A thread-local slot
+  alone only tells a caller an exception happened; something has to make every
+  frame between `raise` and the catching `begin` actually unwind. The rule:
+  every non-`@[External]` call is followed by a check of the same slot, and
+  finding one pending takes the identical poisoned path a `raise` does — a
+  branch to this function's own innermost `begin` (`FunctionFrame::Rescues`,
+  a stack shaped exactly like `Loops`) if it has one, otherwise an early
+  return carrying no value. Reserves nothing in any signature; abi.md is
+  unchanged.
+- **`ensure` running on every path, without a raise inside a handler
+  re-entering its own clause ladder, needed the `Rescues` target to change
+  *twice* per `begin`** — `Dispatch` while the body runs, `Ensure` directly
+  while a clause body runs (skipping re-matching, never skipping the
+  `ensure`), and whatever was active outside this `begin` while `ensure`
+  itself runs. "Unhandled" needed no separate signal: falling through every
+  clause simply leaves the thread-local state as `Dispatch` found it, so a
+  second check *after* `ensure` re-propagates it.
+
+One upstream fix, not anticipated: `ExprInferencer`'s `RaiseExpr`/`BeginExpr`
+case called `WriteLocal( Frontend::ExprId{}, ... )` for a rescue clause's bound
+variable — `WriteLocal` resolves its site through `Scopes.BindingOf(Use)`, a
+*use* → declaration index, and there is no use expression for a clause's own
+binding, only its declaration, so the call silently never reached
+`Values.SetSiteType`. Fixed to set the site directly (`BindingSite{ ClauseId }`),
+exactly as `DeclStmtWalker`'s `LocalDecl` case already does, and — since the
+backend needs the clause's resolved filter type regardless of whether it also
+binds a name — moved outside the `VarName.IsValid()` guard so every clause
+gets one, not just the ones with `as e`.
+
+State: `volt-build llvm` clean under `-Werror`; 193/193 green; `volt-build llvm
+debug asan` clean. `volt-build tidy` has one pre-existing failure in
+`EmitTernary` (phase 4, untouched here) — a clang-analyzer false positive
+against LLVM 22's own `PHINode`/`User` internals, reproduced identically on
+the pre-phase-6 tree, not introduced by this phase. `graphify update .` run
+(783 nodes, 1383 edges). Work left uncommitted in the tree, per prior phases.
+
+Unchanged honest limit: still nothing calls `Begin`/`EmitUnit` — the exception
+emitter compiles and is wired to itself, but has never executed. There is no
+`samples/Codegen/` corpus yet to exercise `BeginRescue.vl`-shaped source
+end-to-end; that arrives with phases 8 + 9.
 
 ---
 
@@ -429,8 +506,9 @@ exact symbols mold names, module by module. Do not pre-annotate by guessing.
 - `tests/LlvmRun.cmake` — compile-and-run: build each `samples/Codegen/*.vl` to a
   binary, execute it, compare stdout + exit code against a `.expected` file. This is
   the only test that proves the ABI cross-check, closures and EH actually work.
-- Extend `ZeroHardcode.cmake`'s grep to cover `source/Volt/Backend` — the emitter is
-  exactly where a Volt type name is most tempting to hardcode.
+- ~~Extend `ZeroHardcode.cmake`'s grep to cover `source/Volt/Backend`~~ — done in
+  phase 5; the emitter is exactly where a Volt type name is most tempting to
+  hardcode, and the corpus is clean.
 
 **ASAN**, since the emitter allocates heavily and holds LLVM references across
 arena reads:
