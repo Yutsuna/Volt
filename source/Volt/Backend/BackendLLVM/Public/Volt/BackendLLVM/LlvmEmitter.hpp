@@ -10,7 +10,9 @@
 #include "BackendLLVM_export.hpp"
 #include "Volt/BackendCore/TargetBackend.hpp"
 
+#include <cstdint>
 #include <memory>
+#include <string>
 #include <string_view>
 
 namespace Volt
@@ -21,6 +23,30 @@ namespace Backend
 
     namespace Llvm
     {
+
+        // How far Finalize takes the module. `--emit ir`/`--emit obj` stop
+        // early; the default (Link) runs the whole way to a linked artifact.
+        // Plain data — no LLVM type appears here, so this stays in the public
+        // header for `volt build` (BuildCommand) to fill in from its CLI flags.
+        enum class EEmitStage : std::uint8_t
+        {
+
+            Ir     = 0,
+            Object = 1,
+            Link   = 2,
+        };
+
+        struct EmitOptions
+        {
+
+            EEmitStage Stage      = EEmitStage::Link;
+            std::uint8_t OptLevel = 0;
+            bool bLto             = false;
+            bool bDebugInfo       = true;
+            // Where Finalize's artifact lands. Empty means "derive from the
+            // module name", since a caller may not know it in advance.
+            std::string OutputPath;
+        };
 
         class BACKENDLLVM_EXPORT LlvmBackend
         {
@@ -36,6 +62,10 @@ namespace Backend
             {
                 return "llvm";
             }
+
+            // Must be called before Begin(); Finalize() reads it to decide how
+            // far to take the module and where the artifact goes.
+            void SetOptions ( EmitOptions InOptions );
 
             void Begin ( const BackendInput &Input );
 
