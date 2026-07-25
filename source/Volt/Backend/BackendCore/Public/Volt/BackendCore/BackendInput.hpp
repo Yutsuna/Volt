@@ -12,6 +12,7 @@
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
+#include <cstdint>
 #include <span>
 #include <string_view>
 
@@ -27,6 +28,14 @@ namespace Backend
     struct UnitView
     {
 
+        // The declaring-unit ordinal the TypeStore keys `Member::Unit` and
+        // `NominalType::Unit` on. Not the index of this view: the views are in
+        // circuit *link* order while the ordinal is discovery order, and the
+        // two differ as soon as a circuit has edges. It is what lets the define
+        // sweep read the store — the build-wide resolved interface the declare
+        // sweep already uses — and ask "which of these members does *this*
+        // unit's AST hold a body for", without a DeclId ever leaving its arena.
+        std::uint32_t Ordinal = 0;
         std::string_view Module;
         std::string_view Path;
         const Frontend::AstContext *Ast  = nullptr;
