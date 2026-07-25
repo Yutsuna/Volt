@@ -741,7 +741,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBinary ( Frontend::Exp
     // The protocol, in the one order that keeps a backend free of member
     // lookup (rules/core-ast.md): the resolution first, the instruction only
     // when there is none.
-    if ( const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Id );
+    if ( const Sema::CalleeEntry *Entry = Frame.Callees->Get( Id );
          Entry != nullptr and Entry->Decl != nullptr and not Entry->Decl->bAbstract )
     {
         return EmitResolvedCall( Id, *Entry, Node.Lhs, std::span<const Frontend::ExprId>{ &Node.Rhs, 1 } );
@@ -798,7 +798,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBinary ( Frontend::Exp
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitUnary ( Frontend::ExprId Id, const Frontend::Unary &Node )
 {
-    if ( const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Id );
+    if ( const Sema::CalleeEntry *Entry = Frame.Callees->Get( Id );
          Entry != nullptr and Entry->Decl != nullptr and not Entry->Decl->bAbstract )
     {
         return EmitResolvedCall( Id, *Entry, Node.Operand, {} );
@@ -848,7 +848,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitPointerArith ( const F
     // The pointee is the first generic argument of whichever stdlib type
     // claimed PointerType — "Pointer" is not a name this compiler knows
     // (rules/core-ast.md).
-    const Sema::UnitTypes &Values   = *Frame.Unit->Values;
+    const Sema::UnitTypes &Values   = *Frame.Values;
     const Sema::SemaTypeId Receiver = Values.ExprType( Node.Lhs );
     if ( not Values.Has( Receiver ) or Values.Get( Receiver ).Args.Size() == 0 )
     {
@@ -955,7 +955,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::CoerceWidth ( llvm::Value 
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node )
 {
-    const Sema::CalleeEntry *Entry = Frame.Unit->Callees->Get( Node.Callee );
+    const Sema::CalleeEntry *Entry = Frame.Callees->Get( Node.Callee );
     if ( Entry == nullptr or Entry->Decl == nullptr )
     {
         static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
@@ -1001,7 +1001,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         return EmitApplyCall( Id, Entry, Receiver, Args );
     }
 
-    const Sema::UnitTypes &Values = *Frame.Unit->Values;
+    const Sema::UnitTypes &Values = *Frame.Values;
 
     // The owner and the instantiation both come out of the entry Sema recorded:
     // NominalIds are the cross-unit currency, and the flattened bindings are
@@ -1016,6 +1016,19 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
     for ( const Sema::SemaTypeId Binding : Entry.Bindings )
     {
         FlattenValueType( Values, Binding, FlatArgs );
+    }
+
+    // A generic owner or a method with its own generics has no body yet —
+    // DeclareAll/DefineAll both skip it outright, since neither sweep knows
+    // the arguments this call site just fixed. FunctionFor below still
+    // synthesises its *declaration* on demand (so a forward or mutually
+    // recursive call resolves), but the body is Monomorphizer's job:
+    // enqueue is idempotent (MonoRequest::Key dedupes), so every call site
+    // reaching the same instantiation is free to ask again.
+    const bool bGenericOwner = Owner.IsValid() and Build->Types->Type( Owner ).Params.Size() > 0;
+    if ( ( bGenericOwner or Entry.Decl->OwnGenerics > 0 ) and not FlatArgs.empty() )
+    {
+        Mono.Enqueue( MonoRequest{ .Owner = Owner, .Name = Entry.Decl->Name, .Args = FlatArgs } );
     }
 
     llvm::Function *Callee = FunctionFor( *Entry.Decl, Owner, FlatArgs );
