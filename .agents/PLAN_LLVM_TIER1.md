@@ -420,14 +420,28 @@ end-to-end; that arrives with phases 8 + 9.
 ## Phase 7 — Monomorphisation
 
 `MonoEmitter.cpp` drains `Monomorphizer`. A concrete use site enqueues a `MonoRequest`
-built from `CalleeEntry::Bindings` + `Receiver`, mapped to `NominalId`s (the
-cross-unit currency — `SemaTypeId` is per-unit and must not leak into a key). Draining
-walks the generic declaration's body with those bindings substituted, resolving each
-deferred expression's type through the substitution rather than through
-`Values->ExprType` (which is correctly empty inside a generic body — `IsDeferred`
-distinguishes "deferred until instantiation" from "the middle-end forgot"). Layouts
-come from Phase 0.3. Keys dedupe globally, so `Array<Int32>` instantiates once per
-build and recursive generics terminate.
+built from the callee's `Member` identity (`Owner` + `Name`) plus `CalleeEntry::Bindings`,
+flattened to `NominalId`s (the cross-unit currency — `SemaTypeId` is per-unit and must
+not leak into a key). A `UnitTypes`/`UnitCallees` slot is one-per-`ExprId`, but a
+generic body's `ExprId`s are shared by every instantiation (`Array<Int32>` and
+`Array<String>` reuse the same AST), so neither can hold more than one instantiation's
+answer at a time.
+
+Draining calls `Sema::ReinstantiateBody( Store, Ast, Scopes, Member, Owner, FlatArgs )`,
+which re-runs the type checker's own expression inferencer over the member's declared
+body with `self` and its generics bound to `FlatArgs` instead of the placeholder holes
+the first, generic-shaped pass left, and returns a fresh `InstantiatedBody{ Values,
+Callees }` — the same shapes a concrete unit publishes, just scoped to one instantiation.
+This is monomorphisation's only semantic step, and it stays in Sema on purpose
+(`rules/core-ast.md`: zero type inference in a backend) — a backend decides *when* to
+instantiate, never *how* to type what it finds. `MonoEmitter` then walks the AST body
+exactly as `DefineMember` walks a concrete one, reading every expression's type and
+every call's resolution off the returned overlay rather than off the unit's own
+`Values`/`Callees`.
+
+Layouts come from Phase 0.3, keyed the same way. `Monomorphizer::Seen` dedupes
+globally, so `Array<Int32>` instantiates once per build and recursive generics
+terminate.
 
 ---
 
