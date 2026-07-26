@@ -88,6 +88,75 @@ namespace Driver
         bool bCycle = false;
     };
 
+    // Shared knobs over the stdlib frontend cache, common to every command
+    // that compiles (`build`, `check`, and — the moment they exist —
+    // `run`/`repl`): see Volt::CLI::StdlibCacheOptions(), the one place the
+    // CLI flags feeding this struct are declared, per cli-surface.md's
+    // meta-first shape (one option-group function, reused by reference).
+    struct FCacheOptions
+    {
+
+        // Bypass frontend + native caches entirely: neither consulted nor
+        // written. What CI uses to get the pre-cache baseline.
+        bool bNoCache = false;
+        // Force a miss on read (recompute), but still publish the refreshed
+        // result afterward — repairs/refreshes a cache without turning
+        // caching off.
+        bool bFresh = false;
+        // Skip the stdlib entirely (bootstrapping/testing source/Lib/**
+        // itself with no circular dependency). Implies there is nothing to
+        // cache either way; bNoCache/bFresh together with this are ignored
+        // with a warning, not an error.
+        bool bNoStdlib = false;
+    };
+
+    // What `volt build` (or, once it exists, any other command emitting
+    // native code) asks Driver::Build() for. Plain data — no Backend* type
+    // appears here, so a caller (Volt::CLI::FBuildCommand) never includes a
+    // backend header at all; Driver is the one place --target gets resolved
+    // to a concrete IBackend.
+    struct BuildOptions
+    {
+
+        // Backend selection (cli-surface.md): "native" -> BackendLLVM today;
+        // any other value is an error Driver::Build() reports itself.
+        std::string Target = "native";
+        // Empty means "derive from the module name" (mirrors
+        // Backend::Llvm::EmitOptions::OutputPath).
+        std::string OutputPath;
+        std::uint8_t OptLevel = 0;
+        bool bLto             = false;
+        // "", "ir", or "obj" — stop after that intermediate artifact; empty
+        // runs the whole way to a linked artifact (mirrors
+        // Backend::Llvm::EEmitStage).
+        std::string Emit;
+        std::string EntrySymbol = "main";
+
+        // --- Issue #61: the native stdlib artifact cache (Phase 3/4) ------
+        // Bypass/refresh, same semantics as FCacheOptions but for the
+        // *native* artifact rather than the frontend one — kept separate
+        // because it invalidates on different things (NativeCacheKey vs
+        // FrontendCacheKey) and only applies when Emit is empty (a full
+        // link): an intermediate `ir`/`obj` artifact never reaches the
+        // linker these apply to.
+        bool bStdlibArtifactNoCache = false;
+        bool bStdlibArtifactFresh   = false;
+        // "static" (default, an `ar`-built archive) or "shared" (`-fPIC
+        // -shared`) — which native/<NativeCacheKey>.{a,so} Driver::Build()
+        // builds/consumes.
+        std::string StdlibArtifactKind = "static";
+    };
+
+    // What one Driver::Build() produced.
+    struct BuildResult
+    {
+
+        bool bOk = false;
+        std::string Artifact;
+        // Set only when !bOk — Driver::Build() never throws, it reports.
+        std::string Message;
+    };
+
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and
     // gathers every diagnostic into one thread-safe engine.
@@ -99,7 +168,7 @@ namespace Driver
         Driver ();
 
         // Compile a flat list of files (single file, or an explicit set).
-        CompileResult CompileFiles ( const std::vector<std::string> &Paths );
+        CompileResult CompileFiles ( const std::vector<std::string> &Paths, FCacheOptions CacheOpts = {} );
 
         // Parse-only pipeline over a flat list of files: lex + parse, no
         // interface publication and no analysis. `volt parse` dumps this raw
@@ -111,7 +180,30 @@ namespace Driver
         // Compile a whole circuit given its `Project.vl` manifest: resolve
         // the declared modules, gather their sources + the entrypoint, build
         // the `@[Link]` graph (rejecting cycles), then compile in parallel.
-        CompileResult CompileCircuit ( const std::string &ProjectPath );
+        CompileResult CompileCircuit ( const std::string &ProjectPath, FCacheOptions CacheOpts = {} );
+
+        // Emit + link (or `--emit ir`/`--emit obj` stop early) an already-
+        // compiled build (CompileFiles/CompileCircuit must have run first and
+        // left HasErrors() false) through whichever concrete backend
+        // Options.Target selects. This is the *only* place in the compiler
+        // that resolves --target to a concrete IBackend: a caller (Volt::CLI
+        // ::FBuildCommand) never includes a Backend* header at all, matching
+        // cli-surface.md's "build -> the full Driver pipeline, then a code
+        // generator selected by --target through the IBackend seam".
+        //
+        // Also drives issue #61's native stdlib artifact cache (Phase 3/4)
+        // when Options.Emit is empty (a full link): reuses/builds
+        // native/<NativeCacheKey>.{a,so} and links it in rather than
+        // re-emitting the stdlib's own bodies. Never a hard failure on its
+        // own — a disabled/unavailable/failed native cache silently falls
+        // back to defining the stdlib in this build, exactly as if the
+        // cache did not exist.
+        //
+        // Implemented in DriverBuild.cpp, guarded by VOLT_ENABLE_LLVM
+        // internally: a build with no LLVM toolchain still links (this
+        // header never mentions LLVM), it just has BuildResult::bOk == false
+        // with an explanatory Message for every Target.
+        [[nodiscard]] BuildResult Build ( const BuildOptions &Options );
 
         [[nodiscard]] const CircuitGraph &Graph () const
         {
@@ -125,6 +217,15 @@ namespace Driver
         [[nodiscard]] std::uint64_t FrontendCacheKey () const
         {
             return FrontendKey;
+        }
+
+        // Length of Units()' stdlib prefix — ordinals `0..N-1` — for a
+        // native-artifact cache (or any other consumer) to slice against.
+        // 0 before compilation, or when the last compile ran with
+        // FCacheOptions::bNoStdlib.
+        [[nodiscard]] std::size_t StdlibUnitCount () const
+        {
+            return StdlibUnitCountValue;
         }
 
         // The cross-unit interfaces published between the parse and sema
@@ -286,6 +387,14 @@ namespace Driver
         std::deque<CompileUnit> Units;
         Core::FileId DriverFile;
         std::uint64_t FrontendKey = 0;
+        // Set by CompileFiles/CompileCircuit before CompileRefs runs — the
+        // length of Refs' stdlib prefix, exposed read-only via
+        // StdlibUnitCount().
+        std::size_t StdlibUnitCountValue = 0;
+        // Set by CompileFiles/CompileCircuit before CompileRefs runs; read by
+        // TryLoadFrontendCache/WriteFrontendCache to decide whether the cache
+        // is consulted/refreshed/bypassed this run.
+        FCacheOptions ActiveCacheOptions;
     };
 
     // NativeCacheKey = FrontendCacheKey | TargetTriple | OptLevel | ArtifactKind | LTO
@@ -300,6 +409,16 @@ namespace Driver
                                                                       std::string_view OptLevel,
                                                                       std::string_view ArtifactKind,
                                                                       bool bLto );
+
+    // `$XDG_CACHE_HOME/volt/stdlib/<hex FrontendKey>` (fallback
+    // `~/.cache/volt/stdlib/<hex FrontendKey>`) — the one directory the
+    // frontend cache (`frontend.cache`) and the native-artifact cache
+    // (`native/<hex NativeCacheKey>.{a,so,meta}`) both live under, so a
+    // caller building the latter (Phase 3/4's archive/.so build mode) never
+    // re-derives the base path Driver's own frontend-cache code already
+    // resolved. Empty when neither XDG_CACHE_HOME nor HOME is set — callers
+    // treat that as "no cache available", never an error.
+    [[nodiscard]] DRIVER_EXPORT std::filesystem::path StdlibCacheDir ( std::uint64_t FrontendKey );
 
 } // namespace Driver
 
