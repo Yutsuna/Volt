@@ -49,9 +49,27 @@ namespace Sema
 
     // Where a name was declared: always a typed AST Id, never a pointer and
     // never a copy of the node.
+    //
+    // The ExprId arm is the *implicit* local — `buf = expr` with no `: Type`.
+    // The parser cannot tell that form from a reassignment (it has no scope
+    // information), so it builds an Assign over a bare Identifier and never a
+    // LocalDecl; the declaration is therefore the Assign's Target expression
+    // itself, which is the only Id that names this binding uniquely (one
+    // statement may contain several, nested inside call arguments).
     using BindingSite = std::variant<Frontend::StmtId,  // LocalDecl
                                      Frontend::ParamId, // Method/Block parameter
-                                     Frontend::DeclId>; // Field / member decl
+                                     Frontend::DeclId,  // Field / member decl
+                                     Frontend::ExprId>; // implicit local (Assign target)
+
+    // Does this site name *storage in a frame* — a parameter, a declared
+    // local or an implicit one — as opposed to a member declaration, which
+    // is reached through a receiver and only ever recorded here as tooling
+    // metadata? Capture analysis and implicit-local declaration both turn on
+    // exactly this distinction, so they share one predicate.
+    [[nodiscard]] inline bool IsValueBinding ( const BindingSite &Site )
+    {
+        return not std::holds_alternative<Frontend::DeclId>( Site );
+    }
 
     // Structural key hash for maps keyed by BindingSite (TypeChecker's local
     // types): alternative index + the TypedId value inside it.
@@ -150,7 +168,13 @@ namespace Sema
 
         // --- Published table, consumed by later passes (O(1), no chain) ---
 
-        void BindUse ( Frontend::ExprId Use, const Binding &Target )
+        // bCountsAsUse is false for the one occurrence that *declares* an
+        // implicit local: the write `buf = expr` is where the storage comes
+        // from, not a read of it, and UnusedChecker must still be able to see
+        // a variable nothing ever reads. It is bound all the same, because
+        // every consumer — TypeChecker's site types, codegen's slot table —
+        // reaches a binding exclusively through BindingOf.
+        void BindUse ( Frontend::ExprId Use, const Binding &Target, bool bCountsAsUse = true )
         {
             if ( not Use.IsValid() )
             {
@@ -161,7 +185,10 @@ namespace Sema
                 UseIndex.resize( static_cast<std::size_t>( Use.Value ) + 1, nullptr );
             }
             UseIndex[Use.Value] = &Target;
-            ++UseCounts[Target.Site];
+            if ( bCountsAsUse )
+            {
+                ++UseCounts[Target.Site];
+            }
         }
 
         [[nodiscard]] const Binding *BindingOf ( Frontend::ExprId Use ) const

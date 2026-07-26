@@ -50,6 +50,25 @@ The *order* (`self`, params, env) is fixed here, once, for all three — it is
 what lets a closure emitted by one target's rules be understood by a reader
 of any other.
 
+### Aggregates: in by pointer, out by value
+
+The row above says how an aggregate travels *into* a call. Out of one it goes
+**by value**, and the caller spills it into a slot of its own frame on arrival.
+Two reasons, and neither is a preference:
+
+- The callee's storage does not outlive the callee. Returning its address is
+  the one shape that is always wrong; the spill is exactly what makes the
+  result the caller's.
+- It leaves every signature untouched — no hidden `sret` parameter — so the
+  parameter order above stays the whole of the convention, and a `self` slot
+  is still argument 0 in every frame.
+
+Everywhere else the rule is unchanged: an aggregate *expression* evaluates to
+the address of its storage. The two conversion points are therefore the only
+places a value crosses — a `ret` loads the struct, a call's result stores it —
+and a target that reads a closure or a struct this one wrote sees a plain C
+struct return.
+
 ## Closure environments
 
 `SynthesizeClosureFrame` (Sema) already fixed the env aggregate: field
@@ -58,6 +77,20 @@ offsets, `TotalSize`, `Alignment`, `bEscapes`. Backends allocate it
 by the frame's precomputed offsets. A closure **value** is uniformly the
 two-slot aggregate `{ code, env }` — function pointer / `FunctionTable`
 index / `call_indirect` table index respectively.
+
+An env field holds the **address** of the captured binding, not a copy of its
+value: the frame gives every capture the same pointer-sized slot whatever its
+type, and by-reference is the only reading that supports. It also makes a
+capture indistinguishable from a local inside the body — both are a place —
+which is why no AST node kind has to know about closures.
+
+The `{ code, env }` shape itself is materialised by
+`BackendCore::InstanceLayouts`, not by an emitter: the stdlib type claiming
+`FuncType` / `Lambda` / `Block` declares no field, because this is an ABI
+decision and no Volt declaration could express it. Both slots are `Pointer`
+layouts, so the pair's size follows the target's pointer size through
+`LayoutEngine` — four bytes a slot on wasm32, eight native — and one
+materialisation serves all three encoders.
 
 ## Exception objects
 
@@ -69,6 +102,13 @@ against the clause's resolved nominal (the ancestry table is emitted per
 build as static data). Transport is per-target (`llvm.md` tiers, VM
 `Raise`/`EnterRescue`, wasm error slot) but the object and the matching rule
 are this section, shared.
+
+LLVM Tier 1 (implemented) reserves **no channel in any signature** for this:
+the in-flight exception is two thread-local globals (address + NominalId),
+and every ordinary call is followed by a check of them — propagation is a
+sequence of early returns the caller's own post-call check observes, not an
+addition to the calling convention above. See `llvm.md`'s Exceptions section
+for the block shape.
 
 ## What is deliberately not specified yet
 

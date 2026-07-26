@@ -3,5 +3,5 @@ VoltModule(
   TYPE            shared_library
   SOURCES         "Private/*.cpp"
   PUBLIC_INCLUDES "Public/"
-  DEPS            Sema
+  DEPS            Sema BackendCore
 )

@@ -16,12 +16,32 @@ BackendInput ─> declare pass ─> define pass ─> verify ─> optimize ─> e
                                  + mono queue)   verifier)  O2+LTO)     Machine)
 ```
 
-Two sweeps over the units, both in circuit link order: **declare** creates an
-`llvm::Function` for every reachable `def` (so forward references across
-units resolve), **define** fills bodies by walking each function's stmt/expr
-trees, draining the `Monomorphizer` queue as generic instantiations are
-discovered. One `llvm::Module` per build to start (simplest correct thing;
-per-unit modules + ThinLTO is a later optimisation with the same interface).
+Two sweeps, **both driven by the `TypeStore`, not by the units' `Decl`
+arenas**: the store is the build-wide, already-resolved interface of every
+unit, so a `DeclId` — meaningful only inside the arena that minted it — never
+leaves its unit.
+
+- **declare** (`DeclareAll`, once, in `Begin()`) creates an `llvm::Function`
+  for every concrete member of the whole build, so forward references across
+  units resolve with no fixup pass.
+- **define** (`DefineAll`, once per `EmitUnit`, in circuit link order) sweeps
+  the *same* store and keeps only the members this unit holds a body for,
+  draining the `Monomorphizer` queue as instantiations are discovered.
+
+The two sweeps apply the same exclusions, in the same order — not a method,
+`abstract`, `OwnGenerics > 0` — and `define` adds one: an `@[External]` member
+*has* a symbol (it is declared, and calls to it link) but its body lives
+outside Volt.
+
+"Which unit holds this body" is answered by **`Member::Unit == UnitView::Ordinal`**.
+That ordinal is the declaring unit's *discovery* index — the one `BindUnitTypes`
+stamped on every `Member` and `NominalType` — and deliberately **not** the
+view's position in `BackendInput::Units`, which is circuit *link* order. The
+two diverge as soon as a circuit has edges, so the bridge is an explicit field
+rather than an index (see `core-interfaces.md`).
+
+One `llvm::Module` per build to start (simplest correct thing; per-unit
+modules + ThinLTO is a later optimisation with the same interface).
 
 ## Types: `LayoutNode` → `llvm::Type`
 
@@ -48,7 +68,7 @@ on every aggregate it emits (debug builds).
 | `NilLiteral` | null of the claiming type's layout (`ptr` today) |
 | `StringLiteral` | private constant bytes + the claiming type's aggregate `{ data, size }` |
 | `SymbolLiteral` | interned u32 constant (interner table is a runtime concern, refused loudly for `to_string` — core-ast.md) |
-| `ArrayLit` / `HashLit` | alloca/heap the claiming type's aggregate, then per-element stores / builder calls resolved by Sema |
+| `ArrayLit` / `HashLit` | **refused** — see "middle-end gaps found" below |
 | `Identifier` | local slot load (`alloca` + mem2reg) or free-function reference via `CalleeEntry` |
 | `InstanceVar` | GEP on `self` at `LayoutEngine::FieldOffset` |
 | `SelfExpr` / `SuperExpr` | first parameter of the method function / same, statically dispatched to the parent's method |
@@ -56,7 +76,7 @@ on every aggregate it emits (debug builds).
 | `Deref` | `load` of the pointee layout (`*p` — pointee = first generic arg of the claiming pointer type) |
 | `Call` | direct `call` to the mangled symbol from `CalleeEntry::Decl`; `BlockArg` → closure param (below) |
 | `Assign` | `store` (locals become allocas; mem2reg cleans up) |
-| `Ternary` | `select` when both arms are trivially pure, otherwise two blocks + phi |
+| `Ternary` | always two blocks + phi — **never `select`**, which evaluates the arm not taken, and both arms are arbitrary expressions |
 | `Binary` / `Unary` | protocol of `core-interfaces.md`: resolved → call; primitive → instruction table below |
 | `CaseExpr` | flat `WhenClause{ Patterns: [i1], Body }` chain → conditional-branch ladder; all-constant integer patterns → `switch` (this is why CaseExpr stayed core) |
 | `BeginExpr` / `RaiseExpr` | EH tiers below |
@@ -67,40 +87,367 @@ Statements: `If`/`While` → basic blocks with the usual cond/body/merge shape;
 `Return` → `ret`; `Break`/`Next` → branch to the loop's merge/latch;
 `LocalDecl` → alloca in the entry block; `ExprStmt` → emit and drop.
 
+### Two conventions the whole emitter rests on
+
+1. **A scalar is a register; an aggregate is an address.** `EmitExpr` on a
+   struct-shaped expression hands back a `ptr` at its storage, never a loaded
+   struct value. This is `abi.md`'s "aggregates by pointer" applied one level
+   down, and it makes GEP, `memcpy` and by-pointer parameter passing uniform:
+   `EmitStore` is a plain `store` for a scalar and a `CreateMemCpy` sized by
+   `LayoutEngine` for an aggregate, with no third case anywhere.
+
+   Its one visible consequence: an **aggregate parameter is already its own
+   slot** — it arrives as a pointer to the caller's storage — so
+   `FunctionFrame::Slots` maps a `BindingSite` to an `llvm::Value*`, not an
+   `AllocaInst*`. Copying such a parameter into an `alloca` would only add a
+   `memcpy` nothing reads.
+
+2. **Every `alloca` goes in the entry block**, whatever block the walk is in
+   when it needs one (`MakeTemp`). That is mem2reg's precondition, and it is
+   the whole reason the emitter never constructs SSA itself.
+
+### The tail rule — implicit return, decided structurally
+
+Volt does not require `return`: `Int8#<=>` ends in an `if/elsif/else` chain and
+its value is the value of whichever branch ran. `EmitStmts( List, bTail )`
+marks the last statement of a list as being in result position, and exactly two
+node kinds read that flag:
+
+- a trailing `ExprStmt` emits `ret` instead of dropping its value;
+- an `If` passes it on to **both** branches — an `elsif` chain is a nested `If`
+  in the `Else` branch (`Stmt.hpp`), so propagation is what makes the whole
+  chain a result.
+
+Nothing else propagates it, because no other node's value can be the
+function's. The rule is **positional, not typed**: it asks nothing of Sema,
+which is the only reason it is allowed to live in a backend at all. `EmitCase`
+uses the same rule per clause, converging through a slot rather than a phi
+(a clause is a statement list, so the incoming-block count is not known until
+the ladder is built).
+
+Arguably this belongs in a `Lowering` — but that pass would have to type the
+`Return` nodes it creates, which is exactly what `rules/core-ast.md`'s
+structural invariant forbids after `TypeChecker`. Positional emission is the
+cheaper correct answer.
+
 ### Primitive instruction table (spelling × operator)
 
-Integer family (`i*`/`u*`/`ptr`): `add sub mul`, `sdiv/udiv` `srem/urem` by
-the spelling's `i`/`u`, `icmp {s,u}{lt,gt,le,ge}` / `icmp eq ne`, `and or
-xor shl {a,l}shr`. Float family (`f*`): `fadd fsub fmul fdiv`, `fcmp o*`.
-`i1`: `and or xor`, `not` as `xor true` — the spelled operators `and`/`or`
-short-circuit, so they emit as control flow, not instructions. Pointer `+`/`-`
-(declared on the pointer nominal, heterogeneous — zero-hardcode.md) → `gep`.
+`Instructions.inl` is the manifest (`rules/meta-first.md`), three macros wide:
+
+```
+VOLT_LLVM_BINOP( Family, Token, Opcode )     llvm::Instruction::BinaryOps
+VOLT_LLVM_CMP( Family, Token, Predicate )    llvm::CmpInst::Predicate
+VOLT_LLVM_UNOP( Family, Token, Kind )        EUnaryOp
+```
+
+Three families, each derived from **one character** of the opaque spelling —
+`SInt` for `i*`, `UInt` for `u*`, `Float` for `f*`, with `"ptr"` joining the
+unsigned integers (an address has no sign bit, so `p < q` is `icmp ult`). The
+signed/unsigned split is written only where the machine genuinely has two
+instructions (`sdiv`/`udiv`, `icmp slt`/`icmp ult`); `add` is one row per
+family rather than a conditional.
+
+Adding an operator is one line; adding a family is one `EOpFamily` row plus its
+lines. Four things are deliberately *not* rows, because none is a table lookup:
+
+- `and` / `or` (and `&&` / `||`) **short-circuit** → two blocks + phi;
+- `not` / `!` needs the operand's width to build `xor true` → `EUnaryOp::LogicalNot`;
+- pointer `+` / `-` are heterogeneous (`( offset : UInt64 ) -> Pointer<T>`,
+  declared on the pointer nominal itself) → a `gep` whose stride is the
+  pointee's size, the pointee being the receiver's first generic argument;
+- an operator `UnitCallees` **resolved to a method** never reaches the table at
+  all. `Callees->Get( Id )` is consulted *first*, exactly as
+  `rules/core-ast.md` specifies, and `Binary`/`Unary`/`Call` then share one
+  emission path (`EmitResolvedCall`) — the three differ only in where the
+  receiver and the operands come from.
+
+## Middle-end gaps this backend surfaced
+
+Each is refused by a message naming the hole rather than guessed at, per
+`core-interfaces.md`. None is a regression; all are genuine missing facts.
+
+- **`ArrayLit` / `HashLit` have no recorded construction protocol.** They are
+  fully typed, so they stayed core — but filling `{ data, size }` means
+  allocating a backing buffer and knowing which field holds what, and neither
+  is written down anywhere a backend may read. Inventing a field-order
+  convention would silently corrupt any other shape, so it is reported instead.
+- ~~**`SizeOf` records no nominal for its operand.**~~ **Closed.** The node is
+  inert by contract ("read the layout size and never descend"), and the missing
+  half was the link from the operand to a type. `TypeChecker` now resolves the
+  written annotation and publishes the result on the node's *own site*
+  (`UnitTypes::SetSiteType( BindingSite{ Id } )` — the channel a `rescue`
+  clause's filter already uses for "a type attached to an Id that is not a
+  value expression"). The emitter measures that layout through `LayoutEngine`
+  and takes the constant's width from the use site, exactly as an integer
+  literal does. Inside a generic body `sizeof T` still defers; a
+  *re-instantiation* answers it, because `Sema::ReinstantiateBody` now binds
+  the owner's parameter names to the request's concrete arguments
+  (`UnitSink::Bindings`) — which is what `Pointer<T>#malloc` needs to compute
+  `count * sizeof T` at all.
+- **A value-returning body can fall off its end.** Volt has no definite-return
+  analysis — an `if` with no `else` in tail position is accepted — so this path
+  is reachable from valid source and cannot be a hard failure. It lowers to
+  `unreachable`, which is the honest reading of "the middle-end promised
+  control never gets here".
+- **No allocation entry point is marked, so an escaping environment cannot be
+  allocated.** `bEscapes == true` with at least one capture needs a heap env,
+  and `abi.md` is explicit that "heap" means a call to the stdlib's annotated
+  allocator — a linked symbol, not compiler behaviour. `@[External]` records a
+  C symbol *per member*, but nothing marks one member as *the* allocator, so
+  the emitter would have to name `malloc` itself, which
+  `rules/zero-hardcode.md` forbids. Refused by a message naming the hole. An
+  escaping closure that captures **nothing** is unaffected: its env is null.
+  The fix is upstream and small — one annotation (`@[Allocator]`, say) read in
+  the same `PendingAnnotation` loop that already handles `@[External]`.
+- **A closure body cannot reach `self`.** `ClosureEnvFrame` captures
+  *bindings*, and a receiver is not one, so a `do … end` inside a method that
+  touches `self` or `@x` has nothing to reach it through. Reported as that,
+  not as "outside a method" — `Frame.bClosure` is what distinguishes the two
+  messages. The fix is upstream: record the receiver as a capture, or add a
+  `bCapturesSelf` to the frame.
+- ~~**`abi.md` fixes how an aggregate travels *into* a call, not out of one.**~~
+  **Decided: by value, spilled on arrival.** A returned aggregate keeps the
+  struct type `FunctionTypeOf` already gave it, and the two conversion points
+  are the only places a value leaves or enters its slot: `CoerceWidth` loads
+  the struct at a `ret`, and `EmitResolvedCall` stores the returned struct into
+  a fresh slot of this frame. Everything between them still obeys "an aggregate
+  expression evaluates to a `ptr` at its storage". By value rather than sret
+  because the callee's storage does not outlive it — the spill is what makes
+  the result the caller's — and because it leaves every signature unchanged.
+  Recorded in `abi.md`.
+- **Integer literal suffixes are parsed and ignored** (already recorded in
+  `rules/core-ast.md`). The decoder trims the suffix and takes its width from
+  the *layout*, always — honouring the suffix here would make the backend
+  disagree with the type Sema assigned, which is worse than the known gap.
 
 ## Closures — `ClosureEnvFrame` is already computed
 
 `SynthesizeClosureFrame` hands the emitter `{ Fields[offset], TotalSize,
-Alignment, bEscapes }`:
+Alignment, bEscapes }`, and `ClosureEmitter.cpp` allocates that shape and fills
+it. Nothing here decides what is captured or where a field lives.
 
-- Lambda body → a private function taking `ptr %env` as leading parameter.
-- `bEscapes == false` (literal consumed at its call site): env is an
-  `alloca` in the caller — zero heap.
-- `bEscapes == true`: env is heap-allocated through the stdlib allocation
-  entry point (an `@[External]`-annotated function, so the backend calls a
-  symbol, not a hardcoded runtime).
-- The closure *value* is the `{ ptr fn, ptr env }` pair aggregate; calling a
-  `Block`/callable goes through `bApply` resolution like any call.
+- A `Lambda` and a `Block` differ only in what their body is — an expression
+  against a statement list — so both go through one `EmitClosure`. The body
+  compiles to a **private** `llvm::Function`: it is reached through its pair,
+  never by symbol, so it has no mangling and takes no part in the declare
+  sweep's symbol table.
+- Parameters are the declared ones **then `ptr %env`**, the trailing position
+  `abi.md` fixes for all three targets. The env parameter is present even when
+  nothing is captured, so a call site needs no second signature — an empty
+  environment is a null pointer, not a missing argument.
+- Parameter types come from `UnitTypes::SiteType( BindingSite{ ParamId } )`,
+  the only place `| i |` in `arr.each do | i |` has a type at all; the result
+  is `Args[0]` of the callable type Sema gave the closure itself.
+- `bEscapes == false` (ScopeResolver proved the literal is consumed at its
+  call site): the env is an `alloca` in the caller — zero heap, the common
+  `do … end` case.
+- The body is emitted under a **nested `FunctionFrame`**, with the enclosing
+  frame's slots, loop stack and insert point saved and restored around it.
+  The frame carries `bClosure`, which two things read (below).
+
+### Captures are addresses, and that is what makes them ordinary
+
+An env field holds the **address** of the captured binding, never a copy of
+its value. Two consequences, both load-bearing:
+
+- inside the body a capture is bound by `load ptr` out of the env, which
+  yields exactly what `FunctionFrame::Slots` holds for every other binding —
+  a place. So `x` reads and writes identically whether it is local or
+  captured, and no node kind learns about closures;
+- it is the only reading the frame's uniform pointer-sized fields support:
+  `SynthesizeClosureFrame` gives every capture the same slot regardless of its
+  type, which no by-value copy of an arbitrary aggregate could use. The
+  emitter checks each offset still fits the target's pointer size rather than
+  assuming the two agree.
+
+### The closure value is a layout, not an emitter-local shape
+
+`{ code, env }` is `abi.md`'s, shared by the three targets — and the stdlib
+type claiming `FuncType` / `Lambda` / `Block` declares *no field*, because that
+shape is an ABI decision no Volt declaration could express. So it is
+materialised in **`BackendCore::InstanceLayouts`**, next to the generic
+instantiation it resembles: a nominal claiming one of those three node kinds
+resolves to an aggregate of two `Pointer` fields (`Pointer`, not an
+`@[Primitive("ptr")]` spelling, so the pair's size follows the target's pointer
+size through `LayoutEngine`).
+
+Putting it there rather than in one emitter is what makes a local, a field, a
+parameter and an argument holding a callable all agree on the shape — and what
+will let the VM and wasm read a closure this backend wrote. The claim is asked
+of the store through `@[Literal]`, the same protocol that identifies the type
+behind `nil` or a string literal, so no Volt type name enters.
+
+### Invoking one: `@[Apply]` is the whole protocol
+
+`f( x )` on a local holding a callable and `block.call( x )` on a `&block`
+parameter are the *same* emission. `MemberResolver` resolves both to the
+member the callable's type annotates `@[Apply]`, and records that the signature
+is the receiver's own type arguments — result first, then the parameters. The
+emitter therefore:
+
+```
+Entry.Decl->bApply  ->  load { code, env } from the receiver, build the
+                        FunctionType from Entry.Result / Entry.Params, and
+                        call `code` indirectly with `env` appended
+otherwise           ->  direct call to the mangled symbol, as before
+```
+
+This is the one place a `FunctionType` is built from a *type* rather than from
+a declaration — a callable has no declaration to build it from. The receiver
+expression is the callee's object for a `Member`, and the callee expression
+itself for a bare `f( x )`.
+
+A trailing `do … end` fills the callee's `&block` slot, which is **not** a
+positional one: `Member::ParamIsBlock` marks it, positional matching skips it
+(`MemberResolver`), and `EmitResolvedCall` therefore walks the declared
+parameters and the argument list together rather than assuming they are the
+same sequence.
+
+### `next` in a block is a `ret`
+
+Inside a closure body with no loop of its own, `next [value]` ends *this
+invocation* and hands the value back — so it emits `ret`, not a branch. The
+same keyword means "continue" only when there is a loop in this frame to
+continue, and `Frame.bClosure` is what tells the two apart. `break` in the same
+position is a non-local exit from the method that invoked the block; that needs
+an unwinding transport, so it is refused and named as the exception emitter's
+(tier 1, below).
 
 ## Exceptions — `RaiseExpr` / `BeginExpr`, two tiers
 
-Tier 1 (first implementation): **setjmp/sigsetjmp-free personality-less
-unwinding is not attempted** — `begin/rescue` lowers to an out-parameter
-error slot: `raise` stores the exception object (rooted at the
-`@[ExceptionRoot]` nominal) into a thread-local slot and returns down a
-poisoned path; `rescue` clauses test the slot's dynamic nominal id. Simple,
-portable, correct, and identical semantics to the VM.
+Tier 1 (implemented, `ExceptionEmitter.cpp`): **setjmp/sigsetjmp-free
+personality-less unwinding is not attempted** — `raise` never touches the C
+stack directly. It stores the exception's address plus its own NominalId into
+two thread-local globals (`volt.exc.value` / `volt.exc.tag`,
+`NominalId::InvalidValue` meaning "nothing in flight" — the sentinel `TypedId`
+already uses, not a second one) and takes the *poisoned path*: a branch to the
+innermost `begin` **this function** owns (`FunctionFrame::Rescues`, a stack
+exactly like `Loops`), or — with none — an early return carrying no value,
+exactly as if the raising call had simply returned.
+
+Every ordinary (non-`@[External]`) call this emitter makes is followed by
+`EmitExceptionCheck`: load the tag, and if it is no longer `InvalidValue`,
+take the same poisoned path. So a `raise` several calls deep unwinds one `ret`
+at a time until some caller's frame is inside a `begin` — simple, portable,
+correct, identical semantics to what the VM will do, and it costs the calling
+convention nothing: no signature reserves a channel for it (`abi.md`).
+
+`rescue` clause matching compares the raised object's NominalId (loaded from
+the tag global) against each clause's own resolved filter —
+`Values->SiteType( BindingSite{ ClauseId } )`, which `ExprInferencer` now
+records for *every* clause, bound variable or not, since the ancestry test
+needs the target regardless of whether the clause also captures it — by
+walking `volt.exc.ancestry`, a `[N x i32]` global (`NominalId -> immediate
+Super`) built once per module from `TypeStore::Type(Id).Super`. The walk is
+the same reflexive, depth-bounded one `IsSubclassOf` performs in Sema
+(`TypeResolve.cpp`), done here at runtime because only the *dynamic* side of
+the test is unknown at compile time — the emitter never re-resolves a filter
+type itself.
+
+`begin`/`rescue`/`ensure` compiles to four blocks: `Dispatch` (clause ladder),
+`Ensure`, `Merge`, plus each clause's own body block. The `Rescues` stack
+target changes twice, which is what makes `ensure` run on every path without
+a raise inside a handler re-entering its own clause ladder:
+
+- while emitting the body, the target is `Dispatch` — the body's own raises
+  (or a pending call) get first refusal from this begin's clauses;
+- while emitting each clause's body, the target is `Ensure` directly — a
+  raise from inside a handler skips straight past clause matching (it must
+  not be caught by the same `rescue`) but still runs this `ensure`;
+- while emitting `ensure` itself, the stack has been popped back to whatever
+  was active outside this `begin` — its own raises propagate normally, they
+  do not re-enter this `ensure`.
+
+Falling through every clause with nothing matching leaves the thread-local
+state exactly as `Dispatch` found it, so a second check *after* `ensure`
+re-propagates it (branch to the outer `Rescues.back()`, or the same poisoned
+return) rather than needing separate plumbing for "unhandled". A rescue
+variable's slot is bound exactly like a `LocalDecl`'s — `SlotFor` at
+`BindingSite{ ClauseId }`, then `EmitStore` (a memcpy for the aggregate
+exception object) — and the thread-local state is cleared *before* the
+handler body runs, so a call inside it is checked against whatever *it*
+raises, never the exception it is currently handling.
+
 Tier 2 (once hot): Itanium zero-cost EH — `invoke` + `landingpad` with a
-custom personality; the clause matching logic is unchanged, only the
-transport differs. The choice is an emitter flag, not an AST concern.
+custom personality; the clause matching logic (the ancestry walk above) is
+unchanged, only the transport differs. The choice is an emitter flag, not an
+AST concern.
+
+**Known interaction, not fixed here:** constructing the raised object via
+`SomeError.new(...)` goes through the pre-existing aggregate-*return* gap
+(phase 5's note: abi.md fixes how an aggregate travels *into* a call, not
+*out* of one). `EmitRaise` trusts `EmitExpr(Node.Exception)` to hand back a
+`ptr` per the "aggregates are addresses" convention every other node relies
+on; if that convention is ever violated by an aggregate-returning `.new`, it
+is the pre-existing gap surfacing, not a new one, and is deferred to the same
+phase-8 verifier work that gap already names.
+
+## Monomorphisation — `MonoEmitter.cpp`
+
+A generic type's members carry no signature (`FunctionTypeOf` needs concrete
+`Params`/`Result`, which only exist once arguments are known) and a generic
+method's own body carries no per-expression type either: `TypeChecker`'s
+first pass over `Array<T>#push` or `def map<U>` runs with `self` bound to a
+*placeholder* instantiation — every one of the type's own generic slots
+invalid — so any expression whose type touches `T` or `U` is `MarkDeferred`
+rather than guessed at (`rules/core-ast.md`). `DeclareAll`/`DefineAll` both
+skip a generic owner and a member with `OwnGenerics > 0` outright for exactly
+this reason.
+
+**Why the unit's own `UnitTypes`/`UnitCallees` cannot answer for a generic
+body.** Both hold exactly one entry per `ExprId`, because `TypeChecker` runs
+once per unit. A generic body's `ExprId`s are shared by *every* instantiation
+that ever calls it — `Array<Int32>#push` and `Array<String>#push` are the
+same AST nodes — so neither map could hold more than one instantiation's
+answer even if the first pass had computed one.
+
+**The request.** `EmitResolvedCall` already builds `FlatArgs` — the pre-order
+NominalId flattening of `CalleeEntry::Bindings` (owner's own generics first,
+then the method's) — to drive `FunctionFor`/`Instances.OfSignature`. When the
+callee's owner is generic or the member has its own generics, that same call
+also enqueues a `MonoRequest{ Owner, Name, Args }` on `State::Mono`
+(`BackendCore::Monomorphizer`) — `Owner`+`Name` name the member (a type-shaped
+key alone is ambiguous: `Array<Int32>` says nothing about *which* member),
+`Key()` dedupes globally so `Array<Int32>#push` is only ever drained once no
+matter how many call sites reach it, and recursive generics terminate the
+same way a recursive layout does.
+
+**The one semantic step, and where it lives.** `Finalize()` calls
+`DrainMonomorphizer()`, which pops the queue until empty (draining a body can
+itself discover further instantiations — a generic method calling another —
+so this runs to a fixpoint, not once). For each request,
+`Sema::ReinstantiateBody( Store, Ast, Scopes, Member, Owner, FlatArgs )`
+(`Sema/Layout/Instantiate.hpp`) re-runs the type checker's own expression
+inferencer over the member's declared body into a **fresh**
+`InstantiatedBody{ Values, Callees }`, with `self` and the method's generics
+bound to `FlatArgs` — decoded straight into fresh `SemaTypeId`s, since
+`NominalId` is the cross-unit, instantiation-independent currency — instead
+of the placeholder holes the first pass left. Parameter and result types come
+from the already-resolved `Member::Params`/`Result` (`SigTypeId`) through the
+public `Sema::Instantiate`, never by re-deriving them from written syntax:
+`ResolveTypeExpr`'s `UnitSink::Param` always refuses a generic reference by
+design (the concrete-body case it exists for can never write one), so it is
+structurally the wrong tool for this. Once `self` and the parameters carry
+concrete `SemaTypeId`s, every expression built on them — calls, operators,
+field access — resolves through the exact same `LookupMemberOn` /
+`UnifySig` machinery a non-generic body already trusts, because it *is* that
+machinery, invoked a second time.
+
+This is monomorphisation's only semantic step, and it stays in Sema on
+purpose (`rules/core-ast.md`: zero type inference in a backend) — a backend
+decides *when* to instantiate, never *how* to type what it finds.
+`EmitMonomorphizedBody` then walks the AST exactly as `DefineMember` walks a
+concrete body — same parameter-binding loop, same tail rule — except
+`FunctionFrame::Values`/`Callees` (new fields, alongside the pre-existing
+`Unit`) point at the overlay's `Values`/`Callees` rather than at
+`Unit->Values`/`Unit->Callees`; `Unit`/`Ast`/`Scopes` stay the declaring
+unit's own, since a generic body's lexical structure does not change under
+instantiation, only its types do. Every other emitter function already reads
+types and callee resolutions through `Frame.Values`/`Frame.Callees` rather
+than through `Frame.Unit` directly, so a concrete body (which sets both to
+its own unit's) and a monomorphised one (which sets both to the request's
+overlay) are indistinguishable to `ExprEmitter`/`StmtEmitter`/
+`ClosureEmitter`/`ExceptionEmitter` — the whole point of the seam.
 
 ## Optimisation & emission
 

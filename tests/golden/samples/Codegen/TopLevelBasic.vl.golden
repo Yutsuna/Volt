@@ -1,0 +1,23 @@
+Program 'samples/Codegen/TopLevelBasic.vl'
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ Assign '=' @2:3
+│        ├─ target
+│        │  └─ Identifier 'x' @2:1
+│        └─ value
+│           └─ IntLiteral '20' @2:5
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Assign '=' @3:3
+│        ├─ target
+│        │  └─ Identifier 'y' @3:1
+│        └─ value
+│           └─ IntLiteral '22' @3:5
+└─ ExprStmt @4:1
+   └─ expr
+      └─ Binary '+' @4:3
+         ├─ lhs
+         │  └─ Identifier 'x' @4:1
+         └─ rhs
+            └─ Identifier 'y' @4:5
+--- exit 0 ---

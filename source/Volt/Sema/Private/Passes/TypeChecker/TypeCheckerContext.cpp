@@ -27,19 +27,24 @@ std::optional<Volt::Sema::SemaTypeId> Volt::Sema::TypeCheckerPass::TypeCheckerCo
 {
     SemaTypeId FoundType;
 
-    if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
+    // A use ScopeResolver bound answers from its site and from nowhere else.
+    // Falling back to the name would make two locals that merely share a
+    // spelling one variable: `b = *( p + i )` in two sibling `while` bodies is
+    // two declarations, two sites, and the second must be typed on its own —
+    // the name map would report the first one's type as already known and the
+    // second site would never be typed at all. The name map answers only for
+    // an identifier the ScopeTable cannot know (a node minted after Order 10).
+    const std::optional<BindingSite> Site = SiteOf( Use, Name );
+    if ( Site.has_value() )
     {
-        if ( const auto It = LocalTypes.find( Bound->Site ); It != LocalTypes.end() )
+        if ( const auto It = LocalTypes.find( *Site ); It != LocalTypes.end() )
         {
             FoundType = It->second;
         }
     }
-    if ( not FoundType.IsValid() )
+    else if ( const auto It = Locals.find( Name ); It != Locals.end() )
     {
-        if ( const auto It = Locals.find( Name ); It != Locals.end() )
-        {
-            FoundType = It->second;
-        }
+        FoundType = It->second;
     }
     if ( not FoundType.IsValid() )
     {
@@ -61,12 +66,34 @@ std::optional<Volt::Sema::SemaTypeId> Volt::Sema::TypeCheckerPass::TypeCheckerCo
     return FoundType;
 }
 
-void Volt::Sema::TypeCheckerPass::TypeCheckerContext::WriteLocal ( Frontend::ExprId Use, Symbol Name, SemaTypeId Type )
+std::optional<Volt::Sema::BindingSite> Volt::Sema::TypeCheckerPass::TypeCheckerContext::SiteOf ( Frontend::ExprId Use,
+                                                                                                 Symbol Name ) const
 {
     if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
     {
-        LocalTypes[Bound->Site] = Type;
-        Ctx.Values.SetSiteType( Bound->Site, Type );
+        return Bound->Site;
+    }
+    if ( const auto It = LocalSites.find( Name ); It != LocalSites.end() )
+    {
+        return It->second;
+    }
+    return std::nullopt;
+}
+
+void Volt::Sema::TypeCheckerPass::TypeCheckerContext::WriteLocal ( Frontend::ExprId Use, Symbol Name, SemaTypeId Type )
+{
+    // A use ScopeResolver bound is authoritative, and it also *teaches* the
+    // name index, so a later write through a node minted after Order 10 —
+    // which can carry no binding — still lands on the same site rather than
+    // forking a second, name-only answer.
+    if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use ) )
+    {
+        LocalSites[Name] = Bound->Site;
+    }
+    if ( const std::optional<BindingSite> Site = SiteOf( Use, Name ) )
+    {
+        LocalTypes[*Site] = Type;
+        Ctx.Values.SetSiteType( *Site, Type );
     }
     Locals[Name] = Type;
 }
