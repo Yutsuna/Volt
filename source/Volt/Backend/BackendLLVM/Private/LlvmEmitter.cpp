@@ -49,8 +49,16 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::State::Fail ( std::
 {
     if ( Status != EEmitStatus::Error )
     {
-        Status  = EEmitStatus::Error;
+        Status = EEmitStatus::Error;
+        // The symbol being emitted, appended once here rather than at ~60 call
+        // sites: every one of these messages names a *middle-end* fact that is
+        // missing, and the first question about any of them is "in which body".
+        // The name is the mangled one, which is exactly owner + method.
         Message = std::move( InMessage );
+        if ( Frame.Fn != nullptr )
+        {
+            Message += " (while emitting '" + Frame.Fn->getName().str() + "')";
+        }
     }
     return EEmitStatus::Error;
 }
@@ -75,7 +83,13 @@ bool Volt::Backend::Llvm::LlvmBackend::State::InitTarget ( std::string_view Modu
         return false;
     }
 
-    Machine.reset( Target->createTargetMachine( Triple, "generic", "", llvm::TargetOptions{}, std::nullopt ) );
+    // PIC, not the default static model: every mainstream toolchain links
+    // PIE by default, and a static-model object hits `R_X86_64_32 ... can not
+    // be used; recompile with -fPIC` at the link, which is a failure with no
+    // relation to anything in the program. The C driver Linker.cpp shells out
+    // to is the same one that made that choice, so matching it here is what
+    // keeps the two halves of the build agreeing.
+    Machine.reset( Target->createTargetMachine( Triple, "generic", "", llvm::TargetOptions{}, llvm::Reloc::PIC_ ) );
     if ( Machine == nullptr )
     {
         static_cast<void>( Fail( "llvm: could not create a TargetMachine for '" + TripleText + "'" ) );
@@ -352,6 +366,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
         if ( Arg->getType()->isPointerTy() )
         {
             Frame.Slots.emplace( Site, Arg );
+            BindInstanceVarParam( ParamRef, Arg );
             continue;
         }
 
@@ -363,6 +378,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
             return;
         }
         static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+        BindInstanceVarParam( ParamRef, Arg );
     }
 
     EmitStmts( Node->Body, Frame.bReturnsValue );
@@ -386,6 +402,98 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
     }
 
     Frame = FunctionFrame{};
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::BindInstanceVarParam ( Frontend::ParamId ParamRef, llvm::Value *Value )
+{
+    const Frontend::Param &Declared = Frame.Unit->Ast->GetParam( ParamRef );
+
+    // `def initialize( @x : Int32 )` declares a parameter *and* stores it into
+    // the field of that name — the parser records which (`Param::bInstanceVar`,
+    // with the sigil already stripped) and no pass materialises the store, so
+    // it is emitted here as part of binding the parameter. Without it every
+    // field so declared stays whatever the frame happened to hold, silently:
+    // the stdlib's `Exception#initialize( @message : String )` and any
+    // `Point.new( 3, 4 )` both depend on it.
+    if ( not Declared.bInstanceVar or Value == nullptr )
+    {
+        return;
+    }
+    if ( Frame.Self == nullptr )
+    {
+        static_cast<void>( Fail( "llvm: '@" + std::string( Frame.Unit->Ast->Text( Declared.Name ) ) +
+                                 "' is a field-assigning parameter of a method with no receiver" ) );
+        return;
+    }
+
+    llvm::Value *Address =
+        FieldAddress( Frame.Self, Frame.SelfLayout, Frame.Unit->Ast->Text( Declared.Name ), Frontend::ExprId{} );
+    if ( Address == nullptr )
+    {
+        return;
+    }
+    EmitStore( Address, Value, LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Sema::BindingSite{ ParamRef } ) ) );
+}
+
+bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
+{
+    // Every Volt function is mangled, so nothing in the module is called what
+    // the C runtime starts at. Which Volt function *is* the entry, and which C
+    // symbol it must answer to, are both language/platform conventions rather
+    // than code-generation ones — they arrive in EmitOptions from `volt build`
+    // and are never assumed here. Empty means a library: no entry, no shim.
+    if ( Options.EntryFunction.empty() or Options.EntrySymbol.empty() or Mod->getFunction( Options.EntrySymbol ) != nullptr )
+    {
+        return true;
+    }
+
+    const Sema::Member *Entry = nullptr;
+    for ( const Sema::Member &Candidate : Build->Types->FreeFunctions() )
+    {
+        if ( Build->Types->Text( Candidate.Name ) == Options.EntryFunction )
+        {
+            Entry = &Candidate;
+            break;
+        }
+    }
+    if ( Entry == nullptr )
+    {
+        // Only a build that has to *run* needs one; stopping at IR or an
+        // object file is a perfectly ordinary thing to do to a library.
+        if ( Options.Stage != EEmitStage::Link )
+        {
+            return true;
+        }
+        static_cast<void>( Fail( "llvm: this build declares no '" + Options.EntryFunction +
+                                 "' function, so the linked program has no entry point" ) );
+        return false;
+    }
+
+    llvm::Function *Target = FunctionFor( *Entry, Sema::NominalId{}, {} );
+    if ( Target == nullptr )
+    {
+        return false;
+    }
+    if ( Target->getFunctionType()->getNumParams() != 0 )
+    {
+        static_cast<void>(
+            Fail( "llvm: '" + Options.EntryFunction + "' takes parameters, and the entry point is called with none" ) );
+        return false;
+    }
+
+    llvm::Type *ExitCode = llvm::Type::getInt32Ty( Context );
+    llvm::Function *Shim = llvm::Function::Create( llvm::FunctionType::get( ExitCode, false ), llvm::Function::ExternalLinkage,
+                                                   Options.EntrySymbol, Mod.get() );
+    llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", Shim ) };
+
+    llvm::Value *Result = Shell.CreateCall( Target );
+    // The process exit code is the entry's own result when it has one that can
+    // be one; anything else — a `-> Void` main, a struct — exits zero, which is
+    // the only reading a C runtime has for "it finished".
+    static_cast<void>( Shell.CreateRet( Result->getType()->isIntegerTy()
+                                            ? Shell.CreateIntCast( Result, ExitCode, /*isSigned=*/true )
+                                            : llvm::ConstantInt::get( ExitCode, 0 ) ) );
+    return true;
 }
 
 void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
@@ -499,6 +607,14 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
     // this drains to a fixpoint rather than once.
     Impl->DrainMonomorphizer();
     if ( Impl->Failed() )
+    {
+        return MakeFailure();
+    }
+
+    // After the drain, so the entry point can itself be the thing that forced
+    // an instantiation, and before the verifier, which is what proves the shim
+    // is well formed like any other function.
+    if ( not Impl->EmitEntryPoint() )
     {
         return MakeFailure();
     }
