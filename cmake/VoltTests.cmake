@@ -85,6 +85,38 @@ endforeach()
 
 #############################################################################
 
+# The native backend's own corpus: every sample is compiled to a real
+# executable and run, and its exit code compared against the `.expected` file
+# beside it. Only registered when the backend exists — `volt build` reports
+# "configured without LLVM" otherwise, and a test asserting that would be
+# asserting the absence of the thing under test.
+if( VOLT_ENABLE_LLVM )
+  file( GLOB VOLT_CODEGEN_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
+    ${VOLT_ROOT}/samples/Codegen/*.vl )
+  list( SORT VOLT_CODEGEN_SOURCES )
+
+  foreach( SOURCE IN LISTS VOLT_CODEGEN_SOURCES )
+    add_test(
+      NAME    LlvmIr.${SOURCE}
+      COMMAND ${CMAKE_COMMAND}
+              -DVOLT_BIN=$<TARGET_FILE:Volt>
+              -DSOURCE=${SOURCE}
+              -DWORK=${CMAKE_BINARY_DIR}/tests
+              -P ${VOLT_ROOT}/tests/LlvmIr.cmake
+    )
+    add_test(
+      NAME    LlvmRun.${SOURCE}
+      COMMAND ${CMAKE_COMMAND}
+              -DVOLT_BIN=$<TARGET_FILE:Volt>
+              -DSOURCE=${SOURCE}
+              -DWORK=${CMAKE_BINARY_DIR}/tests
+              -P ${VOLT_ROOT}/tests/LlvmRun.cmake
+    )
+  endforeach()
+endif()
+
+#############################################################################
+
 add_test(
   NAME    ZeroHardcode
   COMMAND ${CMAKE_COMMAND} -P ${VOLT_ROOT}/tests/ZeroHardcode.cmake

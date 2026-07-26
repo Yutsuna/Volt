@@ -7,6 +7,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <span>
 
 namespace Volt
 {
@@ -34,6 +35,21 @@ namespace Sema
     /// resolved.
     SEMA_EXPORT std::size_t
     ResolveUnitSignatures ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags );
+
+    /// Third serial phase, over every unit at once: attach the structural
+    /// `Layout` (the aggregate of a struct/class/mixin/enum with no
+    /// `@[Primitive]`) that `BindUnitTypes` deliberately leaves for a
+    /// non-primitive type. Split out from both earlier phases because a
+    /// field's declared type may itself be an aggregate declared in a
+    /// *different* file with no fixed relationship to this one (`Exception`'s
+    /// `message : String` is exactly this — nothing before Phase C makes
+    /// "String before Exception" true except by accident of file order), so
+    /// resolving it needs to jump to that other type's own declaring unit's
+    /// AST and recurse — a single linear per-unit pass, the shape Phase A and
+    /// B share, cannot do that. `Units` is indexed by the same discovery
+    /// ordinal `BindUnitTypes`/`ResolveUnitSignatures` were called with; a
+    /// null entry is skipped (a unit with no types needs no slot filled).
+    SEMA_EXPORT void ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store );
 
 } // namespace Sema
 

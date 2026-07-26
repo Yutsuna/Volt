@@ -1,0 +1,47 @@
+Program 'samples/Codegen/ImplicitLocals.vl'
+├─ Annotation 'External' @2:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @2:13
+│     └─ StringLiteral 'exit' @2:21
+├─ Method 'libc_exit' external @3:10
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @3:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @3:44
+├─ Method 'main' @5:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @5:13
+│  └─ body
+│     ├─ ExprStmt @6:3
+│     │  └─ expr
+│     │     └─ Assign '=' @6:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @6:3
+│     │        └─ value
+│     │           └─ IntLiteral '40' @6:7
+│     ├─ ExprStmt @7:3
+│     │  └─ expr
+│     │     └─ Assign '=' @7:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @7:3
+│     │        └─ value
+│     │           └─ Binary '+' @7:5
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'x' @7:3
+│     │              └─ rhs
+│     │                 └─ IntLiteral '2' @7:8
+│     └─ ExprStmt @8:3
+│        └─ expr
+│           └─ Identifier 'x' @8:3
+└─ ExprStmt @11:1
+   └─ expr
+      └─ Call @11:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @11:1
+         └─ args
+            └─ Call @11:16
+               └─ callee
+                  └─ Identifier 'main' @11:12
+--- exit 0 ---

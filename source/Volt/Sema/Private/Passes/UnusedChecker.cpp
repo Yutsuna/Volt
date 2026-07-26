@@ -29,6 +29,9 @@ Volt::Core::SourceRange LocOfSite ( const Volt::Frontend::AstContext &Ast, const
             { return Id.IsValid() ? Ast.GetParam( Id ).Loc : Core::SourceRange{}; },
             [&] ( Frontend::DeclId Id ) -> Core::SourceRange
             { return Id.IsValid() ? Frontend::LocOf( Ast.Decl( Id ) ) : Core::SourceRange{}; },
+            // An implicit local: the site is the Assign target that declared it.
+            [&] ( Frontend::ExprId Id ) -> Core::SourceRange
+            { return Id.IsValid() ? Frontend::LocOf( Ast.Expr( Id ) ) : Core::SourceRange{}; },
         },
         Site );
 }

@@ -52,12 +52,13 @@ namespace Frontend
     using ParamList  = NodeList<ParamId>;
     using SymbolList = NodeList<Symbol>;
 
-    /// Accessor kind for a Field declaration (`getter`/`property`/plain ivar).
+    /// Accessor kind for a Field declaration (`getter`/`setter`/`property`/plain ivar).
     enum class EAccessor
     {
 
         None,
         Getter,
+        Setter,
         Property,
     };
 

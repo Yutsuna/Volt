@@ -13,6 +13,7 @@ The manifests:
 | `Frontend/Lexer/TokenKind.inl`    | token enum, spelling table, keyword lookup         |
 | `Frontend/Parser/Pratt.inl`       | infix binding-power / parselet table               |
 | `Sema/PassList.inl`               | ordered pass registry                              |
+| `BackendLLVM/Instructions.inl`    | primitive spelling-family × operator → LLVM opcode |
 
 Before writing code, ask: *is this a new manifest entry?*
 
@@ -21,6 +22,11 @@ Before writing code, ask: *is this a new manifest entry?*
   `add-ast-node`.
 - New token → 1 line in `TokenKind.inl`.
 - New sema pass → 1 line in `PassList.inl` + one function. See skill `add-sema-pass`.
+- New primitive machine operation → 1 line in `Instructions.inl`; a new *family*
+  is one `EOpFamily` row plus its lines. The file is re-included three times
+  with different macro definitions to generate three `constexpr` tables, so a
+  row reaches instruction selection with no other edit and there is no `switch`
+  over operators anywhere in the emitter.
 
 If a change makes you write a `switch` over every kind, or a near-duplicate of an
 existing traversal, you are fighting the architecture. Reach for

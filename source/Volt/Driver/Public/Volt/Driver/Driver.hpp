@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Driver_export.hpp"
+#include "Volt/BackendCore/BackendInput.hpp"
 #include "Volt/Core/Container/NonCopyable.hpp"
 #include "Volt/Core/Container/NonMovable.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
@@ -150,6 +151,40 @@ namespace Driver
 
         // Dump every unit's AST as the human tree (`volt parse` output).
         void DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const;
+
+        // --- The backend seam ---------------------------------------------
+
+        [[nodiscard]] std::size_t UnitCount () const
+        {
+            return Units.size();
+        }
+
+        [[nodiscard]] const CompileUnit &Unit ( std::size_t Index ) const
+        {
+            return Units[Index];
+        }
+
+        // Every compiled unit as the read-only view a backend consumes
+        // (BackendCore/BackendInput.hpp), ordered so that a dependency is
+        // always emitted before its dependents — the *circuit link order* that
+        // lets a single-pass emitter see every callee's declaring unit before
+        // the call site's.
+        //
+        // The order comes from CircuitGraph::TopoOrder; a unit whose module is
+        // not in the graph (a flat `CompileFiles` build has no `@[Link]` edges
+        // at all) keeps its discovery order, appended after the graph's. A
+        // cycle is already a hard error upstream, so a failed TopoOrder simply
+        // degrades to discovery order rather than dropping units on the floor.
+        [[nodiscard]] std::vector<Backend::UnitView> MakeBackendViews () const;
+
+        // Mutable counterpart to Layouts(): a backend monomorphises generics
+        // into this store's layout arena as call sites discover them
+        // (BackendCore/BackendInput.hpp explains why `BackendInput::Types` is
+        // a non-const pointer). Exists only for the backend seam.
+        [[nodiscard]] Sema::TypeStore &MutableLayouts ()
+        {
+            return Types;
+        }
 
     private:
 

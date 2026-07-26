@@ -56,12 +56,13 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     {
         for ( const auto &[Value, Found] : State.CalleeResolution )
         {
-            Context.Callees->Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl       = Found.Decl,
-                                                                          .Result     = Found.Result,
-                                                                          .Params     = Found.Params,
-                                                                          .BlockParam = Found.BlockParam,
-                                                                          .Bindings   = Found.Bindings,
-                                                                          .Receiver   = Found.Receiver } );
+            Context.Callees->Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl        = Found.Decl,
+                                                                          .Result      = Found.Result,
+                                                                          .Params      = Found.Params,
+                                                                          .BlockParam  = Found.BlockParam,
+                                                                          .Bindings    = Found.Bindings,
+                                                                          .Receiver    = Found.Receiver,
+                                                                          .bConstructs = Found.bConstructs } );
         }
     }
 }
