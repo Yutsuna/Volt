@@ -470,6 +470,11 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseFieldOrMember ()
             Accessor = EAccessor::Getter;
             Advance();
         }
+        else if ( Word == "setter" )
+        {
+            Accessor = EAccessor::Setter;
+            Advance();
+        }
         else if ( Word == "property" )
         {
             Accessor = EAccessor::Property;
