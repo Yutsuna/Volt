@@ -1,5 +1,8 @@
 # A user struct: field storage, an initializer reached through `.new`, and
 # instance methods on an aggregate receiver.
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
 struct Point
   getter x : Int32
   getter y : Int32
@@ -20,3 +23,5 @@ def main -> Int32
   p = Point.new( 3, 4 )
   p.sum + p.shifted( 5 )
 end
+
+libc_exit( main() )

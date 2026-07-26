@@ -1,4 +1,7 @@
 # Implicit return through an if/elsif/else chain, plus a ternary.
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
 def classify( value : Int32 ) -> Int32
   if value < 0
     1
@@ -16,3 +19,5 @@ def main -> Int32
   d = a < b ? 10 : 20
   a + b + c + d
 end
+
+libc_exit( main() )
