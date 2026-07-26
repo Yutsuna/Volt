@@ -215,7 +215,19 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::FunctionFor ( const Sem
         return nullptr;
     }
 
-    llvm::Function *Fn = llvm::Function::Create( Signature, llvm::Function::ExternalLinkage, Symbol, Mod.get() );
+    // A monomorphised instantiation (FlatArgs non-empty — only
+    // EmitMonomorphizedBody ever calls FunctionFor that way; every concrete
+    // declare/define call site passes {}) is `linkonce_odr`, not
+    // `External`: `Array<UInt8>` used internally by a precompiled stdlib
+    // archive and independently instantiated by a user build mangle to the
+    // *same* symbol (Mangler.hpp is deterministic and content-only), and
+    // without weak linkage the two definitions collide at link time
+    // (issue #61 blind-spot #3). `linkonce_odr` tells the linker any one
+    // definition will do, which is exactly true — Monomorphizer only ever
+    // reinstantiates the same body for the same FlatArgs.
+    const llvm::GlobalValue::LinkageTypes Linkage =
+        FlatArgs.empty() ? llvm::Function::ExternalLinkage : llvm::Function::LinkOnceODRLinkage;
+    llvm::Function *Fn = llvm::Function::Create( Signature, Linkage, Symbol, Mod.get() );
     Functions.emplace( Symbol, Fn );
     return Fn;
 }
@@ -612,6 +624,16 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
         return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) + "' reached the backend with no sema output" );
     }
 
+    // A stdlib unit under a precompiled build never gets a body here: it is
+    // already declared (DeclareAll runs over the whole TypeStore regardless
+    // of unit) and its definition is expected from the linked archive/.so
+    // instead — the same "declared, never defined" shape @[External]
+    // members already have.
+    if ( Impl->Options.bStdlibPrecompiled and Impl->Build != nullptr and Unit.Ordinal < Impl->Build->StdlibUnitCount )
+    {
+        return EEmitStatus::Ok;
+    }
+
     Impl->DefineAll( Unit );
     return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
 }
@@ -698,8 +720,12 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
         return MakeFailure();
     }
 
-    const std::string OutputPath = Impl->Options.OutputPath.empty() ? std::string( "a.out" ) : Impl->Options.OutputPath;
-    if ( not Impl->LinkExecutable( TempObject.str(), OutputPath ) )
+    const std::string DefaultName = Impl->Options.bSharedOutput ? BaseName + ".so" : std::string( "a.out" );
+    const std::string OutputPath  = Impl->Options.OutputPath.empty() ? DefaultName : Impl->Options.OutputPath;
+
+    const bool bLinked = Impl->Options.bSharedOutput ? Impl->LinkSharedLibrary( TempObject.str(), OutputPath )
+                                                     : Impl->LinkExecutable( TempObject.str(), OutputPath );
+    if ( not bLinked )
     {
         return MakeFailure();
     }
