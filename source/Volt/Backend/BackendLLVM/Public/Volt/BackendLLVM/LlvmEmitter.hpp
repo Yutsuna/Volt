@@ -46,6 +46,15 @@ namespace Backend
             // Where Finalize's artifact lands. Empty means "derive from the
             // module name", since a caller may not know it in advance.
             std::string OutputPath;
+            // The Volt free function the C runtime starts the program at, and
+            // the C symbol it must be reachable under. Every Volt function is
+            // mangled (BackendCore/Mangler.hpp), so without a shim there is no
+            // `main` for the CRT to call at all. Which name means "entry" is a
+            // *language* convention, not a code-generation one, so it is set
+            // here by `volt build` rather than assumed by the emitter; empty
+            // means "emit no entry point", which is what a library build is.
+            std::string EntryFunction = "main";
+            std::string EntrySymbol   = "main";
         };
 
         class BACKENDLLVM_EXPORT LlvmBackend
