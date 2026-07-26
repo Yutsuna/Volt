@@ -94,8 +94,8 @@ namespace fs = std::filesystem;
 
     const std::vector<Volt::Backend::UnitView> Views = Isolated->MakeBackendViews();
     const Volt::Backend::BackendInput BackendIn{ .Types = &Isolated->MutableLayouts(), .Units = Views };
-    if ( not Volt::Backend::Llvm::BuildStdlibArtifact(
-             BackendIn, Options.OptLevel, Options.bLto, bShared, Artifact.string(), Meta.string() ) )
+    if ( not Volt::Backend::Llvm::BuildStdlibArtifact( BackendIn, Options.OptLevel, Options.bLto, bShared, Artifact.string(),
+                                                       Meta.string() ) )
     {
         return std::nullopt;
     }
@@ -114,7 +114,7 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
     return BuildResult{ .bOk      = false,
                         .Artifact = {},
                         .Message  = "This build of volt was configured without LLVM (VOLT_ENABLE_LLVM=OFF); "
-                                   "native code generation is unavailable" };
+                                    "native code generation is unavailable" };
 #else
     if ( Options.Target != "native" )
     {
