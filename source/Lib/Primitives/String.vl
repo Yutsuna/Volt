@@ -4,6 +4,9 @@ external def libc_memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt
 @[External( "libc", "memcmp" )]
 external def libc_memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
 
+@[External( "libc", "strlen" )]
+external def libc_strlen( str : Pointer<UInt8> ) -> UInt64
+
 
 @[Literal( StringLiteral )]
 struct String
@@ -13,11 +16,11 @@ struct String
   getter data : Pointer<UInt8>
   getter size : UInt64
 
-  def initialize( @data : Pointer<UInt8> )
-    @size = libc_strlen( @data )
+  def initialize( @data : Pointer<UInt8>, @size : UInt64 )
   end
 
-  def initialize( @data : Pointer<UInt8>, @size : UInt64 )
+  def self.from_c_string( ptr : Pointer<UInt8> ) -> String
+    String.new( ptr, libc_strlen( ptr ) )
   end
 
   def empty? -> Bool
