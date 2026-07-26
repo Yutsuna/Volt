@@ -1,7 +1,7 @@
 Program 'samples/Sema/FreeFunctionTypeMismatch.vl'
 ├─ Method 'greet' @6:1
 │  ├─ params
-│  │  └─ Param 'name'
+│  │  └─ Param 'name' @6:12
 │  │     └─ decl_type
 │  │        └─ TypeRef 'String' @6:19
 │  ├─ return_type

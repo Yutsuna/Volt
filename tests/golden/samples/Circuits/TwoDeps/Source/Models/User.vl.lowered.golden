@@ -11,10 +11,10 @@ Program 'samples/Circuits/TwoDeps/Source/Models/User.vl'
             │     └─ TypeRef 'String' @6:12
             ├─ Method 'initialize' @8:5
             │  └─ params
-            │     ├─ Param 'id' instance_var
+            │     ├─ Param 'id' instance_var @8:21
             │     │  └─ decl_type
             │     │     └─ TypeRef 'Int32' @8:27
-            │     └─ Param 'name' instance_var
+            │     └─ Param 'name' instance_var @8:34
             │        └─ decl_type
             │           └─ TypeRef 'String' @8:42
             └─ Method 'get_id' @11:5

@@ -1,7 +1,7 @@
 Program 'samples/Sema/UnconstrainedLiterals.vl'
 ├─ Method 'take_float' @8:1
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @8:17
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Float32' @8:25
 │  ├─ return_type
@@ -23,7 +23,7 @@ Program 'samples/Sema/UnconstrainedLiterals.vl'
 │                 └─ FloatLiteral '2.5' @16:15
 ├─ Method 'sum_all' @19:1
 │  ├─ params
-│  │  └─ Param 'values'
+│  │  └─ Param 'values' @19:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Array' @19:23
 │  │           └─ generics

@@ -5,7 +5,7 @@ Program 'samples/Codegen/Structs.vl'
 │     └─ StringLiteral 'exit' @3:21
 ├─ Method 'libc_exit' external @4:10
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @4:25
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @4:33
 │  └─ return_type
@@ -20,10 +20,10 @@ Program 'samples/Codegen/Structs.vl'
 │     │     └─ TypeRef 'Int32' @8:14
 │     ├─ Method 'initialize' @10:3
 │     │  └─ params
-│     │     ├─ Param 'x' instance_var
+│     │     ├─ Param 'x' instance_var @10:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'Int32' @10:24
-│     │     └─ Param 'y' instance_var
+│     │     └─ Param 'y' instance_var @10:31
 │     │        └─ decl_type
 │     │           └─ TypeRef 'Int32' @10:36
 │     ├─ Method 'sum' @13:3
@@ -39,7 +39,7 @@ Program 'samples/Codegen/Structs.vl'
 │     │                 └─ InstanceVar '@y' @14:10
 │     └─ Method 'shifted' @17:3
 │        ├─ params
-│        │  └─ Param 'delta'
+│        │  └─ Param 'delta' @17:16
 │        │     └─ decl_type
 │        │        └─ TypeRef 'Int32' @17:24
 │        ├─ return_type
