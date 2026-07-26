@@ -14,6 +14,12 @@
 namespace Volt
 {
 
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
+
 namespace Sema
 {
 
@@ -61,6 +67,18 @@ namespace Sema
         {
             return Decls.size();
         }
+
+        // --- Frontend cache (Issue #61) -----------------------------------
+        //
+        // ByName is not serialised: it is a std::string_view index into
+        // Decls' own (deque-stable) storage, so DeserializeCache rebuilds it
+        // for free by replaying Publish() in original order — the same
+        // "last publication wins" rule the live pipeline already relies on.
+        void SerializeCache ( Meta::Writer &W ) const;
+
+        // Expects a *fresh* InterfaceRegistry (same contract as
+        // DeserializeArena): replays Publish() from empty.
+        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
 
     private:
 

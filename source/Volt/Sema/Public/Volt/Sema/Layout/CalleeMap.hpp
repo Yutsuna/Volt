@@ -14,6 +14,7 @@
 // One snapshot per unit, written once at the end of TypeChecker and read-only
 // afterwards — the same lock-free discipline as UnitTypes.
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
@@ -22,9 +23,16 @@
 #include <cstdint>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace Volt
 {
+
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
 
 namespace Sema
 {
@@ -61,7 +69,7 @@ namespace Sema
     // Every callee one compile unit resolved, keyed by the *callee
     // expression's* ExprId (the `Member` / `Binary` / `Unary` / `Identifier`
     // node, not the wrapping `Call`).
-    class UnitCallees
+    class SEMA_EXPORT UnitCallees
     {
 
     public:
@@ -94,9 +102,31 @@ namespace Sema
             return Entries.size();
         }
 
+        // --- Frontend cache (Issue #61) -----------------------------------
+        //
+        // CalleeEntry::Decl is a raw `const Member*` into the build-wide
+        // TypeStore — not serialisable as a value. Every other field is a
+        // plain value (SemaTypeId, SmallVec, bool), so only Decl gets the
+        // plan's two-phase fixup: SerializeCache writes (Unit, DeclId)
+        // instead of the pointer; DeserializeCache leaves Decl null and
+        // records the key; FixupDecls re-resolves every pointer in one pass
+        // once the TypeStore it points into has itself been loaded.
+        void SerializeCache ( Meta::Writer &W ) const;
+        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
+
+        // Must run after the TypeStore this map's Decls point into has
+        // finished its own DeserializeCache — TypeStore::FindMemberByUnitDecl
+        // reads its (by-then-frozen) Types/Functions.
+        void FixupDecls ( const TypeStore &Store );
+
     private:
 
         std::unordered_map<std::uint32_t, CalleeEntry> Entries;
+
+        // Populated by DeserializeCache, drained by FixupDecls: for each
+        // Entries key with a resolved Decl, the (Unit, DeclId) that
+        // identifies it across the whole build.
+        std::vector<std::pair<std::uint32_t, std::pair<std::uint32_t, Frontend::DeclId>>> PendingDecls;
     };
 
 } // namespace Sema
