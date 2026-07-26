@@ -126,6 +126,13 @@ namespace Meta
     template <typename T> void Serialize ( Writer &W, const std::vector<T> &Vec );
     template <typename T> [[nodiscard]] bool Deserialize ( Reader &R, std::vector<T> &Vec );
 
+    // std::vector<bool> is a bit-packed specialisation with no real T&
+    // references, so the generic vector<T> loop below (which binds
+    // `const T &Element`) cannot instantiate over it — a dedicated overload,
+    // one bool per byte, no different in spirit from any other leaf.
+    void Serialize ( Writer &W, const std::vector<bool> &Vec );
+    [[nodiscard]] bool Deserialize ( Reader &R, std::vector<bool> &Vec );
+
     template <typename T> void Serialize ( Writer &W, const std::optional<T> &Opt );
     template <typename T> [[nodiscard]] bool Deserialize ( Reader &R, std::optional<T> &Opt );
 
@@ -257,6 +264,37 @@ namespace Meta
                 return false;
             }
             Vec.push_back( std::move( Element ) );
+        }
+        return true;
+    }
+
+    inline void Serialize ( Writer &W, const std::vector<bool> &Vec )
+    {
+        const auto Count = static_cast<std::uint32_t>( Vec.size() );
+        Serialize( W, Count );
+        for ( const bool Element : Vec )
+        {
+            Serialize( W, Element );
+        }
+    }
+
+    [[nodiscard]] inline bool Deserialize ( Reader &R, std::vector<bool> &Vec )
+    {
+        std::uint32_t Count = 0;
+        if ( not Deserialize( R, Count ) )
+        {
+            return false;
+        }
+        Vec.clear();
+        Vec.reserve( Count );
+        for ( std::uint32_t Index = 0; Index < Count; ++Index )
+        {
+            bool Element = false;
+            if ( not Deserialize( R, Element ) )
+            {
+                return false;
+            }
+            Vec.push_back( Element );
         }
         return true;
     }
