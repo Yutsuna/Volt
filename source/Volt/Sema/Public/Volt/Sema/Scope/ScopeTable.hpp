@@ -10,6 +10,7 @@
 // construction: a Binding ties an interned Symbol to an AST declaration
 // site — no Volt type name ever enters this file.
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
@@ -24,6 +25,12 @@
 
 namespace Volt
 {
+
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
 
 namespace Sema
 {
@@ -116,7 +123,7 @@ namespace Sema
     // every later pass: BindingOf/ScopeOf are O(1) dense lookups, no chain
     // walking outside the resolver itself. Per-file state on the CompileUnit,
     // so the parallel sema phase needs no lock.
-    class ScopeTable
+    class SEMA_EXPORT ScopeTable
     {
 
     public:
@@ -300,6 +307,22 @@ namespace Sema
             const auto It = UseCounts.find( Site );
             return It != UseCounts.end() ? It->second : 0;
         }
+
+        // --- Frontend cache (Issue #61) -----------------------------------
+        //
+        // Every field but UseIndex is a plain value already reachable through
+        // Meta::Serialize (Scope/Binding/Capture are reflected aggregates,
+        // BindingSite is a std::variant of TypedIds). UseIndex alone holds
+        // `const Binding *` — a pointer into a Scope's own Bindings map — so
+        // it is serialised as (Owner ScopeId, Name Symbol) per slot and
+        // re-resolved against Scopes once that arena is itself loaded:
+        // unordered_map node addresses are stable across lookups (only
+        // erase invalidates them), so taking `&Bindings[Name]` after replay
+        // reproduces the exact original pointer identity a consumer needs.
+        void SerializeCache ( Meta::Writer &W ) const;
+
+        // Expects a *fresh* ScopeTable (same contract as DeserializeArena).
+        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
 
     private:
 
