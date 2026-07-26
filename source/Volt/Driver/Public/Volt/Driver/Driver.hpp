@@ -177,6 +177,15 @@ namespace Driver
         // degrades to discovery order rather than dropping units on the floor.
         [[nodiscard]] std::vector<Backend::UnitView> MakeBackendViews () const;
 
+        // Mutable counterpart to Layouts(): a backend monomorphises generics
+        // into this store's layout arena as call sites discover them
+        // (BackendCore/BackendInput.hpp explains why `BackendInput::Types` is
+        // a non-const pointer). Exists only for the backend seam.
+        [[nodiscard]] Sema::TypeStore &MutableLayouts ()
+        {
+            return Types;
+        }
+
     private:
 
         struct SourceRef
