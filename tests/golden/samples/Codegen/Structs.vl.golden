@@ -1,0 +1,81 @@
+Program 'samples/Codegen/Structs.vl'
+├─ Struct 'Point' @3:1
+│  └─ body
+│     ├─ Field 'x' getter @4:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @4:14
+│     ├─ Field 'y' getter @5:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @5:14
+│     ├─ Method 'initialize' @7:3
+│     │  └─ params
+│     │     ├─ Param 'x' instance_var
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @7:24
+│     │     └─ Param 'y' instance_var
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @7:36
+│     ├─ Method 'sum' @10:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @10:14
+│     │  └─ body
+│     │     └─ ExprStmt @11:5
+│     │        └─ expr
+│     │           └─ Binary '+' @11:8
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@x' @11:5
+│     │              └─ rhs
+│     │                 └─ InstanceVar '@y' @11:10
+│     └─ Method 'shifted' @14:3
+│        ├─ params
+│        │  └─ Param 'delta'
+│        │     └─ decl_type
+│        │        └─ TypeRef 'Int32' @14:24
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @14:35
+│        └─ body
+│           └─ ExprStmt @15:5
+│              └─ expr
+│                 └─ Binary '+' @15:13
+│                    ├─ lhs
+│                    │  └─ Binary '+' @15:8
+│                    │     ├─ lhs
+│                    │     │  └─ InstanceVar '@x' @15:5
+│                    │     └─ rhs
+│                    │        └─ InstanceVar '@y' @15:10
+│                    └─ rhs
+│                       └─ Identifier 'delta' @15:15
+└─ Method 'main' @19:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @19:13
+   └─ body
+      ├─ ExprStmt @20:3
+      │  └─ expr
+      │     └─ Assign '=' @20:5
+      │        ├─ target
+      │        │  └─ Identifier 'p' @20:3
+      │        └─ value
+      │           └─ Call @20:16
+      │              ├─ callee
+      │              │  └─ Member 'new' @20:12
+      │              │     └─ object
+      │              │        └─ Identifier 'Point' @20:7
+      │              └─ args
+      │                 ├─ IntLiteral '3' @20:18
+      │                 └─ IntLiteral '4' @20:21
+      └─ ExprStmt @21:3
+         └─ expr
+            └─ Binary '+' @21:9
+               ├─ lhs
+               │  └─ Member 'sum' @21:4
+               │     └─ object
+               │        └─ Identifier 'p' @21:3
+               └─ rhs
+                  └─ Call @21:20
+                     ├─ callee
+                     │  └─ Member 'shifted' @21:12
+                     │     └─ object
+                     │        └─ Identifier 'p' @21:11
+                     └─ args
+                        └─ IntLiteral '5' @21:22
+--- exit 0 ---

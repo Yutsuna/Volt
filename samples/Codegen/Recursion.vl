@@ -1,0 +1,12 @@
+# A self-recursive free function: the declare sweep must resolve the forward
+# reference to the body being emitted.
+def fib( n : Int32 ) -> Int32
+  if n < 2
+    return n
+  end
+  fib( n - 1 ) + fib( n - 2 )
+end
+
+def main -> Int32
+  fib( 10 )
+end
