@@ -216,7 +216,17 @@ namespace Driver
         // Register + read every SourceRef into a CompileUnit, then run the
         // pipeline over all of them up to the requested phase. Fills Units
         // (and Registry when the full sema phase runs).
-        CompileResult CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline = EPipeline::Full );
+        //
+        // StdlibCount marks the length of Refs' *stdlib prefix* (LoadStdLib
+        // always runs before any user path is appended, in both CompileFiles
+        // and CompileCircuit, precisely so stdlib units occupy ordinals
+        // `0..StdlibCount-1` — issue #61's blind-spot-#4 requirement). 0
+        // means "nothing here is cacheable" (ParseFiles' tooling path never
+        // includes the stdlib at all, and the frontend-cache warm-compile
+        // reuses this same function with StdlibCount == 0 so it never tries
+        // to consult or write its own cache — see WriteFrontendCache).
+        CompileResult
+        CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline = EPipeline::Full, std::size_t StdlibCount = 0 );
 
         // Lex + parse one already-registered unit. Safe to call from any
         // worker thread: only `Bag` and `Unit` are touched.
@@ -243,6 +253,27 @@ namespace Driver
 
         // Report a file-less, driver-level diagnostic against <driver>.
         void ReportDriver ( Core::ESeverity Severity, std::string Message );
+
+        // --- Frontend cache (Issue #61, Phase 2c) -------------------------
+        //
+        // Attempts to load `frontend.cache` for this Driver's FrontendKey
+        // straight into Types/Registry/Units[0..StdlibCount). On any failure
+        // (missing file, wrong key, truncated/corrupt stream) every touched
+        // object is reset to pristine and this returns false — the caller
+        // falls through to an ordinary fresh compile of the stdlib range,
+        // exactly as if no cache existed. Never a crash, only ever a miss.
+        [[nodiscard]] bool TryLoadFrontendCache ( std::size_t StdlibCount );
+
+        // After a cache-miss stdlib compile succeeds (no errors), regenerates
+        // the cache via an isolated, throwaway Driver compiling *only*
+        // StdlibRefs (StdlibCount == 0, so that inner compile never itself
+        // consults or writes a cache — no recursion). Isolating it in a
+        // fresh Driver means its TypeStore/Units start empty and end up
+        // containing exactly the stdlib's slice, with no need to slice a
+        // shared arena that has already absorbed user declarations. Costs a
+        // second stdlib compile, once, only on a cold cache — negligible
+        // next to the cost this whole feature exists to amortise away.
+        void WriteFrontendCache ( const std::vector<SourceRef> &StdlibRefs ) const;
 
         Core::SourceManager Sources;
         Core::DiagEngine Diagnostics;
