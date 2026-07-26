@@ -43,6 +43,28 @@ namespace
 
 } // namespace
 
+std::optional<fs::path> Volt::Driver::DiscoverManifest ( const fs::path &InPath )
+{
+    std::error_code Ec;
+    fs::path Dir = fs::absolute( fs::is_directory( InPath, Ec ) ? InPath : InPath.parent_path(), Ec );
+
+    while ( !Dir.empty() )
+    {
+        fs::path Candidate = Dir / WellKnown::ManifestName;
+        if ( fs::is_regular_file( Candidate, Ec ) )
+        {
+            return Candidate;
+        }
+        const fs::path Parent = Dir.parent_path();
+        if ( Parent == Dir )
+        {
+            break;
+        }
+        Dir = Parent;
+    }
+    return std::nullopt;
+}
+
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 void Volt::Driver::Driver::ReportDriver ( Core::ESeverity Severity, std::string Message )
 {
