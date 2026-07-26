@@ -1,0 +1,16 @@
+# Inherits the repository's checks and turns off exactly one.
+#
+# clang-analyzer-security.ArrayBound reports "Out of bound access to memory
+# preceding the region" inside LLVM's own `User::getHungOffOperands`, which is
+# `*(reinterpret_cast<Use **>(this) - 1)` — a deliberate, documented part of
+# LLVM's hung-off-operand layout, and the analyzer has no way to know the
+# allocation extends backwards. Every `IRBuilder` call that builds a PHI or a
+# comparison walks through it, so the report reappears on whichever file in
+# this module happens to be analysed first, and the diagnostic itself lands in
+# an LLVM header where no NOLINT can be written.
+#
+# Scoped to this module, which is the only one that includes LLVM headers, so
+# the check keeps running over every line of Volt's own code.
+InheritParentConfig: true
+Checks: >
+  -clang-analyzer-security.ArrayBound
