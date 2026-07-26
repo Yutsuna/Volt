@@ -1,55 +1,76 @@
 Program 'samples/Codegen/Recursion.vl'
-├─ Method 'fib' @3:1
+├─ Annotation 'External' @2:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @2:13
+│     └─ StringLiteral 'exit' @2:21
+├─ Method 'libc_exit' external @3:10
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @3:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @3:44
+├─ Method 'fib' @5:1
 │  ├─ params
 │  │  └─ Param 'n'
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @3:14
+│  │        └─ TypeRef 'Int32' @5:14
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @3:25
+│  │  └─ TypeRef 'Int32' @5:25
 │  └─ body
-│     ├─ If @4:3
-│     │  ├─ cond
-│     │  │  └─ Binary '<' @4:8
-│     │  │     ├─ lhs
-│     │  │     │  └─ Identifier 'n' @4:6
-│     │  │     └─ rhs
-│     │  │        └─ IntLiteral '2' @4:10
-│     │  └─ then
-│     │     └─ Return @5:5
-│     │        └─ value
-│     │           └─ Identifier 'n' @5:12
-│     └─ ExprStmt @7:3
+│     └─ If @6:3
+│        ├─ cond
+│        │  └─ Binary '<=' @6:8
+│        │     ├─ lhs
+│        │     │  └─ Identifier 'n' @6:6
+│        │     └─ rhs
+│        │        └─ IntLiteral '1' @6:11
+│        ├─ then
+│        │  └─ ExprStmt @7:5
+│        │     └─ expr
+│        │        └─ Identifier 'n' @7:5
+│        └─ else
+│           └─ ExprStmt @9:5
+│              └─ expr
+│                 └─ Binary '+' @9:18
+│                    ├─ lhs
+│                    │  └─ Call @9:8
+│                    │     ├─ callee
+│                    │     │  └─ Identifier 'fib' @9:5
+│                    │     └─ args
+│                    │        └─ Binary '-' @9:12
+│                    │           ├─ lhs
+│                    │           │  └─ Identifier 'n' @9:10
+│                    │           └─ rhs
+│                    │              └─ IntLiteral '1' @9:14
+│                    └─ rhs
+│                       └─ Call @9:23
+│                          ├─ callee
+│                          │  └─ Identifier 'fib' @9:20
+│                          └─ args
+│                             └─ Binary '-' @9:27
+│                                ├─ lhs
+│                                │  └─ Identifier 'n' @9:25
+│                                └─ rhs
+│                                   └─ IntLiteral '2' @9:29
+├─ Method 'main' @13:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @13:13
+│  └─ body
+│     └─ ExprStmt @14:3
 │        └─ expr
-│           └─ Binary '+' @7:16
-│              ├─ lhs
-│              │  └─ Call @7:6
-│              │     ├─ callee
-│              │     │  └─ Identifier 'fib' @7:3
-│              │     └─ args
-│              │        └─ Binary '-' @7:10
-│              │           ├─ lhs
-│              │           │  └─ Identifier 'n' @7:8
-│              │           └─ rhs
-│              │              └─ IntLiteral '1' @7:12
-│              └─ rhs
-│                 └─ Call @7:21
-│                    ├─ callee
-│                    │  └─ Identifier 'fib' @7:18
-│                    └─ args
-│                       └─ Binary '-' @7:25
-│                          ├─ lhs
-│                          │  └─ Identifier 'n' @7:23
-│                          └─ rhs
-│                             └─ IntLiteral '2' @7:27
-└─ Method 'main' @10:1
-   ├─ return_type
-   │  └─ TypeRef 'Int32' @10:13
-   └─ body
-      └─ ExprStmt @11:3
-         └─ expr
-            └─ Call @11:6
-               ├─ callee
-               │  └─ Identifier 'fib' @11:3
-               └─ args
-                  └─ IntLiteral '10' @11:8
+│           └─ Call @14:6
+│              ├─ callee
+│              │  └─ Identifier 'fib' @14:3
+│              └─ args
+│                 └─ IntLiteral '10' @14:8
+└─ ExprStmt @17:1
+   └─ expr
+      └─ Call @17:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @17:1
+         └─ args
+            └─ Call @17:16
+               └─ callee
+                  └─ Identifier 'main' @17:12
 --- exit 0 ---
