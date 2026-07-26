@@ -17,6 +17,7 @@
 #include "Volt/Sema/Layout/ClosureFrame.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
+#include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/Module.h>
@@ -39,6 +40,33 @@ namespace Backend
 
     namespace Llvm
     {
+
+        // Key for top-level module global variables: combines the unit's
+        // ordinal and the BindingSite so that AST node indices from different
+        // units never collide in ModuleGlobals.
+        struct UnitGlobalKey
+        {
+
+            std::uint32_t Ordinal = 0;
+            Sema::BindingSite Site;
+
+            bool operator==( const UnitGlobalKey &Other ) const
+            {
+                return Ordinal == Other.Ordinal and Site == Other.Site;
+            }
+        };
+
+        struct UnitGlobalKeyHash
+        {
+
+            [[nodiscard]] std::size_t operator()( const UnitGlobalKey &Key ) const
+            {
+                const std::size_t H1 = std::hash<std::uint32_t>{}( Key.Ordinal );
+                const std::size_t H2 =
+                    std::visit( [] ( const auto &Id ) { return std::hash<std::uint32_t>{}( Id.Value ); }, Key.Site );
+                return H1 ^ ( H2 << 1U );
+            }
+        };
 
         // A loop's two exits, so `break` and `next` are a branch to a block
         // this stack already knows rather than a search back up the AST.
@@ -152,6 +180,10 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // inside the arena that minted it, while a symbol is the cross-unit
     // currency the linker uses too.
     std::unordered_map<std::string, llvm::Function *> Functions;
+    // Top-level module globals: keyed by UnitGlobalKey (Unit.Ordinal, BindingSite)
+    // so variables declared at top-level retain their storage across statements
+    // and functions without key collisions across units.
+    std::unordered_map<UnitGlobalKey, llvm::GlobalVariable *, UnitGlobalKeyHash> ModuleGlobals;
 
     // --- Exceptions (ExceptionEmitter.cpp), lazily created ----------------
 
@@ -303,6 +335,10 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // for the same reason the declare sweep does — it is the resolved
     // interface — and keeps only what `Unit.Ordinal` says this unit holds.
     void DefineAll ( const UnitView &Unit );
+
+    // Emit the synthetic module initialization function `_V_init_<Ordinal>`
+    // which executes the unit's TopStmts in file order.
+    void EmitUnitInit ( const UnitView &Unit );
 
     // One body. Silently skips a member with no body to emit (external,
     // abstract, generic); a member whose declaration is not the Method the
