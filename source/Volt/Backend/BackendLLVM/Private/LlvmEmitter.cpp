@@ -291,6 +291,19 @@ void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
     {
         static_cast<void>( DeclareMember( Entry, Sema::NominalId{} ) );
     }
+
+    if ( Build != nullptr )
+    {
+        llvm::FunctionType *InitFnTy = llvm::FunctionType::get( Builder->getVoidTy(), false );
+        for ( const UnitView &Unit : Build->Units )
+        {
+            const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
+            if ( Mod->getFunction( InitName ) == nullptr )
+            {
+                llvm::Function::Create( InitFnTy, llvm::Function::ExternalLinkage, InitName, Mod.get() );
+            }
+        }
+    }
 }
 
 void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member &Entry,
@@ -347,53 +360,28 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
 
     for ( const Frontend::ParamId ParamRef : Node->Params )
     {
-        if ( Index >= Fn->arg_size() )
-        {
-            static_cast<void>( Fail( "llvm: '" + std::string( Store.Text( Entry.Name ) ) +
-                                     "' declares more parameters in its AST than in its signature" ) );
-            return;
-        }
-
+        llvm::Value *Arg                = Fn->getArg( Index++ );
         const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
-        llvm::Argument *Arg             = Fn->getArg( Index );
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
-        ++Index;
 
-        // An aggregate already arrives as a pointer to storage, which *is* its
-        // slot; only a scalar needs an alloca, and it needs one so that
-        // assigning to a parameter works and mem2reg can undo it.
         const Sema::BindingSite Site{ ParamRef };
-        if ( Arg->getType()->isPointerTy() )
-        {
-            Frame.Slots.emplace( Site, Arg );
-            BindInstanceVarParam( ParamRef, Arg );
-            continue;
-        }
+        Frame.Slots.emplace( Site, Arg );
 
-        llvm::Value *Slot = SlotFor( Site, Arg->getType(), Unit.Ast->Text( Declared.Name ) );
-        if ( Slot == nullptr )
-        {
-            static_cast<void>( Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
-                                     std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
-            return;
-        }
-        static_cast<void>( Builder->CreateStore( Arg, Slot ) );
         BindInstanceVarParam( ParamRef, Arg );
     }
 
     EmitStmts( Node->Body, Frame.bReturnsValue );
 
+    // Return unit's zero value if control flows off the end of a non-void
+    // method without an explicit `return` / tail expression — rules/core-ast.md
+    // guarantees Sema checked every path returns, so reaching here means the
+    // end of the body is unreachable, but LLVM IR requires every basic block to
+    // be terminated anyway.
     if ( not Terminated() )
     {
         if ( Frame.bReturnsValue )
         {
-            // Falling off the end of a value-returning body. Volt has no
-            // definite-return analysis (an `if` with no `else` in tail position
-            // is accepted), so this path is reachable from valid source and
-            // cannot be a hard failure — `unreachable` is the honest lowering:
-            // it says "the middle-end promised control never gets here". Listed
-            // as a middle-end gap in .agents/backend/llvm.md.
-            static_cast<void>( Builder->CreateUnreachable() );
+            static_cast<void>( Builder->CreateRet( llvm::ConstantInt::get( Fn->getReturnType(), 0 ) ) );
         }
         else
         {
@@ -437,63 +425,76 @@ void Volt::Backend::Llvm::LlvmBackend::State::BindInstanceVarParam ( Frontend::P
 
 bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
 {
-    // Every Volt function is mangled, so nothing in the module is called what
-    // the C runtime starts at. Which Volt function *is* the entry, and which C
-    // symbol it must answer to, are both language/platform conventions rather
-    // than code-generation ones — they arrive in EmitOptions from `volt build`
-    // and are never assumed here. Empty means a library: no entry, no shim.
-    if ( Options.EntryFunction.empty() or Options.EntrySymbol.empty() or Mod->getFunction( Options.EntrySymbol ) != nullptr )
+    // The C entry symbol (e.g. `main`). If no entry symbol is requested or if
+    // one is already defined in the LLVM module, skip emitting the entry point.
+    if ( Options.EntrySymbol.empty() or Mod->getFunction( Options.EntrySymbol ) != nullptr )
     {
         return true;
     }
 
-    const Sema::Member *Entry = nullptr;
-    for ( const Sema::Member &Candidate : Build->Types->FreeFunctions() )
+    llvm::Type *ExitCodeTy = llvm::Type::getInt32Ty( Context );
+    llvm::Type *ArgcTy     = llvm::Type::getInt32Ty( Context );
+    llvm::Type *ArgvTy     = llvm::PointerType::getUnqual( Context );
+
+    llvm::FunctionType *MainTy = llvm::FunctionType::get( ExitCodeTy, { ArgcTy, ArgvTy }, false );
+    llvm::Function *MainFn = llvm::Function::Create( MainTy, llvm::Function::ExternalLinkage, Options.EntrySymbol, Mod.get() );
+
+    llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", MainFn ) };
+
+    if ( Build != nullptr )
     {
-        if ( Build->Types->Text( Candidate.Name ) == Options.EntryFunction )
+        for ( const UnitView &Unit : Build->Units )
         {
-            Entry = &Candidate;
-            break;
+            const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
+            llvm::Function *InitFn     = Mod->getFunction( InitName );
+            if ( InitFn == nullptr )
+            {
+                llvm::FunctionType *FnTy = llvm::FunctionType::get( Builder->getVoidTy(), false );
+                InitFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, InitName, Mod.get() );
+            }
+            static_cast<void>( Shell.CreateCall( InitFn ) );
         }
     }
-    if ( Entry == nullptr )
-    {
-        // Only a build that has to *run* needs one; stopping at IR or an
-        // object file is a perfectly ordinary thing to do to a library.
-        if ( Options.Stage != EEmitStage::Link )
-        {
-            return true;
-        }
-        static_cast<void>( Fail( "llvm: this build declares no '" + Options.EntryFunction +
-                                 "' function, so the linked program has no entry point" ) );
-        return false;
-    }
 
-    llvm::Function *Target = FunctionFor( *Entry, Sema::NominalId{}, {} );
-    if ( Target == nullptr )
-    {
-        return false;
-    }
-    if ( Target->getFunctionType()->getNumParams() != 0 )
-    {
-        static_cast<void>(
-            Fail( "llvm: '" + Options.EntryFunction + "' takes parameters, and the entry point is called with none" ) );
-        return false;
-    }
-
-    llvm::Type *ExitCode = llvm::Type::getInt32Ty( Context );
-    llvm::Function *Shim = llvm::Function::Create( llvm::FunctionType::get( ExitCode, false ), llvm::Function::ExternalLinkage,
-                                                   Options.EntrySymbol, Mod.get() );
-    llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", Shim ) };
-
-    llvm::Value *Result = Shell.CreateCall( Target );
-    // The process exit code is the entry's own result when it has one that can
-    // be one; anything else — a `-> Void` main, a struct — exits zero, which is
-    // the only reading a C runtime has for "it finished".
-    static_cast<void>( Shell.CreateRet( Result->getType()->isIntegerTy()
-                                            ? Shell.CreateIntCast( Result, ExitCode, /*isSigned=*/true )
-                                            : llvm::ConstantInt::get( ExitCode, 0 ) ) );
+    static_cast<void>( Shell.CreateRet( llvm::ConstantInt::get( ExitCodeTy, 0 ) ) );
     return true;
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::EmitUnitInit ( const UnitView &Unit )
+{
+    if ( Unit.Ast == nullptr )
+    {
+        return;
+    }
+
+    const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
+    llvm::Function *InitFn     = Mod->getFunction( InitName );
+    if ( InitFn == nullptr )
+    {
+        llvm::FunctionType *FnTy = llvm::FunctionType::get( Builder->getVoidTy(), false );
+        InitFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, InitName, Mod.get() );
+    }
+
+    Frame               = FunctionFrame{};
+    Frame.Fn            = InitFn;
+    Frame.Unit          = &Unit;
+    Frame.Values        = Unit.Values;
+    Frame.Callees       = Unit.Callees;
+    Frame.Entry         = llvm::BasicBlock::Create( Context, "entry", InitFn );
+    Frame.bReturnsValue = false;
+    Builder->SetInsertPoint( Frame.Entry );
+
+    for ( const Frontend::StmtId StmtId : Unit.Ast->TopStmts )
+    {
+        EmitStmt( StmtId, /*bTail=*/false );
+    }
+
+    if ( not Terminated() )
+    {
+        static_cast<void>( Builder->CreateRetVoid() );
+    }
+
+    Frame = FunctionFrame{};
 }
 
 void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
@@ -531,6 +532,8 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
             DefineMember( Entry, Sema::NominalId{}, Unit );
         }
     }
+
+    EmitUnitInit( Unit );
 }
 
 Volt::Backend::Llvm::LlvmBackend::LlvmBackend () : Impl( std::make_unique<State>() )
