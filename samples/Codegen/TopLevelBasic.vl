@@ -1,4 +1,6 @@
-# Top-level basic execution with global variable storage.
+@[External( "libc", "exit" )]
+external def libc_exit( code : Int32 ) -> Int32
+
 x = 20
 y = 22
-x + y
+libc_exit( x + y )

@@ -15,16 +15,16 @@ Program 'samples/Syntax/OOP/Accessors.vl'
 │     │     └─ TypeRef 'Int32' @5:13
 │     └─ Method 'initialize' @7:3
 │        └─ params
-│           ├─ Param 'host' instance_var
+│           ├─ Param 'host' instance_var @7:19
 │           │  └─ decl_type
 │           │     └─ TypeRef 'String' @7:27
-│           ├─ Param 'port' instance_var
+│           ├─ Param 'port' instance_var @7:35
 │           │  └─ decl_type
 │           │     └─ TypeRef 'Int32' @7:43
-│           ├─ Param 'debug' instance_var
+│           ├─ Param 'debug' instance_var @7:50
 │           │  └─ decl_type
 │           │     └─ TypeRef 'Bool' @7:59
-│           └─ Param 'timeout' instance_var
+│           └─ Param 'timeout' instance_var @7:65
 │              └─ decl_type
 │                 └─ TypeRef 'Int32' @7:76
 └─ Struct 'Point3D' @11:1

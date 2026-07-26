@@ -37,7 +37,7 @@ Program 'samples/Sema/Assignability.vl'
 │     │                 └─ IntLiteral '0' @23:14
 │     └─ Method 'bump' @26:3
 │        ├─ params
-│        │  └─ Param 'by'
+│        │  └─ Param 'by' @26:13
 │        │     └─ decl_type
 │        │        └─ TypeRef 'UInt64' @26:18
 │        ├─ return_type
@@ -97,17 +97,17 @@ Program 'samples/Sema/Assignability.vl'
 │           └─ IntLiteral '99' @46:3
 ├─ Method 'defaulted' @50:1
 │  ├─ params
-│  │  ├─ Param 'n'
+│  │  ├─ Param 'n' @50:16
 │  │  │  ├─ decl_type
 │  │  │  │  └─ TypeRef 'Int32' @50:20
 │  │  │  └─ default
 │  │  │     └─ IntLiteral '5' @50:28
-│  │  ├─ Param 'label'
+│  │  ├─ Param 'label' @50:31
 │  │  │  ├─ decl_type
 │  │  │  │  └─ TypeRef 'String' @50:39
 │  │  │  └─ default
 │  │  │     └─ StringLiteral 'x' @50:48
-│  │  └─ Param 'wide'
+│  │  └─ Param 'wide' @50:53
 │  │     ├─ decl_type
 │  │     │  └─ TypeRef 'UInt64' @50:60
 │  │     └─ default

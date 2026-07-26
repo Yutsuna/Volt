@@ -1,7 +1,7 @@
 Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -25,7 +25,7 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │                             └─ Identifier '__LINE__' @3:43
 ├─ Method 'check_if_statement' @9:1
 │  ├─ params
-│  │  └─ Param 'score'
+│  │  └─ Param 'score' @9:25
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @9:33
 │  ├─ return_type
@@ -60,7 +60,7 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │                       └─ IntLiteral '3' @15:5
 ├─ Method 'check_ternary_operator' @19:1
 │  ├─ params
-│  │  └─ Param 'score'
+│  │  └─ Param 'score' @19:29
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @19:37
 │  ├─ return_type
@@ -81,10 +81,10 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │                 └─ StringLiteral 'fail' @20:26
 ├─ Method 'check_inline_if_modifier' @23:1
 │  ├─ params
-│  │  ├─ Param 'amount'
+│  │  ├─ Param 'amount' @23:31
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @23:40
-│  │  └─ Param 'active'
+│  │  └─ Param 'active' @23:47
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @23:56
 │  ├─ return_type
@@ -113,10 +113,10 @@ Program 'samples/Syntax/ControlFlow/IfUnless.vl'
 │           └─ Identifier 'total' @26:3
 ├─ Method 'check_inline_unless_modifier' @29:1
 │  ├─ params
-│  │  ├─ Param 'amount'
+│  │  ├─ Param 'amount' @29:35
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @29:44
-│  │  └─ Param 'disabled'
+│  │  └─ Param 'disabled' @29:51
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @29:62
 │  ├─ return_type

@@ -6,7 +6,7 @@ Program 'samples/Sema/ImplicitSelfCall.vl'
       │     └─ TypeRef 'Int32' @11:18
       ├─ Method 'initialize' @13:3
       │  ├─ params
-      │  │  └─ Param 'value'
+      │  │  └─ Param 'value' @13:19
       │  │     └─ decl_type
       │  │        └─ TypeRef 'Int32' @13:27
       │  ├─ return_type

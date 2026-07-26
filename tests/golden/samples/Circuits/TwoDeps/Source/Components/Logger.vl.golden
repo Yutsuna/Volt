@@ -11,12 +11,12 @@ Program 'samples/Circuits/TwoDeps/Source/Components/Logger.vl'
             │     └─ TypeRef 'String' @9:14
             ├─ Method 'initialize' @11:5
             │  └─ params
-            │     └─ Param 'prefix' instance_var
+            │     └─ Param 'prefix' instance_var @11:21
             │        └─ decl_type
             │           └─ TypeRef 'String' @11:31
             └─ Method 'log_user' @14:5
                ├─ params
-               │  └─ Param 'user'
+               │  └─ Param 'user' @14:19
                │     └─ decl_type
                │        └─ TypeRef 'Models::User' @14:26
                ├─ return_type

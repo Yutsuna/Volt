@@ -5,7 +5,7 @@ Program 'samples/Codegen/ImplicitLocals.vl'
 │     └─ StringLiteral 'exit' @2:21
 ├─ Method 'libc_exit' external @3:10
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @3:25
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @3:33
 │  └─ return_type

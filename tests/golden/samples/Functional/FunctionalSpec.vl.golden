@@ -1,7 +1,7 @@
 Program 'samples/Functional/FunctionalSpec.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -184,7 +184,7 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ value
 │           └─ Lambda @9:10
 │              ├─ params
-│              │  └─ Param 'x'
+│              │  └─ Param 'x' @9:12
 │              │     └─ decl_type
 │              │        └─ TypeRef 'Int32' @9:16
 │              └─ body
@@ -270,7 +270,7 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ value
 │           └─ Lambda @21:16
 │              ├─ params
-│              │  └─ Param 'x'
+│              │  └─ Param 'x' @21:18
 │              │     └─ decl_type
 │              │        └─ TypeRef 'Int32' @21:22
 │              └─ body
@@ -351,7 +351,7 @@ Program 'samples/Functional/FunctionalSpec.vl'
 │        └─ value
 │           └─ Lambda @32:17
 │              ├─ params
-│              │  └─ Param 's'
+│              │  └─ Param 's' @32:19
 │              │     └─ decl_type
 │              │        └─ TypeRef 'String' @32:23
 │              └─ body

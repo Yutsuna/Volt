@@ -12,13 +12,13 @@ Program 'samples/JSX/Models/User.vl'
       │     └─ TypeRef 'Bool' @5:13
       ├─ Method 'initialize' @7:3
       │  └─ params
-      │     ├─ Param 'name' instance_var
+      │     ├─ Param 'name' instance_var @7:19
       │     │  └─ decl_type
       │     │     └─ TypeRef 'String' @7:27
-      │     ├─ Param 'email' instance_var
+      │     ├─ Param 'email' instance_var @7:35
       │     │  └─ decl_type
       │     │     └─ TypeRef 'String' @7:44
-      │     └─ Param 'admin' instance_var
+      │     └─ Param 'admin' instance_var @7:52
       │        ├─ decl_type
       │        │  └─ TypeRef 'Bool' @7:61
       │        └─ default

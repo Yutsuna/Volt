@@ -1,7 +1,7 @@
 Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -25,7 +25,7 @@ Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 │                             └─ Identifier '__LINE__' @3:43
 ├─ Method 'double' @8:1
 │  ├─ params
-│  │  └─ Param 'x'
+│  │  └─ Param 'x' @8:12
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @8:16
 │  ├─ return_type
@@ -40,7 +40,7 @@ Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 │                 └─ IntLiteral '2' @9:7
 ├─ Method 'add_three' @12:1
 │  ├─ params
-│  │  └─ Param 'x'
+│  │  └─ Param 'x' @12:15
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @12:19
 │  ├─ return_type
@@ -55,13 +55,13 @@ Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 │                 └─ IntLiteral '3' @13:7
 ├─ Method 'scale' @16:1
 │  ├─ params
-│  │  ├─ Param 'x'
+│  │  ├─ Param 'x' @16:11
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @16:15
-│  │  ├─ Param 'factor'
+│  │  ├─ Param 'factor' @16:22
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @16:31
-│  │  └─ Param 'offset'
+│  │  └─ Param 'offset' @16:38
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @16:47
 │  ├─ return_type
@@ -82,7 +82,7 @@ Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 │  └─ body
 │     ├─ Method 'square' self @24:3
 │     │  ├─ params
-│     │  │  └─ Param 'x'
+│     │  │  └─ Param 'x' @24:19
 │     │  │     └─ decl_type
 │     │  │        └─ TypeRef 'Int32' @24:23
 │     │  ├─ return_type
@@ -97,10 +97,10 @@ Program 'samples/Syntax/ControlFlow/Pipeline.vl'
 │     │                 └─ Identifier 'x' @25:9
 │     └─ Method 'add_constant' self @28:3
 │        ├─ params
-│        │  ├─ Param 'x'
+│        │  ├─ Param 'x' @28:25
 │        │  │  └─ decl_type
 │        │  │     └─ TypeRef 'Int32' @28:29
-│        │  └─ Param 'const'
+│        │  └─ Param 'const' @28:36
 │        │     └─ decl_type
 │        │        └─ TypeRef 'Int32' @28:44
 │        ├─ return_type

@@ -1,10 +1,10 @@
 Program 'samples/JSX/Components/Counter.vlx'
 └─ Component 'Counter' @21:1
    ├─ params
-   │  ├─ Param 'count'
+   │  ├─ Param 'count' @21:20
    │  │  └─ decl_type
    │  │     └─ TypeRef 'Int' @21:28
-   │  └─ Param 'on_increment'
+   │  └─ Param 'on_increment' @21:33
    │     └─ decl_type
    │        └─ FuncType @21:48
    │           └─ return
