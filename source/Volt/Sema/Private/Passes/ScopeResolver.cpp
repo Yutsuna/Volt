@@ -228,9 +228,7 @@ private:
 
     void CheckAndRecordCaptures ( ScopeId FromScope, const Binding &Found )
     {
-        const bool bIsLocalVal =
-            std::holds_alternative<Frontend::StmtId>( Found.Site ) or std::holds_alternative<Frontend::ParamId>( Found.Site );
-        if ( not bIsLocalVal )
+        if ( not IsValueBinding( Found.Site ) )
         {
             return;
         }
@@ -345,6 +343,46 @@ private:
                     {
                         WalkStmt( Child, EnsureScope );
                     }
+                },
+                // `name = expr` with no `: Type` is a *declaration* the parser
+                // could not recognise as one: telling it apart from a
+                // reassignment needs the scope chain, which exists only here.
+                // So this is the second place a local is declared, and the
+                // only one whose site is an expression — the Target itself
+                // (ScopeTable.hpp, BindingSite).
+                //
+                // The value resolves first, exactly as a LocalDecl's
+                // initialiser does, so `x = x + 1` sees the outer binding. A
+                // name already bound to *storage* (a local or a parameter,
+                // here or in an enclosing scope) is an ordinary reassignment;
+                // one bound only to a member declaration is not, since a field
+                // is assignable through `@name` alone — so `count = 0` in the
+                // body of a type that has a `count` member declares a local
+                // that shadows it, and only fails to when that member sits in
+                // this very scope, where shadowing is not expressible.
+                [&] ( const Frontend::Assign &Node )
+                {
+                    WalkExpr( Node.Value, Current );
+
+                    if ( Node.Op == Frontend::TokenKind::Assign and Node.Target.IsValid() )
+                    {
+                        const auto *Target   = std::get_if<Frontend::Identifier>( &Context.Ast.Expr( Node.Target ) );
+                        const Binding *Found = Target != nullptr ? Context.Scopes.Resolve( Current, Target->Name ) : nullptr;
+                        if ( Target != nullptr and ( Found == nullptr or not IsValueBinding( Found->Site ) ) and
+                             Context.Scopes.Declare( Current, Target->Name, BindingSite{ Node.Target } ) )
+                        {
+                            // Bound, so every consumer reaches the new binding
+                            // through BindingOf like any other; not counted, so
+                            // a variable nothing ever reads is still unused.
+                            if ( const Binding *Declared = Context.Scopes.Resolve( Current, Target->Name ) )
+                            {
+                                Context.Scopes.BindUse( Node.Target, *Declared, /*bCountsAsUse=*/false );
+                                ++Context.Stats.ScopesResolved;
+                            }
+                            return;
+                        }
+                    }
+                    WalkExpr( Node.Target, Current );
                 },
                 [&] ( const auto &Node ) { WalkFields( Node, Current ); },
             },
