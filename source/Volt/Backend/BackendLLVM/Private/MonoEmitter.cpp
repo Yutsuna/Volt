@@ -33,14 +33,11 @@ const Volt::Sema::Member *Volt::Backend::Llvm::LlvmBackend::State::LookupMonoMem
     const Sema::Member *Found = nullptr;
     if ( Request.Owner.IsValid() )
     {
-        for ( const Sema::Member &Candidate : Store.Type( Request.Owner ).Members )
-        {
-            if ( Candidate.Name == Request.Name )
-            {
-                Found = &Candidate;
-                break;
-            }
-        }
+        // Own body first, then mixins, then the superclass (LookupMember's own
+        // order) — a MonoRequest names the *receiver*, and an inherited
+        // default (`Arithmetic#min` called on `Int32`) is exactly the case
+        // this drains: the request's Owner never declares the member itself.
+        Found = Store.LookupMember( Request.Owner, Store.Text( Request.Name ) ).Decl;
     }
     else
     {
