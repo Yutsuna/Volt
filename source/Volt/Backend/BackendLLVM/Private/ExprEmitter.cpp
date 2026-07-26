@@ -26,6 +26,7 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/Support/raw_ostream.h>
 
 #include <charconv>
 #include <cstdint>
@@ -321,7 +322,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
 
     return std::visit(
         Meta::Overloaded{
-            [this, Id] ( const Frontend::Identifier & ) -> llvm::Value *
+            [this, Id] ( const Frontend::Identifier &Node ) -> llvm::Value *
             {
                 // The binding is ScopeResolver's answer, never a re-resolution:
                 // a name the resolver did not bind is not a name this emitter
@@ -329,32 +330,58 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
                 const Sema::Binding *Bound = Frame.Unit->Scopes->BindingOf( Id );
                 if ( Bound == nullptr )
                 {
-                    static_cast<void>( Fail( "llvm: an identifier reached codegen with no scope binding" ) );
+                    static_cast<void>( Fail( "llvm: identifier '" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) +
+                                             "' reached codegen with no scope binding" ) );
                     return nullptr;
                 }
 
-                const auto It = Frame.Slots.find( Bound->Site );
-                if ( It == Frame.Slots.end() )
+                if ( const auto It = Frame.Slots.find( Bound->Site ); It != Frame.Slots.end() )
                 {
-                    // A local declared in a branch the walk has not reached is
-                    // impossible, and a captured one was bound from the
-                    // environment on entry — so what is left is a name
-                    // ScopeResolver bound outside this body without recording
-                    // it as a capture.
-                    static_cast<void>( Fail( "llvm: '" + std::string( Frame.Unit->Ast->Text( Bound->Name ) ) +
-                                             "' has no slot in this function, and no capture of it was recorded" ) );
-                    return nullptr;
+                    return It->second;
                 }
-                return It->second;
+
+                // An implicit local (`buf = expr`, no `: Type`) has no
+                // declaring *statement* to open its storage the way a
+                // LocalDecl does, so the occurrence ScopeResolver recorded as
+                // its site — the Assign target, and no other — opens it here.
+                // Everything else about it is a local like any other: the
+                // shape is the one TypeChecker recorded for the site.
+                if ( const auto *Site = std::get_if<Frontend::ExprId>( &Bound->Site ); Site != nullptr and *Site == Id )
+                {
+                    const Sema::LayoutId Shape = LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Bound->Site ) );
+                    llvm::Type *Slot           = TypeOfLayout( Shape );
+                    if ( Slot == nullptr )
+                    {
+                        static_cast<void>( Fail( "llvm: local '" + std::string( Frame.Unit->Ast->Text( Bound->Name ) ) +
+                                                 "' has no resolved layout" ) );
+                        return nullptr;
+                    }
+                    return SlotFor( Bound->Site, Slot, Frame.Unit->Ast->Text( Bound->Name ) );
+                }
+
+                // A local declared in a branch the walk has not reached is
+                // impossible, and a captured one was bound from the
+                // environment on entry — so what is left is a name
+                // ScopeResolver bound outside this body without recording
+                // it as a capture.
+                static_cast<void>( Fail( "llvm: '" + std::string( Frame.Unit->Ast->Text( Bound->Name ) ) +
+                                         "' has no slot in this function, and no capture of it was recorded" ) );
+                return nullptr;
             },
             [this, Id] ( const Frontend::InstanceVar &Node ) -> llvm::Value *
             {
+                // The written spelling keeps its `@` (the parser interns the
+                // token whole); a field is declared without one. Sema strips
+                // it in exactly one place too — LookupOn's CleanName — and the
+                // two must agree, or a member resolves and its storage does
+                // not.
+                const std::string_view Field = FieldNameOf( Frame.Unit->Ast->Text( Node.Name ) );
                 if ( Frame.Self == nullptr )
                 {
-                    static_cast<void>( Fail( MissingSelf( "'@" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) + "'" ) ) );
+                    static_cast<void>( Fail( MissingSelf( "'@" + std::string( Field ) + "'" ) ) );
                     return nullptr;
                 }
-                return FieldAddress( Frame.Self, Frame.SelfLayout, Frame.Unit->Ast->Text( Node.Name ), Id );
+                return FieldAddress( Frame.Self, Frame.SelfLayout, Field, Id );
             },
             [this, Id] ( const Frontend::Member &Node ) -> llvm::Value *
             {
@@ -374,6 +401,11 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
                 return nullptr;
             } },
         Ast.Expr( Id ) );
+}
+
+std::string_view Volt::Backend::Llvm::LlvmBackend::State::FieldNameOf ( std::string_view Written )
+{
+    return Written.starts_with( '@' ) ? Written.substr( 1 ) : Written;
 }
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::FieldAddress ( llvm::Value *Object,
@@ -495,7 +527,19 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             // --- Access ----------------------------------------------------
             [this, Id] ( const Frontend::Identifier & ) -> llvm::Value * { return LoadPlace( Id ); },
             [this, Id] ( const Frontend::InstanceVar & ) -> llvm::Value * { return LoadPlace( Id ); },
-            [this, Id] ( const Frontend::Member & ) -> llvm::Value * { return LoadPlace( Id ); },
+            [this, Id] ( const Frontend::Member &Node ) -> llvm::Value *
+            {
+                // `symbols.free` — a paren-less call is a bare `Member`, and
+                // only the resolution tells it apart from a field read. Sema
+                // records one for every member-ish node (rules/core-ast.md),
+                // so that decision is read here, never re-derived.
+                if ( const Sema::CalleeEntry *Entry = Frame.Callees->Get( Id );
+                     Entry != nullptr and Entry->Decl != nullptr and Entry->Decl->Kind == Sema::EMemberKind::Method )
+                {
+                    return EmitResolvedCall( Id, *Entry, Node.Object, {}, Frontend::ExprId{} );
+                }
+                return LoadPlace( Id );
+            },
             [this, Id] ( const Frontend::Deref & ) -> llvm::Value * { return LoadPlace( Id ); },
             [this] ( const Frontend::SelfExpr & ) -> llvm::Value *
             {
@@ -720,15 +764,33 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitStringLiteral ( Fronte
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitSizeOf ( Frontend::ExprId Id )
 {
-    // `sizeof T` names a type in a *TypeId*, and nothing between the parser and
-    // here records which nominal that resolved to: TypeChecker types the
-    // expression (a width) without publishing the operand. Resolving the name
-    // here would be semantic analysis in codegen, which the architecture
-    // forbids — so this is reported as the middle-end gap it is. The fix is
-    // upstream: one recorded NominalId per SizeOf node.
-    static_cast<void>( Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) +
-                             " — the middle-end records no nominal for its operand" ) );
-    return nullptr;
+    // `sizeof T` names a type in a *TypeId*, which is a spelling — resolving
+    // it here would be semantic analysis in codegen. TypeChecker publishes the
+    // measured type on this node's own site instead, so all that is left is to
+    // measure its layout, which is LayoutEngine's answer and nobody else's.
+    const Sema::LayoutId Shape = LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Sema::BindingSite{ Id } ) );
+    if ( not Shape.IsValid() )
+    {
+        static_cast<void>( Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) +
+                                 " — its operand names a type with no resolved layout" ) );
+        return nullptr;
+    }
+
+    // The width is the one the *use site* gave the expression, exactly as for
+    // an integer literal: `count * sizeof T` against a UInt64 count is a
+    // UInt64 constant.
+    llvm::Type *Width = TypeOfExpr( Id );
+    if ( Width == nullptr or not Width->isIntegerTy() )
+    {
+        static_cast<void>( Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) + " has no integer layout" ) );
+        return nullptr;
+    }
+    if ( not Layouts.has_value() )
+    {
+        static_cast<void>( Fail( "llvm: `sizeof` needs the layout engine, which the target was never initialised with" ) );
+        return nullptr;
+    }
+    return llvm::ConstantInt::get( Width, Layouts->Of( Shape ).Size );
 }
 
 // ---------------------------------------------------------------------------
@@ -946,12 +1008,70 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::CoerceWidth ( llvm::Value 
     {
         return Builder->CreateZExt( Value, Target );
     }
+    // An aggregate expression evaluates to a `ptr` at its storage — the
+    // convention this whole file follows — but a *result* crosses a frame
+    // boundary, and the storage it points at is the callee's own. So the one
+    // place the value has to leave its slot is a `ret` of an aggregate, where
+    // the target type is the struct itself: load it. Nothing else in this
+    // emitter ever asks for a struct-typed target, since ParamTypeOfLayout
+    // turns every aggregate *parameter* into a `ptr`.
+    if ( Target->isStructTy() and Value->getType()->isPointerTy() )
+    {
+        return Builder->CreateLoad( Target, Value );
+    }
     return Value;
 }
 
 // ---------------------------------------------------------------------------
 // Calls
 // ---------------------------------------------------------------------------
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitDefaultArgument ( const Sema::Member &Decl, std::size_t Index )
+{
+    const UnitView *Home = nullptr;
+    for ( const UnitView &View : Build->Units )
+    {
+        if ( View.Ordinal == Decl.Unit and View.Ast != nullptr )
+        {
+            Home = &View;
+            break;
+        }
+    }
+    if ( Home == nullptr )
+    {
+        return nullptr;
+    }
+
+    const auto *Method = std::get_if<Frontend::Method>( &Home->Ast->Decl( Decl.Decl ) );
+    if ( Method == nullptr or Index >= Method->Params.Size() )
+    {
+        return nullptr;
+    }
+    const Frontend::ExprId Default = Home->Ast->GetParam( Method->Params[Index] ).Default;
+    if ( not Default.IsValid() )
+    {
+        return nullptr;
+    }
+
+    // The default belongs to the *declaring* unit: its type, and any callee it
+    // resolves, live in that unit's tables and nowhere else. Only those three
+    // move — the slots, `self` and the block stay this frame's, because a
+    // default that reached for one of them would be reaching into a frame that
+    // does not exist yet, and the loud failure that follows is the right one.
+    const UnitView *SavedUnit             = Frame.Unit;
+    const Sema::UnitTypes *SavedValues    = Frame.Values;
+    const Sema::UnitCallees *SavedCallees = Frame.Callees;
+    Frame.Unit                            = Home;
+    Frame.Values                          = Home->Values;
+    Frame.Callees                         = Home->Callees;
+
+    llvm::Value *Value = EmitExpr( Default );
+
+    Frame.Unit    = SavedUnit;
+    Frame.Values  = SavedValues;
+    Frame.Callees = SavedCallees;
+    return Value;
+}
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node )
 {
@@ -1012,12 +1132,6 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         Owner = Values.Get( Entry.Receiver ).Base;
     }
 
-    std::vector<std::uint32_t> FlatArgs;
-    for ( const Sema::SemaTypeId Binding : Entry.Bindings )
-    {
-        FlattenValueType( Values, Binding, FlatArgs );
-    }
-
     // A member `Owner` does not itself own (found on some ancestor or mixin
     // instead — LookupMember's own doc: "the MemberRef it hands back carries
     // the declaring nominal, not an instantiation") has no body defined
@@ -1045,6 +1159,38 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         }
     }
     const bool bInherited = Owner.IsValid() and not bOwnMember;
+
+    // `Entry.Bindings` is the *declaring* type's parameter space, then the
+    // method's own generics. For an inherited default that declaring type is
+    // the mixin, whose space is empty — so taking it verbatim would erase the
+    // receiver's arguments, and `Pointer<UInt8>#!=` would instantiate with no
+    // `T` at all: its body's `self <=> other` would then resolve on a
+    // `Pointer` with no argument, mangle to a symbol nothing defines, and the
+    // failure would surface as an undefined symbol at link. The request is
+    // keyed on the receiver (MangleFunction mangles the receiver, not the
+    // declaring mixin), so the receiver's own arguments are what must reach
+    // it; the method's own generic slots still come from the resolution.
+    std::vector<std::uint32_t> FlatArgs;
+    if ( bInherited and Values.Has( Entry.Receiver ) )
+    {
+        for ( const Sema::SemaTypeId Arg : Values.Get( Entry.Receiver ).Args )
+        {
+            FlattenValueType( Values, Arg, FlatArgs );
+        }
+        const std::size_t Own   = std::min<std::size_t>( Entry.Decl->OwnGenerics, Entry.Bindings.Size() );
+        const std::size_t First = Entry.Bindings.Size() - Own;
+        for ( std::size_t Index = First; Index < Entry.Bindings.Size(); ++Index )
+        {
+            FlattenValueType( Values, Entry.Bindings[Index], FlatArgs );
+        }
+    }
+    else
+    {
+        for ( const Sema::SemaTypeId Binding : Entry.Bindings )
+        {
+            FlattenValueType( Values, Binding, FlatArgs );
+        }
+    }
 
     // A generic owner or a method with its own generics has no body yet —
     // DeclareAll/DefineAll both skip it outright, since neither sweep knows
@@ -1074,15 +1220,51 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
     // abi.md's order, and the same one the declare sweep built the signature
     // with: `self` first, then the declared parameters.
     const bool bExternal = Entry.Decl->ExternSymbol.IsValid();
+
+    // `T.new( … )` (Sema's CalleeEntry::bConstructs): the receiver expression
+    // names a *type*, so there is nothing to evaluate for it — the storage the
+    // initializer writes into has to come from this call, and that storage is
+    // what the whole expression evaluates to, not the initializer's own result.
+    llvm::Value *Constructed = nullptr;
     if ( Owner.IsValid() and not Entry.Decl->bSelf and not bExternal )
     {
-        if ( not Receiver.IsValid() )
+        llvm::Value *Self = nullptr;
+        if ( Entry.bConstructs )
+        {
+            const Sema::LayoutId Shape = LayoutOfValue( Values, Entry.Result );
+            llvm::Type *Instance       = TypeOfLayout( Shape );
+            if ( Instance == nullptr or not IsAggregate( Shape ) )
+            {
+                // A non-aggregate `self` is passed by value (abi.md), so an
+                // initializer could not write through it. Nothing in the
+                // stdlib constructs one; saying so beats a silent no-op.
+                static_cast<void>( Fail( "llvm: the value constructed at expression " + std::to_string( Id.Value ) +
+                                         " has no aggregate layout to initialise" ) );
+                return nullptr;
+            }
+            Constructed = MakeTemp( Instance, "new" );
+            Self        = Constructed;
+        }
+        else if ( Receiver.IsValid() )
+        {
+            Self = EmitExpr( Receiver );
+        }
+        else if ( Frame.Self != nullptr )
+        {
+            // A bare `capture_backtrace()` inside a method body: Sema resolved
+            // the name on `self` (ExprInferencer's Identifier case, "inside a
+            // method body a bare name is a member of self"), so the callee is
+            // an Identifier with no object to evaluate and the receiver is
+            // this frame's own.
+            Self = Frame.Self;
+        }
+        else
         {
             static_cast<void>(
                 Fail( "llvm: instance call at expression " + std::to_string( Id.Value ) + " has no receiver expression" ) );
             return nullptr;
         }
-        llvm::Value *Self = EmitExpr( Receiver );
+
         if ( Self == nullptr )
         {
             return nullptr;
@@ -1112,20 +1294,23 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
             ++Positional;
         }
 
-        if ( not Arg.IsValid() )
-        {
-            // A parameter with a default is filled at the call site by no pass:
-            // `Param::Default` is a spelling the middle-end never materialises
-            // into the argument list, so the omission stops here by name.
-            static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
-                                     " supplies no argument for parameter " + std::to_string( Index ) + " of '" +
-                                     std::string( Build->Types->Text( Entry.Decl->Name ) ) + "'" ) );
-            return nullptr;
-        }
-
-        llvm::Value *Value = EmitExpr( Arg );
+        // A parameter the call omits is filled from its declared default. No
+        // pass materialises that into the argument list — one that did would
+        // have to run after TypeChecker and type what it creates, which
+        // rules/core-ast.md forbids — so the expression is emitted here, in
+        // the unit that declares it, where TypeChecker already typed it
+        // (EnterMethod infers and constrains every Param::Default). Nothing is
+        // decided; a recorded, already-typed expression is read.
+        llvm::Value *Value = Arg.IsValid() ? EmitExpr( Arg ) : EmitDefaultArgument( *Entry.Decl, Index );
         if ( Value == nullptr )
         {
+            if ( not Arg.IsValid() and not Failed() )
+            {
+                static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
+                                         " supplies no argument for parameter " + std::to_string( Index ) + " of '" +
+                                         std::string( Build->Types->Text( Entry.Decl->Name ) ) +
+                                         "', which declares no default" ) );
+            }
             return nullptr;
         }
         Actuals.push_back( Value );
@@ -1154,6 +1339,24 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
 
     llvm::Value *Result = Builder->CreateCall( Callee, Actuals );
 
+    // The mirror of CoerceWidth's aggregate case: a struct comes back by
+    // value, and every consumer here expects an aggregate to *be* an address.
+    // Spilling it into this frame's own slot is also what makes the result
+    // outlive the callee's storage, which is the whole reason it was returned
+    // by value rather than as a pointer.
+    if ( Result->getType()->isStructTy() )
+    {
+        llvm::Value *Slot = MakeTemp( Result->getType(), "call.result" );
+        if ( Slot == nullptr )
+        {
+            static_cast<void>(
+                Fail( "llvm: no frame to hold the aggregate result of the call at expression " + std::to_string( Id.Value ) ) );
+            return nullptr;
+        }
+        static_cast<void>( Builder->CreateStore( Result, Slot ) );
+        Result = Slot;
+    }
+
     // An `@[External]` symbol is C, and C cannot raise a Volt exception — the
     // thread-local state it might happen to read was some *other* Volt call's,
     // never its own, so the post-call check only runs for Volt code.
@@ -1161,7 +1364,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
     {
         EmitExceptionCheck();
     }
-    return Result;
+    return Constructed != nullptr ? Constructed : Result;
 }
 
 // ---------------------------------------------------------------------------
@@ -1215,9 +1418,32 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitTernary ( Frontend::Ex
     {
         Shape = Then->getType();
     }
+    // CoerceWidth reconciles two integer widths and nothing else, so an arm
+    // that is a different *kind* of value (an integer against a pointer, a
+    // float against an integer) survives it unchanged. Merging those into one
+    // PHI is an assertion failure inside LLVM, i.e. a crash on well-typed Volt
+    // — which is the one outcome this backend must never produce. Refuse by
+    // name instead: it means the two arms were given types that do not meet,
+    // and that is a middle-end answer, not something to repair here.
+    llvm::Value *ThenValue = CoerceWidth( Then, Shape );
+    llvm::Value *ElseValue = CoerceWidth( Else, Shape );
+    if ( ThenValue->getType() != Shape or ElseValue->getType() != Shape )
+    {
+        std::string Report;
+        llvm::raw_string_ostream Out{ Report };
+        Out << "llvm: the arms of the ternary at expression " << Id.Value << " have types that do not meet — `then` is ";
+        ThenValue->getType()->print( Out );
+        Out << ", `else` is ";
+        ElseValue->getType()->print( Out );
+        Out << ", and the expression's own is ";
+        Shape->print( Out );
+        static_cast<void>( Fail( Report ) );
+        return nullptr;
+    }
+
     llvm::PHINode *Result = Builder->CreatePHI( Shape, 2, "ternary" );
-    Result->addIncoming( CoerceWidth( Then, Shape ), ThenEnd );
-    Result->addIncoming( CoerceWidth( Else, Shape ), ElseEnd );
+    Result->addIncoming( ThenValue, ThenEnd );
+    Result->addIncoming( ElseValue, ElseEnd );
     return Result;
 }
 // NOLINTEND(clang-analyzer-security.ArrayBound)
