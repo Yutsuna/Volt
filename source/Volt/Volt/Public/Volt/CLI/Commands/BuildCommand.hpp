@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Volt/CLI/GenericCommand.hpp"
+#include "Volt/CLI/StdlibCache.hpp"
 
 #include <string>
 
@@ -15,7 +16,10 @@ namespace CLI
      * @usage
      *        volt build [options] [input_file]
      * @description
-     *        Compile the file input to a native artifact via BackendLLVM.
+     *        Compile the file input to a native artifact through
+     *        Driver::Build() — the one place --target resolves to a
+     *        concrete backend (BackendLLVM for "native" today); this
+     *        command itself never includes a Backend* header.
      *        When the input belongs to a circuit (a Project.vl manifest is
      *        found upward), the whole circuit is built.
      * @options
@@ -25,6 +29,10 @@ namespace CLI
      *        -O LEVEL                         Optimization level (0|2|3)
      *        --emit KIND                      Stop after an intermediate artifact (ir|obj)
      *        --lto                            Enable link-time optimization (native only)
+     *        --no-stdlib-cache                Bypass frontend + native stdlib caches
+     *        --fresh-stdlib                   Force-refresh the stdlib cache
+     *        --no-stdlib                      Skip the stdlib entirely
+     *        --stdlib-artifact KIND            Native stdlib artifact kind (static|shared)
      *        -h, --help                       Show help
      */
     class FBuildCommand : public IGenericCommand
@@ -50,6 +58,8 @@ namespace CLI
         std::string Emit;
 
         bool bLto = false;
+
+        FStdlibCacheFlags StdlibFlags;
     };
 
 } // namespace CLI
