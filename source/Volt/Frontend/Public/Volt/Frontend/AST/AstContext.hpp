@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Frontend_export.hpp"
 #include "Volt/Core/Diagnostics/SourceLocation.hpp"
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
@@ -16,6 +17,12 @@
 namespace Volt
 {
 
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
+
 namespace Frontend
 {
 
@@ -23,7 +30,7 @@ namespace Frontend
     /// list of top-level items. One per file keeps parsing and later sema
     /// fully local and parallelisable. The string interner is shared and
     /// outlives every AstContext.
-    class AstContext
+    class FRONTEND_EXPORT AstContext
     {
 
     public:
@@ -161,6 +168,26 @@ namespace Frontend
 
         std::vector<DeclId> TopDecls;
         std::vector<StmtId> TopStmts;
+
+        // --- Frontend cache (Issue #61) -----------------------------------
+        //
+        // File/Interner are not covered here: File is a per-run SourceManager
+        // handle the Driver already re-derives on every invocation (cache hit
+        // or not — it re-registers the stdlib's file text regardless, since
+        // that costs nothing next to lexing/parsing/sema), and Interner is a
+        // reference this AstContext never owns. Both are supplied through the
+        // real constructor, same as on a fresh (non-cached) unit; only the
+        // five arenas plus TopDecls/TopStmts/the unique-symbol counter round-
+        // trip here. Every ExprNode/StmtNode/DeclNode/TypeNode alternative is
+        // a Meta::Reflected aggregate already (the same guarantee the AST
+        // printer/walker rely on), so SerializeArena/DeserializeArena reach
+        // all of them with zero per-node code.
+        void SerializeCache ( Meta::Writer &W ) const;
+
+        // Expects a freshly-constructed AstContext (same Interner/File
+        // contract as the ordinary constructor establishes) with all five
+        // arenas still empty.
+        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
 
     private:
 
