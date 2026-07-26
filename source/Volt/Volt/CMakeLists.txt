@@ -14,3 +14,5 @@ VoltModule(
 if( TARGET BackendLLVM )
   target_compile_definitions( Volt PRIVATE VOLT_ENABLE_LLVM )
 endif()
+
+set_target_properties( Volt PROPERTIES OUTPUT_NAME "volt" )
