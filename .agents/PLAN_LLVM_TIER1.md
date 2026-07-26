@@ -807,22 +807,132 @@ autonomous commits").
 
 ## Phase 9 — `volt build`
 
-The CLI contract is already written (`rules/cli-surface.md`); only the implementation
-is missing. Add, following `FCheckCommand` verbatim as the pattern
-(`Volt/Public/Volt/CLI/Commands/CheckCommand.hpp` + its `Private/` TU, registered in
-`CommandRegistry`):
+**Status: implemented, both configurations build clean, 195/195 green in each.
+Not yet committed.**
+
+Added, following `FCheckCommand` verbatim as the pattern:
 
 - `Volt/Public/Volt/CLI/Commands/BuildCommand.hpp`
 - `Volt/Private/Volt/CLI/Commands/BuildCommand.cpp`
 
-Options exactly as specified: `-i/--input`, `-o/--output`, `--target native|wasm`,
-`-O 0|2|3`, `--emit ir|obj`, `--lto`, `-h`. Flow: `Driver::CompileFiles` /
-`CompileCircuit` → bail on `HasErrors()` → `Driver::MakeBackendViews()` →
-`MakeBackend( Llvm::LlvmBackend{} )` → `Begin` → `EmitUnit` per unit → `Finalize` →
-report. When `VOLT_ENABLE_LLVM` was off, the command is still registered and reports
-a clean *"this build of volt was configured without LLVM"* — a missing toolchain must
-never look like a compiler crash. `Main.cpp` stays untouched: registration is one
-line, the command table is the manifest.
+Options exactly as specified in `rules/cli-surface.md`: `-i/--input`,
+`-o/--output`, `--target native|wasm` (only `native` is implemented; `wasm`
+reports "unsupported" rather than silently ignoring it), `-O 0|2|3`,
+`--emit ir|obj`, `--lto`, `-h`. Flow, exactly as planned: `Driver::CompileFiles`
+/ `CompileCircuit` → bail on `HasErrors()` → `Driver::MakeBackendViews()` →
+`MakeBackend( Llvm::LlvmBackend{} )` → `SetOptions` → `Begin` → `EmitUnit` per
+unit (never short-circuited — see below) → `Finalize` → report. Registration is
+the same one self-registering static every other command uses
+(`TCommandRegister<FBuildCommand>` in the `.cpp`'s anonymous namespace);
+`Main.cpp` is untouched, and no other file needed editing to make the command
+exist — there is no literal command table to add a line to, contrary to how
+the rule phrases it (`FCommandRegistry` + one static per command *is* the
+table; corrected the rule's wording is out of scope here).
+
+### `VOLT_ENABLE_LLVM` is not a preprocessor macro anywhere else in the tree
+
+Before this phase it only gated a CMake `option()`; nothing in `source/Volt/`
+`#ifdef`'d on it, because nothing outside `BackendLLVM` itself (which early-
+`return()`s from its own `CMakeLists.txt` when off, so the target doesn't
+exist at all) needed to know. `BuildCommand.cpp` is the first consumer, so this
+phase establishes the pattern rather than copying one:
+
+- `source/Volt/Volt/CMakeLists.txt`: `DEPS` is built into a CMake list
+  (`VOLT_EXE_DEPS`) that conditionally appends `BackendLLVM` behind
+  `if( TARGET BackendLLVM )` — the target genuinely does not exist when the
+  option is off, so it cannot be listed unconditionally the way `Driver` is.
+  `VoltAddModules` (`cmake/VoltBuild.cmake`) already adds `Backend/BackendLLVM`
+  before `Volt`, so the `TARGET` check sees the right answer regardless of the
+  option. The same `if( TARGET BackendLLVM )` guards a
+  `target_compile_definitions( Volt PRIVATE VOLT_ENABLE_LLVM )`.
+- `BuildCommand.cpp` `#include`s `BackendCore/TargetBackend.hpp` and
+  `BackendLLVM/LlvmEmitter.hpp` only under `#ifdef VOLT_ENABLE_LLVM`, and the
+  entire `Driver::Driver` / backend-seam call sequence lives in the `#else`
+  branch's twin — including the `DiscoverManifest` helper, which is unused (a
+  `-Werror=unused-function`, caught by the plain `volt-build format test` pass
+  before the LLVM one ever ran) when compiled out. `Volt::Backend`/`MakeBackend`
+  itself needed no such guard: `BackendCore` is an unconditional `Driver` dep
+  (`Driver`'s own `DEPS Sema BackendCore`, `PUBLIC` per `VoltModule.cmake`), so
+  its headers and `.so` are already transitively visible to `Volt` regardless
+  of `VOLT_ENABLE_LLVM` — only the LLVM-specific emitter type is gated.
+- `Driver::MutableLayouts()` (`Driver.hpp`, next to `MakeBackendViews()`): new,
+  small, and necessary — `Layouts()` is `const Sema::TypeStore &`, but
+  `BackendInput::Types` is `Sema::TypeStore *` non-const *by design*
+  (`BackendCore/BackendInput.hpp`'s own comment: a backend monomorphises
+  generics into the store's layout arena as it discovers them, which is
+  exactly what `MonoEmitter`/`DrainMonomorphizer` do). Nothing before this
+  phase had ever constructed a real `BackendInput` from a real `Driver`, so
+  this gap had never surfaced.
+
+### Verified end-to-end — and it fails exactly where Phase 8 predicted
+
+Both configurations build `-Werror` clean and pass the full 195-test suite:
+`volt-build debug test` (LLVM off — `Volt_d build` reports *"this build of volt
+was configured without LLVM (VOLT_ENABLE_LLVM=OFF)"* and exits non-zero, never
+crashing) and `volt-build llvm debug test` (LLVM on).
+
+Running the LLVM-enabled binary against `--emit ir` for real files — the
+acceptance test this plan has deferred since Phase 4 — reaches the exact
+blocker Phase 8's "Known-open" section diagnosed, with the exact message that
+section predicted (`EmitAddress`'s `Fail( "llvm: an identifier reached codegen
+with no scope binding" )`), and no other. Two things had to be fixed in
+`BuildCommand.cpp` itself to see that real message rather than a vaguer one:
+
+- `EmitUnit`'s per-call `EEmitStatus` was being checked in the per-unit loop
+  and used to bail immediately with a generic "Codegen failed for unit X"
+  message. `State::EmitUnit` already no-ops once `Impl->Failed()` is set
+  (`LlvmEmitter.cpp:472`), so the loop now always runs every unit and always
+  calls `Finalize()` — which is the only place `Impl->Message` (the *specific*
+  reason, set by whichever `Fail()` call actually tripped) is surfaced,
+  per `MakeFailure()`'s lambda. Bailing early inside the loop would have hidden
+  it behind the generic message forever.
+- Every build — even `def main -> Int32; return 0; end`, no user-defined
+  locals at all — hits this on the **stdlib's own `Core` unit**, before user
+  code is even reached: the whole stdlib is always compiled as part of every
+  build (`DeclareAll`/`DefineAll` walk it unconditionally), and bare `name =
+  expr` locals are its dominant style (`rules/PLAN_LLVM_TIER1.md` Phase 8,
+  "Why this is the real blocker, not a corner case"). This is exactly the
+  claim Phase 8 made — *"no nontrivial Volt program can reach a linked binary
+  yet, independent of anything else in this plan"* — now empirically
+  confirmed rather than argued from a read of the code: it is not "no
+  nontrivial program", it is **no program at all**, since the stdlib itself
+  is always in the build.
+
+**`--emit obj` / full link have not been separately exercised**: `Ir` is the
+earliest stage, so hitting the codegen blocker there means `Object`/`Link`
+never get their own turn — `Linker.cpp`'s `cc`/mold/lld invocation still has
+never run to completion on real output, unchanged from Phase 8's status.
+
+### Files touched this phase
+
+- `source/Volt/Volt/Public/Volt/CLI/Commands/BuildCommand.hpp` (new)
+- `source/Volt/Volt/Private/Volt/CLI/Commands/BuildCommand.cpp` (new)
+- `source/Volt/Volt/CMakeLists.txt` (conditional `BackendLLVM` dep + `VOLT_ENABLE_LLVM` compile definition)
+- `source/Volt/Driver/Public/Volt/Driver/Driver.hpp` (`MutableLayouts()`)
+
+State: `volt-build format test` and `volt-build llvm debug test` both clean
+under `-Werror`, 195/195 green in each. `volt-build llvm tidy` run to
+completion: it still stops on the pre-existing `EmitTernary`/`EmitBinary`
+`clang-analyzer-security.ArrayBound` false positive Phase 8 already flagged
+(ninja's default `-k1` means nothing after `ExprEmitter.cpp` alphabetically
+ever ran, including this phase's own files) — unrelated to this phase, not
+fixed here. Ran `clang-tidy` directly against `BuildCommand.cpp` to get real
+signal despite that: found and fixed two real findings (a non-designated
+`BackendInput{...}` aggregate init, and a local named `Result_` colliding with
+the outer `Result` shadowing `readability-identifier-naming`'s trailing-
+underscore rule — renamed to `Emitted`); clean after. `graphify update .` run.
+Nothing committed — working-tree state only, per `rules/` / memory ("no
+autonomous commits").
+
+### Next up
+
+The implicit-local `BindingSite` fix (Phase 8's "Next up" item 1) is now the
+**only** thing between this and a linked, executed binary — every other piece
+of Phase 9's own plumbing (CLI, CMake wiring, the `Begin`/`EmitUnit`/`Finalize`
+call sequence, error surfacing) is verified working. That fix is unchanged in
+scope and risk from how Phase 8 sized it; still not attempted here for the
+same reason — it touches `BindingSite`'s call sites across `ScopeResolver`,
+`TypeChecker`, and `UnusedChecker`, and deserves its own focused session.
 
 ---
 
