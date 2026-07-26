@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -28,6 +29,50 @@ namespace
 [[nodiscard]] bool HasSuffix ( std::string_view Path, std::string_view Suffix )
 {
     return Path.size() >= Suffix.size() and Path.substr( Path.size() - Suffix.size() ) == Suffix;
+}
+
+// Where the running `volt` binary itself lives, so stdlib discovery does not
+// depend on the caller's CWD. Linux-only (`/proc/self/exe`) since that is the
+// only platform this toolchain currently targets (rules/cpp-style.md).
+[[nodiscard]] fs::path ExecutableDir ()
+{
+    std::error_code Ec;
+    const fs::path Exe = fs::read_symlink( "/proc/self/exe", Ec );
+    if ( Ec )
+    {
+        return {};
+    }
+    return Exe.parent_path();
+}
+
+// Resolves `source/Lib` independent of CWD, in priority order:
+//   1. `VOLT_STDLIB_DIR` env override — explicit escape hatch for dev/test.
+//   2. `<exe_dir>/../share/volt/Lib` — the conventional install layout, so
+//      this keeps working once a real `install()` rule ships (no cost today).
+//   3. The checked-out `source/Lib` baked in at configure time
+//      (`VOLT_DEV_STDLIB_DIR`, see Driver/CMakeLists.txt) — guarantees a
+//      dev build finds the real stdlib regardless of the invocation's CWD.
+[[nodiscard]] fs::path ResolveStdlibDir ()
+{
+    if ( const char *Override = std::getenv( "VOLT_STDLIB_DIR" ); Override != nullptr and *Override != '\0' )
+    {
+        return { Override };
+    }
+
+    std::error_code Ec;
+    if ( const fs::path ExeDir = ExecutableDir(); not ExeDir.empty() )
+    {
+        if ( const fs::path Installed = ExeDir / ".." / "share" / "volt" / "Lib"; fs::is_directory( Installed, Ec ) )
+        {
+            return Installed;
+        }
+    }
+
+#if defined( VOLT_DEV_STDLIB_DIR )
+    return { VOLT_DEV_STDLIB_DIR };
+#else
+    return "source/Lib";
+#endif
 }
 
 [[nodiscard]] bool IsComponentPath ( std::string_view Path )
@@ -250,7 +295,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
 
 void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
 {
-    const fs::path LibDir = "source/Lib";
+    const fs::path LibDir = ResolveStdlibDir();
     std::error_code Ec;
     if ( not fs::is_directory( LibDir, Ec ) )
     {
