@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
@@ -17,6 +18,12 @@
 
 namespace Volt
 {
+
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
 
 namespace Sema
 {
@@ -166,7 +173,7 @@ namespace Sema
     // The store is *per build*, not per file: a user file's `10` resolves to
     // the type declared in source/Lib/, and a CompileUnit's Symbols are
     // meaningless outside it. Hence its own interner and text-based keys.
-    class TypeStore
+    class SEMA_EXPORT TypeStore
     {
 
     public:
@@ -535,6 +542,74 @@ namespace Sema
         [[nodiscard]] std::size_t Size () const
         {
             return Layouts.Size();
+        }
+
+        // --- Frontend cache (Issue #61) -----------------------------------
+
+        // The two-phase fixup key for a CalleeEntry/CalleeMap.hpp raw
+        // pointer: a Member is uniquely identified across the whole build by
+        // (declaring unit, its own DeclId), whether it lives on a NominalType
+        // or in the free-function list — cheaper than tracking an owning
+        // NominalId alongside every pointer just to re-derive what the
+        // pointee already carries.
+        [[nodiscard]] const Member *FindMemberByUnitDecl ( std::uint32_t Unit, Frontend::DeclId Decl ) const
+        {
+            for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
+            {
+                const NominalId Id{ static_cast<std::uint32_t>( Index ) };
+                for ( const Member &Entry : Types.Get( Id ).Members )
+                {
+                    if ( Entry.Unit == Unit and Entry.Decl == Decl )
+                    {
+                        return &Entry;
+                    }
+                }
+            }
+            for ( const Member &Entry : Functions )
+            {
+                if ( Entry.Unit == Unit and Entry.Decl == Decl )
+                {
+                    return &Entry;
+                }
+            }
+            return nullptr;
+        }
+
+        // Serialises the whole store: both arenas, both name indexes,
+        // Functions + its index, Modules, ExceptionRoot and the store's own
+        // (private) StringInterner. A hand-written pair rather than a
+        // Meta::Reflected fallback because TypeStore is a class with private
+        // state and derived indexes, exactly like Core::Arena/StringInterner
+        // themselves (rules/meta-first.md still applies inside the body: it
+        // is nothing but calls to the generic Serialize/SerializeArena/
+        // SerializeInterner primitives). Defined out-of-line
+        // (Private/Layout/TypeStoreSerialize.cpp) since Serialize.hpp is a
+        // sizeable include this header need not impose on every consumer.
+        void SerializeCache ( Meta::Writer &W ) const;
+
+        // Expects a *fresh* TypeStore (same contract as DeserializeArena/
+        // DeserializeInterner): replays everything in original order so
+        // NominalId/SigTypeId/LayoutId/Symbol values come back identical.
+        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
+
+        // In-place reset to the just-constructed (empty) state. Not
+        // expressible as `*this = TypeStore{}` — the embedded StringInterner
+        // is neither copyable nor movable (see StringInterner::Clear), so
+        // TypeStore inherits that and has no assignment operator either.
+        // Needed by the frontend-cache recovery path: a failed
+        // DeserializeCache may leave the store partway through a replay.
+        void Clear ()
+        {
+            Strings.Clear();
+            Types   = Core::Arena<NominalType, NominalId>{};
+            Sigs    = Core::Arena<SigType, SigTypeId>{};
+            Layouts = Core::Arena<LayoutNode, LayoutId>{};
+            ByName.clear();
+            ByNodeKind.clear();
+            ExceptionRoot = NominalId{};
+            Functions.clear();
+            FunctionByName.clear();
+            Modules.clear();
         }
 
     private:
