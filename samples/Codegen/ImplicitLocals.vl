@@ -1,5 +1,11 @@
+# Implicit locals inside function frame.
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
 def main -> Int32
   x = 40
   x += 2
   x
 end
+
+libc_exit( main() )

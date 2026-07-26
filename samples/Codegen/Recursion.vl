@@ -1,12 +1,17 @@
-# A self-recursive free function: the declare sweep must resolve the forward
-# reference to the body being emitted.
+# Recursive function call exit code.
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
 def fib( n : Int32 ) -> Int32
-  if n < 2
-    return n
+  if n <= 1
+    n
+  else
+    fib( n - 1 ) + fib( n - 2 )
   end
-  fib( n - 1 ) + fib( n - 2 )
 end
 
 def main -> Int32
   fib( 10 )
 end
+
+libc_exit( main() )
