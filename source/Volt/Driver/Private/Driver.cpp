@@ -2,6 +2,7 @@
 
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/Diagnostic.hpp"
+#include "Volt/Core/Meta/Serialize.hpp"
 #include "Volt/Core/Support/ContentHash.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
@@ -14,11 +15,13 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <string_view>
 #include <thread>
+#include <unistd.h>
 #include <utility>
 #include <vector>
 
@@ -157,6 +160,33 @@ namespace
     return Volt::Core::HashFileTree( Files, Seed ).value_or( Seed );
 }
 
+// Bumping this invalidates every on-disk cache unconditionally (a
+// Serialize.hpp layout change is not otherwise reflected in FrontendCacheKey,
+// which only hashes stdlib source + the running binary's own identity).
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453031ULL; // "VOLTFE01"
+
+// `$XDG_CACHE_HOME/volt/stdlib/<hex Key>/frontend.cache` (fallback
+// `~/.cache/volt/...`), per the design doc. Empty when neither
+// XDG_CACHE_HOME nor HOME is set — callers treat that as "no cache
+// available", never an error.
+[[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
+{
+    fs::path Base;
+    if ( const char *Xdg = std::getenv( "XDG_CACHE_HOME" ); Xdg != nullptr and *Xdg != '\0' )
+    {
+        Base = Xdg;
+    }
+    else if ( const char *Home = std::getenv( "HOME" ); Home != nullptr and *Home != '\0' )
+    {
+        Base = fs::path( Home ) / ".cache";
+    }
+    else
+    {
+        return {};
+    }
+    return Base / "volt" / "stdlib" / Volt::Core::ToHex( Key ) / "frontend.cache";
+}
+
 } // namespace
 
 Volt::Driver::Driver::Driver () : FrontendKey( ComputeFrontendCacheKey() )
@@ -280,7 +310,8 @@ void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
-Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline )
+Volt::Driver::CompileResult
+Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline, std::size_t StdlibCount )
 {
     // register every file's text and unit up front so
     // the parallel phases only touch per-unit state + the diag engine.
@@ -295,16 +326,21 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
         Units.emplace_back( File, Ref.Path, Ref.Module, Ref.bComponent );
     }
 
+    // A file that failed to load never got a Units entry, so a caller's
+    // StdlibCount (computed against Refs, not Units) could overshoot on a
+    // read failure — clamp rather than let later range math underflow.
+    StdlibCount = std::min( StdlibCount, Units.size() );
+
     // Workers pull unit indices from a shared atomic and accumulate into
     // a thread-local Bag, merged once at the end (the only lock on the
     // hot path).
-    const auto ForEachUnitParallel = [&] ( auto Step )
+    const auto ForEachUnitParallel = [&] ( auto Step, std::size_t Begin, std::size_t End )
     {
-        const std::size_t Count    = this->Units.size();
+        const std::size_t Count    = End > Begin ? End - Begin : 0;
         const std::size_t Hardware = std::max<std::size_t>( 1, std::thread::hardware_concurrency() );
         const std::size_t Workers  = std::min( Hardware, std::max<std::size_t>( 1, Count ) );
 
-        std::atomic<std::size_t> Next{ 0 };
+        std::atomic<std::size_t> Next{ Begin };
 
         std::vector<std::jthread> Pool;
         Pool.reserve( Workers );
@@ -317,7 +353,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
                     for ( ;; )
                     {
                         const std::size_t Index = Next.fetch_add( 1, std::memory_order_relaxed );
-                        if ( Index >= Count )
+                        if ( Index >= End )
                         {
                             break;
                         }
@@ -328,8 +364,15 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
         }
     }; // jthreads join at the lambda's end
 
-    // parallel: lex + parse every unit into its own arenas.
-    ForEachUnitParallel( &Driver::ParseOne );
+    // A cache hit fills Types/Registry/Units[0..StdlibCount) directly, so
+    // ParseOne/the seam/RunSemaOne all skip that range below. StdlibCount ==
+    // 0 (ParseFiles' tooling path, or the isolated warm-compile
+    // WriteFrontendCache drives) never consults a cache at all.
+    const bool bStdlibCacheHit = Pipeline == EPipeline::Full and StdlibCount > 0 and TryLoadFrontendCache( StdlibCount );
+
+    // parallel: lex + parse every unit into its own arenas (skipping a
+    // cache-loaded stdlib prefix, which is already parsed).
+    ForEachUnitParallel( &Driver::ParseOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
 
     if ( Pipeline == EPipeline::Full )
     {
@@ -339,6 +382,10 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
         Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
         for ( std::size_t Index = 0; Index < Units.size(); ++Index )
         {
+            if ( bStdlibCacheHit and Index < StdlibCount )
+            {
+                continue; // already published/bound, straight from the cache
+            }
             const auto Ordinal = static_cast<std::uint32_t>( Index );
             static_cast<void>( Sema::PublishUnitInterface( Units[Index].Ast, Ordinal, Registry ) );
             // Same seam, same reason: type binding is cross-unit, so it
@@ -352,12 +399,14 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
         // now, before any signature is resolved. Indexed the same way
         // Member::Unit / NominalType::Unit are — discovery order — so this
         // is the array ResolveStructLayouts recurses across when a field
-        // names an aggregate declared in a different file.
+        // names an aggregate declared in a different file. A cache-hit
+        // stdlib slot passes null — its layouts are already attached, and
+        // ResolveStructLayouts documents null entries as skipped.
         std::vector<const Frontend::AstContext *> UnitAsts;
         UnitAsts.reserve( Units.size() );
-        for ( const CompileUnit &Unit : Units )
+        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
         {
-            UnitAsts.push_back( &Unit.Ast );
+            UnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
         }
         Sema::ResolveStructLayouts( UnitAsts, Types );
 
@@ -367,18 +416,42 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
         // order would silently decide what a member returns.
         for ( std::size_t Index = 0; Index < Units.size(); ++Index )
         {
+            if ( bStdlibCacheHit and Index < StdlibCount )
+            {
+                continue;
+            }
             Sema::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
         }
         Diagnostics.Merge( std::move( SeamBag ) );
 
-        // parallel: run the sema passes over every parsed unit.
-        ForEachUnitParallel( &Driver::RunSemaOne );
+        if ( bStdlibCacheHit )
+        {
+            // The seam is done for the *whole* build, so Types will not grow
+            // again this run — only now is it safe to resolve every cached
+            // stdlib unit's (Unit, DeclId) fixup key into a live Member*
+            // (rules/ast-rewrite.md's concern in spirit: never hold/produce
+            // an arena pointer across a later Add()).
+            for ( std::size_t Index = 0; Index < StdlibCount; ++Index )
+            {
+                Units[Index].Callees.FixupDecls( Types );
+            }
+        }
+
+        // parallel: run the sema passes over every parsed unit (skipping a
+        // cache-loaded stdlib prefix, which is already type-checked).
+        ForEachUnitParallel( &Driver::RunSemaOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
+
+        if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() )
+        {
+            WriteFrontendCache(
+                std::vector<SourceRef>( Refs.begin(), Refs.begin() + static_cast<std::ptrdiff_t>( StdlibCount ) ) );
+        }
     }
     else if ( Pipeline == EPipeline::ParseAndLower )
     {
         // Lowered parse (`volt parse --lowered`): rewrite each unit's AST
         // in place, still without the cross-unit seam.
-        ForEachUnitParallel( &Driver::LowerOne );
+        ForEachUnitParallel( &Driver::LowerOne, 0, Units.size() );
     }
 
     CompileResult Result;
@@ -410,16 +483,144 @@ void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
     }
 }
 
+bool Volt::Driver::Driver::TryLoadFrontendCache ( std::size_t StdlibCount )
+{
+    const fs::path CacheFile = FrontendCacheFilePath( FrontendKey );
+    if ( CacheFile.empty() )
+    {
+        return false;
+    }
+
+    std::ifstream Stream( CacheFile, std::ios::binary );
+    if ( not Stream )
+    {
+        return false; // no cache yet: an ordinary miss, not a warning.
+    }
+    std::ostringstream Buffer;
+    Buffer << Stream.rdbuf();
+    const std::string Bytes = Buffer.str();
+
+    std::vector<std::byte> Data( Bytes.size() );
+    std::memcpy( Data.data(), Bytes.data(), Bytes.size() );
+    Meta::Reader R{ std::span<const std::byte>{ Data } };
+
+    std::uint64_t Magic     = 0;
+    std::uint64_t StoredKey = 0;
+    std::uint32_t UnitCount = 0;
+    bool bOk = Meta::Deserialize( R, Magic ) and Magic == FrontendCacheMagic and Meta::Deserialize( R, StoredKey ) and
+               StoredKey == FrontendKey and Types.DeserializeCache( R ) and Registry.DeserializeCache( R ) and
+               Meta::Deserialize( R, UnitCount ) and UnitCount == static_cast<std::uint32_t>( StdlibCount );
+
+    for ( std::size_t Index = 0; bOk and Index < StdlibCount; ++Index )
+    {
+        CompileUnit &Unit = Units[Index];
+        bOk               = Unit.Ast.DeserializeCache( R ) and Meta::DeserializeInterner( R, Unit.Interner ) and
+              Unit.Types.DeserializeCache( R ) and Unit.Callees.DeserializeCache( R ) and Unit.Scopes.DeserializeCache( R ) and
+              Meta::Deserialize( R, Unit.Stats );
+    }
+
+    if ( bOk and not R.Failed() )
+    {
+        return true;
+    }
+
+    // Truncated, corrupt, or key-mismatched: reset every object this attempt
+    // may have touched and fall through to an ordinary fresh compile — a
+    // cache is never allowed to crash or half-populate live state. Types and
+    // a unit's Interner reset via Clear() rather than assignment: both
+    // embed (or are) a StringInterner, whose bump allocator is neither
+    // copyable nor movable.
+    Types.Clear();
+    Registry = Sema::InterfaceRegistry{};
+    for ( std::size_t Index = 0; Index < StdlibCount; ++Index )
+    {
+        CompileUnit &Unit = Units[Index];
+        Unit.Interner.Clear();
+        Unit.Ast     = Frontend::AstContext{ Unit.Interner, Unit.File };
+        Unit.Types   = Sema::UnitTypes{};
+        Unit.Callees = Sema::UnitCallees{};
+        Unit.Scopes  = Sema::ScopeTable{};
+        Unit.Stats   = Sema::PassStats{};
+    }
+    ReportDriver( Core::ESeverity::Warning, "stdlib frontend cache is missing, corrupt, or stale; recompiling" );
+    return false;
+}
+
+void Volt::Driver::Driver::WriteFrontendCache ( const std::vector<SourceRef> &StdlibRefs ) const
+{
+    const fs::path CacheFile = FrontendCacheFilePath( FrontendKey );
+    if ( CacheFile.empty() )
+    {
+        return; // neither XDG_CACHE_HOME nor HOME is set: silently skip.
+    }
+
+    // Isolated, throwaway Driver: its own Types/Units start empty and end up
+    // containing exactly the stdlib's slice, so nothing here needs to slice
+    // a shared arena that (in the real Driver) may already have absorbed
+    // user declarations. StdlibCount == 0 on this inner call is what stops
+    // it from trying to consult or write a cache itself (no recursion).
+    Driver Warm;
+    if ( Warm.FrontendKey != FrontendKey )
+    {
+        return; // paranoia: only publish a cache the warm build itself would trust.
+    }
+    static_cast<void>( Warm.CompileRefs( StdlibRefs, EPipeline::Full, 0 ) );
+    if ( Warm.HasErrors() )
+    {
+        return; // never cache a broken stdlib compile.
+    }
+
+    Meta::Writer W;
+    Meta::Serialize( W, FrontendCacheMagic );
+    Meta::Serialize( W, FrontendKey );
+    Warm.Layouts().SerializeCache( W );
+    Warm.Interfaces().SerializeCache( W );
+
+    const auto UnitCount = static_cast<std::uint32_t>( Warm.UnitCount() );
+    Meta::Serialize( W, UnitCount );
+    for ( std::size_t Index = 0; Index < Warm.UnitCount(); ++Index )
+    {
+        const CompileUnit &Unit = Warm.Unit( Index );
+        Unit.Ast.SerializeCache( W );
+        Meta::SerializeInterner( W, Unit.Interner );
+        Unit.Types.SerializeCache( W );
+        Unit.Callees.SerializeCache( W );
+        Unit.Scopes.SerializeCache( W );
+        Meta::Serialize( W, Unit.Stats );
+    }
+
+    // Atomic publish: a per-process tmp file, then rename() over the real
+    // path — a concurrent reader only ever observes a complete file.
+    std::error_code Ec;
+    fs::create_directories( CacheFile.parent_path(), Ec );
+    const fs::path TmpFile = CacheFile.parent_path() / ( "tmp." + std::to_string( ::getpid() ) );
+    {
+        std::ofstream Out( TmpFile, std::ios::binary | std::ios::trunc );
+        if ( not Out )
+        {
+            return;
+        }
+        Out.write( reinterpret_cast<const char *>( W.Data().data() ), static_cast<std::streamsize>( W.Data().size() ) );
+    }
+    fs::rename( TmpFile, CacheFile, Ec );
+    if ( Ec )
+    {
+        std::error_code RemoveEc;
+        fs::remove( TmpFile, RemoveEc );
+    }
+}
+
 Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vector<std::string> &Paths )
 {
     std::vector<SourceRef> Refs;
     LoadStdLib( Refs );
+    const std::size_t StdlibCount = Refs.size();
     Refs.reserve( Refs.size() + Paths.size() );
     for ( const std::string &Path : Paths )
     {
         Refs.push_back( SourceRef{ .Path = Path, .Module = std::string{}, .bComponent = IsComponentPath( Path ) } );
     }
-    return CompileRefs( Refs );
+    return CompileRefs( Refs, EPipeline::Full, StdlibCount );
 }
 
 Volt::Driver::CompileResult Volt::Driver::Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered )
@@ -553,9 +754,20 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
         }
     }
 
-    // Gather sources: the entrypoint (owned by the root module) plus every
-    // `.vl`/`.vlx` under each declared module directory.
+    // Gather sources: the stdlib first — so it occupies ordinals
+    // `0..StdlibCount-1` the same way CompileFiles' Refs do, the invariant
+    // the frontend cache relies on to splice a cached stdlib slice straight
+    // into Driver::Units (issue #61's blind-spot-#4 requirement) — then the
+    // entrypoint (owned by the root module), then every `.vl`/`.vlx` under
+    // each declared module directory.
+    //
+    // Same seam as CompileFiles: without the stdlib nothing claims
+    // IntLiteral, so every literal in a circuit typed as nothing and the
+    // whole tree came out untyped. A circuit is not a different language.
     std::vector<SourceRef> Refs;
+    LoadStdLib( Refs );
+    const std::size_t StdlibCount = Refs.size();
+
     if ( not EntryRel.empty() )
     {
         const fs::path Entry = ProjectDir / EntryRel;
@@ -582,12 +794,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
         }
     }
 
-    // Same seam as CompileFiles: without the stdlib nothing claims IntLiteral,
-    // so every literal in a circuit typed as nothing and the whole tree came
-    // out untyped. A circuit is not a different language.
-    LoadStdLib( Refs );
-
-    CompileResult Result = CompileRefs( Refs );
+    CompileResult Result = CompileRefs( Refs, EPipeline::Full, StdlibCount );
     BuildLinkGraph( CircuitName );
 
     Result.Errors = Diagnostics.ErrorTotal();
