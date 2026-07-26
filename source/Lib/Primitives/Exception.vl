@@ -4,7 +4,6 @@ external def libc_backtrace( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> 
 @[External( "libc", "backtrace_symbols" )]
 external def libc_backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<UInt8>>
 
-
 #{
   @class Exception
   @brief Represents an exception that occurred in the program.
@@ -14,7 +13,6 @@ external def libc_backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int
 class Exception
   getter message   : String
   getter backtrace : Array<String>
-
   setter max_frames : Int32
 
   def initialize( @message : String = "An exception occurred", @max_frames : Int32 = 64 )
