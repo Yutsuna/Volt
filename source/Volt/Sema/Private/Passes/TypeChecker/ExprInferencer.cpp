@@ -310,7 +310,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::InferExpr ( TypeCheckerConte
 
 Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
-    const Frontend::ExprNode &Node = Context.Ctx.Ast.Expr( Id );
+    const Frontend::ExprNode Node = Context.Ctx.Ast.Expr( Id );
 
     return std::visit(
         Meta::Overloaded{
