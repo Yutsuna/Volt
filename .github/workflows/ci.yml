@@ -32,7 +32,7 @@ jobs:
         run: nix develop --command volt-build format
 
       - name: Build & Test Suite
-        run: nix develop --command volt-build test
+        run: nix develop --command volt-build llvm test
 
       - name: Build Release
         run: nix build
