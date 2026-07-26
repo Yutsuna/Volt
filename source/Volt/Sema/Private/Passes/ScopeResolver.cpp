@@ -132,7 +132,15 @@ private:
                 [&] ( const Frontend::Method &Node )
                 {
                     const ScopeId Inner = Context.Scopes.PushScope( Current, EScopeKind::Method );
-                    WalkParams( Node.Params, Inner );
+                    // `external` and `abstract` are body-less: their parameters
+                    // are never referenced in any statement, so registering them
+                    // as bindings would always leave a use-count of zero and
+                    // fire a false "unused parameter" warning. Only register
+                    // params for methods that actually have a body to traverse.
+                    if ( not Node.bExternal and not Node.bAbstract )
+                    {
+                        WalkParams( Node.Params, Inner );
+                    }
                     for ( const Frontend::StmtId Child : Node.Body )
                     {
                         WalkStmt( Child, Inner );
