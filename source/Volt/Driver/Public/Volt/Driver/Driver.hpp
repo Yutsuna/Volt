@@ -17,6 +17,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <deque>
+#include <filesystem>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -31,6 +33,9 @@ namespace Frontend
 
 namespace Driver
 {
+
+    /// Walk up from InPath (file or directory) looking for a Project.vl manifest.
+    [[nodiscard]] DRIVER_EXPORT std::optional<std::filesystem::path> DiscoverManifest ( const std::filesystem::path &InPath );
 
     // One source file's complete compilation state. Each unit owns its own
     // StringInterner and AstContext, so parse + sema for different files
