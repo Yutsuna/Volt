@@ -58,6 +58,33 @@ Volt::Backend::Llvm::LlvmBackend::State::SlotFor ( const Sema::BindingSite &Site
         return It->second;
     }
 
+    if ( Frame.Unit != nullptr and Frame.Unit->Scopes != nullptr )
+    {
+        Sema::ScopeId OwnerScopeId;
+        std::visit( Meta::Overloaded{ [this, &OwnerScopeId] ( Frontend::StmtId Stmt )
+                                      { OwnerScopeId = Frame.Unit->Scopes->ScopeOf( Stmt ); },
+                                      [this, &OwnerScopeId] ( Frontend::ExprId Expr )
+                                      { OwnerScopeId = Frame.Unit->Scopes->ScopeOfExpr( Expr ); }, [] ( const auto & ) {} },
+                    Site );
+
+        if ( OwnerScopeId.IsValid() and ( Frame.Unit->Scopes->Get( OwnerScopeId ).Kind == Sema::EScopeKind::Unit or
+                                          Frame.Unit->Scopes->Get( OwnerScopeId ).Kind == static_cast<Sema::EScopeKind>( 0 ) ) )
+        {
+            const UnitGlobalKey Key{ Frame.Unit->Ordinal, Site };
+            if ( const auto GlobIt = ModuleGlobals.find( Key ); GlobIt != ModuleGlobals.end() )
+            {
+                return GlobIt->second;
+            }
+
+            const std::string GlobalName = "_V_global_" + std::to_string( Frame.Unit->Ordinal ) + "_" + std::string( Name );
+
+            auto *GlobalVar = new llvm::GlobalVariable( *Mod, Shape, /*isConstant=*/false, llvm::GlobalValue::InternalLinkage,
+                                                        llvm::Constant::getNullValue( Shape ), GlobalName );
+            ModuleGlobals.emplace( Key, GlobalVar );
+            return GlobalVar;
+        }
+    }
+
     llvm::AllocaInst *Slot = MakeTemp( Shape, Name );
     if ( Slot != nullptr )
     {
