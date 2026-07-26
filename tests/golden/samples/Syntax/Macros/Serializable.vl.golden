@@ -27,7 +27,7 @@ Program 'samples/Syntax/Macros/Serializable.vl'
 
 ' @6:1
 │  └─ params
-│     └─ Param 'fields'
+│     └─ Param 'fields' @6:25
 │        └─ decl_type
 │           └─ TypeRef 'Array' @6:34
 │              └─ generics
@@ -45,13 +45,13 @@ Program 'samples/Syntax/Macros/Serializable.vl'
       │     └─ TypeRef 'Int32' @41:11
       ├─ Method 'initialize' @43:3
       │  └─ params
-      │     ├─ Param 'name' instance_var
+      │     ├─ Param 'name' instance_var @43:19
       │     │  └─ decl_type
       │     │     └─ TypeRef 'String' @43:27
-      │     ├─ Param 'email' instance_var
+      │     ├─ Param 'email' instance_var @43:35
       │     │  └─ decl_type
       │     │     └─ TypeRef 'String' @43:44
-      │     └─ Param 'age' instance_var
+      │     └─ Param 'age' instance_var @43:52
       │        └─ decl_type
       │           └─ TypeRef 'Int32' @43:59
       └─ MacroInvoke 'serializable' @46:3

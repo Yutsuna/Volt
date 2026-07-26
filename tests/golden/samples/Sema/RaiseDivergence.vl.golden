@@ -1,10 +1,10 @@
 Program 'samples/Sema/RaiseDivergence.vl'
 └─ Method 'test_divergence' @1:1
    ├─ params
-   │  ├─ Param 'cond'
+   │  ├─ Param 'cond' @1:22
    │  │  └─ decl_type
    │  │     └─ TypeRef 'Bool' @1:29
-   │  └─ Param 'val'
+   │  └─ Param 'val' @1:35
    │     └─ decl_type
    │        └─ TypeRef 'Int32' @1:41
    ├─ return_type

@@ -1,7 +1,7 @@
 Program 'samples/Syntax/ControlFlow/BeginRescue.vl'
 ├─ Method 'calculate' @1:1
 │  ├─ params
-│  │  └─ Param 'x'
+│  │  └─ Param 'x' @1:16
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @1:20
 │  ├─ return_type
@@ -50,7 +50,7 @@ Program 'samples/Syntax/ControlFlow/BeginRescue.vl'
 │                                   └─ IntLiteral '2' @10:6
 └─ Method 'method_rescue' @16:1
    ├─ params
-   │  └─ Param 'y'
+   │  └─ Param 'y' @16:20
    │     └─ decl_type
    │        └─ TypeRef 'Int32' @16:24
    ├─ return_type

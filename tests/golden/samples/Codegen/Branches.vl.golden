@@ -5,14 +5,14 @@ Program 'samples/Codegen/Branches.vl'
 │     └─ StringLiteral 'exit' @2:21
 ├─ Method 'libc_exit' external @3:10
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @3:25
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @3:33
 │  └─ return_type
 │     └─ TypeRef 'Void' @3:44
 ├─ Method 'classify' @5:1
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @5:15
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @5:23
 │  ├─ return_type

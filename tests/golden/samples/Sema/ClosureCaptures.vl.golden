@@ -1,7 +1,7 @@
 Program 'samples/Sema/ClosureCaptures.vl'
 ├─ Method 'test_lambda_captures' @1:1
 │  ├─ params
-│  │  └─ Param 'base'
+│  │  └─ Param 'base' @1:27
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @1:34
 │  ├─ return_type
@@ -20,13 +20,13 @@ Program 'samples/Sema/ClosureCaptures.vl'
 │     │        └─ value
 │     │           └─ Lambda @3:7
 │     │              ├─ params
-│     │              │  └─ Param 'x'
+│     │              │  └─ Param 'x' @3:9
 │     │              │     └─ decl_type
 │     │              │        └─ TypeRef 'Int32' @3:13
 │     │              └─ body
 │     │                 └─ Lambda @3:24
 │     │                    ├─ params
-│     │                    │  └─ Param 'y'
+│     │                    │  └─ Param 'y' @3:26
 │     │                    │     └─ decl_type
 │     │                    │        └─ TypeRef 'Int32' @3:30
 │     │                    └─ body
@@ -63,7 +63,7 @@ Program 'samples/Sema/ClosureCaptures.vl'
 │                 └─ IntLiteral '5' @5:6
 ├─ Method 'test_block_captures' @8:1
 │  ├─ params
-│  │  └─ Param 'factor'
+│  │  └─ Param 'factor' @8:26
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @8:35
 │  ├─ return_type

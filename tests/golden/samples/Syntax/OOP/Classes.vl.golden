@@ -1,7 +1,7 @@
 Program 'samples/Syntax/OOP/Classes.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -36,13 +36,13 @@ Program 'samples/Syntax/OOP/Classes.vl'
 │     │     └─ TypeRef 'String' @10:19
 │     ├─ Method 'initialize' @12:3
 │     │  └─ params
-│     │     ├─ Param 'name' instance_var
+│     │     ├─ Param 'name' instance_var @12:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'String' @12:27
-│     │     ├─ Param 'email' instance_var
+│     │     ├─ Param 'email' instance_var @12:35
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'String' @12:44
-│     │     └─ Param 'role' instance_var
+│     │     └─ Param 'role' instance_var @12:52
 │     │        ├─ decl_type
 │     │        │  └─ TypeRef 'String' @12:60
 │     │        └─ default

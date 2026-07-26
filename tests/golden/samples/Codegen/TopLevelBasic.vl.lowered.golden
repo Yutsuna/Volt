@@ -1,23 +1,38 @@
 Program 'samples/Codegen/TopLevelBasic.vl'
-├─ ExprStmt @2:1
+├─ Annotation 'External' @1:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @1:13
+│     └─ StringLiteral 'exit' @1:21
+├─ Method 'libc_exit' external @2:10
+│  ├─ params
+│  │  └─ Param 'code' @2:25
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:32
+│  └─ return_type
+│     └─ TypeRef 'Int32' @2:43
+├─ ExprStmt @4:1
 │  └─ expr
-│     └─ Assign '=' @2:3
+│     └─ Assign '=' @4:3
 │        ├─ target
-│        │  └─ Identifier 'x' @2:1
+│        │  └─ Identifier 'x' @4:1
 │        └─ value
-│           └─ IntLiteral '20' @2:5
-├─ ExprStmt @3:1
+│           └─ IntLiteral '20' @4:5
+├─ ExprStmt @5:1
 │  └─ expr
-│     └─ Assign '=' @3:3
+│     └─ Assign '=' @5:3
 │        ├─ target
-│        │  └─ Identifier 'y' @3:1
+│        │  └─ Identifier 'y' @5:1
 │        └─ value
-│           └─ IntLiteral '22' @3:5
-└─ ExprStmt @4:1
+│           └─ IntLiteral '22' @5:5
+└─ ExprStmt @6:1
    └─ expr
-      └─ Binary '+' @4:3
-         ├─ lhs
-         │  └─ Identifier 'x' @4:1
-         └─ rhs
-            └─ Identifier 'y' @4:5
+      └─ Call @6:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @6:1
+         └─ args
+            └─ Binary '+' @6:14
+               ├─ lhs
+               │  └─ Identifier 'x' @6:12
+               └─ rhs
+                  └─ Identifier 'y' @6:16
 --- exit 0 ---
