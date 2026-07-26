@@ -19,8 +19,7 @@ fresh session can resume with no memory of this one.
       plan's original Phase 2b scope: this slice proves every non-generic
       structure round-trips in isolation; wiring it into `Driver::CompileRefs`
       is now Phase 2c.
-- [ ] **Phase 2c — on-disk frontend.cache + Driver::CompileRefs wiring.**
-      Next up. See below for exactly what's left.
+- [x] **Phase 2c — on-disk frontend.cache + Driver::CompileRefs wiring.**
 - [ ] Phase 3 — native precompiled static-archive cache.
 - [ ] Phase 4 — shared-object artifact kind.
 - [ ] Phase 5 — CLI flags as shared option group.
