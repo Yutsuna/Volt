@@ -70,7 +70,7 @@ Volt::Backend::Llvm::LlvmBackend::State::SlotFor ( const Sema::BindingSite &Site
         if ( OwnerScopeId.IsValid() and ( Frame.Unit->Scopes->Get( OwnerScopeId ).Kind == Sema::EScopeKind::Unit or
                                           Frame.Unit->Scopes->Get( OwnerScopeId ).Kind == static_cast<Sema::EScopeKind>( 0 ) ) )
         {
-            const UnitGlobalKey Key{ Frame.Unit->Ordinal, Site };
+            const UnitGlobalKey Key{ .Ordinal = Frame.Unit->Ordinal, .Site = Site };
             if ( const auto GlobIt = ModuleGlobals.find( Key ); GlobIt != ModuleGlobals.end() )
             {
                 return GlobIt->second;
