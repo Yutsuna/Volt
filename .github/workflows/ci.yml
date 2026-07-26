@@ -33,3 +33,6 @@ jobs:
 
       - name: Build & Test Suite
         run: nix develop --command volt-build test
+
+      - name: Build Release
+        run: nix build

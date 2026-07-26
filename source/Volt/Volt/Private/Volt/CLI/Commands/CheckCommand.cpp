@@ -43,31 +43,6 @@ void ReportMetrics ( const Volt::Sema::PassStats &Stats )
                               } );
 }
 
-/// Walk up from InPath (file or directory) looking for a Project.vl manifest.
-/// Mirrors the historical `Circuit.discover`: a file inside a circuit project
-/// selects the whole circuit.
-[[nodiscard]] std::optional<fs::path> DiscoverManifest ( const fs::path &InPath )
-{
-    std::error_code Ec;
-    fs::path Dir = fs::absolute( fs::is_directory( InPath, Ec ) ? InPath : InPath.parent_path(), Ec );
-
-    while ( !Dir.empty() )
-    {
-        fs::path Candidate = Dir / Volt::Driver::WellKnown::ManifestName;
-        if ( fs::is_regular_file( Candidate, Ec ) )
-        {
-            return Candidate;
-        }
-        const fs::path Parent = Dir.parent_path();
-        if ( Parent == Dir )
-        {
-            break;
-        }
-        Dir = Parent;
-    }
-    return std::nullopt;
-}
-
 } // namespace
 
 /**
@@ -179,7 +154,7 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
 
-    if ( const std::optional<fs::path> Manifest = DiscoverManifest( Input ) )
+    if ( const std::optional<fs::path> Manifest = Driver::DiscoverManifest( Input ) )
     {
         Core::FLogger::Info( "Circuit manifest found: " + Manifest->string(), "check" );
         Core::FLogger::Progress( "Running semantic analysis...", "check" );
