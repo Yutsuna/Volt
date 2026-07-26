@@ -1,0 +1,18 @@
+# Implicit return through an if/elsif/else chain, plus a ternary.
+def classify( value : Int32 ) -> Int32
+  if value < 0
+    1
+  elsif value == 0
+    2
+  else
+    3
+  end
+end
+
+def main -> Int32
+  a = classify( -5 )
+  b = classify( 0 )
+  c = classify( 7 )
+  d = a < b ? 10 : 20
+  a + b + c + d
+end

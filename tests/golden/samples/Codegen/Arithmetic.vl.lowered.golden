@@ -1,0 +1,80 @@
+Program 'samples/Codegen/Arithmetic.vl'
+├─ Method 'add' @2:1
+│  ├─ params
+│  │  ├─ Param 'a'
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Int32' @2:14
+│  │  └─ Param 'b'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:25
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @2:36
+│  └─ body
+│     └─ ExprStmt @3:3
+│        └─ expr
+│           └─ Binary '+' @3:5
+│              ├─ lhs
+│              │  └─ Identifier 'a' @3:3
+│              └─ rhs
+│                 └─ Identifier 'b' @3:7
+└─ Method 'main' @6:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @6:13
+   └─ body
+      ├─ ExprStmt @7:3
+      │  └─ expr
+      │     └─ Assign '=' @7:9
+      │        ├─ target
+      │        │  └─ Identifier 'total' @7:3
+      │        └─ value
+      │           └─ IntLiteral '0' @7:11
+      ├─ ExprStmt @8:3
+      │  └─ expr
+      │     └─ Assign '=' @8:5
+      │        ├─ target
+      │        │  └─ Identifier 'i' @8:3
+      │        └─ value
+      │           └─ IntLiteral '1' @8:7
+      ├─ While @9:3
+      │  ├─ cond
+      │  │  └─ Binary '<=' @9:11
+      │  │     ├─ lhs
+      │  │     │  └─ Identifier 'i' @9:9
+      │  │     └─ rhs
+      │  │        └─ IntLiteral '10' @9:14
+      │  └─ body
+      │     ├─ ExprStmt @10:5
+      │     │  └─ expr
+      │     │     └─ Assign '=' @10:11
+      │     │        ├─ target
+      │     │        │  └─ Identifier 'total' @10:5
+      │     │        └─ value
+      │     │           └─ Binary '+' @10:11
+      │     │              ├─ lhs
+      │     │              │  └─ Identifier 'total' @10:5
+      │     │              └─ rhs
+      │     │                 └─ Identifier 'i' @10:14
+      │     └─ ExprStmt @11:5
+      │        └─ expr
+      │           └─ Assign '=' @11:7
+      │              ├─ target
+      │              │  └─ Identifier 'i' @11:5
+      │              └─ value
+      │                 └─ Binary '+' @11:7
+      │                    ├─ lhs
+      │                    │  └─ Identifier 'i' @11:5
+      │                    └─ rhs
+      │                       └─ IntLiteral '1' @11:10
+      └─ ExprStmt @13:3
+         └─ expr
+            └─ Binary '-' @13:19
+               ├─ lhs
+               │  └─ Call @13:6
+               │     ├─ callee
+               │     │  └─ Identifier 'add' @13:3
+               │     └─ args
+               │        ├─ Identifier 'total' @13:8
+               │        └─ IntLiteral '2' @13:15
+               └─ rhs
+                  └─ IntLiteral '50' @13:21
+--- exit 0 ---

@@ -1,0 +1,14 @@
+# Loops, compound assignment and a free function call, all in one exit code.
+def add( a : Int32, b : Int32 ) -> Int32
+  a + b
+end
+
+def main -> Int32
+  total = 0
+  i = 1
+  while i <= 10
+    total += i
+    i += 1
+  end
+  add( total, 2 ) - 50
+end

@@ -1,0 +1,108 @@
+Program 'samples/Codegen/Branches.vl'
+├─ Method 'classify' @2:1
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:23
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @2:34
+│  └─ body
+│     └─ If @3:3
+│        ├─ cond
+│        │  └─ Binary '<' @3:12
+│        │     ├─ lhs
+│        │     │  └─ Identifier 'value' @3:6
+│        │     └─ rhs
+│        │        └─ IntLiteral '0' @3:14
+│        ├─ then
+│        │  └─ ExprStmt @4:5
+│        │     └─ expr
+│        │        └─ IntLiteral '1' @4:5
+│        └─ else
+│           └─ If @5:3
+│              ├─ cond
+│              │  └─ Binary '==' @5:15
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'value' @5:9
+│              │     └─ rhs
+│              │        └─ IntLiteral '0' @5:18
+│              ├─ then
+│              │  └─ ExprStmt @6:5
+│              │     └─ expr
+│              │        └─ IntLiteral '2' @6:5
+│              └─ else
+│                 └─ ExprStmt @8:5
+│                    └─ expr
+│                       └─ IntLiteral '3' @8:5
+└─ Method 'main' @12:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @12:13
+   └─ body
+      ├─ ExprStmt @13:3
+      │  └─ expr
+      │     └─ Assign '=' @13:5
+      │        ├─ target
+      │        │  └─ Identifier 'a' @13:3
+      │        └─ value
+      │           └─ Call @13:15
+      │              ├─ callee
+      │              │  └─ Identifier 'classify' @13:7
+      │              └─ args
+      │                 └─ Unary '-' @13:17
+      │                    └─ operand
+      │                       └─ IntLiteral '5' @13:18
+      ├─ ExprStmt @14:3
+      │  └─ expr
+      │     └─ Assign '=' @14:5
+      │        ├─ target
+      │        │  └─ Identifier 'b' @14:3
+      │        └─ value
+      │           └─ Call @14:15
+      │              ├─ callee
+      │              │  └─ Identifier 'classify' @14:7
+      │              └─ args
+      │                 └─ IntLiteral '0' @14:17
+      ├─ ExprStmt @15:3
+      │  └─ expr
+      │     └─ Assign '=' @15:5
+      │        ├─ target
+      │        │  └─ Identifier 'c' @15:3
+      │        └─ value
+      │           └─ Call @15:15
+      │              ├─ callee
+      │              │  └─ Identifier 'classify' @15:7
+      │              └─ args
+      │                 └─ IntLiteral '7' @15:17
+      ├─ ExprStmt @16:3
+      │  └─ expr
+      │     └─ Assign '=' @16:5
+      │        ├─ target
+      │        │  └─ Identifier 'd' @16:3
+      │        └─ value
+      │           └─ Ternary @16:13
+      │              ├─ cond
+      │              │  └─ Binary '<' @16:9
+      │              │     ├─ lhs
+      │              │     │  └─ Identifier 'a' @16:7
+      │              │     └─ rhs
+      │              │        └─ Identifier 'b' @16:11
+      │              ├─ then
+      │              │  └─ IntLiteral '10' @16:15
+      │              └─ else
+      │                 └─ IntLiteral '20' @16:20
+      └─ ExprStmt @17:3
+         └─ expr
+            └─ Binary '+' @17:13
+               ├─ lhs
+               │  └─ Binary '+' @17:9
+               │     ├─ lhs
+               │     │  └─ Binary '+' @17:5
+               │     │     ├─ lhs
+               │     │     │  └─ Identifier 'a' @17:3
+               │     │     └─ rhs
+               │     │        └─ Identifier 'b' @17:7
+               │     └─ rhs
+               │        └─ Identifier 'c' @17:11
+               └─ rhs
+                  └─ Identifier 'd' @17:15
+--- exit 0 ---
