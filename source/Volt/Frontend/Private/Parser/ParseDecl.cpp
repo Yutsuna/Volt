@@ -340,6 +340,7 @@ void Volt::Frontend::Parser::ParseParameterList ( ParamList &Out )
     do
     {
         SkipNewlines();
+        const std::uint32_t ParamBegin = Here();
         Param Node;
         if ( Accept( TokenKind::Amp ) )
         {
@@ -365,6 +366,7 @@ void Volt::Frontend::Parser::ParseParameterList ( ParamList &Out )
         {
             Node.Default = ParseExpr( 0 );
         }
+        Node.Loc = RangeSince( ParamBegin );
         Out.PushBack( Context.Add( Node ) );
         SkipNewlines();
     } while ( Accept( TokenKind::Comma ) );
