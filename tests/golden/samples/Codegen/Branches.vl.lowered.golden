@@ -1,108 +1,128 @@
 Program 'samples/Codegen/Branches.vl'
-├─ Method 'classify' @2:1
+├─ Annotation 'External' @2:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @2:13
+│     └─ StringLiteral 'exit' @2:21
+├─ Method 'libc_exit' external @3:10
 │  ├─ params
 │  │  └─ Param 'value'
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @2:23
+│  │        └─ TypeRef 'Int32' @3:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @3:44
+├─ Method 'classify' @5:1
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @5:23
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @2:34
+│  │  └─ TypeRef 'Int32' @5:34
 │  └─ body
-│     └─ If @3:3
+│     └─ If @6:3
 │        ├─ cond
-│        │  └─ Binary '<' @3:12
+│        │  └─ Binary '<' @6:12
 │        │     ├─ lhs
-│        │     │  └─ Identifier 'value' @3:6
+│        │     │  └─ Identifier 'value' @6:6
 │        │     └─ rhs
-│        │        └─ IntLiteral '0' @3:14
+│        │        └─ IntLiteral '0' @6:14
 │        ├─ then
-│        │  └─ ExprStmt @4:5
+│        │  └─ ExprStmt @7:5
 │        │     └─ expr
-│        │        └─ IntLiteral '1' @4:5
+│        │        └─ IntLiteral '1' @7:5
 │        └─ else
-│           └─ If @5:3
+│           └─ If @8:3
 │              ├─ cond
-│              │  └─ Binary '==' @5:15
+│              │  └─ Binary '==' @8:15
 │              │     ├─ lhs
-│              │     │  └─ Identifier 'value' @5:9
+│              │     │  └─ Identifier 'value' @8:9
 │              │     └─ rhs
-│              │        └─ IntLiteral '0' @5:18
+│              │        └─ IntLiteral '0' @8:18
 │              ├─ then
-│              │  └─ ExprStmt @6:5
+│              │  └─ ExprStmt @9:5
 │              │     └─ expr
-│              │        └─ IntLiteral '2' @6:5
+│              │        └─ IntLiteral '2' @9:5
 │              └─ else
-│                 └─ ExprStmt @8:5
+│                 └─ ExprStmt @11:5
 │                    └─ expr
-│                       └─ IntLiteral '3' @8:5
-└─ Method 'main' @12:1
-   ├─ return_type
-   │  └─ TypeRef 'Int32' @12:13
-   └─ body
-      ├─ ExprStmt @13:3
-      │  └─ expr
-      │     └─ Assign '=' @13:5
-      │        ├─ target
-      │        │  └─ Identifier 'a' @13:3
-      │        └─ value
-      │           └─ Call @13:15
-      │              ├─ callee
-      │              │  └─ Identifier 'classify' @13:7
-      │              └─ args
-      │                 └─ Unary '-' @13:17
-      │                    └─ operand
-      │                       └─ IntLiteral '5' @13:18
-      ├─ ExprStmt @14:3
-      │  └─ expr
-      │     └─ Assign '=' @14:5
-      │        ├─ target
-      │        │  └─ Identifier 'b' @14:3
-      │        └─ value
-      │           └─ Call @14:15
-      │              ├─ callee
-      │              │  └─ Identifier 'classify' @14:7
-      │              └─ args
-      │                 └─ IntLiteral '0' @14:17
-      ├─ ExprStmt @15:3
-      │  └─ expr
-      │     └─ Assign '=' @15:5
-      │        ├─ target
-      │        │  └─ Identifier 'c' @15:3
-      │        └─ value
-      │           └─ Call @15:15
-      │              ├─ callee
-      │              │  └─ Identifier 'classify' @15:7
-      │              └─ args
-      │                 └─ IntLiteral '7' @15:17
-      ├─ ExprStmt @16:3
-      │  └─ expr
-      │     └─ Assign '=' @16:5
-      │        ├─ target
-      │        │  └─ Identifier 'd' @16:3
-      │        └─ value
-      │           └─ Ternary @16:13
-      │              ├─ cond
-      │              │  └─ Binary '<' @16:9
-      │              │     ├─ lhs
-      │              │     │  └─ Identifier 'a' @16:7
-      │              │     └─ rhs
-      │              │        └─ Identifier 'b' @16:11
-      │              ├─ then
-      │              │  └─ IntLiteral '10' @16:15
-      │              └─ else
-      │                 └─ IntLiteral '20' @16:20
-      └─ ExprStmt @17:3
-         └─ expr
-            └─ Binary '+' @17:13
-               ├─ lhs
-               │  └─ Binary '+' @17:9
-               │     ├─ lhs
-               │     │  └─ Binary '+' @17:5
-               │     │     ├─ lhs
-               │     │     │  └─ Identifier 'a' @17:3
-               │     │     └─ rhs
-               │     │        └─ Identifier 'b' @17:7
-               │     └─ rhs
-               │        └─ Identifier 'c' @17:11
-               └─ rhs
-                  └─ Identifier 'd' @17:15
+│                       └─ IntLiteral '3' @11:5
+├─ Method 'main' @15:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @15:13
+│  └─ body
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Assign '=' @16:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @16:3
+│     │        └─ value
+│     │           └─ Call @16:15
+│     │              ├─ callee
+│     │              │  └─ Identifier 'classify' @16:7
+│     │              └─ args
+│     │                 └─ Unary '-' @16:17
+│     │                    └─ operand
+│     │                       └─ IntLiteral '5' @16:18
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Assign '=' @17:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @17:3
+│     │        └─ value
+│     │           └─ Call @17:15
+│     │              ├─ callee
+│     │              │  └─ Identifier 'classify' @17:7
+│     │              └─ args
+│     │                 └─ IntLiteral '0' @17:17
+│     ├─ ExprStmt @18:3
+│     │  └─ expr
+│     │     └─ Assign '=' @18:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @18:3
+│     │        └─ value
+│     │           └─ Call @18:15
+│     │              ├─ callee
+│     │              │  └─ Identifier 'classify' @18:7
+│     │              └─ args
+│     │                 └─ IntLiteral '7' @18:17
+│     ├─ ExprStmt @19:3
+│     │  └─ expr
+│     │     └─ Assign '=' @19:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'd' @19:3
+│     │        └─ value
+│     │           └─ Ternary @19:13
+│     │              ├─ cond
+│     │              │  └─ Binary '<' @19:9
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @19:7
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'b' @19:11
+│     │              ├─ then
+│     │              │  └─ IntLiteral '10' @19:15
+│     │              └─ else
+│     │                 └─ IntLiteral '20' @19:20
+│     └─ ExprStmt @20:3
+│        └─ expr
+│           └─ Binary '+' @20:13
+│              ├─ lhs
+│              │  └─ Binary '+' @20:9
+│              │     ├─ lhs
+│              │     │  └─ Binary '+' @20:5
+│              │     │     ├─ lhs
+│              │     │     │  └─ Identifier 'a' @20:3
+│              │     │     └─ rhs
+│              │     │        └─ Identifier 'b' @20:7
+│              │     └─ rhs
+│              │        └─ Identifier 'c' @20:11
+│              └─ rhs
+│                 └─ Identifier 'd' @20:15
+└─ ExprStmt @23:1
+   └─ expr
+      └─ Call @23:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @23:1
+         └─ args
+            └─ Call @23:16
+               └─ callee
+                  └─ Identifier 'main' @23:12
 --- exit 0 ---
