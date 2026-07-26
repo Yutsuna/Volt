@@ -365,7 +365,29 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
 
         const Sema::BindingSite Site{ ParamRef };
-        Frame.Slots.emplace( Site, Arg );
+
+        // Same rule ClosureEmitter's/MonoEmitter's parameter binding already
+        // follows: an aggregate (or `&block`) arrives as a pointer to its own
+        // storage and *is* its own slot, so it is kept as-is. A scalar arrives
+        // as a bare value with no backing storage — without an alloca here, a
+        // later read of it as an Identifier (LoadPlace -> EmitAddress ->
+        // CreateLoad) tries to load through the value as if it were a pointer
+        // to itself, which the verifier rejects.
+        if ( Arg->getType()->isPointerTy() )
+        {
+            Frame.Slots.emplace( Site, Arg );
+        }
+        else
+        {
+            llvm::Value *Slot = SlotFor( Site, Arg->getType(), Unit.Ast->Text( Declared.Name ) );
+            if ( Slot == nullptr )
+            {
+                static_cast<void>( Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
+                                         std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
+                return;
+            }
+            static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+        }
 
         BindInstanceVarParam( ParamRef, Arg );
     }
