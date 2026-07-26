@@ -41,8 +41,7 @@ class Exception
         while i < frames_count
           raw_sym = *( symbols + i )
           if raw_sym != nil
-            sym_len = c_string_length( raw_sym )
-            frames.push( String.new( raw_sym, sym_len ) )
+            frames.push( String.from_c_string( raw_sym ) )
           end
           i += 1
         end
@@ -53,17 +52,6 @@ class Exception
 
     buffer.free
     frames
-  end
-
-  # `len` is annotated, not left to the `_u64` suffix: Sema does not read
-  # integer literal suffixes, so `len = 0_u64` would be an Int32 that the
-  # surrounding `ptr + len` was then free to retype.
-  def c_string_length( ptr : Pointer<UInt8> ) -> UInt64
-    len : UInt64 = 0
-    while *( ptr + len ) != 0_u8
-      len += 1_u64
-    end
-    len
   end
 
   def format_backtrace -> String
