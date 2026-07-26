@@ -62,6 +62,14 @@ namespace Backend
 
         Sema::TypeStore *Types = nullptr;
         std::span<const UnitView> Units;
+
+        // How many of Units' leading entries are the stdlib — ordinals
+        // `0..StdlibUnitCount-1` (issue #61's blind-spot-#4 invariant: the
+        // stdlib always occupies the low ordinals, cache hit or not). 0 means
+        // "nothing here is the stdlib" (a tooling build, or a target that
+        // never precompiles it). A backend that never precompiles reads
+        // nothing here at all.
+        std::uint32_t StdlibUnitCount = 0;
     };
 
 } // namespace Backend
