@@ -477,27 +477,46 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 const SemaTypeId Rhs = InferExpr( Context, Expr.Rhs );
 
                 // An operand only adopts the other's type when it has none of
-                // its own to lose (IsMalleable). Propagating unconditionally
-                // was wrong for every heterogeneous operator: `ptr + len` is
-                // `Pointer<UInt8> + UInt64` by design, and the old rule rewrote
-                // `len` to Pointer<UInt8> for the rest of the method — silently,
-                // because the trailing `-> UInt64` check then re-stamped it
-                // back. That is exactly the pair of silences phase C removes.
-                if ( Lhs.IsValid() and not IsMalleable( Context, Expr.Lhs ) and IsMalleable( Context, Expr.Rhs ) )
-                {
-                    Context.ConstrainExprType( Expr.Rhs, Lhs );
-                }
-                else if ( Rhs.IsValid() and not IsMalleable( Context, Expr.Rhs ) and IsMalleable( Context, Expr.Lhs ) )
+                // its own to lose (IsMalleable). The receiver is settled first,
+                // because it is what the operator resolves on.
+                if ( Rhs.IsValid() and not IsMalleable( Context, Expr.Rhs ) and IsMalleable( Context, Expr.Lhs ) )
                 {
                     Context.ConstrainExprType( Expr.Lhs, Rhs );
                 }
+
                 // The resolution MemberType records is the whole of B.4: on a
                 // primitive/pointer layout it is empty and the backend emits an
                 // instruction chosen from `Primitive{ Spelling, Bits }`; on any
                 // other layout it names the method to call. No lowering pass,
                 // no node created — see rules/core-ast.md.
-                return MemberType( Context, Id, InferExpr( Context, Expr.Lhs ), Context.NakedTypeExprs.contains( Expr.Lhs.Value ),
-                                   Frontend::TokenSpelling( Expr.Op ) );
+                const SemaTypeId Result =
+                    MemberType( Context, Id, InferExpr( Context, Expr.Lhs ), Context.NakedTypeExprs.contains( Expr.Lhs.Value ),
+                                Frontend::TokenSpelling( Expr.Op ) );
+
+                // What the right operand is *expected* to be is written on the
+                // operator's own declaration, so read it there rather than off
+                // the receiver: `Arithmetic#+( other : self )` makes `x + 1`
+                // adopt x's type, while `Pointer<T>#+( offset : UInt64 )` makes
+                // `ptr + 1_u64` an offset. Taking the receiver's type — which
+                // is what this did — is right only for the homogeneous
+                // operators, and silently retyped every pointer offset to a
+                // pointer, which a backend then cannot materialise as an
+                // integer constant at all.
+                SemaTypeId Expected;
+                if ( const auto Entry = Context.CalleeResolution.find( Id.Value );
+                     Entry != Context.CalleeResolution.end() and Entry->second.Params.Size() > 0 )
+                {
+                    Expected = Entry->second.Params[0];
+                }
+                if ( not Expected.IsValid() )
+                {
+                    Expected = Lhs;
+                }
+                if ( Expected.IsValid() and IsMalleable( Context, Expr.Rhs ) )
+                {
+                    Context.ConstrainExprType( Expr.Rhs, Expected );
+                }
+                return Result;
             },
             [&] ( const Frontend::Unary &Expr ) -> SemaTypeId
             {
@@ -511,10 +530,18 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // A byte count takes its width from its use site — `count *
                 // sizeof T` against a UInt64 count — exactly like an integer
                 // literal does, so it joins UnconstrainedLiterals and falls
-                // back to whatever type claims IntLiteral. Its operand is a
-                // type, never a value: nothing to descend into here, the
-                // backend reads the layout size straight off Expr.Type.
-                static_cast<void>( Expr );
+                // back to whatever type claims IntLiteral.
+                //
+                // Its operand is a type, never a value, so there is nothing to
+                // descend into — but the *measured* type still has to be
+                // published, or a backend would have to resolve the written
+                // name itself, which is semantic analysis in codegen. It goes
+                // on this node's own site: the site map is where a type
+                // attached to an Id that is not a value expression lives, the
+                // same channel a `rescue` clause's filter uses.
+                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
+                                                                                    Context.Generics(), Sink, Expr.Type ) );
                 const auto Base = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
                 if ( not Base )
                 {
@@ -556,40 +583,68 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             [&] ( const Frontend::Ternary &Expr ) -> SemaTypeId
             {
                 static_cast<void>( InferExpr( Context, Expr.Cond ) );
-                const SemaTypeId Then = InferExpr( Context, Expr.Then );
-                const SemaTypeId Else = InferExpr( Context, Expr.Else );
+                SemaTypeId Then = InferExpr( Context, Expr.Then );
+                SemaTypeId Else = InferExpr( Context, Expr.Else );
+
+                // An arm that is still open — a bare literal — takes the
+                // other's type, under the same IsMalleable guard the operands
+                // of a Binary use. A ternary produces one value, so
+                // `@capacity == 0 ? 8 : @capacity * 2` is a UInt64 in both
+                // arms or it is nothing coherent: leaving the literal at its
+                // default width made the two disagree, and a backend cannot
+                // merge them at all.
+                if ( Then.IsValid() and not IsMalleable( Context, Expr.Then ) and IsMalleable( Context, Expr.Else ) )
+                {
+                    Context.ConstrainExprType( Expr.Else, Then );
+                    Else = Then;
+                }
+                else if ( Else.IsValid() and not IsMalleable( Context, Expr.Else ) and IsMalleable( Context, Expr.Then ) )
+                {
+                    Context.ConstrainExprType( Expr.Then, Else );
+                    Then = Else;
+                }
                 return Context.UnifyBranchTypes( Then, Else );
             },
             [&] ( const Frontend::RaiseExpr &Expr ) -> SemaTypeId
             {
-                Frontend::RaiseExpr &Mutable = std::get<Frontend::RaiseExpr>( Context.Ctx.Ast.Expr( Id ) );
-                if ( not Mutable.Exception.IsValid() )
+                // Copy out, compute, write back — rules/ast-rewrite.md. Every
+                // branch below calls `Add()`, the arena is a `std::vector`,
+                // and a reference into a node taken beforehand (which is what
+                // `Expr` itself is, since std::visit binds it into the arena)
+                // is dangling the moment one reallocates. The Id is stable;
+                // the reference never was.
+                const Core::SourceRange Loc = Expr.Loc;
+                Frontend::ExprId Exception  = Expr.Exception;
+
+                if ( not Exception.IsValid() )
                 {
                     // Bare `raise`: re-raise the innermost rescue's bound
                     // variable, or (outside any rescue) fall back to
                     // constructing a fresh exception.
                     if ( not Context.RescueVarStack.empty() and Context.RescueVarStack.back().IsValid() )
                     {
-                        Mutable.Exception = Context.Ctx.Ast.Add(
+                        Exception = Context.Ctx.Ast.Add(
                             Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = Context.RescueVarStack.back() } } );
                     }
                     else
                     {
-                        Mutable.Exception = MakeExceptionConstructor( Context, Expr.Loc, Frontend::ExprId{} );
+                        Exception = MakeExceptionConstructor( Context, Loc, Frontend::ExprId{} );
                     }
                 }
-                else if ( std::holds_alternative<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Mutable.Exception ) ) or
-                          std::holds_alternative<Frontend::Interp>( Context.Ctx.Ast.Expr( Mutable.Exception ) ) )
+                else if ( std::holds_alternative<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Exception ) ) or
+                          std::holds_alternative<Frontend::Interp>( Context.Ctx.Ast.Expr( Exception ) ) )
                 {
                     // `raise "msg"` desugars to `Exception.new("msg")`, moved
                     // here from the parser so the constructed callee resolves
                     // through TypeStore's @[ExceptionRoot] instead of a
                     // hardcoded name.
-                    Mutable.Exception = MakeExceptionConstructor( Context, Expr.Loc, Mutable.Exception );
+                    Exception = MakeExceptionConstructor( Context, Loc, Exception );
                 }
-                if ( Mutable.Exception.IsValid() )
+
+                std::get<Frontend::RaiseExpr>( Context.Ctx.Ast.Expr( Id ) ).Exception = Exception;
+                if ( Exception.IsValid() )
                 {
-                    static_cast<void>( InferExpr( Context, Mutable.Exception ) );
+                    static_cast<void>( InferExpr( Context, Exception ) );
                 }
                 return TypeCheckerContext::NoReturnType();
             },
@@ -606,7 +661,8 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     SemaTypeId ExceptionType{};
                     if ( Clause.ExceptionType.IsValid() )
                     {
-                        UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
+                        UnitSink Sink{
+                            .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
                         ExceptionType =
                             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
                         const NominalId Nominal =
@@ -640,6 +696,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                         // reach SetSiteType above. Name-based typing still goes through
                         // Locals/LocalTypes exactly as DeclStmtWalker's LocalDecl does.
                         Context.LocalTypes[BindingSite{ ClauseId }] = ExceptionType;
+                        Context.LocalSites[Clause.VarName]          = BindingSite{ ClauseId };
                         Context.Locals[Clause.VarName]              = ExceptionType;
                     }
                     Context.RescueVarStack.push_back( Clause.VarName );
@@ -824,7 +881,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::GenericInstType ( TypeChecke
     Core::SmallVec<SemaTypeId, 2> Args;
     for ( const Frontend::TypeId Arg : Expr.Args )
     {
-        UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
+        UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
         Args.PushBack( ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Arg ) );
     }
 
