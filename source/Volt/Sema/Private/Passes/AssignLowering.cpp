@@ -124,6 +124,23 @@ public:
 
 private:
 
+    // A node this pass mints is a *second occurrence of the same use*, so it
+    // inherits the target's binding rather than being left unresolved:
+    // ScopeResolver ran at order 10 and will not run again, and every consumer
+    // — TypeChecker's local types, codegen's slot table — reaches a local
+    // exclusively through BindingOf. Counting it is right too: `x += 1` reads
+    // x. Nothing to inherit (a Member/Index target, or an unbound name) simply
+    // leaves the clone as it was.
+    [[nodiscard]] Frontend::ExprId CloneUse ( Frontend::ExprId TargetId, Frontend::ExprNode Node )
+    {
+        const Frontend::ExprId Fresh = Ast.Add( std::move( Node ) );
+        if ( const Sema::Binding *Bound = Context.Scopes.BindingOf( TargetId ) )
+        {
+            Context.Scopes.BindUse( Fresh, *Bound );
+        }
+        return Fresh;
+    }
+
     // A fresh node playing the *read* role, sharing the target's children.
     // Sharing is what makes `arr[i] += 1` legal without a temporary: the
     // children are re-read, never re-evaluated for effect, which is why they
@@ -134,7 +151,7 @@ private:
 
         if ( IsSideEffectFree( Target ) )
         {
-            return Ast.Add( Frontend::ExprNode{ Target } );
+            return CloneUse( TargetId, Frontend::ExprNode{ Target } );
         }
 
         if ( const auto *Mem = std::get_if<Frontend::Member>( &Target ) )
@@ -143,7 +160,7 @@ private:
             {
                 return std::nullopt;
             }
-            return Ast.Add( Frontend::ExprNode{ *Mem } );
+            return CloneUse( TargetId, Frontend::ExprNode{ *Mem } );
         }
 
         if ( const auto *Idx = std::get_if<Frontend::Index>( &Target ) )
@@ -159,7 +176,7 @@ private:
                     return std::nullopt;
                 }
             }
-            return Ast.Add( Frontend::ExprNode{ *Idx } );
+            return CloneUse( TargetId, Frontend::ExprNode{ *Idx } );
         }
 
         return std::nullopt;
