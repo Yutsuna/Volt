@@ -47,6 +47,15 @@ namespace Sema
         // substitutes into a generic body at codegen time.
         Core::SmallVec<SemaTypeId, 2> Bindings;
         SemaTypeId Receiver;
+        // `T.new( … )` — the callee is the type's initializer, and the call
+        // *constructs*: the receiver expression names a type rather than a
+        // value, storage for one instance has to come from the call itself,
+        // and the result is that storage, not the initializer's own (Void)
+        // result. Recorded here because MemberType is where the decision is
+        // taken (it is what substitutes the receiver back into `Result`);
+        // re-deriving it in a backend would mean recognising the spelling
+        // "new", which is a Volt name no backend may know.
+        bool bConstructs = false;
     };
 
     // Every callee one compile unit resolved, keyed by the *callee
