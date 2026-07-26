@@ -1219,3 +1219,38 @@ graphify update .
   `samples/Syntax/**` fixtures that do not `check`. The backend will surface the first
   as "wrong width constant". These are pre-existing and out of scope; the correct
   response is a loud report naming the gap, never a widening guess in the emitter.
+
+---
+
+## Phase 11 — Implicit local declarations storage identity (`x = expr`)
+
+Pushed from Phase 8/10 diagnosis: bare `name = expr` (no `: Type` annotation) parses as a bare `Assign` targeting an `Identifier`, not a `LocalDecl`. `Sema::ScopeResolver` (order 10) currently only allocates a `BindingSite` for explicit `LocalDecl` statements. `TypeChecker` falls back to a method-wide `Locals[Name]` map, leaving implicit locals with no stable `BindingSite` in `ScopeTable`.
+
+**Phase 11 Work Specification:**
+1. Extend `Sema::BindingSite` (`ScopeTable.hpp`) with a fourth variant arm: `Frontend::ExprId` (naming the first-occurrence target `ExprId`).
+2. Update `ScopeResolver::WalkExpr` for `Assign`: when the target is a bare `Identifier` not yet bound in `Current`, declare `BindingSite{ Node.Target }`.
+3. Update `TypeChecker`'s `WriteLocal` to record site-based typing for all implicit locals.
+4. Update `BackendLLVM::EmitStmt` (`Assign` case) to allocate stack storage (`SlotFor`) on first assignment to an unallocated `BindingSite`.
+
+---
+
+## Phase 12 — Top-Level Expressions & Modular C Entry Point (`main`)
+
+In Volt, **top-level expressions written at file scope are the program's entry point** (similar to Crystal/Ruby). A `def main -> Int32` is a standard free function, **not** an implicit entry point — `def main` will only run if explicitly invoked from a top-level expression (`main` / `main()`).
+
+When a project consists of multiple modules, top-level expressions across all units must execute in topological dependency order (`CircuitGraph::TopoOrder`).
+
+**Phase 12 Work Specification:**
+1. **Per-Module Top-Level Emitter (`_V_init_<Ordinal>`)**:
+   - In `BackendLLVM::DefineAll( Unit )`, emit a synthetic parameterless function `_V_init_<Unit.Ordinal>` for `Unit.Ast->TopStmts`.
+   - Walk `Unit.Ast->TopStmts` using `EmitStmt` to emit all top-level statements/expressions of the module.
+2. **Modular C Entry Point (`main`)**:
+   - Refactor `EmitEntryPoint()` in `LlvmEmitter.cpp`: generate the canonical C entry point `int main(int argc, char** argv)`.
+   - Insert sequential calls to `_V_init_<Ordinal>` for all units in `BackendInput::Units` order (`TopoOrder`: dependencies first, entry module last).
+   - Return `0` upon completion.
+3. **Verification**:
+   - Verify `puts "Hello".data` works at top level without `def main`.
+   - Verify `def main ... end` alone does not execute unless called at top level.
+   - Verify multi-module dependency initialization order.
+
+
