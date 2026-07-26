@@ -1026,12 +1026,15 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
     // type that merely inherits it. A mixin's own default (`Arithmetic#min`)
     // is additionally never defined at all — IsMixinOwner excludes it from
     // both sweeps, since its `self` means "whichever type includes me" and
-    // has no signature until one does. Per-including-type instantiation of an
-    // inherited default is a real, understood gap (llvm.md), not something to
-    // paper over by emitting a call to a symbol nothing ever defines.
+    // has no signature until one does. This is exactly what a generic body
+    // is: unresolved until a call site fixes it. So an inherited default is
+    // routed through the same Monomorphizer queue below, keyed on the
+    // *receiver's* Owner+Name — MangleFunction already mangles the receiver,
+    // not the declaring mixin, so `Int32.min`/`Float64.min` land on distinct
+    // symbols even though both share one AST body.
+    bool bOwnMember = false;
     if ( Owner.IsValid() )
     {
-        bool bOwnMember = false;
         for ( const Sema::Member &Candidate : Build->Types->Type( Owner ).Members )
         {
             if ( &Candidate == Entry.Decl )
@@ -1040,15 +1043,8 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
                 break;
             }
         }
-        if ( not bOwnMember )
-        {
-            static_cast<void>( Fail( "llvm: '" + std::string( Build->Types->Text( Entry.Decl->Name ) ) +
-                                     "' is inherited (from a mixin or a superclass) rather than declared on its "
-                                     "receiver's own type; per-including-type instantiation of an inherited default "
-                                     "method is not yet implemented" ) );
-            return nullptr;
-        }
     }
+    const bool bInherited = Owner.IsValid() and not bOwnMember;
 
     // A generic owner or a method with its own generics has no body yet —
     // DeclareAll/DefineAll both skip it outright, since neither sweep knows
@@ -1056,9 +1052,12 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
     // synthesises its *declaration* on demand (so a forward or mutually
     // recursive call resolves), but the body is Monomorphizer's job:
     // enqueue is idempotent (MonoRequest::Key dedupes), so every call site
-    // reaching the same instantiation is free to ask again.
+    // reaching the same instantiation is free to ask again. An inherited
+    // default is enqueued unconditionally on FlatArgs — the receiver alone
+    // (`Owner`) is enough to key the request even when neither the receiver
+    // nor the method itself is generic.
     const bool bGenericOwner = Owner.IsValid() and Build->Types->Type( Owner ).Params.Size() > 0;
-    if ( ( bGenericOwner or Entry.Decl->OwnGenerics > 0 ) and not FlatArgs.empty() )
+    if ( ( ( bGenericOwner or Entry.Decl->OwnGenerics > 0 ) and not FlatArgs.empty() ) or bInherited )
     {
         Mono.Enqueue( MonoRequest{ .Owner = Owner, .Name = Entry.Decl->Name, .Args = FlatArgs } );
     }
@@ -1204,7 +1203,14 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitTernary ( Frontend::Ex
     static_cast<void>( Builder->CreateBr( Merge ) );
 
     Builder->SetInsertPoint( Merge );
-    llvm::Type *Shape = TypeOfExpr( Id );
+    // An aggregate arm evaluates to a `ptr` at its storage, never to the
+    // struct value itself (the ABI convention this whole file follows) — so
+    // the PHI must merge on `ptr`, exactly what ParamTypeOfLayout already
+    // computes for a by-pointer parameter. Using TypeOfExpr's struct type
+    // here instead crashes CreatePHI/addIncoming the moment either arm is a
+    // `String`/user-struct value (`self ? "true" : "false"`), since Then/Else
+    // are pointers but the PHI's declared type would not be.
+    llvm::Type *Shape = ParamTypeOfLayout( LayoutOfExpr( Id ) );
     if ( Shape == nullptr )
     {
         Shape = Then->getType();
