@@ -1,0 +1,5 @@
+def main -> Int32
+  x = 40
+  x += 2
+  x
+end

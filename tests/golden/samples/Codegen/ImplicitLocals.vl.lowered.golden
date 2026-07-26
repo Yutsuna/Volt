@@ -1,0 +1,27 @@
+Program 'samples/Codegen/ImplicitLocals.vl'
+└─ Method 'main' @1:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @1:13
+   └─ body
+      ├─ ExprStmt @2:3
+      │  └─ expr
+      │     └─ Assign '=' @2:5
+      │        ├─ target
+      │        │  └─ Identifier 'x' @2:3
+      │        └─ value
+      │           └─ IntLiteral '40' @2:7
+      ├─ ExprStmt @3:3
+      │  └─ expr
+      │     └─ Assign '=' @3:5
+      │        ├─ target
+      │        │  └─ Identifier 'x' @3:3
+      │        └─ value
+      │           └─ Binary '+' @3:5
+      │              ├─ lhs
+      │              │  └─ Identifier 'x' @3:3
+      │              └─ rhs
+      │                 └─ IntLiteral '2' @3:8
+      └─ ExprStmt @4:3
+         └─ expr
+            └─ Identifier 'x' @4:3
+--- exit 0 ---
