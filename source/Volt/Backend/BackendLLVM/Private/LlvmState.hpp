@@ -321,6 +321,15 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::Function *
     FunctionFor ( const Sema::Member &Entry, Sema::NominalId Owner, std::span<const std::uint32_t> FlatArgs );
 
+    // `def initialize( @x : T )`: bind the parameter *and* store it into the
+    // field of that name. No-op for an ordinary parameter.
+    void BindInstanceVarParam ( Frontend::ParamId ParamRef, llvm::Value *Value );
+
+    // The C-linkage shim the runtime starts at, calling the Volt function
+    // EmitOptions names as the entry. False only when it failed and Status
+    // already says why.
+    [[nodiscard]] bool EmitEntryPoint ();
+
     // --- Statements (StmtEmitter.cpp) -------------------------------------
 
     // Emit a statement list. `bTail` marks the list as the function's result
@@ -373,6 +382,11 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::Value *
     FieldAddress ( llvm::Value *Object, Sema::LayoutId Shape, std::string_view Name, Frontend::ExprId Id );
 
+    // `@name` as written, reduced to the field name declared in the layout.
+    // Sema strips the sigil in one place (LookupOn's CleanName) and this is
+    // the other half of the same contract.
+    [[nodiscard]] static std::string_view FieldNameOf ( std::string_view Written );
+
     // The opaque spelling driving instruction selection for a layout: a
     // Primitive's own, and "ptr" for a Pointer, so the two shapes of address
     // cannot select different instructions. Empty for an aggregate.
@@ -397,6 +411,11 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::Value *EmitTernary ( Frontend::ExprId Id, const Frontend::Ternary &Node );
     [[nodiscard]] llvm::Value *EmitCase ( Frontend::ExprId Id, const Frontend::CaseExpr &Node );
     [[nodiscard]] llvm::Value *EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node );
+
+    // The declared default for a parameter a call omits, emitted in the unit
+    // that declares it. Null when the parameter has none — which is the
+    // caller's error to report, with the call site in hand.
+    [[nodiscard]] llvm::Value *EmitDefaultArgument ( const Sema::Member &Decl, std::size_t Index );
     [[nodiscard]] llvm::Value *FailAggregateLiteral ( Frontend::ExprId Id, std::string_view Kind );
 
     // The one call site every resolved callee goes through — an explicit
