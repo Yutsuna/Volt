@@ -50,6 +50,25 @@ The *order* (`self`, params, env) is fixed here, once, for all three — it is
 what lets a closure emitted by one target's rules be understood by a reader
 of any other.
 
+### Aggregates: in by pointer, out by value
+
+The row above says how an aggregate travels *into* a call. Out of one it goes
+**by value**, and the caller spills it into a slot of its own frame on arrival.
+Two reasons, and neither is a preference:
+
+- The callee's storage does not outlive the callee. Returning its address is
+  the one shape that is always wrong; the spill is exactly what makes the
+  result the caller's.
+- It leaves every signature untouched — no hidden `sret` parameter — so the
+  parameter order above stays the whole of the convention, and a `self` slot
+  is still argument 0 in every frame.
+
+Everywhere else the rule is unchanged: an aggregate *expression* evaluates to
+the address of its storage. The two conversion points are therefore the only
+places a value crosses — a `ret` loads the struct, a call's result stores it —
+and a target that reads a closure or a struct this one wrote sees a plain C
+struct return.
+
 ## Closure environments
 
 `SynthesizeClosureFrame` (Sema) already fixed the env aggregate: field
