@@ -171,9 +171,19 @@ Each is refused by a message naming the hole rather than guessed at, per
   allocating a backing buffer and knowing which field holds what, and neither
   is written down anywhere a backend may read. Inventing a field-order
   convention would silently corrupt any other shape, so it is reported instead.
-- **`SizeOf` records no nominal for its operand.** The node is inert by
-  contract ("read the layout size and never descend"), but nothing links the
-  operand to a `NominalId`, so there is no layout to size.
+- ~~**`SizeOf` records no nominal for its operand.**~~ **Closed.** The node is
+  inert by contract ("read the layout size and never descend"), and the missing
+  half was the link from the operand to a type. `TypeChecker` now resolves the
+  written annotation and publishes the result on the node's *own site*
+  (`UnitTypes::SetSiteType( BindingSite{ Id } )` — the channel a `rescue`
+  clause's filter already uses for "a type attached to an Id that is not a
+  value expression"). The emitter measures that layout through `LayoutEngine`
+  and takes the constant's width from the use site, exactly as an integer
+  literal does. Inside a generic body `sizeof T` still defers; a
+  *re-instantiation* answers it, because `Sema::ReinstantiateBody` now binds
+  the owner's parameter names to the request's concrete arguments
+  (`UnitSink::Bindings`) — which is what `Pointer<T>#malloc` needs to compute
+  `count * sizeof T` at all.
 - **A value-returning body can fall off its end.** Volt has no definite-return
   analysis — an `if` with no `else` in tail position is accepted — so this path
   is reachable from valid source and cannot be a hard failure. It lowers to
@@ -195,13 +205,16 @@ Each is refused by a message naming the hole rather than guessed at, per
   not as "outside a method" — `Frame.bClosure` is what distinguishes the two
   messages. The fix is upstream: record the receiver as a capture, or add a
   `bCapturesSelf` to the frame.
-- **`abi.md` fixes how an aggregate travels *into* a call, not out of one.**
-  "Aggregates by pointer" covers parameters; a *returned* aggregate has no
-  rule, so `FunctionTypeOf` gives it the struct type by value while `EmitExpr`
-  hands back an address — the two disagree, and the IR verifier in phase 8 is
-  where it will surface. This predates the closure work (any method returning
-  the type that claims `StringLiteral` has it) and is one decision — sret, or
-  by-value returns — to be written into `abi.md` before phase 8.
+- ~~**`abi.md` fixes how an aggregate travels *into* a call, not out of one.**~~
+  **Decided: by value, spilled on arrival.** A returned aggregate keeps the
+  struct type `FunctionTypeOf` already gave it, and the two conversion points
+  are the only places a value leaves or enters its slot: `CoerceWidth` loads
+  the struct at a `ret`, and `EmitResolvedCall` stores the returned struct into
+  a fresh slot of this frame. Everything between them still obeys "an aggregate
+  expression evaluates to a `ptr` at its storage". By value rather than sret
+  because the callee's storage does not outlive it — the spill is what makes
+  the result the caller's — and because it leaves every signature unchanged.
+  Recorded in `abi.md`.
 - **Integer literal suffixes are parsed and ignored** (already recorded in
   `rules/core-ast.md`). The decoder trims the suffix and takes its width from
   the *layout*, always — honouring the suffix here would make the backend

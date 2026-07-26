@@ -934,6 +934,214 @@ scope and risk from how Phase 8 sized it; still not attempted here for the
 same reason — it touches `BindingSite`'s call sites across `ScopeResolver`,
 `TypeChecker`, and `UnusedChecker`, and deserves its own focused session.
 
+*Done in Phase 10, below, along with everything it was hiding.*
+
+---
+
+## Phase 10 — end to end: a Volt program that runs
+
+**Status: `volt build` produces linked native executables that run and return
+the right answers. `samples/Codegen/` + `tests/LlvmIr.cmake` +
+`tests/LlvmRun.cmake` make that permanent: 211/211 green with LLVM on, 203/203
+with it off, `volt-build llvm tidy` clean to completion for the first time.
+Not committed.**
+
+This phase started as the implicit-local `BindingSite` fix Phases 8 and 9 both
+named as the single blocker. It *was* the blocker — and it was also the last
+thing standing in front of a queue of them. Each fix below was found by the
+next one becoming reachable, which is exactly what "nothing had ever executed"
+had been hiding.
+
+### The blocker itself: implicit locals
+
+Implemented as Phase 8 sized it, with two deviations, both forced by what the
+sizing could not see from a static read:
+
+1. **`BindingSite` gains a fourth arm, `Frontend::ExprId`** — the `Assign`
+   target that declares the local, since neither a `StmtId` nor a `ParamId`
+   names it uniquely.
+2. **`ScopeResolver::WalkExpr` gains an `Assign` case.** A plain `=` (not a
+   compound: `AssignLowering` is order 24 and this is order 10) whose target is
+   a bare `Identifier` not already bound to *storage* declares one. "Storage"
+   is the deviation: the plan said "does not already `Resolve`", but a type
+   body's fields and methods are declared into the enclosing scope as tooling
+   metadata, so `count = 0` inside a type that has a `count` member would have
+   resolved to the member and never got a slot. The predicate is
+   `IsValueBinding` — not a `DeclId` — shared with capture analysis, which
+   wanted exactly the same distinction and had been spelling it inline.
+3. **The declaring occurrence is bound but not counted.** `BindUse` grew a
+   `bCountsAsUse` flag: every consumer reaches a local through `BindingOf`, so
+   the write has to be bound, but a write is not a read and `UnusedChecker`
+   must still see a variable nothing ever reads. (It immediately found one:
+   `Hash#[]=`'s `idx`, genuinely dead.)
+4. **`AssignLowering` now carries the binding onto the node it mints.** Not in
+   the plan's list at all, and load-bearing: `x += 1` becomes `x = x + 1` with
+   a *fresh* `Identifier` for the read, which ScopeResolver can never see. A
+   pass that duplicates a use owes it its resolution.
+
+Then, upstream of the backend, the plan's step 4 ("the `Locals[Name]` fallback
+becomes dead code — worth re-auditing, not assumed") turned out to be a real
+correctness bug in both directions, and re-auditing it was not optional:
+
+- **A name-keyed write did not reach the site.** `result *= self` in
+  `Arithmetic#pow` re-typed the *name* while the declaration site kept the
+  literal's `Int32`, and the trailing `result` then read whichever of the two
+  it happened to consult. Fixed with `LocalSites` (name → site), taught by
+  every bound write, so a node minted after order 10 still lands on the site.
+- **A site-keyed read fell back to the name.** `b = *( p + i )` in two sibling
+  `while` bodies of `String#trim` is two declarations and two sites; the name
+  map reported the first one's type as already known, and the second site was
+  never typed at all. `FindLocal` now answers from the site *or* from the name,
+  never from the site and then the name.
+
+### What the implicit-local fix uncovered, in the order it uncovered it
+
+Every one of these is a middle-end fact that was missing, not a backend
+shortcut. Each is listed with what now records it.
+
+1. **A heterogeneous operator's right operand took the receiver's type.**
+   `ptr + 1_u64` retyped the literal to `Pointer<UInt8>` — the guard was
+   `IsMalleable`, which a literal always passes. The expected type of an
+   operand is written on the *operator's declaration*
+   (`Pointer<T>#+( offset : UInt64 )`), so `ExprInferencer` reads it off the
+   resolution and only falls back to the receiver when there is none.
+2. **A ternary's arms were never unified.** `@capacity == 0 ? 8 : @capacity * 2`
+   left `8` at the literal default and `@capacity * 2` at `UInt64`; a backend
+   cannot merge those at all. Same `IsMalleable` rule as a `Binary`'s operands,
+   now applied to the arms.
+3. **`T.new( … )` was indistinguishable from an instance call.** The receiver
+   names a type, so there is nothing to evaluate for `self`, and the storage
+   the initializer writes into has to come from the call. `MemberType` already
+   decided this (it substitutes the receiver back into `Result`); it now
+   records it, as `CalleeEntry::bConstructs`. Re-deriving it in a backend would
+   mean recognising the spelling `"new"`.
+4. **`def initialize( @x : T )` stored nothing.** `Param::bInstanceVar` had
+   *no consumer anywhere in the tree*. The field store is emitted where the
+   parameter is bound. Every `Point.new( 3, 4 )` and the stdlib's own
+   `Exception#initialize` depended on it, silently.
+5. **A parameter's default was never materialised.** No pass can do it — one
+   that did would run after `TypeChecker` and have to type what it creates — so
+   the emitter emits the declared default *in the unit that declares it*, where
+   `EnterMethod` already inferred and constrained it.
+6. **A bare `capture_backtrace()` had no receiver.** Sema resolves a bare name
+   on `self` inside a method body; the callee is then an `Identifier` with no
+   object, and the receiver is the frame's own `self`.
+7. **A paren-less call is a bare `Member`.** `symbols.free` reached codegen as
+   a field read. Only the recorded resolution tells the two apart, and it was
+   there all along.
+8. **`@name` kept its sigil.** Sema strips it in one place (`LookupOn`'s
+   `CleanName`); the emitter did not, so every field access missed. Two halves
+   of one contract, now spelled as such.
+9. **`sizeof T` had no operand type**, and inside a generic body no way to get
+   one. Closed — see `llvm.md`, and `UnitSink::Bindings` for the
+   re-instantiation half.
+10. **An aggregate return had no ABI.** Decided and written into `abi.md`: by
+    value out, spilled into the caller's frame on arrival. The rule "an
+    aggregate expression is an address" is unchanged everywhere between.
+11. **A mixin default shadowed a machine instruction.** `Comparable#<` is
+    `( self <=> other ) < 0`, and on an `Int32` its own `<` resolved straight
+    back to itself — infinite recursion, i.e. a segfault on `i <= 10`. On a
+    Primitive or Pointer layout an operator *is* the instruction
+    (`rules/zero-hardcode.md`); the receiver's own declaration still wins,
+    because `Int32#<=>` and `Pointer<T>#<=>` are real bodies written *with*
+    those instructions. `LookupOn` drops only the `Decl`, keeping the signature
+    that types the expression — and "no `Decl` on a primitive receiver" is
+    already what tells a backend to select an instruction.
+12. **An inherited default lost the receiver's generic arguments.**
+    `Entry.Bindings` is the *declaring* type's parameter space, which for a
+    mixin is empty — so `Pointer<UInt8>#!=` instantiated with no `T`, its
+    body's `self <=> other` mangled to a symbol nothing defined, and the
+    failure surfaced as an undefined symbol at link. The request is keyed on
+    the receiver, so the receiver's arguments are what must reach it.
+13. **There was no entry point.** Every Volt function is mangled, so nothing in
+    the module was called what a C runtime starts at. `EmitOptions` names the
+    Volt function and the C symbol (both `main` by default, both a *language*
+    convention rather than a code-generation one), and `Finalize` emits the
+    shim. Empty means a library.
+14. **Objects were emitted in the static relocation model** while every
+    mainstream toolchain links PIE — `R_X86_64_32 … recompile with -fPIC`, a
+    link failure with no relation to the program. `PIC_`, matching the C driver
+    `Linker.cpp` already shells out to.
+
+Two crashes were fixed on the way, both worth naming because a crash is the one
+outcome this backend must never produce: `EmitTernary` merged arms of different
+kinds into one PHI (now a named refusal listing both types), and the recursion
+in (11).
+
+### Verification wiring — the acceptance test the plan deferred since Phase 4
+
+- **`samples/Codegen/`** — `Arithmetic.vl` (loops, compound assignment, a free
+  function), `Branches.vl` (implicit return through `if`/`elsif`/`else`, a
+  ternary), `Recursion.vl` (a forward self-reference), `Structs.vl` (field
+  storage, `.new`, methods on an aggregate receiver). Each has a `.expected`
+  holding `exit=<code>`.
+- **`tests/LlvmRun.cmake`** — compiles each sample to a real executable, runs
+  it, compares the exit code (and stdout, which is empty today: the stdlib
+  declares no output facility, so the exit code is the whole observable
+  result — the stdout half is there so adding one is a data change).
+- **`tests/LlvmIr.cmake`** — `--emit ir`, checked for two things only: that
+  `Finalize` accepted it (the verifier runs before anything is written) and
+  that `main` exists. Deliberately **not** a golden text comparison, contrary
+  to this plan's Verification section: the module carries the whole stdlib, so
+  a golden would be thousands of lines rewritten by any `source/Lib` change and
+  would fail on value numbering long before catching a codegen bug. Whether the
+  IR is correct is `LlvmRun`'s job, by running it.
+- Both suites are registered behind `if( VOLT_ENABLE_LLVM )`. The samples are
+  also picked up by the existing `Golden` glob, so they carry parse goldens too
+  and are covered with LLVM off.
+- **`source/Volt/Backend/BackendLLVM/.clang-tidy`** — `InheritParentConfig`
+  plus one disabled check. `clang-analyzer-security.ArrayBound` fires inside
+  LLVM's own `User::getHungOffOperands` (`*(reinterpret_cast<Use **>(this) - 1)`,
+  a documented part of its hung-off-operand layout), the diagnostic lands in an
+  LLVM header where no `NOLINT` can be written, and it stopped the tidy run at
+  whichever file was analysed first — which is why Phases 6–9 all record it as
+  "pre-existing, run does not complete". Scoped to the only module that
+  includes LLVM headers.
+
+### Files touched this phase
+
+- `source/Volt/Sema/Public/Volt/Sema/Scope/ScopeTable.hpp` (`BindingSite`'s
+  fourth arm, `IsValueBinding`, `BindUse`'s `bCountsAsUse`)
+- `source/Volt/Sema/Private/Passes/ScopeResolver.cpp` (the `Assign` case)
+- `source/Volt/Sema/Private/Passes/UnusedChecker.cpp` (`LocOfSite`'s new arm)
+- `source/Volt/Sema/Private/Passes/AssignLowering.cpp` (`CloneUse`)
+- `source/Volt/Sema/Private/Passes/TypeChecker/TypeCheckerContext.{hpp,cpp}`
+  (`LocalSites`, `SiteOf`, `Substitution`/`GenericBindings`, `Resolution::bConstructs`)
+- `source/Volt/Sema/Private/Passes/TypeChecker/{DeclStmtWalker,ClosureInferencer,Reinstantiate}.cpp`
+  (site index; the re-instantiation's generic names and substitution)
+- `source/Volt/Sema/Private/Passes/TypeChecker/ExprInferencer.cpp` (operand and
+  ternary-arm typing, `SizeOf`'s operand)
+- `source/Volt/Sema/Private/Passes/TypeChecker/MemberResolver.cpp`
+  (`bConstructs`, `IsMachineOperatorOn`)
+- `source/Volt/Sema/Private/Passes/TypeChecker.cpp` (snapshot)
+- `source/Volt/Sema/Public/Volt/Sema/Layout/CalleeMap.hpp` (`bConstructs`)
+- `source/Volt/Sema/Public/Volt/Sema/Layout/TypeResolve.hpp` (`UnitSink::Bindings`)
+- `source/Volt/Backend/BackendLLVM/Private/ExprEmitter.cpp` (implicit-local
+  storage, `FieldNameOf`, construction, implicit `self`, paren-less calls,
+  default arguments, `sizeof`, aggregate results, inherited generic arguments,
+  the ternary refusal)
+- `source/Volt/Backend/BackendLLVM/Private/{LlvmEmitter,MonoEmitter}.cpp`
+  (`BindInstanceVarParam`, `EmitEntryPoint`, PIC, `Fail` naming the function)
+- `source/Volt/Backend/BackendLLVM/Private/LlvmState.hpp`,
+  `Public/Volt/BackendLLVM/LlvmEmitter.hpp` (`EntryFunction`/`EntrySymbol`)
+- `samples/Codegen/*` (new), `tests/Llvm{Ir,Run}.cmake` (new),
+  `cmake/VoltTests.cmake`, `tests/golden/samples/Codegen/*` (new),
+  `source/Volt/Backend/BackendLLVM/.clang-tidy` (new)
+- `.agents/backend/{llvm,abi}.md` (the two gaps closed above)
+
+### What is still open
+
+- The **`ArrayLit`/`HashLit` construction protocol**, the **allocator
+  annotation** an escaping closure needs, and **`self` in a closure body** are
+  unchanged from `llvm.md`'s list — none was on the path to a running program,
+  and each is an upstream decision rather than emitter work.
+- **`--emit obj` and `--lto`** are exercised only as far as `LlvmRun` needs
+  them (it goes through the full `Link` stage, so the object path *is* covered;
+  `--lto` still selects O3 and links one module, as Phase 8 recorded).
+- **No sample exercises closures, exceptions or `Array<T>` end to end.** Those
+  paths compile and are wired to themselves, and the corpus is now the place to
+  prove them one at a time — which is what the corpus is for.
+
 ---
 
 ## Verification
@@ -973,6 +1181,11 @@ exact symbols mold names, module by module. Do not pre-annotate by guessing.
 - `tests/LlvmRun.cmake` — compile-and-run: build each `samples/Codegen/*.vl` to a
   binary, execute it, compare stdout + exit code against a `.expected` file. This is
   the only test that proves the ABI cross-check, closures and EH actually work.
+
+*Both landed in phase 10, with one deliberate departure: `LlvmIr.cmake` is an
+emit-and-verify check rather than a golden comparison — see that phase for why
+a golden of a stdlib-carrying module would fail on value numbering long before
+it caught a codegen bug.*
 - ~~Extend `ZeroHardcode.cmake`'s grep to cover `source/Volt/Backend`~~ — done in
   phase 5; the emitter is exactly where a Volt type name is most tempting to
   hardcode, and the corpus is clean.
