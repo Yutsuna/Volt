@@ -346,7 +346,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
                 // its site — the Assign target, and no other — opens it here.
                 // Everything else about it is a local like any other: the
                 // shape is the one TypeChecker recorded for the site.
-                if ( const auto *Site = std::get_if<Frontend::ExprId>( &Bound->Site ); Site != nullptr and *Site == Id )
+                if ( const auto *Site = std::get_if<Frontend::ExprId>( &Bound->Site ); Site != nullptr )
                 {
                     const Sema::LayoutId Shape = LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Bound->Site ) );
                     llvm::Type *Slot           = TypeOfLayout( Shape );
