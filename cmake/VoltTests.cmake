@@ -117,6 +117,19 @@ endif()
 
 #############################################################################
 
+# Round-trip proof for Meta::Serialize/Deserialize (Core/Meta/Serialize.hpp),
+# the generic reflected serializer issue #61's stdlib cache is built on. A
+# plain executable rather than a CLI/golden test since this is Core-internal
+# plumbing with no CLI surface of its own.
+add_executable( CoreSerializeTest ${VOLT_ROOT}/tests/CoreSerializeTest.cpp )
+target_link_libraries( CoreSerializeTest PRIVATE Volt::Core Volt::CompileOptions )
+add_test(
+  NAME    CoreSerializeTest
+  COMMAND CoreSerializeTest
+)
+
+#############################################################################
+
 add_test(
   NAME    ZeroHardcode
   COMMAND ${CMAKE_COMMAND} -P ${VOLT_ROOT}/tests/ZeroHardcode.cmake
