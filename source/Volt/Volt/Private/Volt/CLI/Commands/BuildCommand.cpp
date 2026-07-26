@@ -166,13 +166,13 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
     }
 
     Driver::BuildOptions BuildOpts;
-    BuildOpts.Target                  = Target;
-    BuildOpts.OutputPath               = Output;
-    BuildOpts.bLto                     = bLto;
-    BuildOpts.Emit                     = Emit;
-    BuildOpts.bStdlibArtifactNoCache   = StdlibFlags.bNoStdlibCache;
-    BuildOpts.bStdlibArtifactFresh     = StdlibFlags.bFreshStdlib;
-    BuildOpts.StdlibArtifactKind       = StdlibFlags.Artifact;
+    BuildOpts.Target                 = Target;
+    BuildOpts.OutputPath             = Output;
+    BuildOpts.bLto                   = bLto;
+    BuildOpts.Emit                   = Emit;
+    BuildOpts.bStdlibArtifactNoCache = StdlibFlags.bNoStdlibCache;
+    BuildOpts.bStdlibArtifactFresh   = StdlibFlags.bFreshStdlib;
+    BuildOpts.StdlibArtifactKind     = StdlibFlags.Artifact;
 
     if ( not OptLevel.empty() )
     {
