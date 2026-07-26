@@ -8,6 +8,51 @@
 
 #include <algorithm>
 
+namespace
+{
+
+// An operator name, told apart from an ordinary member by spelling alone:
+// anything that does not open with a letter or an underscore, plus the three
+// word-spelled logical operators. No operator is listed here by hand.
+[[nodiscard]] bool IsOperatorName ( std::string_view Name )
+{
+    if ( Name.empty() )
+    {
+        return false;
+    }
+    if ( Name == "and" or Name == "or" or Name == "not" )
+    {
+        return true;
+    }
+    const char Ch = Name[0];
+    return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
+}
+
+// Is `Name` an operator the machine itself provides on this receiver — that
+// is, does the receiver collapse to a Primitive or a Pointer? Deliberately
+// narrower than IsBuiltinOpOn, which also widens `===` to an enum: an enum is
+// an aggregate, and no instruction table answers for one.
+[[nodiscard]] bool IsMachineOperatorOn ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
+                                         Volt::Sema::NominalId Base,
+                                         std::string_view Name )
+{
+    using namespace Volt::Sema;
+
+    if ( not Base.IsValid() or not IsOperatorName( Name ) )
+    {
+        return false;
+    }
+    const NominalType &Nominal = Context.Ctx.Types.Type( Base );
+    if ( not Nominal.Layout.IsValid() )
+    {
+        return false;
+    }
+    const LayoutKind Kind = KindOf( Context.Ctx.Types.Get( Nominal.Layout ) );
+    return Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer;
+}
+
+} // namespace
+
 Volt::Sema::TypeCheckerPass::Resolution
 Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name )
 {
@@ -92,7 +137,29 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
     Reinstantiate( Context, Out );
     if ( bConstructor )
     {
-        Out.Result = Receiver;
+        Out.Result      = Receiver;
+        Out.bConstructs = true;
+    }
+
+    // On a Primitive or Pointer layout an operator *is* a machine instruction
+    // (rules/zero-hardcode.md), so a mixin's default body must not shadow one:
+    // `Comparable#<` is written as `( self <=> other ) < 0`, and its own `<`
+    // resolves straight back to itself — a call would recurse until the stack
+    // ends. Dropping only the declaration keeps the signature that gave the
+    // expression its type (and gave the right operand its expected type), and
+    // "no Decl on a primitive receiver" is exactly what tells a backend to
+    // select an instruction (rules/core-ast.md).
+    //
+    // A declaration on the receiver's *own* nominal still wins, because it is
+    // the only thing that can express what the machine has no opcode for:
+    // `Int32#<=>` and `Pointer<T>#<=>` are real bodies, written with those
+    // very instructions.
+    const NominalId ReceiverBase = Context.Ctx.Values.Get( Receiver ).Base;
+    const NominalId DeclaringBase =
+        Context.Ctx.Values.Has( Found.Owner ) ? Context.Ctx.Values.Get( Found.Owner ).Base : NominalId{};
+    if ( DeclaringBase != ReceiverBase and IsMachineOperatorOn( Context, ReceiverBase, CleanName ) )
+    {
+        Out.Decl = nullptr;
     }
     return Out;
 }
@@ -225,28 +292,6 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
         Context.Report( Loc, "static member " + Name + " cannot be accessed on an instance" );
     }
 }
-
-namespace
-{
-
-// An operator name, told apart from an ordinary member by spelling alone:
-// anything that does not open with a letter or an underscore, plus the three
-// word-spelled logical operators. No operator is listed here by hand.
-[[nodiscard]] bool IsOperatorName ( std::string_view Name )
-{
-    if ( Name.empty() )
-    {
-        return false;
-    }
-    if ( Name == "and" or Name == "or" or Name == "not" )
-    {
-        return true;
-    }
-    const char Ch = Name[0];
-    return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
-}
-
-} // namespace
 
 Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupApplyOn ( TypeCheckerContext &Context,
                                                                                      SemaTypeId Receiver )

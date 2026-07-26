@@ -61,6 +61,27 @@ using namespace Volt::Sema;
     return Values.Intern( SemaType{ .Base = Base, .Args = std::move( Args ) } );
 }
 
+// The generic parameter *names* a type wrote, as this unit's AST interned
+// them. Needed because ResolveTypeExpr matches a written `T` by symbol: a
+// re-instantiation can substitute a parameter index (UnitSink::Bindings) only
+// once the name is recognised as one. Null for anything that declares none.
+[[nodiscard]] const Frontend::SymbolList *GenericsOf ( const Frontend::AstContext &Ast, Frontend::DeclId Id )
+{
+    if ( not Id.IsValid() )
+    {
+        return nullptr;
+    }
+    return std::visit(
+        Meta::Overloaded{
+            [] ( const Frontend::Class &Node ) { return &Node.Generics; },
+            [] ( const Frontend::Struct &Node ) { return &Node.Generics; },
+            [] ( const Frontend::Mixin &Node ) { return &Node.Generics; },
+            [] ( const Frontend::Enum &Node ) { return &Node.Generics; },
+            [] ( const auto & ) -> const Frontend::SymbolList * { return nullptr; },
+        },
+        Ast.Decl( Id ) );
+}
+
 } // namespace
 
 Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &Store,
@@ -119,6 +140,17 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     TypeCheckerPass::TypeCheckerContext Context{ ScratchCtx, TypeCheckerPass::MetadataExprs( Ast ) };
     Context.SelfType  = Owner;
     Context.SelfValue = Self;
+    // A written `T` inside this body is answerable now: the arguments are
+    // fixed, so `sizeof T` in `Pointer<T>#malloc` is a concrete width rather
+    // than the deferral it is during the generic-shaped pass. The names come
+    // from the owner's own declaration, and only when this unit is the one
+    // that holds it — an inherited default declared elsewhere keeps the
+    // deferral rather than matching a name against the wrong interner.
+    Context.Substitution = ReceiverArgs;
+    if ( Owner.IsValid() and Store.Type( Owner ).Unit == Entry.Unit )
+    {
+        Context.SelfGenerics = GenericsOf( Ast, Store.Type( Owner ).Decl );
+    }
     // bGenericBody stays false (the default): every binding above is now
     // concrete, so nothing walked from here should defer — a node that still
     // cannot resolve is a genuine middle-end gap, not this instantiation's.
@@ -138,8 +170,9 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
         }
         const SemaTypeId ParamType = Instantiate( Store, Entry.Params[Index], ReceiverArgs, Self, Result.Values );
         const BindingSite Site{ ParamRef };
-        Context.LocalTypes[Site]                      = ParamType;
-        Context.Locals[Ast.GetParam( ParamRef ).Name] = ParamType;
+        Context.LocalTypes[Site]                          = ParamType;
+        Context.LocalSites[Ast.GetParam( ParamRef ).Name] = Site;
+        Context.Locals[Ast.GetParam( ParamRef ).Name]     = ParamType;
         Result.Values.SetSiteType( Site, ParamType );
         ++Index;
     }
@@ -159,12 +192,13 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     // TypeChecker itself takes at the end of a unit's pass run.
     for ( const auto &[Value, Found] : Context.CalleeResolution )
     {
-        Result.Callees.Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl       = Found.Decl,
-                                                                    .Result     = Found.Result,
-                                                                    .Params     = Found.Params,
-                                                                    .BlockParam = Found.BlockParam,
-                                                                    .Bindings   = Found.Bindings,
-                                                                    .Receiver   = Found.Receiver } );
+        Result.Callees.Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl        = Found.Decl,
+                                                                    .Result      = Found.Result,
+                                                                    .Params      = Found.Params,
+                                                                    .BlockParam  = Found.BlockParam,
+                                                                    .Bindings    = Found.Bindings,
+                                                                    .Receiver    = Found.Receiver,
+                                                                    .bConstructs = Found.bConstructs } );
     }
 
     return Result;
