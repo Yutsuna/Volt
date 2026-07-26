@@ -1,0 +1,92 @@
+Program 'samples/Codegen/Arithmetic.vl'
+├─ Annotation 'External' @2:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @2:13
+│     └─ StringLiteral 'exit' @2:21
+├─ Method 'libc_exit' external @3:10
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @3:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @3:44
+├─ Method 'add' @5:1
+│  ├─ params
+│  │  ├─ Param 'a'
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Int32' @5:14
+│  │  └─ Param 'b'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @5:25
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @5:36
+│  └─ body
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ Binary '+' @6:5
+│              ├─ lhs
+│              │  └─ Identifier 'a' @6:3
+│              └─ rhs
+│                 └─ Identifier 'b' @6:7
+├─ Method 'main' @9:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @9:13
+│  └─ body
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Assign '=' @10:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'total' @10:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @10:11
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Assign '=' @11:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'i' @11:3
+│     │        └─ value
+│     │           └─ IntLiteral '1' @11:7
+│     ├─ While @12:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<=' @12:11
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'i' @12:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '10' @12:14
+│     │  └─ body
+│     │     ├─ ExprStmt @13:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '+=' @13:11
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'total' @13:5
+│     │     │        └─ value
+│     │     │           └─ Identifier 'i' @13:14
+│     │     └─ ExprStmt @14:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @14:7
+│     │              ├─ target
+│     │              │  └─ Identifier 'i' @14:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @14:10
+│     └─ ExprStmt @16:3
+│        └─ expr
+│           └─ Binary '-' @16:19
+│              ├─ lhs
+│              │  └─ Call @16:6
+│              │     ├─ callee
+│              │     │  └─ Identifier 'add' @16:3
+│              │     └─ args
+│              │        ├─ Identifier 'total' @16:8
+│              │        └─ IntLiteral '2' @16:15
+│              └─ rhs
+│                 └─ IntLiteral '50' @16:21
+└─ ExprStmt @19:1
+   └─ expr
+      └─ Call @19:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @19:1
+         └─ args
+            └─ Call @19:16
+               └─ callee
+                  └─ Identifier 'main' @19:12
+--- exit 0 ---

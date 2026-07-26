@@ -31,7 +31,7 @@ per-unit *facts* (AST, types, callees, scopes), not the Driver's
 orchestration state, so `BackendInput.hpp` defines its own read-only view:
 
 ```cpp
-struct UnitView    { Module, Path, Ast*, Values*, Callees*, Scopes* };
+struct UnitView    { std::uint32_t Ordinal; Module, Path, Ast*, Values*, Callees*, Scopes* };
 struct BackendInput{ const TypeStore *Types; std::span<const UnitView> Units; };
 ```
 
@@ -40,6 +40,25 @@ The Driver (or a CLI command) maps each `CompileUnit` into a `UnitView`, in
 single-pass emitter sees every callee's declaring unit before the call site's.
 The dependency chain stays `Backend* → Sema → Frontend → Core`, and the
 Driver may later grow a dependency on backends without a cycle.
+
+### `Ordinal` — the bridge back to the store, and why it is a field
+
+`Ordinal` is the **declaring-unit ordinal the `TypeStore` keys on**: the very
+number `BindUnitTypes` stamped into `Member::Unit` and `NominalType::Unit`.
+It is filled in `Driver::MakeBackendViews` from the *discovery* index.
+
+It is deliberately **not** the view's own position in `Units`. The views are in
+circuit link order while the ordinal is discovery order, and the two differ as
+soon as a circuit has edges — so reconstructing one from the other is wrong in
+exactly the cases that matter.
+
+What it buys: a sweep can read the **store** — the build-wide resolved
+interface — and still ask "which of these members does *this* unit hold a body
+for", with a single `Member::Unit == UnitView::Ordinal` test. The alternative
+(walk a `Decl` arena, search the store back by `DeclId`) is both slower and
+unsound, because a `DeclId` is only meaningful inside the arena that minted it.
+`BackendLLVM`'s declare and define sweeps are both built on this; the same
+shape is what the VM and wasm emitters should use.
 
 ## `concept TargetBackend` — the interface is compile-time
 

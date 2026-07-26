@@ -123,6 +123,8 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
 {
     std::unordered_map<BindingSite, SemaTypeId, BindingSiteHash> OuterLocalTypes;
     OuterLocalTypes.swap( Context.LocalTypes );
+    std::unordered_map<Symbol, BindingSite> OuterLocalSites;
+    OuterLocalSites.swap( Context.LocalSites );
     std::unordered_map<Symbol, SemaTypeId> OuterLocals;
     OuterLocals.swap( Context.Locals );
     std::unordered_set<std::uint32_t> OuterUnconstrainedLiterals;
@@ -133,7 +135,7 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     OuterUninitializedLocals.swap( Context.UninitializedLocals );
     const SemaTypeId OuterReturnType = Context.CurrentMethodReturnType;
 
-    UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
+    UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
     Context.CurrentMethodReturnType =
         ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.ReturnType );
 
@@ -151,6 +153,7 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
         const SemaTypeId ParamType =
             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Entry.DeclType );
         Context.LocalTypes[BindingSite{ Id }] = ParamType;
+        Context.LocalSites[Entry.Name]        = BindingSite{ Id };
         Context.Locals[Entry.Name]            = ParamType;
         Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ParamType );
         if ( Entry.Default.IsValid() and ParamType.IsValid() )
@@ -184,6 +187,7 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     Context.bGenericBody            = bOuterGenericBody;
     Context.CurrentMethodReturnType = OuterReturnType;
     Context.LocalTypes.swap( OuterLocalTypes );
+    Context.LocalSites.swap( OuterLocalSites );
     Context.Locals.swap( OuterLocals );
     Context.UnconstrainedLiterals.swap( OuterUnconstrainedLiterals );
     Context.UnconstrainedVarInitializers.swap( OuterUnconstrainedVarInitializers );
@@ -289,7 +293,7 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
         Meta::Overloaded{
             [&] ( const Frontend::LocalDecl &Node )
             {
-                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
+                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
                 const SemaTypeId Written =
                     ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.DeclType );
                 if ( Written.IsValid() and Node.Init.IsValid() )
@@ -311,6 +315,7 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
 
                 const SemaTypeId Bound                = Written.IsValid() ? Written : Init;
                 Context.LocalTypes[BindingSite{ Id }] = Bound;
+                Context.LocalSites[Node.Name]         = BindingSite{ Id };
                 Context.Locals[Node.Name]             = Bound;
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, Bound );
                 if ( not Written.IsValid() and Node.Init.IsValid() and Context.IsUnconstrainedInit( Node.Init, Init ) )

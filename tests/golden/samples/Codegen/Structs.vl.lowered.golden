@@ -1,0 +1,101 @@
+Program 'samples/Codegen/Structs.vl'
+├─ Annotation 'External' @3:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @3:13
+│     └─ StringLiteral 'exit' @3:21
+├─ Method 'libc_exit' external @4:10
+│  ├─ params
+│  │  └─ Param 'value'
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @4:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @4:44
+├─ Struct 'Point' @6:1
+│  └─ body
+│     ├─ Field 'x' getter @7:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @7:14
+│     ├─ Field 'y' getter @8:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @8:14
+│     ├─ Method 'initialize' @10:3
+│     │  └─ params
+│     │     ├─ Param 'x' instance_var
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @10:24
+│     │     └─ Param 'y' instance_var
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @10:36
+│     ├─ Method 'sum' @13:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @13:14
+│     │  └─ body
+│     │     └─ ExprStmt @14:5
+│     │        └─ expr
+│     │           └─ Binary '+' @14:8
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@x' @14:5
+│     │              └─ rhs
+│     │                 └─ InstanceVar '@y' @14:10
+│     └─ Method 'shifted' @17:3
+│        ├─ params
+│        │  └─ Param 'delta'
+│        │     └─ decl_type
+│        │        └─ TypeRef 'Int32' @17:24
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @17:35
+│        └─ body
+│           └─ ExprStmt @18:5
+│              └─ expr
+│                 └─ Binary '+' @18:13
+│                    ├─ lhs
+│                    │  └─ Binary '+' @18:8
+│                    │     ├─ lhs
+│                    │     │  └─ InstanceVar '@x' @18:5
+│                    │     └─ rhs
+│                    │        └─ InstanceVar '@y' @18:10
+│                    └─ rhs
+│                       └─ Identifier 'delta' @18:15
+├─ Method 'main' @22:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @22:13
+│  └─ body
+│     ├─ ExprStmt @23:3
+│     │  └─ expr
+│     │     └─ Assign '=' @23:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'p' @23:3
+│     │        └─ value
+│     │           └─ Call @23:16
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @23:12
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Point' @23:7
+│     │              └─ args
+│     │                 ├─ IntLiteral '3' @23:18
+│     │                 └─ IntLiteral '4' @23:21
+│     └─ ExprStmt @24:3
+│        └─ expr
+│           └─ Binary '+' @24:9
+│              ├─ lhs
+│              │  └─ Member 'sum' @24:4
+│              │     └─ object
+│              │        └─ Identifier 'p' @24:3
+│              └─ rhs
+│                 └─ Call @24:20
+│                    ├─ callee
+│                    │  └─ Member 'shifted' @24:12
+│                    │     └─ object
+│                    │        └─ Identifier 'p' @24:11
+│                    └─ args
+│                       └─ IntLiteral '5' @24:22
+└─ ExprStmt @27:1
+   └─ expr
+      └─ Call @27:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @27:1
+         └─ args
+            └─ Call @27:16
+               └─ callee
+                  └─ Identifier 'main' @27:12
+--- exit 0 ---

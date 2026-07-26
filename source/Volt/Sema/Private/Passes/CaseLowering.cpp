@@ -84,7 +84,7 @@ private:
 
                 if ( KindOf( Context.Expr( PatternId ) ) == Frontend::ExprKind::DotCall )
                 {
-                    const Frontend::DotCall &Dot = std::get<Frontend::DotCall>( Context.Expr( PatternId ) );
+                    const Frontend::DotCall Dot = std::get<Frontend::DotCall>( Context.Expr( PatternId ) );
 
                     Frontend::Member Mem;
                     Mem.Loc                      = Dot.Loc;

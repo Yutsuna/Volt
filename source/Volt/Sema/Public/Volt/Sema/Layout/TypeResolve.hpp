@@ -57,10 +57,16 @@ namespace Sema
         }
     };
 
-    // Encodes an expression's type. A free parameter cannot appear here, so
-    // it yields an invalid id — the caller decides whether that is an error.
-    // `self`, on the other hand, is already known inside a body, and is
+    // Encodes an expression's type. A free parameter normally cannot appear
+    // here, so it yields an invalid id — the caller decides whether that is an
+    // error. `self`, on the other hand, is already known inside a body, and is
     // whatever type that body belongs to.
+    //
+    // `Bindings` is the one case where a parameter *is* answerable: a
+    // re-instantiation (Sema::ReinstantiateBody) walks a generic body with its
+    // arguments already fixed, so `sizeof T` inside `Pointer<T>#malloc` is a
+    // concrete width there and a deferral everywhere else. Empty in an
+    // ordinary pass, which is what keeps that deferral the default.
     struct UnitSink
     {
 
@@ -68,14 +74,19 @@ namespace Sema
 
         UnitTypes &Values;
         SemaTypeId Self;
+        std::span<const SemaTypeId> Bindings;
 
         [[nodiscard]] IdType Make ( NominalId Base, Core::SmallVec<IdType, 2> Args )
         {
             return Values.Intern( SemaType{ .Base = Base, .Args = std::move( Args ) } );
         }
 
-        [[nodiscard]] IdType Param ( std::int32_t /*Index*/ )
+        [[nodiscard]] IdType Param ( std::int32_t Index )
         {
+            if ( Index >= 0 and static_cast<std::size_t>( Index ) < Bindings.size() )
+            {
+                return Bindings[static_cast<std::size_t>( Index )];
+            }
             return IdType{};
         }
 
