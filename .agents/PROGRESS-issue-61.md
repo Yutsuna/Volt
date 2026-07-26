@@ -13,7 +13,11 @@ fresh session can resume with no memory of this one.
 
 - [x] **Phase 0 — stdlib path resolution fix.** Done, verified.
 - [x] **Phase 1 — cache-key infrastructure (no cache consulted yet).** Done, verified.
-- [ ] **Phase 2 — generic reflected serializer + frontend/sema cache.** Next up.
+- [x] **Phase 2a — generic reflected Serialize/Deserialize core.** Done, verified. See below.
+- [ ] **Phase 2b — TypeStore/UnitTypes/UnitCallees/ScopeTable serialization +
+      Driver::CompileRefs wiring.** Next up — the higher-risk remainder of
+      Phase 2, deliberately split off 2a so the new serialization mechanism
+      itself was proven in isolation first.
 - [ ] Phase 3 — native precompiled static-archive cache.
 - [ ] Phase 4 — shared-object artifact kind.
 - [ ] Phase 5 — CLI flags as shared option group.
@@ -216,7 +220,130 @@ volt-build format tidy test
 - `tidy` was **not** run this phase (reserved for the end of the whole
   issue — see the note above).
 
-## Phase 2 — next
+## Phase 2a — done
+
+The plan's §"Phase 2 — Generic reflected serializer" step, done as its own
+reviewable slice **before** touching `TypeStore`/`UnitTypes`/`UnitCallees`/
+`ScopeTable`/`Driver::CompileRefs` — those are the higher-risk remainder,
+tracked as Phase 2b below. Nothing in this slice is wired into the live
+compiler yet; it is inert, tested infrastructure only, same spirit as
+Phase 1's `ComputeNativeCacheKey`.
+
+**What changed:**
+- New `source/Volt/Core/Public/Volt/Core/Meta/Serialize.hpp`: a generic binary
+  `Serialize<T>`/`Deserialize<T>` pair over `Meta::ForEachField`
+  (`Reflect.hpp`) — any `Reflected` aggregate (which will cover every
+  `ExprNode`/`StmtNode`/`DeclNode`/`TypeNode` alternative and
+  `Sema::PassStats` once Phase 2b reaches them) round-trips with **zero**
+  per-type code. Hand-written leaf overloads only for the things the plan
+  called out as non-aggregate or needing special replay semantics:
+  - `Writer` (append-only `std::vector<std::byte>` sink) / `Reader`
+    (`std::span<const std::byte>` source with a sticky `bFailed` flag — a
+    truncated/corrupt buffer is always a reported failure, never UB/a crash,
+    per the design doc's on-disk-layout contract).
+  - Arithmetic types and enums: raw byte copy.
+  - `Core::TypedId<Tag>` (`Symbol`, every `*Id` family): serialised as its
+    bare `ValueType`, including `InvalidValue` — reconstructed through the
+    explicit-value constructor. `Provenance` (VOLT_CHECKED_IDS builds) is
+    per-process bookkeeping and is never persisted.
+  - `Core::SmallVec<T,N>`, `std::string`, `std::vector<T>`,
+    `std::optional<T>`, `std::variant<Alts...>` (index + active alternative;
+    deserialize dispatches through an `index_sequence` fold since the
+    alternative to construct is only known at runtime),
+    `std::unordered_map<K,V>`.
+  - The generic `Reflected T` fallback: walks fields via `ForEachField`,
+    recursing into `Serialize`/`Deserialize` for each — this is what makes an
+    AST node type ever added to `Nodes.inl` round-trip with no serializer
+    code at all, matching how the printer/walker already work
+    (`meta-first.md`).
+  - `SerializeArena`/`DeserializeArena` and `SerializeInterner`/
+    `DeserializeInterner` are **named entry points, not ambient overloads** —
+    both need replay-in-order onto a *fresh* instance (an `Arena`'s `Id`s
+    **are** insertion order; a `Symbol` **is** the interner's insertion
+    order), so giving them a bare `Serialize(Writer&, const Arena<T,Id>&)`
+    overload would silently do the wrong thing if ever called on a non-fresh
+    instance. `SerializeInterner` skips slot 0 (the interner constructor
+    always reserves it for the empty string) so replay starts a fresh
+    interner and reproduces identical `Symbol` values without a remap table.
+- New `tests/CoreSerializeTest.cpp` + `cmake/VoltTests.cmake` registration: a
+  standalone executable (no gtest/Catch2 in this repo — this follows the
+  existing "process exit code is the assertion" shape `Corpus.*`/`Check.*`
+  already use), round-tripping: a plain aggregate exercising every leaf kind
+  including forcing a `SmallVec` past its inline capacity, `nullopt`/
+  `monostate` empty states, an `Arena` (checks elements land back at their
+  *original* `Id`), a `StringInterner` (checks previously-interned `Symbol`
+  values resolve to the same text after a fresh interner replays from an
+  empty state — the property the whole mechanism exists for), and a
+  truncated-buffer case asserting `Deserialize` fails cleanly rather than
+  reading out of bounds.
+  - Needed `target_link_libraries( CoreSerializeTest PRIVATE Volt::Core
+    Volt::CompileOptions )` — the `-freflection` flag lives on
+    `Volt::CompileOptions`, which `VoltModule()`-built targets link
+    `PRIVATE` (so it doesn't propagate transitively through `Volt::Core`); a
+    hand-added `add_executable` has to link it explicitly or every
+    `Reflect.hpp`-driven header fails with "reflection is only available
+    with -freflection". Discovered by running `volt-build testing` and
+    reading the error, not guessed in advance.
+
+**Verified:**
+- `./build/debug-testing/bin/CoreSerializeTest` — all checks pass standalone.
+- `volt-build testing format test` — **210/210 tests pass** (209 from before
+  + the new `CoreSerializeTest`).
+- `tidy` was **not** run (reserved for the very end of the whole issue).
+
+**Deliberately not done in 2a:** nothing here touches `Driver`, `TypeStore`,
+`UnitTypes`, `UnitCallees`, or `ScopeTable` — see Phase 2b below for what's
+left of the plan's original Phase 2 scope.
+
+## Phase 2b — next
+
+The remainder of the plan's original Phase 2, now that `Serialize.hpp` is
+proven:
+
+- `Sema::UnitCallees::CalleeEntry.Decl` (a raw `const Member*` into the
+  build-wide `TypeStore`) is **not** reflectable as-is — it needs the plan's
+  one hand-written two-phase fixup: serialize `(Owner NominalId, member
+  Symbol)`, re-resolve the pointer via a `TypeStore::MemberByDecl`-style
+  lookup in a second pass after `TypeStore` itself is loaded from its own
+  cache section.
+- `Sema::ScopeTable` (`Scopes`) must round-trip too — blind-spot reminder #1
+  below. It has no exotic pointer fields itself, so the generic path should
+  mostly reach it once its member types (`Scope`, `Binding`, `Capture`,
+  `BindingSite` — a `std::variant` of AST Ids, already handled) are reflected
+  aggregates; `UseIndex`'s `std::vector<const Binding*>` is the one field
+  that needs the same non-owning-pointer treatment as `CalleeEntry.Decl`
+  (store the `BindingSite` it points at + re-resolve after `Bindings` reload,
+  or simply recompute `UseIndex`/`UseCounts` from the reloaded `Scopes` +
+  `BindingSite`s rather than trying to serialize raw pointers at all).
+- `TypeStore`'s own arenas (`Types`, `Sigs`, `Layouts`) go through
+  `SerializeArena`/`DeserializeArena`; its `unordered_map` indexes (`ByName`,
+  `ByNodeKind`, `FunctionByName`) can either be serialized directly (keys are
+  `Symbol`, already handled) or rebuilt by replaying `DeclareType`/etc. in
+  original order — replay is probably simpler and self-documenting given the
+  `TypeStore` API already only exposes replay-shaped mutators.
+- Wire `Driver::CompileRefs`'s stdlib sub-path: on a frontend-cache hit,
+  deserialize straight into `Units`/`TypeStore`/`InterfaceRegistry`, skipping
+  `ParseOne`→seam→`RunSemaOne` for stdlib `SourceRef`s; on a miss, run the
+  existing pipeline unchanged, then serialize the result.
+- Respect blind-spot reminder #2: stdlib-cache loading must happen strictly
+  before any user file is lexed/parsed, so `StringInterner` order replays
+  identically before user symbols are interned on top.
+- On-disk layout per the plan: `$XDG_CACHE_HOME/volt/stdlib/
+  <FrontendCacheKey>/frontend.cache` (fallback `~/.cache/volt/...`), written
+  via write-to-`tmp.<pid>`-then-`rename()`. A missing/corrupt/version-
+  mismatched cache file is always a miss (recompute + `FLogger::Warn`), never
+  a crash — `Reader::Failed()` from Phase 2a is exactly the signal this
+  gates on.
+
+**Verify (per the original plan):** `tests/AstInvariant.cmake` passes
+identically cached vs. fresh; a new round-trip test asserting a cached
+stdlib build's `TypeStore`/`InterfaceRegistry` state is equivalent to a
+from-scratch build's (same `NominalId`/`Member` shapes, same `Deferred` bits
+per `SemaType.hpp`'s `UnitTypes::MarkDeferred`). This is still the
+highest-risk phase in the whole plan — go slow, land behind a review-gate
+flag first if it starts feeling shaky, per the plan's rollout note.
+
+## Phase 2 — original scope (superseded by the 2a/2b split above)
 
 Per the plan file's §"Frontend/Sema cache (what gets cached, and how)" and
 §"Phase 2 — Generic reflected serializer + frontend/sema cache (highest-risk
