@@ -14,10 +14,13 @@ fresh session can resume with no memory of this one.
 - [x] **Phase 0 — stdlib path resolution fix.** Done, verified.
 - [x] **Phase 1 — cache-key infrastructure (no cache consulted yet).** Done, verified.
 - [x] **Phase 2a — generic reflected Serialize/Deserialize core.** Done, verified. See below.
-- [ ] **Phase 2b — TypeStore/UnitTypes/UnitCallees/ScopeTable serialization +
-      Driver::CompileRefs wiring.** Next up — the higher-risk remainder of
-      Phase 2, deliberately split off 2a so the new serialization mechanism
-      itself was proven in isolation first.
+- [x] **Phase 2b — TypeStore/UnitCallees/ScopeTable/UnitTypes/InterfaceRegistry
+      cache serialization.** Done, verified. See below. Split further from the
+      plan's original Phase 2b scope: this slice proves every non-generic
+      structure round-trips in isolation; wiring it into `Driver::CompileRefs`
+      is now Phase 2c.
+- [ ] **Phase 2c — on-disk frontend.cache + Driver::CompileRefs wiring.**
+      Next up. See below for exactly what's left.
 - [ ] Phase 3 — native precompiled static-archive cache.
 - [ ] Phase 4 — shared-object artifact kind.
 - [ ] Phase 5 — CLI flags as shared option group.
@@ -295,32 +298,151 @@ Phase 1's `ComputeNativeCacheKey`.
 `UnitTypes`, `UnitCallees`, or `ScopeTable` — see Phase 2b below for what's
 left of the plan's original Phase 2 scope.
 
-## Phase 2b — next
+## Phase 2b — done
 
-The remainder of the plan's original Phase 2, now that `Serialize.hpp` is
-proven:
+The plan's four non-generic structures, each given a hand-written
+`SerializeCache(Meta::Writer&) const` / `[[nodiscard]] bool
+DeserializeCache(Meta::Reader&)` method pair (plus `InterfaceRegistry`, which
+the plan didn't call out as needing special handling but which does hold a
+derived `string_view` index that must not be persisted verbatim). Nothing here
+touches `Driver`/`CompileUnit`/on-disk files yet — still inert, tested
+infrastructure, same spirit as 2a. Every method needed `SEMA_EXPORT` added to
+its class (`TypeStore`, `UnitCallees`, `ScopeTable`, `UnitTypes` —
+`InterfaceRegistry` already had it) per `rules/shared-lib-exports.md`: these
+were header-only classes before, so no cross-`.so` symbol existed until an
+out-of-line method did.
 
-- `Sema::UnitCallees::CalleeEntry.Decl` (a raw `const Member*` into the
-  build-wide `TypeStore`) is **not** reflectable as-is — it needs the plan's
-  one hand-written two-phase fixup: serialize `(Owner NominalId, member
-  Symbol)`, re-resolve the pointer via a `TypeStore::MemberByDecl`-style
-  lookup in a second pass after `TypeStore` itself is loaded from its own
-  cache section.
-- `Sema::ScopeTable` (`Scopes`) must round-trip too — blind-spot reminder #1
-  below. It has no exotic pointer fields itself, so the generic path should
-  mostly reach it once its member types (`Scope`, `Binding`, `Capture`,
-  `BindingSite` — a `std::variant` of AST Ids, already handled) are reflected
-  aggregates; `UseIndex`'s `std::vector<const Binding*>` is the one field
-  that needs the same non-owning-pointer treatment as `CalleeEntry.Decl`
-  (store the `BindingSite` it points at + re-resolve after `Bindings` reload,
-  or simply recompute `UseIndex`/`UseCounts` from the reloaded `Scopes` +
-  `BindingSite`s rather than trying to serialize raw pointers at all).
-- `TypeStore`'s own arenas (`Types`, `Sigs`, `Layouts`) go through
-  `SerializeArena`/`DeserializeArena`; its `unordered_map` indexes (`ByName`,
-  `ByNodeKind`, `FunctionByName`) can either be serialized directly (keys are
-  `Symbol`, already handled) or rebuilt by replaying `DeclareType`/etc. in
-  original order — replay is probably simpler and self-documenting given the
-  `TypeStore` API already only exposes replay-shaped mutators.
+**What changed:**
+- `Core::Meta::Serialize.hpp`: added a `std::vector<bool>` overload pair. The
+  generic `vector<T>` overload binds `const T &Element` in its loop, which
+  cannot instantiate over `vector<bool>`'s bit-packed proxy references — this
+  surfaced immediately from `UnitTypes::Deferred`, a real field, not a
+  hypothetical.
+- `Sema::TypeStore` (`Layout/TypeStore.hpp` + new
+  `Private/Layout/TypeStoreSerialize.cpp`): `SerializeCache`/`DeserializeCache`
+  cover both arenas (`Types`, `Sigs`, `Layouts` via `SerializeArena`), the
+  store's own private `StringInterner` (via `SerializeInterner`), `ByName`/
+  `ByNodeKind`/`FunctionByName` (generic `unordered_map` — Symbol/NominalId
+  keys and values need no special handling once the interner and arenas
+  replay in the same order), `Functions`, `ExceptionRoot`, and `Modules` (a
+  `std::unordered_set<Symbol>`, serialized inline with a hand-rolled loop
+  rather than adding a generic `unordered_set` overload to Core for a single
+  call site).
+  - New `TypeStore::FindMemberByUnitDecl(Unit, DeclId) const` — the fixup key
+    `UnitCallees` needs. Scans `Types` then `Functions` for a `Member` whose
+    own `(Unit, Decl)` matches. Chosen over the plan's literal
+    `(Owner NominalId, member Symbol)` suggestion because `Member` already
+    carries `Unit` + `Decl` (its own declaring DeclId) as fields — those two
+    alone are exact and unique across the whole build, whether the member
+    lives on a `NominalType` or is a free function, with no need to also
+    track an owning `NominalId` next to every raw pointer.
+- `Sema::UnitCallees` (`Layout/CalleeMap.hpp` + new
+  `Private/Layout/CalleeMapSerialize.cpp`): `CalleeEntry::Decl` (`const
+  Member*`) is the plan's one hand-written two-phase fixup. `SerializeCache`
+  writes `(Unit, DeclId)` instead of the pointer, guarded by a `bHasDecl` flag
+  (an entry's `Decl` can legitimately be null — e.g. a primitive-operator
+  `Binary`/`Unary` that `MemberType` resolved to "no method, backend
+  instruction" per `rules/core-ast.md`). `DeserializeCache` leaves every
+  `Decl` null and stashes the `(ExprId key, Unit, DeclId)` triples in a new
+  private `PendingDecls` vector; a separate `FixupDecls(const TypeStore&)`
+  drains it by calling `FindMemberByUnitDecl` once the TypeStore this map's
+  Decls point into has itself finished loading. Every other `CalleeEntry`
+  field (`Result`, `Params`, `BlockParam`, `Bindings`, `Receiver`,
+  `bConstructs`) is a plain value, serialized field-by-field rather than
+  through the generic `Reflected` fallback (which cannot walk `CalleeEntry`
+  at all — `Decl` is a raw pointer with no `Serialize` overload, a compile
+  error by design, not an oversight).
+- `Sema::ScopeTable` (`Scope/ScopeTable.hpp` + new
+  `Private/Scope/ScopeTableSerialize.cpp`): the blind-spot-#1 structure.
+  `Scopes` (an `Arena<Scope, ScopeId>`) goes through `SerializeArena`
+  untouched — `Scope`/`Binding`/`Capture` are all reflected aggregates and
+  `BindingSite` (a `std::variant<StmtId,ParamId,DeclId,ExprId>`) is already a
+  generic leaf, so this needed zero new code beyond calling the existing
+  primitives. The one non-generic field is `UseIndex`
+  (`std::vector<const Binding*>`) — a raw pointer into a *different* Scope's
+  own `Bindings` map. Serialized per-slot as `(bHasEntry, Owner ScopeId, Name
+  Symbol)`; `DeserializeCache` resolves each slot only after `Scopes` itself
+  has been replayed, by looking up `Scopes.Get(Owner).Bindings.find(Name)` and
+  taking `&It->second` — safe because `std::unordered_map` node addresses are
+  stable across lookups (only `erase` invalidates them), and nothing erases
+  from a `Scope`'s `Bindings` after replay. `StmtScope`/`ExprScope`/
+  `ClosureCaptures`/`ClosureEscapes`/`UseCounts` are all plain generic
+  `vector`/`unordered_map` calls, no special-casing needed.
+- `Sema::UnitTypes` (`Layout/SemaType.hpp` + new
+  `Private/Layout/SemaTypeSerialize.cpp`): `Types` via `SerializeArena`;
+  `OfExpr`/`Deferred` (the `MarkDeferred` bitset core-ast.md calls out as
+  load-bearing) /`SiteTypes` via the generic primitives (this is what
+  exercised the new `vector<bool>` overload). `Dedup`
+  (`std::map<std::vector<uint32_t>, SemaTypeId>`) is **not serialized at
+  all** — it exists purely to make `Intern()` an O(1) lookup, and every key is
+  mechanically recomputable from the now-loaded `Types` arena (whose entries
+  are never duplicates, by `Intern()`'s own invariant), so
+  `DeserializeCache` just replays the same key-construction loop `Intern()`
+  uses and rebuilds the map directly — one fewer thing to persist and
+  version.
+- `Sema::InterfaceRegistry` (`Link/InterfaceRegistry.hpp` +
+  existing `Private/Link/InterfaceRegistry.cpp`): `ByName` is a
+  `std::unordered_map<string_view, const ExportedDecl*>` view into `Decls`'
+  own deque storage — never serialized. `SerializeCache` writes `Decls` as a
+  plain count + `ExportedDecl` (a reflected aggregate: `std::string`,
+  `DeclKind` enum, `uint32_t`, `DeclId`); `DeserializeCache` replays each
+  entry through the existing public `Publish()`, reproducing `ByName`
+  identically via the same "last publication wins" rule the live pipeline
+  already relies on.
+- New `tests/SemaSerializeTest.cpp` (registered in `cmake/VoltTests.cmake`,
+  same standalone-executable shape as `CoreSerializeTest`): five round-trip
+  checks —
+  1. `TypeStore` — declares a primitive, a generic type with a member, a
+     module and a free function, sets an `ExceptionRoot`; verifies every
+     `NominalId`/lookup/`FindMemberByUnitDecl` survives.
+  2. `UnitCallees` fixup — one resolved `CalleeEntry` and one deliberately
+     null one, round-tripped through *both* a fresh `TypeStore` and a fresh
+     `UnitCallees`, then `FixupDecls` against the *restored* store (not the
+     original, now-conceptually-stale one) — proves the fixup key is enough
+     on its own, with no leftover dependency on the original objects.
+  3. `ScopeTable` — a scope, a binding, a bound use; verifies `BindingOf`
+     resolves a live pointer and `UseCountOf` survives.
+  4. `UnitTypes` — an interned `SemaType`, a deferred expression, a site
+     type; verifies the Dedup rebuild makes re-`Intern()` return the
+     *original* `SemaTypeId` rather than minting a duplicate (the actual
+     property Dedup exists for).
+  5. `InterfaceRegistry` — two published decls; verifies `Lookup` resolves
+     after replay.
+
+**Verified:**
+- `volt-build testing format test` — **211/211 tests pass** (210 from before
+  + the new `SemaSerializeTest`).
+- `volt-build` (plain, non-testing) — clean, no warnings, confirms the new
+  `SEMA_EXPORT` additions don't regress the ordinary build.
+- `tidy` was **not** run (reserved for the very end of the whole issue, per
+  auto-memory `feedback-tidy-heavy.md`).
+
+**Deliberately not done in 2b:** no on-disk cache file, no `Driver`/
+`CompileUnit` changes, no consultation of `FrontendCacheKey` as an actual
+cache — see Phase 2c below.
+
+## Phase 2c — next
+
+Phase 2b proved every non-generic structure's cache serializer in isolation
+(`TypeStore`, `UnitCallees` + its `Decl` fixup, `ScopeTable` + its `UseIndex`
+fixup, `UnitTypes`, `InterfaceRegistry`). What's left is the part that
+actually touches the live compiler:
+
+- **`Frontend::AstContext` (+ each `CompileUnit`'s own `StringInterner`)
+  itself has no `SerializeCache`/`DeserializeCache` yet.** This is the one
+  major piece Phase 2b did not cover — it's the AST arenas
+  (`Expr`/`Stmt`/`Decl`/`Type`/`Param`) plus `TopDecls`, and every
+  `ExprNode`/`StmtNode`/`DeclNode`/`TypeNode` alternative should reach the
+  generic `Reflected` path already (they're what `AstPrinter`/`ForEachField`
+  already walk), but this has not actually been tried yet — do that first,
+  with its own round-trip test, before wiring anything into `Driver`.
+  `CompileUnit` itself is `FNonMovable`/`FNonCopyable` and caches `&Interner`
+  inside `Ast` at construction (`Driver.hpp`), so a deserialized unit can't be
+  default-constructed-then-filled the way a fresh `TypeStore`/`ScopeTable` is
+  — it needs to be built via its real constructor first (which requires
+  `File`/`Path`/`Module`/`bComponent`, i.e. those still come from the
+  `SourceRef` list, cache or no cache), then have `Interner` and `Ast`
+  populated in place.
 - Wire `Driver::CompileRefs`'s stdlib sub-path: on a frontend-cache hit,
   deserialize straight into `Units`/`TypeStore`/`InterfaceRegistry`, skipping
   `ParseOne`→seam→`RunSemaOne` for stdlib `SourceRef`s; on a miss, run the
