@@ -340,6 +340,21 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitAddress ( Frontend::Ex
                     return It->second;
                 }
 
+                if ( Bound->Owner.IsValid() and
+                     ( Frame.Unit->Scopes->Get( Bound->Owner ).Kind == Sema::EScopeKind::Unit or
+                       Frame.Unit->Scopes->Get( Bound->Owner ).Kind == static_cast<Sema::EScopeKind>( 0 ) ) )
+                {
+                    const Sema::LayoutId Shape = LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Bound->Site ) );
+                    llvm::Type *Slot           = TypeOfLayout( Shape );
+                    if ( Slot == nullptr )
+                    {
+                        static_cast<void>( Fail( "llvm: unit global '" + std::string( Frame.Unit->Ast->Text( Bound->Name ) ) +
+                                                 "' has no resolved layout" ) );
+                        return nullptr;
+                    }
+                    return SlotFor( Bound->Site, Slot, Frame.Unit->Ast->Text( Bound->Name ) );
+                }
+
                 // An implicit local (`buf = expr`, no `: Type`) has no
                 // declaring *statement* to open its storage the way a
                 // LocalDecl does, so the occurrence ScopeResolver recorded as
