@@ -37,6 +37,8 @@ namespace Frontend
                 return "none";
             case EAccessor::Getter:
                 return "getter";
+            case EAccessor::Setter:
+                return "setter";
             case EAccessor::Property:
                 return "property";
             }
