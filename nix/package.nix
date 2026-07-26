@@ -37,7 +37,7 @@ gccStdenv.mkDerivation {
 
   installPhase = ''
     mkdir -p $out/bin $out/lib
-    cp bin/Volt $out/bin/
+    cp bin/volt $out/bin/
     cp lib/*.so $out/lib 2>/dev/null || true
   '';
 
