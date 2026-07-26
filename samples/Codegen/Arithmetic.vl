@@ -1,4 +1,7 @@
 # Loops, compound assignment and a free function call, all in one exit code.
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
 def add( a : Int32, b : Int32 ) -> Int32
   a + b
 end
@@ -12,3 +15,5 @@ def main -> Int32
   end
   add( total, 2 ) - 50
 end
+
+libc_exit( main() )
