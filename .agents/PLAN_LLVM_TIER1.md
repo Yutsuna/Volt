@@ -487,9 +487,11 @@ phases 8 + 9, same as every phase before this one.
 
 ## Phase 8 — Optimise, emit, link
 
-**Status: implemented, builds clean, 193/193 green — but end-to-end is blocked on
-one open Sema bug found while first exercising it (see "Known-open" below). Not
-yet committed.**
+**Status: implemented, builds clean, 193/193 green. The inherited-default-method
+gap this section used to call "Known-open" is now closed. End-to-end is blocked
+on one further, deeper Sema gap found while pushing the harness past that point
+— see "Known-open, not fixed here" below, which now names the real remaining
+blocker. Not yet committed.**
 
 `Finalize()` now does, in order:
 
@@ -579,56 +581,188 @@ in this session's own Phase 8 code, all now fixed and covered by the existing
    *whole* stdlib, not just what a user program reaches — can never finish for
    any build, since `Exception` (stdlib-core, always present) always fails.
 
-Also added, directly in `BackendLLVM` (not a Sema fix): `LlvmBackend::State::IsMixinOwner`
-and an explicit refusal in `EmitResolvedCall`. A `mixin`'s own concrete
-(non-`abstract`) method — `Arithmetic#min`/`#max` — is generic over `self` in
+Also added, directly in `BackendLLVM` (not a Sema fix): `LlvmBackend::State::IsMixinOwner`.
+A `mixin`'s own concrete (non-`abstract`) method — `Arithmetic#min`/`#max`,
+`Bool#<=>` is not one of these, it is Bool's own — is generic over `self` in
 exactly the sense a type parameter is (`other`'s type means "whichever type
 includes me"), but declares zero `<T>`s of its own, so the existing
 generic-owner exclusion (`Params.Size() > 0`) never caught it. `DeclareAll`/`DefineAll`
-now skip a mixin's own body outright (`IsMixinOwner`, checked via the
-declaring unit's raw AST node kind, since `Struct`/`Class`/`Mixin`/`Enum`
-collapse to one `NominalType` shape at bind time and carry no "is this a
-mixin" bit). A call site that resolves to a member `Owner` does not itself own
-(`x.min( y )` on a concrete `Int32` — the callee's `Decl` still names
-`Arithmetic`'s own `Member`) is refused **loudly, by name**, in
-`EmitResolvedCall`, rather than being allowed to emit a call to a symbol
-nothing ever defines (an "undefined symbol" at link time, further from the
-actual cause). This is *not* a full fix — see "Known-open" below.
+skip a mixin's own body outright (`IsMixinOwner`, checked via the declaring
+unit's raw AST node kind, since `Struct`/`Class`/`Mixin`/`Enum` collapse to one
+`NominalType` shape at bind time and carry no "is this a mixin" bit).
 
-### Known-open, not fixed here
+### Inherited-default-method monomorphisation — implemented this session
 
-**Calling an inherited default method has no instantiation path.** The
-`IsMixinOwner` refusal above stops the crash and names the gap, but the real
-fix — routing an inherited-member call through the *same* `Monomorphizer`/
-`Sema::ReinstantiateBody` machinery Phase 7 already built for generics (since
-"a mixin's `self` is unresolved until an including type is the receiver" is
-structurally identical to "a generic's `T` is unresolved until a call site
-fixes it" — `ReinstantiateBody`'s `Context.SelfType = Owner; Context.SelfValue = Self;`
-already looks general enough to accept a concrete, non-generic `Owner` with no
-code change) — was not implemented. It needs: (a) `LookupMonoMember`
-(`MonoEmitter.cpp`) to search inherited members via `TypeStore::LookupMember`
-instead of only `Store.Type( Owner ).Members`; (b) `EmitResolvedCall`'s
-mono-enqueue condition (currently `bGenericOwner or Entry.Decl->OwnGenerics > 0`,
-gated on `not FlatArgs.empty()`) to also enqueue when the resolved `Decl` is
-not among `Owner`'s own `Members` — the `bOwnMember` check already added for
-the refusal path is exactly the signal needed, so wire it to `Mono.Enqueue`
-instead of `Fail` once (a) is done. Estimated small once attempted, but
-untried — flagged rather than guessed at, per this project's own standard.
+The previous revision of this section left this open; it is now closed.
+`x.min( y )` on a concrete `Int32` resolves to `Arithmetic`'s own `Member`
+(`Owner` ≠ the type that declares it), which used to be refused outright. It
+is now routed through the same `Monomorphizer`/`Sema::ReinstantiateBody`
+machinery Phase 7 built for generics — "a mixin's `self` is unresolved until
+an including type is the receiver" is structurally identical to "a generic's
+`T` is unresolved until a call site fixes it", and `ReinstantiateBody`'s
+`Context.SelfType = Owner; Context.SelfValue = Self;` needed no change to
+accept a concrete, non-generic `Owner`. Two changes, both small:
 
-**Still not proven to run end-to-end.** The last blocker actually hit while
-building a throwaway harness sample (`samples/Sema/Assignability.vl`, chosen
-for being small and already a passing `Golden` fixture) was exactly the
-inherited-mixin-default gap above (`Exception`'s and `Arithmetic`'s own bodies
-are unconditionally walked by `DeclareAll`/`DefineAll` since they're part of
-the always-loaded stdlib, regardless of whether the sample calls them) — i.e.
-the harness got past every other stage (verify, optimise, IR emission) and
-was blocked specifically here. **No sample has yet produced a linked,
-executed binary.** `--emit ir`/`--emit obj` are untested beyond "the code
-compiles"; `Linker.cpp`'s `cc`/mold/lld invocation has never actually run.
-The throwaway harness (`llvm_smoke.cpp`) lived only in the scratchpad and was
-not committed — Phase 9's `BuildCommand` + a `samples/Codegen/` corpus is the
-right place to make this a permanent, repeatable test, per the plan's own
-Verification section.
+- `MonoEmitter.cpp`'s `LookupMonoMember` now calls `TypeStore::LookupMember`
+  (own body → mixins → superclass, transitively) instead of scanning only
+  `Store.Type( Owner ).Members` — the one-line reason the old refusal existed
+  at all, since that scan could never find an inherited default.
+- `ExprEmitter.cpp`'s `EmitResolvedCall` still computes `bOwnMember` (needed
+  for `FunctionFor`'s mangling either way — `MangleFunction` keys on the
+  *receiver* `Owner`, not the declaring mixin, so `Int32.min`/`Float64.min`
+  already mangle to distinct symbols sharing one AST body), but now enqueues a
+  `MonoRequest{ Owner, Entry.Decl->Name, FlatArgs }` whenever `Owner.IsValid()
+  and not bOwnMember`, unconditionally on `FlatArgs` being non-empty (a
+  concrete, non-generic receiver calling a non-generic mixin default has an
+  empty `FlatArgs` — `Owner` alone is enough to key the request, unlike the
+  pre-existing generic-owner branch, which still gates on `not
+  FlatArgs.empty()`). No `Fail` path remains for this case.
+
+Verified via a throwaway harness (see below): `Bool#<=>`, `Char#<=>`
+(`self < other` / `self > other`, both resolving through `Comparable`'s
+included operators onto `Arithmetic`-style bodies) now emit and define
+correctly where they previously refused.
+
+### A second real bug, found immediately after: `EmitTernary` and aggregates
+
+With the refusal gone, the harness ran further and hit an **LLVM assertion**
+(`PHINode::setIncomingValue`: "All operands to PHI node must be the same type
+as the PHI node!"), in `Bool#to_string`'s `self ? "true" : "false"`. Root
+cause: `EmitTernary` (`ExprEmitter.cpp`) built its merge-block `PHINode` from
+`TypeOfExpr( Id )` — the *value* type, a `String` struct — but this file's own
+stated ABI convention is that **an aggregate expression evaluates to a `ptr`
+at its storage**, never to the struct value itself, so `Then`/`Else` (both
+`String` literals) were already pointers. The PHI's declared type and its
+incoming values disagreed by construction. Fixed by building the PHI's type
+from `ParamTypeOfLayout( LayoutOfExpr( Id ) )` instead — the same
+struct-to-`ptr` conversion `FunctionTypeOf` already uses for by-pointer
+parameters — with the old `TypeOfExpr`-via-`Then->getType()` fallback kept
+only for when the layout is unavailable. This was a **crash on well-typed
+source**, not a diagnosable refusal, so it is also a genuine severity
+regression relative to the "refuse loudly, never guess" standard the rest of
+this codebase holds itself to; worth calling out explicitly since it slipped
+past `AstInvariant`, `ZeroHardcode`, and all 193 existing tests (none of which
+exercise a ternary over a non-primitive type).
+
+### A third bug, in the stdlib itself: `Exception`'s `setter`
+
+`source/Lib/Primitives/Exception.vl` declared `setter max_frames : Int32`.
+`ParseFieldOrMember` (`Frontend/Private/Parser/ParseDecl.cpp`) only recognises
+`getter`/`property` as accessor-prefix keywords — `setter` was never one, and
+`EAccessor` (`Frontend/Public/Volt/Frontend/AST/Node.hpp`) has no `Setter`
+value; nothing downstream (Sema, Backend) reads `Field::Accessor` at all, it
+is inert metadata today. Consequently `setter` itself was consumed as the
+*field's name*, leaving `max_frames : Int32` as unparsed trailing tokens the
+field-parser silently dropped — the field that reached `TypeStore` was named
+`setter`, with an invalid `DeclType`. This is exactly what
+`EnsureStructLayout` reported as `"aggregate field 'setter' has no resolved
+layout"` — correctly, on genuinely malformed input. `max_frames` is read only
+via `@max_frames` inside `Exception` itself, never through a generated
+accessor call anywhere in the tree, so the fix is the stdlib fix: dropped the
+keyword, `max_frames : Int32` is a plain field. **Not a compiler bug** — a
+`setter` keyword was never implemented, and this line predates that fact
+being exercised by anything that reads memory layouts.
+
+### Known-open, not fixed here: implicit (bare) local declarations have no storage identity
+
+Pushing the harness past all three fixes above surfaced a fourth, and this one
+is **not fixed this session** — it is architecturally larger than the other
+three, spans Sema (not just `BackendLLVM`), and was only diagnosed, not
+attempted, given its blast radius.
+
+**The finding.** `Char#to_string`:
+```
+def to_string -> String
+  buf = Pointer<UInt8>.malloc( 2_u64 )
+  *( buf ) = self
+  ...
+```
+`buf = Pointer<UInt8>.malloc( 2_u64 )` — no `: Type` — parses to a plain
+`Assign` targeting a bare `Identifier`, **not** a `LocalDecl`
+(`Frontend::Parser::ParseExprOrLocalStatement` only builds a `LocalDecl` for
+`name : Type [= init]`; a colon-less `name = expr` cannot be told apart from a
+reassignment at parse time, since that needs scope information the parser
+does not have). `Sema::ScopeResolver` (order 10) only ever declares a
+`BindingSite` for an explicit `LocalDecl`'s `StmtId` (or a `Param`); it has no
+case for "an `Assign` target that does not already resolve", so `buf`'s first
+occurrence is walked as an ordinary read, fails `Resolve`, and is counted as
+merely `UnresolvedIdentifiers` — "not an error: may be a type name, a static
+method, a member" reads the comment, and for `buf` none of those is true, but
+ScopeResolver has no way to tell.
+
+Type-checking still succeeds, because `TypeChecker`'s `Assign` case
+(`ExprInferencer.cpp`) has its **own**, entirely separate fallback:
+`TypeCheckerContext::FindLocal`/`WriteLocal` first try
+`Ctx.Scopes.BindingOf( Use )` (works for a real `LocalDecl`/`Param`), and when
+that is null — as here — fall back to `Locals[Name]`, a flat `Symbol →
+SemaTypeId` map scoped only to the enclosing method, with **no stable
+declaration site** (no `StmtId`/`ParamId`/`DeclId`, and `BindingSite`'s
+variant has no fourth arm to hold one anyway). `Values.SetSiteType` is only
+called in the `Bound`-found branch, so `buf` never enters `UnitTypes` by
+`BindingSite` either — only by-`ExprId` typing, which `AstInvariant`'s
+per-expression contract is satisfied by, so nothing upstream ever reports
+this as wrong.
+
+`BackendLLVM` has exactly one way to find a local's storage:
+`Frame.Unit->Scopes->BindingOf( Id )`, i.e. `ScopeTable`'s published table —
+and for `buf`, that is null on every one of its four occurrences (confirmed
+by instrumenting `ScopeResolver` and `EmitAddress` for one run, then reverted
+— no debug code remains in the tree). `EmitAddress` reports "an identifier
+reached codegen with no scope binding" and stops, correctly, per its own
+stated contract ("nothing here decides a type... a middle-end whose own
+invariants say it cannot happen is worth a loud report, never a repair") —
+this is the contract working as designed, not a new bug in `ExprEmitter.cpp`.
+
+**Why this is the real blocker, not a corner case.** Bare `name = expr` (no
+`: Type`) is the dominant local-variable style across `source/Lib/` and
+`samples/` — `Array.vl`'s `new_cap = ...`, `String.vl`'s `min_size = ...`,
+`Exception.vl`'s `effective_max = ...`, and so on. A typed `LocalDecl` is the
+exception, not the rule. So this is not "one more stdlib method to fix" —
+it is the reason **no nontrivial Volt program can reach a linked binary yet**,
+independent of anything else in this plan.
+
+**What a fix needs, sized but not attempted:**
+1. `Sema::BindingSite` (`ScopeTable.hpp`) needs a fourth variant arm —
+   `Frontend::ExprId` — to hold the first-occurrence's Target as a stable
+   site, since neither a `StmtId` nor a `ParamId` names this declaration
+   uniquely (a statement can contain more than one such Assign in principle,
+   e.g. nested inside a call argument).
+2. Every `std::visit`/`std::get_if` over `BindingSite` needs the new arm:
+   `UnusedChecker.cpp`'s `LocOfSite`, and anywhere `.index()` is read
+   positionally rather than through `std::visit`.
+3. `ScopeResolver::WalkExpr` needs an `Assign` case (currently absent — it
+   falls through to the generic `WalkFields`, which is exactly why the target
+   Identifier is walked as an ordinary read): on a plain `=` (not a compound
+   op — `AssignLowering`, order 24, runs after ScopeResolver and only handles
+   `+=`-style anyway) whose `Target` is a bare `Identifier` that does not
+   already `Resolve` in `Current`, declare it — `BindingSite{ Node.Target }` —
+   instead of falling through, and self-bind that first occurrence too.
+4. `TypeChecker`'s `WriteLocal`/`FindLocal` should then find a `Bound->Site`
+   on the very first call, and the `Locals[Name]` name-only fallback becomes
+   dead code for this path (kept for whatever case, if any, still needs it —
+   worth re-auditing once (3) lands, not assumed).
+5. `BackendLLVM`'s `EmitStmt`'s `Assign` handling needs to actually allocate a
+   slot (`SlotFor`) the first time a `BindingSite` it has not seen is written,
+   the same way `LocalDecl` already does — this repo has not been read closely
+   enough this session to know whether that already falls out for free once
+   (1)–(4) exist, or needs its own change; flagged, not guessed at.
+
+This is real Sema surface, not a `BackendLLVM`-only fix, and is sized larger
+than anything else attempted in this phase — it was diagnosed carefully
+(traced with temporary instrumentation in `ScopeResolver.cpp`/`ExprEmitter.cpp`,
+confirmed root cause, then **fully reverted**, no debug code left behind) but
+deliberately not attempted blind, given how many call sites `BindingSite`
+already has.
+
+**Still not proven to run end-to-end.** The harness now gets past inherited
+mixin defaults and past the ternary/aggregate PHI bug, and is blocked here
+instead — further than either prior session got. No sample has yet produced a
+linked, executed binary. `--emit ir`/`--emit obj` are exercised only as far as
+this blocker allows; `Linker.cpp`'s `cc`/mold/lld invocation has still never
+actually run to completion on real output. The throwaway harness
+(`llvm_smoke.cpp`) lives only in the scratchpad, not the repo; Phase 9's
+`BuildCommand` + a `samples/Codegen/` corpus remains the right place to make
+this permanent and repeatable, per the plan's own Verification section.
 
 ### Files touched this phase
 
@@ -637,29 +771,32 @@ Verification section.
 - `source/Volt/Backend/BackendLLVM/Public/Volt/BackendLLVM/LlvmEmitter.hpp` (`EmitOptions`/`EEmitStage` moved in, `SetOptions` added)
 - `source/Volt/Backend/BackendLLVM/Private/LlvmState.hpp` (new `State` method declarations; `SignatureLayoutOf`, `IsMixinOwner`, the Phase 8 group)
 - `source/Volt/Backend/BackendLLVM/Private/LlvmEmitter.cpp` (`Finalize()` rewritten; `SignatureLayoutOf`, `IsMixinOwner`; `DeclareAll`/`DefineAll` skip mixin owners)
-- `source/Volt/Backend/BackendLLVM/Private/ExprEmitter.cpp` (`EmitResolvedCall`'s inherited-member refusal)
+- `source/Volt/Backend/BackendLLVM/Private/ExprEmitter.cpp` (`EmitResolvedCall` now enqueues an inherited-default `MonoRequest` instead of refusing; `EmitTernary`'s PHI type fixed to `ParamTypeOfLayout`)
+- `source/Volt/Backend/BackendLLVM/Private/MonoEmitter.cpp` (`LookupMonoMember` now searches inherited members via `TypeStore::LookupMember`)
 - `source/Volt/Sema/Public/Volt/Sema/Layout/ClosureFrame.hpp` (`SEMA_EXPORT`)
 - `source/Volt/Sema/Public/Volt/Sema/Layout/TypeBinder.hpp` / `Private/Layout/TypeBinder.cpp` (new `ResolveStructLayouts` phase)
 - `source/Volt/Driver/Private/Driver.cpp` (`LoadStdLib` sort; calls `ResolveStructLayouts`)
+- `source/Lib/Primitives/Exception.vl` (dropped the unimplemented `setter` keyword)
 
 State: `volt-build llvm debug test` clean under `-Werror`, 193/193 green,
-throughout every fix above. `volt-build llvm tidy` **not run to completion this
-session** (the last invocation was interrupted) — run it before considering
-this phase closed. `graphify update .` **not run this session** — do it before
-closing, per `rules/graphify.md`. Nothing committed — this is all working-tree
-state, per `rules/` / memory ("no autonomous commits").
+throughout every fix above; `volt-build format` run, no changes beyond
+formatting noise already tracked. `volt-build llvm tidy` **still not run to
+completion** — run it before considering this phase closed. `graphify update .`
+**not run this session** — do it before closing, per `rules/graphify.md`.
+Nothing committed — this is all working-tree state, per `rules/` / memory ("no
+autonomous commits").
 
 ### Next up
 
-1. Run `volt-build llvm tidy` to completion and fix anything beyond the
+1. Design and implement the implicit-local `BindingSite` fix above (the real
+   blocker now) — likely its own focused session given the number of call
+   sites `BindingSite` already touches.
+2. Run `volt-build llvm tidy` to completion and fix anything beyond the
    pre-existing `EmitTernary`/`EmitBinary` clang-analyzer false positive noted
    in phases 6–7.
-2. Implement the inherited-default-method monomorphisation path above — this
-   is very likely required before *any* real program can reach a linked
-   binary, since the always-loaded stdlib itself exercises it.
 3. Get one sample all the way through `Ir` → `Object` → `Link` → executed,
    confirming exit code/stdout — the acceptance test this plan has deferred
-   since Phase 4.
+   since Phase 4. Blocked on (1).
 4. `graphify update .`.
 5. Phase 9 (`volt build` CLI): this is what turns the throwaway harness into a
    real, permanent, repeatable path (`tests/LlvmIr.cmake`, `tests/LlvmRun.cmake`,
