@@ -2,6 +2,7 @@
 
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/Diagnostic.hpp"
+#include "Volt/Core/Support/ContentHash.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
@@ -31,18 +32,25 @@ namespace
     return Path.size() >= Suffix.size() and Path.substr( Path.size() - Suffix.size() ) == Suffix;
 }
 
-// Where the running `volt` binary itself lives, so stdlib discovery does not
-// depend on the caller's CWD. Linux-only (`/proc/self/exe`) since that is the
-// only platform this toolchain currently targets (rules/cpp-style.md).
-[[nodiscard]] fs::path ExecutableDir ()
+// The running `volt` binary's own path. Linux-only (`/proc/self/exe`) since
+// that is the only platform this toolchain currently targets (rules/cpp-style.md).
+[[nodiscard]] fs::path ExecutablePath ()
 {
     std::error_code Ec;
-    const fs::path Exe = fs::read_symlink( "/proc/self/exe", Ec );
+    fs::path Exe = fs::read_symlink( "/proc/self/exe", Ec );
     if ( Ec )
     {
         return {};
     }
-    return Exe.parent_path();
+    return Exe;
+}
+
+// Where the running `volt` binary itself lives, so stdlib discovery does not
+// depend on the caller's CWD.
+[[nodiscard]] fs::path ExecutableDir ()
+{
+    const fs::path Exe = ExecutablePath();
+    return Exe.empty() ? fs::path{} : Exe.parent_path();
 }
 
 // Resolves `source/Lib` independent of CWD, in priority order:
@@ -86,7 +94,97 @@ namespace
     return Ext == Volt::Driver::WellKnown::SourceExt or Ext == Volt::Driver::WellKnown::ComponentExt;
 }
 
+// Every stdlib source file under LibDir, sorted by path. Load-bearing order
+// (see LoadStdLib's comment on TypeBinder) — the one walk both LoadStdLib and
+// the frontend cache key must agree on, so they never see a different stdlib.
+[[nodiscard]] std::vector<fs::path> CollectSortedStdlibFiles ( const fs::path &LibDir )
+{
+    std::vector<fs::path> Files;
+    std::error_code Ec;
+    if ( not fs::is_directory( LibDir, Ec ) )
+    {
+        return Files;
+    }
+    for ( const fs::directory_entry &It : fs::recursive_directory_iterator( LibDir, Ec ) )
+    {
+        if ( It.is_regular_file() and IsSourceFile( It.path() ) )
+        {
+            Files.push_back( It.path() );
+        }
+    }
+    std::ranges::sort( Files );
+    return Files;
+}
+
+// Conservative MVP fingerprint for `FrontendCacheKey`'s compiler-identity
+// term: the running binary's size + mtime. Any compiler rebuild invalidates
+// every stdlib cache — safe, if coarser than hashing just the AST/token/pass
+// manifests (a refinement left for later, per the plan file).
+[[nodiscard]] std::uint64_t CompilerBuildFingerprint ()
+{
+    const fs::path Exe = ExecutablePath();
+    if ( Exe.empty() )
+    {
+        return 0;
+    }
+
+    std::error_code Ec;
+    const std::uintmax_t Size = fs::file_size( Exe, Ec );
+    if ( Ec )
+    {
+        return 0;
+    }
+    const fs::file_time_type MTime = fs::last_write_time( Exe, Ec );
+    if ( Ec )
+    {
+        return 0;
+    }
+
+    std::uint64_t State = Volt::Core::FnvOffsetBasis;
+    State               = Volt::Core::CombineHash( State, static_cast<std::uint64_t>( Size ) );
+    State               = Volt::Core::CombineHash( State, static_cast<std::uint64_t>( MTime.time_since_epoch().count() ) );
+    return State;
+}
+
+// FrontendCacheKey = Hash(CompilerBuildFingerprint | sorted(source/Lib/** path+content))
+// (.agents/PROGRESS-issue-61.md, Phase 1). Nothing consults this as a cache
+// yet — this phase only has to prove the key is deterministic and
+// change-sensitive in isolation.
+[[nodiscard]] std::uint64_t ComputeFrontendCacheKey ()
+{
+    const std::uint64_t Seed          = Volt::Core::CombineHash( Volt::Core::FnvOffsetBasis, CompilerBuildFingerprint() );
+    const std::vector<fs::path> Files = CollectSortedStdlibFiles( ResolveStdlibDir() );
+    return Volt::Core::HashFileTree( Files, Seed ).value_or( Seed );
+}
+
 } // namespace
+
+Volt::Driver::Driver::Driver () : FrontendKey( ComputeFrontendCacheKey() )
+{
+    // A synthetic source so file-less driver diagnostics (unreadable file,
+    // dependency cycle) still resolve to a valid FileId when rendered —
+    // SourceManager lookups are not bounds-checked.
+    DriverFile = Sources.AddFile( "<driver>", std::string{} );
+
+    // Not logged here: FLogger's default MinLevel is Debug (prints
+    // unconditionally, Logger.cpp), and no --verbose/quiet gate exists yet
+    // (that lands with the CLI flags in Phase 5) — every `volt parse`/`check`
+    // constructs a Driver, and Golden tests diff that stdout byte-for-byte.
+}
+
+std::uint64_t Volt::Driver::ComputeNativeCacheKey ( std::uint64_t FrontendKey,
+                                                    std::string_view TargetTriple,
+                                                    std::string_view OptLevel,
+                                                    std::string_view ArtifactKind,
+                                                    bool bLto )
+{
+    std::uint64_t State = Core::CombineHash( Core::FnvOffsetBasis, FrontendKey );
+    State               = Core::CombineHash( State, TargetTriple );
+    State               = Core::CombineHash( State, OptLevel );
+    State               = Core::CombineHash( State, ArtifactKind );
+    State               = Core::CombineHash( State, static_cast<std::uint64_t>( bLto ? 1 : 0 ) );
+    return State;
+}
 
 std::optional<fs::path> Volt::Driver::DiscoverManifest ( const fs::path &InPath )
 {
@@ -295,23 +393,6 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileRefs ( const std::vecto
 
 void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
 {
-    const fs::path LibDir = ResolveStdlibDir();
-    std::error_code Ec;
-    if ( not fs::is_directory( LibDir, Ec ) )
-    {
-        return;
-    }
-
-    const std::size_t Start = Refs.size();
-    for ( const fs::directory_entry &It : fs::recursive_directory_iterator( LibDir, Ec ) )
-    {
-        if ( It.is_regular_file() and IsSourceFile( It.path() ) )
-        {
-            Refs.push_back(
-                SourceRef{ .Path = It.path().string(), .Module = "Core", .bComponent = IsComponentPath( It.path().string() ) } );
-        }
-    }
-
     // `recursive_directory_iterator` follows readdir() order, which is
     // filesystem-dependent, not alphabetical. TypeBinder's Phase A binds each
     // file's layout in the same pass it declares the type (TypeBinder.cpp,
@@ -319,11 +400,14 @@ void Volt::Driver::Driver::LoadStdLib ( std::vector<SourceRef> &Refs )
     // walk (e.g. `String#data : Pointer<UInt8>` when "Pointer.vl" has not
     // been bound yet) silently resolves to an invalid LayoutId — a bug no
     // existing test caught, since TypeChecker never reads Layout and only
-    // codegen (BackendLLVM) does. A stable, deterministic order is the fix:
-    // sorted by path, `Primitives/Pointer.vl` binds before
-    // `Primitives/String.vl` on every filesystem.
-    std::sort( Refs.begin() + static_cast<std::ptrdiff_t>( Start ), Refs.end(),
-               [] ( const SourceRef &A, const SourceRef &B ) { return A.Path < B.Path; } );
+    // codegen (BackendLLVM) does. CollectSortedStdlibFiles fixes the order
+    // (sorted by path, `Primitives/Pointer.vl` binds before
+    // `Primitives/String.vl` on every filesystem) — the same walk the
+    // frontend cache key hashes, so the two never disagree on "the stdlib".
+    for ( const fs::path &Path : CollectSortedStdlibFiles( ResolveStdlibDir() ) )
+    {
+        Refs.push_back( SourceRef{ .Path = Path.string(), .Module = "Core", .bComponent = IsComponentPath( Path.string() ) } );
+    }
 }
 
 Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vector<std::string> &Paths )

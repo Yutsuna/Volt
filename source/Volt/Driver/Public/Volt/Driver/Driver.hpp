@@ -21,6 +21,7 @@
 #include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace Volt
@@ -95,13 +96,7 @@ namespace Driver
 
     public:
 
-        Driver ()
-        {
-            // A synthetic source so file-less driver diagnostics (unreadable
-            // file, dependency cycle) still resolve to a valid FileId when
-            // rendered — SourceManager lookups are not bounds-checked.
-            DriverFile = Sources.AddFile( "<driver>", std::string{} );
-        }
+        Driver ();
 
         // Compile a flat list of files (single file, or an explicit set).
         CompileResult CompileFiles ( const std::vector<std::string> &Paths );
@@ -121,6 +116,15 @@ namespace Driver
         [[nodiscard]] const CircuitGraph &Graph () const
         {
             return Circuit;
+        }
+
+        // Hash(CompilerBuildFingerprint | sorted(source/Lib/** path+content)),
+        // computed once at construction. Not yet consulted as a cache key
+        // (.agents/PROGRESS-issue-61.md, Phase 1) — exposed so callers (e.g.
+        // a future native-artifact cache) can fold it into their own key.
+        [[nodiscard]] std::uint64_t FrontendCacheKey () const
+        {
+            return FrontendKey;
         }
 
         // The cross-unit interfaces published between the parse and sema
@@ -250,7 +254,21 @@ namespace Driver
         Sema::TypeStore Types;
         std::deque<CompileUnit> Units;
         Core::FileId DriverFile;
+        std::uint64_t FrontendKey = 0;
     };
+
+    // NativeCacheKey = FrontendCacheKey | TargetTriple | OptLevel | ArtifactKind | LTO
+    // (.agents/PROGRESS-issue-61.md, Phase 1). Free function, not a Driver
+    // method: the inputs (target triple, opt level, artifact kind, LTO) are
+    // backend/CLI concerns the Driver itself doesn't know — a caller with
+    // that context (BuildCommand today; Phase 3/4's archive/`.so` cache
+    // build later) combines them with a Driver's FrontendCacheKey() here.
+    // Nothing consults this as a cache yet.
+    [[nodiscard]] DRIVER_EXPORT std::uint64_t ComputeNativeCacheKey ( std::uint64_t FrontendKey,
+                                                                      std::string_view TargetTriple,
+                                                                      std::string_view OptLevel,
+                                                                      std::string_view ArtifactKind,
+                                                                      bool bLto );
 
 } // namespace Driver
 
