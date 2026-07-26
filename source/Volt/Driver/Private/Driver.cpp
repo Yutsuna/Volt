@@ -165,11 +165,16 @@ namespace
 // which only hashes stdlib source + the running binary's own identity).
 inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453031ULL; // "VOLTFE01"
 
-// `$XDG_CACHE_HOME/volt/stdlib/<hex Key>/frontend.cache` (fallback
-// `~/.cache/volt/...`), per the design doc. Empty when neither
-// XDG_CACHE_HOME nor HOME is set — callers treat that as "no cache
-// available", never an error.
+// `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
+{
+    const fs::path Dir = Volt::Driver::StdlibCacheDir( Key );
+    return Dir.empty() ? fs::path{} : Dir / "frontend.cache";
+}
+
+} // namespace
+
+std::filesystem::path Volt::Driver::StdlibCacheDir ( std::uint64_t FrontendKey )
 {
     fs::path Base;
     if ( const char *Xdg = std::getenv( "XDG_CACHE_HOME" ); Xdg != nullptr and *Xdg != '\0' )
@@ -184,10 +189,8 @@ inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453031ULL; // "
     {
         return {};
     }
-    return Base / "volt" / "stdlib" / Volt::Core::ToHex( Key ) / "frontend.cache";
+    return Base / "volt" / "stdlib" / Core::ToHex( FrontendKey );
 }
-
-} // namespace
 
 Volt::Driver::Driver::Driver () : FrontendKey( ComputeFrontendCacheKey() )
 {
@@ -367,8 +370,12 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
     // A cache hit fills Types/Registry/Units[0..StdlibCount) directly, so
     // ParseOne/the seam/RunSemaOne all skip that range below. StdlibCount ==
     // 0 (ParseFiles' tooling path, or the isolated warm-compile
-    // WriteFrontendCache drives) never consults a cache at all.
-    const bool bStdlibCacheHit = Pipeline == EPipeline::Full and StdlibCount > 0 and TryLoadFrontendCache( StdlibCount );
+    // WriteFrontendCache drives) never consults a cache at all. bNoCache and
+    // bFresh both force a read-miss (bFresh still writes a refreshed cache
+    // below; bNoCache skips that write too).
+    const bool bCacheReadAllowed = not ActiveCacheOptions.bNoCache and not ActiveCacheOptions.bFresh;
+    const bool bStdlibCacheHit =
+        Pipeline == EPipeline::Full and StdlibCount > 0 and bCacheReadAllowed and TryLoadFrontendCache( StdlibCount );
 
     // parallel: lex + parse every unit into its own arenas (skipping a
     // cache-loaded stdlib prefix, which is already parsed).
@@ -441,7 +448,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         // cache-loaded stdlib prefix, which is already type-checked).
         ForEachUnitParallel( &Driver::RunSemaOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
 
-        if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() )
+        if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() and not ActiveCacheOptions.bNoCache )
         {
             WriteFrontendCache(
                 std::vector<SourceRef>( Refs.begin(), Refs.begin() + static_cast<std::ptrdiff_t>( StdlibCount ) ) );
@@ -610,17 +617,27 @@ void Volt::Driver::Driver::WriteFrontendCache ( const std::vector<SourceRef> &St
     }
 }
 
-Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vector<std::string> &Paths )
+Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vector<std::string> &Paths, FCacheOptions CacheOpts )
 {
+    ActiveCacheOptions = CacheOpts;
+    if ( CacheOpts.bNoStdlib and ( CacheOpts.bNoCache or CacheOpts.bFresh ) )
+    {
+        ReportDriver( Core::ESeverity::Warning, "--no-stdlib disables the stdlib entirely; ignoring "
+                                                "--no-stdlib-cache/--fresh-stdlib" );
+    }
+
     std::vector<SourceRef> Refs;
-    LoadStdLib( Refs );
-    const std::size_t StdlibCount = Refs.size();
+    if ( not CacheOpts.bNoStdlib )
+    {
+        LoadStdLib( Refs );
+    }
+    StdlibUnitCountValue = Refs.size();
     Refs.reserve( Refs.size() + Paths.size() );
     for ( const std::string &Path : Paths )
     {
         Refs.push_back( SourceRef{ .Path = Path, .Module = std::string{}, .bComponent = IsComponentPath( Path ) } );
     }
-    return CompileRefs( Refs, EPipeline::Full, StdlibCount );
+    return CompileRefs( Refs, EPipeline::Full, StdlibUnitCountValue );
 }
 
 Volt::Driver::CompileResult Volt::Driver::Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered )
@@ -678,8 +695,15 @@ void Volt::Driver::Driver::BuildLinkGraph ( const std::string &RootModule )
     }
 }
 
-Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::string &ProjectPath )
+Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::string &ProjectPath, FCacheOptions CacheOpts )
 {
+    ActiveCacheOptions = CacheOpts;
+    if ( CacheOpts.bNoStdlib and ( CacheOpts.bNoCache or CacheOpts.bFresh ) )
+    {
+        ReportDriver( Core::ESeverity::Warning, "--no-stdlib disables the stdlib entirely; ignoring "
+                                                "--no-stdlib-cache/--fresh-stdlib" );
+    }
+
     // The manifest is its own unit; parse it to read entrypoint + modules.
     Core::FileId ProjectFile;
     std::string ProjectText;
@@ -765,8 +789,11 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
     // IntLiteral, so every literal in a circuit typed as nothing and the
     // whole tree came out untyped. A circuit is not a different language.
     std::vector<SourceRef> Refs;
-    LoadStdLib( Refs );
-    const std::size_t StdlibCount = Refs.size();
+    if ( not CacheOpts.bNoStdlib )
+    {
+        LoadStdLib( Refs );
+    }
+    StdlibUnitCountValue = Refs.size();
 
     if ( not EntryRel.empty() )
     {
@@ -794,7 +821,7 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
         }
     }
 
-    CompileResult Result = CompileRefs( Refs, EPipeline::Full, StdlibCount );
+    CompileResult Result = CompileRefs( Refs, EPipeline::Full, StdlibUnitCountValue );
     BuildLinkGraph( CircuitName );
 
     Result.Errors = Diagnostics.ErrorTotal();
