@@ -19,7 +19,7 @@ Volt::Sema::TypeCheckerPass::BindClosureParams ( TypeCheckerContext &Context, co
     }
     Context.ExpectedClosure = SemaTypeId{};
 
-    UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue };
+    UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
     Core::SmallVec<SemaTypeId, 2> Types;
     for ( std::size_t Index = 0; Index < Params.Size(); ++Index )
     {
@@ -36,6 +36,7 @@ Volt::Sema::TypeCheckerPass::BindClosureParams ( TypeCheckerContext &Context, co
         }
 
         Context.LocalTypes[BindingSite{ PId }] = ParamType;
+        Context.LocalSites[Entry.Name]         = BindingSite{ PId };
         Context.Locals[Entry.Name]             = ParamType;
         Context.Ctx.Values.SetSiteType( BindingSite{ PId }, ParamType );
         if ( Entry.Default.IsValid() )

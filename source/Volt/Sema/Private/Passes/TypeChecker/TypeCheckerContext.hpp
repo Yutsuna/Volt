@@ -39,6 +39,9 @@ struct Resolution
     // Kept so that recomputation resolves `self` the same way the first
     // instantiation did.
     SemaTypeId Receiver;
+    // `T.new( … )`: the callee is the initializer, and the call constructs.
+    // See CalleeEntry::bConstructs — this is where that fact is decided.
+    bool bConstructs = false;
 };
 
 struct TypeCheckerContext
@@ -65,9 +68,16 @@ struct TypeCheckerContext
     // declaration site ScopeResolver published: structural keys, so
     // two locals in sibling scopes can never collide.
     std::unordered_map<BindingSite, SemaTypeId, BindingSiteHash> LocalTypes{};
-    // Legacy name-keyed fallback, kept for the identifiers the
-    // ScopeTable cannot know: nodes materialised after Order 10
-    // (MacroExpansion, CaseLowering) and implicit `x = 5` assigns.
+    // Name → site index for the identifiers the ScopeTable cannot know:
+    // every node materialised *after* Order 10 (MacroExpansion,
+    // AssignLowering's `x = x op v`, CaseLowering) carries no binding, so a
+    // write through one of them has no site of its own and must reach the
+    // site the name was declared at. Without it the two answers drift —
+    // `result *= self` re-typed the name while the declaration site kept the
+    // literal's type, and the trailing read got whichever it consulted.
+    std::unordered_map<Symbol, BindingSite> LocalSites{};
+    // Name-keyed types, for a local that has no site at all: a name first
+    // written through a materialised node, which no scope ever declared.
     std::unordered_map<Symbol, SemaTypeId> Locals{};
     std::unordered_set<std::uint32_t> UnconstrainedLiterals{};
     std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
@@ -114,11 +124,26 @@ struct TypeCheckerContext
 
     void Report ( Core::SourceRange Loc, std::string Message );
 
+    // The declaration site behind a use: ScopeResolver's binding when the
+    // node existed at Order 10, else the name index a previous write filled.
+    [[nodiscard]] std::optional<BindingSite> SiteOf ( Frontend::ExprId Use, Symbol Name ) const;
+
     [[nodiscard]] std::optional<SemaTypeId> FindLocal ( Frontend::ExprId Use, Symbol Name ) const;
 
     void WriteLocal ( Frontend::ExprId Use, Symbol Name, SemaTypeId Type );
 
     void ConstrainExprType ( Frontend::ExprId Expr, SemaTypeId TargetType );
+
+    // The concrete arguments the enclosing generic was fixed to, when this
+    // walk is a re-instantiation (Sema::ReinstantiateBody). Empty in an
+    // ordinary pass, where a written `T` inside a generic body is deferred by
+    // design — see UnitSink::Bindings.
+    Core::SmallVec<SemaTypeId, 2> Substitution{};
+
+    [[nodiscard]] std::span<const SemaTypeId> GenericBindings () const
+    {
+        return std::span<const SemaTypeId>{ Substitution.begin(), Substitution.Size() };
+    }
 
     [[nodiscard]] std::span<const Symbol> Generics () const;
 
