@@ -622,4 +622,10 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // Drive the system linker (mold, then LLD, then whatever `cc` picks) to
     // turn ObjectPath into a linked executable at OutputPath.
     [[nodiscard]] bool LinkExecutable ( std::string_view ObjectPath, std::string_view OutputPath );
+
+    // Same driver, `-shared -fPIC` instead of a CRT-started executable — the
+    // native-artifact cache's `--stdlib-artifact=shared` build mode
+    // (Phase 4). No entry point is involved either way: EmitEntryPoint
+    // already no-ops on an empty EntrySymbol, which this build mode sets.
+    [[nodiscard]] bool LinkSharedLibrary ( std::string_view ObjectPath, std::string_view OutputPath );
 };
