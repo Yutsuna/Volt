@@ -38,6 +38,21 @@ namespace Core
             const Symbol _ = Intern( std::string_view{} );
         }
 
+        // In-place reset to the just-constructed state. Not expressible as
+        // `*this = StringInterner{}` — the bump allocator
+        // (std::pmr::monotonic_buffer_resource) is neither copyable nor
+        // movable, so the whole class has no assignment operator. Needed by
+        // issue #61's frontend-cache recovery path: a corrupt/truncated
+        // cache file may leave an interner mid-replay, and the only way back
+        // to "fresh" is clearing every field in place.
+        void Clear ()
+        {
+            Buffer.release();
+            Views.clear();
+            Lookup.clear();
+            const Symbol _ = Intern( std::string_view{} );
+        }
+
         [[nodiscard]] Symbol Intern ( std::string_view Text )
         {
             if ( const auto It = Lookup.find( Text ); It != Lookup.end() )
