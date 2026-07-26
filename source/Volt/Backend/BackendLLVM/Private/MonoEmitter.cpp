@@ -150,6 +150,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitMonomorphizedBody ( const Mono
         if ( Arg->getType()->isPointerTy() )
         {
             Frame.Slots.emplace( Site, Arg );
+            BindInstanceVarParam( ParamRef, Arg );
             continue;
         }
 
@@ -161,6 +162,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitMonomorphizedBody ( const Mono
             return;
         }
         static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+        BindInstanceVarParam( ParamRef, Arg );
     }
 
     EmitStmts( MethodNode->Body, Frame.bReturnsValue );
