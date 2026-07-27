@@ -1,0 +1,153 @@
+Program 'samples/Tests/Pointer/PointerComparaison.vl'
+├─ Annotation 'External' @1:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @1:13
+│     └─ StringLiteral 'exit' @1:21
+├─ Method 'libc_exit' external @2:10
+│  ├─ params
+│  │  └─ Param 'value' @2:25
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @2:44
+├─ Method 'main' @5:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @5:13
+│  └─ body
+│     ├─ ExprStmt @6:3
+│     │  └─ expr
+│     │     └─ Assign '=' @6:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'p1' @6:3
+│     │        └─ value
+│     │           └─ Call @6:30
+│     │              ├─ callee
+│     │              │  └─ Member 'malloc' @6:23
+│     │              │     └─ object
+│     │              │        └─ GenericInst @6:15
+│     │              │           ├─ base
+│     │              │           │  └─ Identifier 'Pointer' @6:8
+│     │              │           └─ args
+│     │              │              └─ TypeRef 'UInt64' @6:16
+│     │              └─ args
+│     │                 └─ IntLiteral '4' @6:32
+│     ├─ ExprStmt @7:3
+│     │  └─ expr
+│     │     └─ Assign '=' @7:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'p2' @7:3
+│     │        └─ value
+│     │           └─ Binary '+' @7:11
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'p1' @7:8
+│     │              └─ rhs
+│     │                 └─ IntLiteral '2' @7:13
+│     ├─ ExprStmt @9:3
+│     │  └─ expr
+│     │     └─ Assign '=' @9:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c1' @9:3
+│     │        └─ value
+│     │           └─ Binary '==' @9:20
+│     │              ├─ lhs
+│     │              │  └─ Binary '<=>' @9:12
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'p1' @9:9
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'p1' @9:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0' @9:23
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Assign '=' @10:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c2' @10:3
+│     │        └─ value
+│     │           └─ Binary '==' @10:20
+│     │              ├─ lhs
+│     │              │  └─ Binary '<=>' @10:12
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'p1' @10:9
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'p2' @10:16
+│     │              └─ rhs
+│     │                 └─ Unary '-' @10:23
+│     │                    └─ operand
+│     │                       └─ IntLiteral '1' @10:24
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Assign '=' @11:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c3' @11:3
+│     │        └─ value
+│     │           └─ Binary '==' @11:20
+│     │              ├─ lhs
+│     │              │  └─ Binary '<=>' @11:12
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'p2' @11:9
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'p1' @11:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1' @11:23
+│     ├─ ExprStmt @12:3
+│     │  └─ expr
+│     │     └─ Assign '=' @12:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c4' @12:3
+│     │        └─ value
+│     │           └─ Binary '<' @12:11
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'p1' @12:8
+│     │              └─ rhs
+│     │                 └─ Identifier 'p2' @12:13
+│     ├─ ExprStmt @13:3
+│     │  └─ expr
+│     │     └─ Assign '=' @13:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c5' @13:3
+│     │        └─ value
+│     │           └─ Binary '>' @13:11
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'p2' @13:8
+│     │              └─ rhs
+│     │                 └─ Identifier 'p1' @13:13
+│     ├─ ExprStmt @15:3
+│     │  └─ expr
+│     │     └─ Member 'free' @15:5
+│     │        └─ object
+│     │           └─ Identifier 'p1' @15:3
+│     └─ If @17:3
+│        ├─ cond
+│        │  └─ Binary 'and' @17:30
+│        │     ├─ lhs
+│        │     │  └─ Binary 'and' @17:23
+│        │     │     ├─ lhs
+│        │     │     │  └─ Binary 'and' @17:16
+│        │     │     │     ├─ lhs
+│        │     │     │     │  └─ Binary 'and' @17:9
+│        │     │     │     │     ├─ lhs
+│        │     │     │     │     │  └─ Identifier 'c1' @17:6
+│        │     │     │     │     └─ rhs
+│        │     │     │     │        └─ Identifier 'c2' @17:13
+│        │     │     │     └─ rhs
+│        │     │     │        └─ Identifier 'c3' @17:20
+│        │     │     └─ rhs
+│        │     │        └─ Identifier 'c4' @17:27
+│        │     └─ rhs
+│        │        └─ Identifier 'c5' @17:34
+│        ├─ then
+│        │  └─ ExprStmt @18:5
+│        │     └─ expr
+│        │        └─ IntLiteral '0' @18:5
+│        └─ else
+│           └─ ExprStmt @20:5
+│              └─ expr
+│                 └─ IntLiteral '1' @20:5
+└─ ExprStmt @25:1
+   └─ expr
+      └─ Call @25:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @25:1
+         └─ args
+            └─ Identifier 'main' @25:12
+--- exit 0 ---

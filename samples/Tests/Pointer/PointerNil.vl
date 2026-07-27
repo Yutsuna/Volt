@@ -1,0 +1,22 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def check_nil( p : Pointer<Int8> ) -> Bool
+  p == nil
+end
+
+
+def main -> Int32
+  null_ptr : Pointer<Int8> = nil
+  valid_ptr = Pointer<Int8>.malloc( 16 )
+
+  ok = check_nil( null_ptr ) and not check_nil( valid_ptr )
+
+  valid_ptr.free
+
+  ok ? 0 : 1
+end
+
+
+libc_exit( main )

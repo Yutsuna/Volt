@@ -1,0 +1,25 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def main -> Int32
+  p1 = Pointer<UInt64>.malloc( 4 )
+  p2 = p1 + 2
+
+  c1 = (p1 <=> p1) == 0
+  c2 = (p1 <=> p2) == -1
+  c3 = (p2 <=> p1) == 1
+  c4 = p1 < p2
+  c5 = p2 > p1
+
+  p1.free
+
+  if c1 and c2 and c3 and c4 and c5
+    0
+  else
+    1
+  end
+end
+
+
+libc_exit( main )

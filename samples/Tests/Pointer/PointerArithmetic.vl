@@ -1,0 +1,18 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def main -> Int32
+  p1 = Pointer<Int32>.malloc( 10 )
+  p2 = p1 + 5
+  p3 = p2 - 5
+
+  ok = (p3 == p1) and (p2 > p1)
+
+  p1.free
+
+  ok ? 0 : 1
+end
+
+
+libc_exit( main )

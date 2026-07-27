@@ -1,0 +1,100 @@
+Program 'samples/Tests/Pointer/PointerNil.vl'
+├─ Annotation 'External' @1:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @1:13
+│     └─ StringLiteral 'exit' @1:21
+├─ Method 'libc_exit' external @2:10
+│  ├─ params
+│  │  └─ Param 'value' @2:25
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @2:44
+├─ Method 'check_nil' @5:1
+│  ├─ params
+│  │  └─ Param 'p' @5:16
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Pointer' @5:20
+│  │           └─ generics
+│  │              └─ TypeRef 'Int8' @5:28
+│  ├─ return_type
+│  │  └─ TypeRef 'Bool' @5:39
+│  └─ body
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ Binary '==' @6:5
+│              ├─ lhs
+│              │  └─ Identifier 'p' @6:3
+│              └─ rhs
+│                 └─ NilLiteral @6:8
+├─ Method 'main' @10:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @10:13
+│  └─ body
+│     ├─ LocalDecl 'null_ptr' @11:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Pointer' @11:14
+│     │  │     └─ generics
+│     │  │        └─ TypeRef 'Int8' @11:22
+│     │  └─ init
+│     │     └─ NilLiteral @11:30
+│     ├─ ExprStmt @12:3
+│     │  └─ expr
+│     │     └─ Assign '=' @12:13
+│     │        ├─ target
+│     │        │  └─ Identifier 'valid_ptr' @12:3
+│     │        └─ value
+│     │           └─ Call @12:35
+│     │              ├─ callee
+│     │              │  └─ Member 'malloc' @12:28
+│     │              │     └─ object
+│     │              │        └─ GenericInst @12:22
+│     │              │           ├─ base
+│     │              │           │  └─ Identifier 'Pointer' @12:15
+│     │              │           └─ args
+│     │              │              └─ TypeRef 'Int8' @12:23
+│     │              └─ args
+│     │                 └─ IntLiteral '16' @12:37
+│     ├─ ExprStmt @14:3
+│     │  └─ expr
+│     │     └─ Assign '=' @14:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'ok' @14:3
+│     │        └─ value
+│     │           └─ Binary 'and' @14:30
+│     │              ├─ lhs
+│     │              │  └─ Call @14:17
+│     │              │     ├─ callee
+│     │              │     │  └─ Identifier 'check_nil' @14:8
+│     │              │     └─ args
+│     │              │        └─ Identifier 'null_ptr' @14:19
+│     │              └─ rhs
+│     │                 └─ Unary 'not' @14:34
+│     │                    └─ operand
+│     │                       └─ Call @14:47
+│     │                          ├─ callee
+│     │                          │  └─ Identifier 'check_nil' @14:38
+│     │                          └─ args
+│     │                             └─ Identifier 'valid_ptr' @14:49
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Member 'free' @16:12
+│     │        └─ object
+│     │           └─ Identifier 'valid_ptr' @16:3
+│     └─ ExprStmt @18:3
+│        └─ expr
+│           └─ Ternary @18:6
+│              ├─ cond
+│              │  └─ Identifier 'ok' @18:3
+│              ├─ then
+│              │  └─ IntLiteral '0' @18:8
+│              └─ else
+│                 └─ IntLiteral '1' @18:12
+└─ ExprStmt @22:1
+   └─ expr
+      └─ Call @22:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @22:1
+         └─ args
+            └─ Identifier 'main' @22:12
+--- exit 0 ---

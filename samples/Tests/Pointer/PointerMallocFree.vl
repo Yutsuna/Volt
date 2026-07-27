@@ -1,0 +1,18 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def main -> Int32
+  p_int = Pointer<Int32>.malloc( 1 )
+  p_byte = Pointer<UInt8>.malloc( 256 )
+
+  ok = (p_int != nil) and (p_byte != nil)
+
+  p_int.free
+  p_byte.free
+
+  ok ? 0 : 1
+end
+
+
+libc_exit( main )
