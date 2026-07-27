@@ -735,6 +735,28 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 return ClosureType( Context, "Block", TrailingType( Context, Expr.Body ), ParamTypes );
             },
             [&] ( const Frontend::CaseExpr &Expr ) -> SemaTypeId { return CaseType( Context, Id, Expr ); },
+            // `( Value : Type )` — explicit ascription, not a cast. Resolve
+            // `Type` and constrain `Value` against it exactly like a
+            // `LocalDecl`'s written type does (`DeclStmtWalker.cpp`): once
+            // before inferring `Value` (so an unconstrained lambda/closure
+            // body sees the expectation) and once after (a literal only
+            // joins `UnconstrainedLiterals` while being inferred, so the
+            // first call cannot narrow it).
+            [&] ( const Frontend::TypedExpr &Expr ) -> SemaTypeId
+            {
+                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                const SemaTypeId Written = ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
+                if ( Written.IsValid() )
+                {
+                    Context.ConstrainExprType( Expr.Value, Written );
+                }
+                const SemaTypeId ValueType = InferExpr( Context, Expr.Value );
+                if ( Written.IsValid() )
+                {
+                    Context.ConstrainExprType( Expr.Value, Written );
+                }
+                return Written.IsValid() ? Written : ValueType;
+            },
             [&] ( const auto &Expr ) -> SemaTypeId { return LiteralType( Context, Id, Expr ); },
         },
         Node );
