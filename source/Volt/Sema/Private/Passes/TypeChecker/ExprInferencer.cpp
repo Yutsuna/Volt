@@ -745,7 +745,8 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             [&] ( const Frontend::TypedExpr &Expr ) -> SemaTypeId
             {
                 UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
-                const SemaTypeId Written = ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
+                const SemaTypeId Written =
+                    ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
                 if ( Written.IsValid() )
                 {
                     Context.ConstrainExprType( Expr.Value, Written );
