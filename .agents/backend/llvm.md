@@ -102,6 +102,20 @@ Statements: `If`/`While` → basic blocks with the usual cond/body/merge shape;
    `AllocaInst*`. Copying such a parameter into an `alloca` would only add a
    `memcpy` nothing reads.
 
+   **`ptr` is not a proxy for "aggregate", and asking the LLVM type is the
+   wrong question.** `@[Primitive( "ptr", 64 )]` — every `Pointer<T>` — maps
+   to `ptr` as well, and it is a *scalar*: it arrives as a bare value and needs
+   an `alloca` like any other. All three parameter lists (`DefineMember`,
+   `EmitMonomorphizedBody`, `EmitClosureBody`) used to test
+   `Arg->getType()->isPointerTy()`, so every pointer parameter was bound as its
+   own slot and every read of the name loaded *through* it. That is
+   `String.from_c_string( p )` handing `strlen` whatever `*p` held — the
+   crash under every `raise`, since `Exception#initialize` captures a
+   backtrace. They now share one binder, `BindParameter`, whose `bByAddress`
+   is the *same* answer `ParamTypeOfLayout` gave when it built the signature:
+   `IsAggregate( layout )`, plus `Member::ParamIsBlock`. Regression sample:
+   `samples/Codegen/PointerParam.vl`.
+
 2. **Every `alloca` goes in the entry block**, whatever block the walk is in
    when it needs one (`MakeTemp`). That is mem2reg's precondition, and it is
    the whole reason the emitter never constructs SSA itself.
@@ -398,41 +412,51 @@ custom personality; the clause matching logic (the ancestry walk above) is
 unchanged, only the transport differs. The choice is an emitter flag, not an
 AST concern.
 
-**An exception nobody catches is invisible from outside the process — known
-gap.** The poisoned path bottoms out at "return early carrying no value", and
-for a body returning an integer that value is `0`. Run it out to the top and
-`main` raising is `ret i32 0`, byte for byte what returning success looks
-like, so `libc_exit( main() )` exits `0`. There is no last-resort handler: the
-tag stays set in `volt.exc.tag` and nothing ever reads it again.
+### The last-resort handler — `EmitEntryPoint`, and why it has to exist
 
-This is not a middle-end hole — the unwinding is doing exactly what tier 1
-specifies — but a missing *runtime* boundary, and it is worth naming because
-it silently disarms the obvious way to write a test:
+The poisoned path bottoms out at "return early carrying no value", and for a
+body returning an integer that value is `0`. Run it out to the top and `main`
+raising is `ret i32 0`, byte for byte what returning success looks like. So
+**the entry shell reads `volt.exc.tag` back**, once, after the last
+`_V_init_<n>` call, and returns `1` instead of `0` when one is still in
+flight. That single load is the whole of what makes `raise` observable from
+outside the process, and without it the obvious way to write a test asserts
+nothing at all:
 
 ```volt
 def assert!( condition : Bool ) -> Void
   if not condition
-    raise "..."            # exits 0 — asserts nothing at all
+    raise "..."            # used to exit 0 — indistinguishable from success
   end
 end
 ```
 
-`samples/Tests/*.vl` therefore calls the stdlib's `@[External]` `exit` directly
-rather than raising, so a failed assertion is observable as an exit code. The
-real fix is a top-level handler that runs after `main` returns: check the tag,
-and if one is in flight, report it and exit non-zero. It needs a decision on
-what "report" means — the stdlib still declares no output facility (the same
-wall `Array#to_string` hits above) — so the exit code alone is the honest
-first step.
+Note the reach: a top-level `libc_exit( main() )` never gets to call `exit`
+when `main` raises, because the post-call `EmitExceptionCheck` returns out of
+the unit initialiser first — so the shell's check is what reports it, not a
+value `main` handed back.
 
-**Known interaction, not fixed here:** constructing the raised object via
-`SomeError.new(...)` goes through the pre-existing aggregate-*return* gap
-(phase 5's note: abi.md fixes how an aggregate travels *into* a call, not
-*out* of one). `EmitRaise` trusts `EmitExpr(Node.Exception)` to hand back a
-`ptr` per the "aggregates are addresses" convention every other node relies
-on; if that convention is ever violated by an aggregate-returning `.new`, it
-is the pre-existing gap surfacing, not a new one, and is deferred to the same
-phase-8 verifier work that gap already names.
+Two things it deliberately does **not** do. It does not report *what* was
+raised: that needs an output facility the stdlib still does not declare (the
+same wall `Array#to_string` hits above), and a status alone is the part that
+can be honest today. And it does not touch `volt.exc.value`, which points at a
+frame that has already returned. The status is one constant rather than the
+raised type's `NominalId` — an id is a build-internal number with no meaning
+outside the process, and 8 bits of exit status is no place to encode one.
+Regression sample: `samples/Codegen/UncaughtRaise.vl`, whose *passing* result
+is `exit=1`.
+
+`samples/Tests/*.vl` still calls the stdlib's `@[External]` `exit` directly
+rather than raising — an explicit code per failing subject is more useful than
+a uniform `1` — but it is now a choice rather than a workaround.
+
+**Known interaction, resolved.** Constructing the raised object via
+`SomeError.new(...)` was filed here as possibly the pre-existing
+aggregate-*return* gap surfacing. It was not: `EmitRaise`'s trust in
+`EmitExpr( Node.Exception )` handing back a `ptr` is sound, and the crash was
+`Exception`'s subclasses being laid out with none of `Exception`'s fields
+(`abi.md`, "Inheritance: the base's fields lead"). The aggregate-return gap
+itself is untouched and still deferred to the phase-8 verifier work.
 
 ## Monomorphisation — `MonoEmitter.cpp`
 
