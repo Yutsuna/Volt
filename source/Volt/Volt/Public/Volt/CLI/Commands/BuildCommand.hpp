@@ -29,6 +29,7 @@ namespace CLI
      *        -O LEVEL                         Optimization level (0|2|3)
      *        --emit KIND                      Stop after an intermediate artifact (ir|obj)
      *        --lto                            Enable link-time optimization (native only)
+     *        -v, --verbose                    Enable verbose output
      *        --no-stdlib-cache                Bypass frontend + native stdlib caches
      *        --fresh-stdlib                   Force-refresh the stdlib cache
      *        --no-stdlib                      Skip the stdlib entirely
@@ -57,7 +58,8 @@ namespace CLI
         std::string OptLevel;
         std::string Emit;
 
-        bool bLto = false;
+        bool bLto     = false;
+        bool bVerbose = false;
 
         FStdlibCacheFlags StdlibFlags;
     };
