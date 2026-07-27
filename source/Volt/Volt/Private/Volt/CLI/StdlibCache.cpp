@@ -17,7 +17,7 @@ std::vector<Volt::CLI::FOption> Volt::CLI::StdlibCacheOptions ( FStdlibCacheFlag
             [&Flags] ( std::string_view ) { Flags.bNoStdlib = true; }
         },
         {
-            "", "--stdlib-artifact", "KIND", "Native stdlib artifact kind to build/consume (backend-defined)",
+            "", "--stdlib-artifact", "KIND", "Native stdlib artifact kind to build/consume (static|shared)",
             [&Flags] ( std::string_view Val ) { Flags.Artifact = Val; }
         }
     };
@@ -26,5 +26,8 @@ std::vector<Volt::CLI::FOption> Volt::CLI::StdlibCacheOptions ( FStdlibCacheFlag
 
 Volt::Driver::FCacheOptions Volt::CLI::ToDriverCacheOptions ( const FStdlibCacheFlags &Flags )
 {
-    return { .bNoCache = Flags.bNoStdlibCache, .bFresh = Flags.bFreshStdlib, .bNoStdlib = Flags.bNoStdlib };
+    return { .bNoCache  = Flags.bNoStdlibCache,
+             .bFresh    = Flags.bFreshStdlib,
+             .bNoStdlib = Flags.bNoStdlib,
+             .bVerbose  = Flags.bVerbose };
 }
