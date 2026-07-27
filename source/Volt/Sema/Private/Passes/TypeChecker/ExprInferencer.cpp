@@ -83,8 +83,22 @@ namespace
     {
         return true;
     }
-    const auto *Name = std::get_if<Volt::Frontend::Identifier>( &Context.Ctx.Ast.Expr( Id ) );
-    return Name != nullptr and Context.UnconstrainedVarInitializers.contains( Name->Name );
+    const auto &Node = Context.Ctx.Ast.Expr( Id );
+    const auto *Name = std::get_if<Volt::Frontend::Identifier>( &Node );
+    if ( Name != nullptr )
+    {
+        return Context.UnconstrainedVarInitializers.contains( Name->Name );
+    }
+    // `-1` is a `Unary` over the still-unconstrained literal `1` (the parser
+    // never folds a sign into a literal token): a comparison operand written
+    // this way — `~zero == -1` — is exactly as malleable as the literal it
+    // wraps, or the cross-operand propagation below never reaches it and the
+    // literal keeps its default width.
+    if ( const auto *UnaryNode = std::get_if<Volt::Frontend::Unary>( &Node ); UnaryNode != nullptr )
+    {
+        return IsMalleable( Context, UnaryNode->Operand );
+    }
+    return false;
 }
 
 // The nominal `Type` resolves to, or an invalid handle when `Type` never
