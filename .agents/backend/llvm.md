@@ -144,6 +144,31 @@ Arguably this belongs in a `Lowering` — but that pass would have to type the
 structural invariant forbids after `TypeChecker`. Positional emission is the
 cheaper correct answer.
 
+**A tail that has no value stores nothing.** `begin` and `case` converge their
+arms through a slot rather than a phi, and an arm's tail expression can
+perfectly well be a call to a `-> Void` member — `begin level3() rescue e : E
+then 7 end` in statement position is valid Volt where only the rescue arm has a
+value. Both go through one helper, `StoreTailValue`, which skips a void operand
+and *fails loudly* on any other type disagreement, since that would mean the
+arms were typed inconsistently. Not a stylistic guard: handing `CreateStore` a
+void value builds an ill-formed instruction, and LLVM answers by asking its
+`DataLayout` for the alignment of a type that has none — which is not a
+diagnostic but an unbounded scan inside the library. It hung the compiler
+outright on a fifteen-line program.
+
+### String and char literals: escapes decode where bytes are made
+
+The lexer interns the **source spelling** — it steps over `\n` without
+decoding it, because `volt parse` and the golden fixtures show source text.
+Decoding therefore belongs where bytes are actually materialised, which is
+`EmitStringLiteral` / `EmitCharLiteral`, and both read one alphabet
+(`DecodeEscape`: `\n \t \r \0 \e \\ \' \"`) so two tables cannot disagree. The
+decoded length is what the aggregate's size field carries — `"a\n"` is two
+bytes, not three — and an unrecognised escape keeps both characters rather
+than being refused, since the lexer already accepted the literal and a backend
+does not diagnose Volt source. Before this, every `\n` in every Volt string
+reached the program as a literal backslash-n.
+
 ### Primitive instruction table (spelling × operator)
 
 `Instructions.inl` is the manifest (`rules/meta-first.md`), three macros wide:
@@ -436,19 +461,55 @@ when `main` raises, because the post-call `EmitExceptionCheck` returns out of
 the unit initialiser first — so the shell's check is what reports it, not a
 value `main` handed back.
 
-Two things it deliberately does **not** do. It does not report *what* was
-raised: that needs an output facility the stdlib still does not declare (the
-same wall `Array#to_string` hits above), and a status alone is the part that
-can be honest today. And it does not touch `volt.exc.value`, which points at a
-frame that has already returned. The status is one constant rather than the
-raised type's `NominalId` — an id is a build-internal number with no meaning
-outside the process, and 8 bits of exit status is no place to encode one.
-Regression sample: `samples/Codegen/UncaughtRaise.vl`, whose *passing* result
-is `exit=1`.
+The status is one constant rather than the raised type's `NominalId` — an id is
+a build-internal number with no meaning outside the process, and 8 bits of exit
+status is no place to encode one. Regression sample:
+`samples/Codegen/UncaughtRaise.vl`, whose *passing* result is `exit=1`.
+
+**Reporting is `@[Unhandled]`, and none of it is C++.** The shell also *calls*
+something, and which something is a stdlib decision: the type annotated
+`@[ExceptionRoot]` annotates one of its methods `@[Unhandled]`, and that member
+is invoked with the in-flight object as its receiver just before the shell
+returns. `Exception#report_unhandled` is that member today —
+
+```volt
+@[Unhandled]
+def report_unhandled -> Void
+  text = "Unhandled exception: " + @message + "\n"
+  libc_write( 2, text.data, text.size )
+end
+```
+
+— so the wording, the stream (`libc_write` on fd 2, an `@[External]` like any
+other), and the decision to say anything at all are Volt. The emitter reads no
+field, names no type, and formats no byte; `Member::bUnhandled` is recorded at
+the same seam `ExternSymbol` is, because a backend must never re-scan an AST
+for annotations. A stdlib that annotates nothing is silent, and that is an
+opt-in not taken rather than a fact the middle-end owes — so nothing is
+refused. Dispatch is static, on the root's member: Volt dispatches statically
+everywhere else too, and routing by the tag would need a per-`NominalId` table
+that buys nothing until Volt has virtual dispatch at all.
 
 `samples/Tests/*.vl` still calls the stdlib's `@[External]` `exit` directly
 rather than raising — an explicit code per failing subject is more useful than
 a uniform `1` — but it is now a choice rather than a workaround.
+
+### The raised object outlives the frame that raised it
+
+Tier 1 unwinds by *returning*, so an exception whose storage is the raising
+function's own `alloca` is dead the moment that function returns — before any
+`rescue` more than one frame up copies it out, and long before the last-resort
+hook runs with no Volt frame left at all. `EmitRaise` therefore copies the
+object into **`volt.exc.storage`** and publishes *that* address in
+`volt.exc.value`.
+
+The buffer is one thread-local `[N x i8]`, sized and aligned by `LayoutEngine`
+for the widest type that descends from the `@[ExceptionRoot]` — measured over
+the store, never a fixed constant, and a raise of something wider is refused by
+a message naming both numbers. One buffer matches the one-slot tag/value pair:
+tier 1 has exactly one exception in flight per thread. Regression sample:
+`samples/Codegen/ExceptionMessage.vl`, which reads `e.message.size` two frames
+above the raise, where a dangling read returns whatever the stack held.
 
 **Known interaction, resolved.** Constructing the raised object via
 `SomeError.new(...)` was filed here as possibly the pre-existing
