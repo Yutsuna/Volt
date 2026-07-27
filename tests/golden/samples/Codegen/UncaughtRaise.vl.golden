@@ -1,0 +1,34 @@
+Program 'samples/Codegen/UncaughtRaise.vl'
+├─ Method 'boom' @11:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @11:13
+│  └─ body
+│     ├─ ExprStmt @12:3
+│     │  └─ expr
+│     │     └─ RaiseExpr @12:3
+│     │        └─ exception
+│     │           └─ Call @12:25
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @12:21
+│     │              │     └─ object
+│     │              │        └─ Identifier 'RuntimeError' @12:9
+│     │              └─ args
+│     │                 └─ StringLiteral 'nobody catches this' @12:27
+│     └─ ExprStmt @13:3
+│        └─ expr
+│           └─ IntLiteral '0' @13:3
+├─ Method 'main' @16:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @16:13
+│  └─ body
+│     └─ ExprStmt @17:3
+│        └─ expr
+│           └─ Call @17:7
+│              └─ callee
+│                 └─ Identifier 'boom' @17:3
+└─ ExprStmt @20:1
+   └─ expr
+      └─ Call @20:5
+         └─ callee
+            └─ Identifier 'main' @20:1
+--- exit 0 ---

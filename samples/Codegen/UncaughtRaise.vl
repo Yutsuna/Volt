@@ -1,0 +1,20 @@
+# An exception nobody catches must be observable from outside the process.
+# Tier 1's poisoned path bottoms out at "return early carrying no value", so
+# without a last-resort handler `main` raising is `ret i32 0` — byte for byte
+# what success looks like, which silently disarms `raise` as an assertion
+# oracle. The entry shell reads `volt.exc.tag` back after the last unit
+# initialiser and exits non-zero; this file is that check.
+#
+# `exit=1` is therefore the *passing* result. `samples/Codegen/Branches.vl`
+# and friends are the other half of the contract: a program that raises
+# nothing still exits with what it computed.
+def boom -> Int32
+  raise RuntimeError.new( "nobody catches this" )
+  0
+end
+
+def main -> Int32
+  boom()
+end
+
+main()
