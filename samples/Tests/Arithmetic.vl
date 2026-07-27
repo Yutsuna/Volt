@@ -1,0 +1,333 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\nCalled by#{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_int8 -> Void
+  a : Int8 = 10
+  b : Int8 = 5
+  zero : Int8 = 0
+  neg : Int8 = -5
+
+  assert!( a + b == 15 )
+  assert!( a - b == 5 )
+  assert!( a * b == 50 )
+  assert!( a / b == 2 )
+  assert!( a % b == 0 )
+  assert!( ( a & b ) == 0 )
+  assert!( ( a | b ) == 15 )
+  assert!( ( a ^ b ) == 15 )
+  assert!( ( b << 1 ) == 10 )
+  assert!( ( a >> 1 ) == 5 )
+  assert!( ~zero == -1 )
+
+  assert!( a.negate == -10 )
+  assert!( neg.abs == 5 )
+  assert!( a.min( b ) == 5 )
+  assert!( a.max( b ) == 10 )
+  assert!( a.successor == 11 )
+  assert!( a.predecessor == 9 )
+  assert!( a.between?( 1, 20 ) )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( b.odd? )
+  assert!( ( 8 : Int8 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.clamp( 1, 5 ) == 5 )
+  assert!( a.distance( b ) == 5 )
+  assert!( b.square == 25 )
+  assert!( b.double == 10 )
+  assert!( a.half == 5 )
+  assert!( b.cube == 125 )
+  assert!( ( 2 : Int8 ).pow( 3 ) == 8 )
+end
+
+def test_int16 -> Void
+  a : Int16 = 1000
+  b : Int16 = 2000
+  zero : Int16 = 0
+  neg : Int16 = -500
+
+  assert!( a + b == 3000 )
+  assert!( b - a == 1000 )
+  assert!( a * 2 == 2000 )
+  assert!( b / 2 == 1000 )
+  assert!( b % a == 0 )
+  assert!( ( a & b ) == 960 )
+  assert!( ( a | b ) == 2040 )
+  assert!( ( a ^ b ) == 1080 )
+  assert!( ( a << 1 ) == 2000 )
+  assert!( ( b >> 1 ) == 1000 )
+  assert!( ~zero == -1 )
+
+  assert!( a.negate == -1000 )
+  assert!( neg.abs == 500 )
+  assert!( a.min( b ) == 1000 )
+  assert!( a.max( b ) == 2000 )
+  assert!( a.successor == 1001 )
+  assert!( a.predecessor == 999 )
+  assert!( a.between?( 500, 1500 ) )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( ( 1001 : Int16 ).odd? )
+  assert!( ( 1024 : Int16 ).power_of_two? )
+  assert!( b.divisible_by?( a ) )
+  assert!( a.clamp( 200, 800 ) == 800 )
+  assert!( a.distance( b ) == 1000 )
+  assert!( ( 10 : Int16 ).square == 100 )
+  assert!( a.double == 2000 )
+  assert!( b.half == 1000 )
+  assert!( ( 10 : Int16 ).cube == 1000 )
+  assert!( ( 3 : Int16 ).pow( 3 ) == 27 )
+end
+
+def test_int32 -> Void
+  a : Int32 = 100000
+  b : Int32 = 50000
+  zero : Int32 = 0
+  neg : Int32 = -123456
+
+  assert!( a + b == 150000 )
+  assert!( a - b == 50000 )
+  assert!( a * b == 5000000000 )
+  assert!( a / b == 2 )
+  assert!( a % b == 0 )
+  assert!( ( a & b ) == 32768 )
+  assert!( ( a | b ) == 117232 )
+  assert!( ( a ^ b ) == 84464 )
+  assert!( ( b << 1 ) == 100000 )
+  assert!( ( a >> 1 ) == 50000 )
+  assert!( ~zero == -1 )
+
+  assert!( a.negate == -100000 )
+  assert!( neg.abs == 123456 )
+  assert!( a.min( b ) == 50000 )
+  assert!( a.max( b ) == 100000 )
+  assert!( a.successor == 100001 )
+  assert!( a.predecessor == 99999 )
+  assert!( a.between?( 0, 200000 ) )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( ( 100001 : Int32 ).odd? )
+  assert!( ( 65536 : Int32 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.clamp( 0, 1000 ) == 1000 )
+  assert!( a.distance( b ) == 50000 )
+  assert!( ( 1000 : Int32 ).square == 1000000 )
+  assert!( b.double == 100000 )
+  assert!( a.half == 50000 )
+  assert!( ( 100 : Int32 ).cube == 1000000 )
+  assert!( ( 2 : Int32 ).pow( 10 ) == 1024 )
+end
+
+def test_int64 -> Void
+  a : Int64 = 10000000000
+  b : Int64 = 5000000000
+  zero : Int64 = 0
+  neg : Int64 = -9999999999
+
+  assert!( a + b == 15000000000 )
+  assert!( a - b == 5000000000 )
+  assert!( a / b == 2 )
+  assert!( a % b == 0 )
+
+  assert!( a.negate == -10000000000 )
+  assert!( neg.abs == 9999999999 )
+  assert!( a.min( b ) == 5000000000 )
+  assert!( a.max( b ) == 10000000000 )
+  assert!( a.successor == 10000000001 )
+  assert!( a.predecessor == 9999999999 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( ( 10000000001 : Int64 ).odd? )
+  assert!( ( 1073741824 : Int64 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 5000000000 )
+  assert!( b.double == 10000000000 )
+  assert!( a.half == 5000000000 )
+  assert!( ( 2 : Int64 ).pow( 30 ) == 1073741824 )
+end
+
+
+#------------------------------------------------------------------------------
+
+
+def test_uint8 -> Void
+  a : UInt8 = 200
+  b : UInt8 = 50
+  zero : UInt8 = 0
+
+  assert!( a + b == 250 )
+  assert!( a - b == 150 )
+  assert!( a / b == 4 )
+  assert!( a % b == 0 )
+  assert!( a.min( b ) == 50 )
+  assert!( a.max( b ) == 200 )
+  assert!( a.successor == 201 )
+  assert!( a.predecessor == 199 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( a.even? )
+  assert!( ( 128 : UInt8 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 150 )
+  assert!( b.double == 100 )
+  assert!( a.half == 100 )
+end
+
+def test_uint16 -> Void
+  a : UInt16 = 40000
+  b : UInt16 = 10000
+  zero : UInt16 = 0
+
+  assert!( a + b == 50000 )
+  assert!( a - b == 30000 )
+  assert!( a / b == 4 )
+  assert!( a.successor == 40001 )
+  assert!( a.predecessor == 39999 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( a.even? )
+  assert!( ( 32768 : UInt16 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 30000 )
+  assert!( b.double == 20000 )
+  assert!( a.half == 20000 )
+end
+
+def test_uint32 -> Void
+  a : UInt32 = 3000000000
+  b : UInt32 = 1000000000
+  zero : UInt32 = 0
+
+  assert!( a + b == 4000000000 )
+  assert!( a - b == 2000000000 )
+  assert!( a / b == 3 )
+  assert!( a.successor == 3000000001 )
+  assert!( a.predecessor == 2999999999 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( a.even? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 2000000000 )
+  assert!( b.double == 2000000000 )
+  assert!( a.half == 1500000000 )
+end
+
+def test_uint64 -> Void
+  a : UInt64 = 1000000000000
+  b : UInt64 = 500000000000
+  zero : UInt64 = 0
+
+  assert!( a + b == 1500000000000 )
+  assert!( a - b == 500000000000 )
+  assert!( a / b == 2 )
+  assert!( a.successor == 1000000000001 )
+  assert!( a.predecessor == 999999999999 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( a.even? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 500000000000 )
+  assert!( b.double == 1000000000000 )
+  assert!( a.half == 500000000000 )
+end
+
+
+#------------------------------------------------------------------------------
+
+
+def test_float32 -> Void
+  a : Float32 = 10.0
+  b : Float32 = 2.5
+  neg : Float32 = -5.0
+  zero : Float32 = 0.0
+
+  assert!( a + b == 12.5 )
+  assert!( a - b == 7.5 )
+  assert!( a * b == 25.0 )
+  assert!( a / b == 4.0 )
+  assert!( neg.abs == 5.0 )
+  assert!( neg.negate == 5.0 )
+  assert!( a.min( b ) == 2.5 )
+  assert!( a.max( b ) == 10.0 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( b.square == 6.25 )
+  assert!( b.double == 5.0 )
+  assert!( a.half == 5.0 )
+  assert!( a.distance( b ) == 7.5 )
+  assert!( a.clamp( 0.0, 5.0 ) == 5.0 )
+end
+
+def test_float64 -> Void
+  a : Float64 = 100.0
+  b : Float64 = 25.0
+  neg : Float64 = -50.0
+  zero : Float64 = 0.0
+
+  assert!( a + b == 125.0 )
+  assert!( a - b == 75.0 )
+  assert!( a * b == 2500.0 )
+  assert!( a / b == 4.0 )
+  assert!( neg.abs == 50.0 )
+  assert!( neg.negate == 50.0 )
+  assert!( a.min( b ) == 25.0 )
+  assert!( a.max( b ) == 100.0 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( b.square == 625.0 )
+  assert!( b.double == 50.0 )
+  assert!( a.half == 50.0 )
+  assert!( ( 3.0 : Float64 ).cube == 27.0 )
+  assert!( a.distance( b ) == 75.0 )
+  assert!( a.clamp( 0.0, 50.0 ) == 50.0 )
+end
+
+
+#------------------------------------------------------------------------------
+
+
+def main -> Int32
+  test_int8
+  test_int16
+  test_int32
+  test_int64
+
+  test_uint8
+  test_uint16
+  test_uint32
+  test_uint64
+
+  test_float32
+  test_float64
+  0
+end
+
+libc_exit( main() )
