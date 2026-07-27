@@ -248,8 +248,45 @@ template <typename Row> [[nodiscard]] const Row *FindRow ( std::span<const Row> 
     return Error == std::errc{} and Ptr != Begin;
 }
 
-// A char literal's raw lexeme, escapes resolved. Kept minimal and explicit:
-// this is the lexer's alphabet, not a Volt type's.
+// The escape alphabet, in one place. It is the *lexer's*, not a Volt type's
+// (rules/zero-hardcode.md is about type names; `\n` is lexical syntax), and
+// both literal forms that can contain one read it here — a char literal is a
+// one-character string as far as escaping goes, so two tables would be two
+// chances to disagree.
+//
+// The lexer deliberately interns the raw spelling: `volt parse` and the golden
+// fixtures show source text. Decoding therefore belongs where bytes are
+// actually materialised, which is here.
+[[nodiscard]] bool DecodeEscape ( char Spelled, char &Out )
+{
+    switch ( Spelled )
+    {
+    case 'n':
+        Out = '\n';
+        return true;
+    case 't':
+        Out = '\t';
+        return true;
+    case 'r':
+        Out = '\r';
+        return true;
+    case '0':
+        Out = '\0';
+        return true;
+    case 'e':
+        Out = '\x1b';
+        return true;
+    case '\\':
+    case '\'':
+    case '"':
+        Out = Spelled;
+        return true;
+    default:
+        return false;
+    }
+}
+
+// A char literal's raw lexeme, escapes resolved.
 [[nodiscard]] bool DecodeChar ( std::string_view Text, std::uint64_t &Out )
 {
     if ( Text.size() >= 2 and ( Text.front() == '\'' or Text.front() == '"' ) )
@@ -271,28 +308,35 @@ template <typename Row> [[nodiscard]] const Row *FindRow ( std::span<const Row> 
         return false;
     }
 
-    switch ( Text[1] )
+    char Decoded = '\0';
+    if ( not DecodeEscape( Text[1], Decoded ) )
     {
-    case 'n':
-        Out = '\n';
-        return true;
-    case 't':
-        Out = '\t';
-        return true;
-    case 'r':
-        Out = '\r';
-        return true;
-    case '0':
-        Out = 0;
-        return true;
-    case '\\':
-    case '\'':
-    case '"':
-        Out = static_cast<std::uint8_t>( Text[1] );
-        return true;
-    default:
         return false;
     }
+    Out = static_cast<std::uint8_t>( Decoded );
+    return true;
+}
+
+// A string literal's raw lexeme, escapes resolved. An unrecognised escape
+// keeps both characters rather than being refused: the lexer already accepted
+// the literal, and a backend does not diagnose Volt source
+// (.agents/backend/core-interfaces.md).
+[[nodiscard]] std::string DecodeText ( std::string_view Text )
+{
+    std::string Out;
+    Out.reserve( Text.size() );
+    for ( std::size_t Index = 0; Index < Text.size(); ++Index )
+    {
+        char Decoded = '\0';
+        if ( Text[Index] == '\\' and Index + 1 < Text.size() and DecodeEscape( Text[Index + 1], Decoded ) )
+        {
+            Out.push_back( Decoded );
+            ++Index;
+            continue;
+        }
+        Out.push_back( Text[Index] );
+    }
+    return Out;
 }
 
 // The width a store destination actually has, when the address itself records
@@ -823,9 +867,13 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCharLiteral ( Frontend
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitStringLiteral ( Frontend::ExprId Id,
                                                                           const Frontend::StringLiteral &Node )
 {
-    const std::string_view Text = Frame.Unit->Ast->Text( Node.Value );
-    const Sema::LayoutId Shape  = LayoutOfExpr( Id );
-    llvm::Type *Struct          = TypeOfLayout( Shape );
+    // Escapes are resolved here, not in the lexer: the interned lexeme is the
+    // source spelling, which is what `volt parse` and the golden fixtures show.
+    // The decoded length is what the aggregate's size field must carry — `"a\n"`
+    // is two bytes, not three.
+    const std::string Text     = DecodeText( Frame.Unit->Ast->Text( Node.Value ) );
+    const Sema::LayoutId Shape = LayoutOfExpr( Id );
+    llvm::Type *Struct         = TypeOfLayout( Shape );
     if ( Struct == nullptr or not Struct->isStructTy() )
     {
         static_cast<void>( Fail( "llvm: the type claiming StringLiteral has no aggregate layout" ) );
