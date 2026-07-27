@@ -1,4 +1,4 @@
-Program 'samples/Syntax/Loop/WhileLoop.vl'
+Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
 │  │  └─ Param 'condition' @1:14
@@ -25,7 +25,7 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │                          │     │     ├─ lhs
 │                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
 │                          │     │     └─ rhs
-│                          │     │        └─ StringLiteral 'samples/Syntax/Loop/WhileLoop.vl' @3:31
+│                          │     │        └─ StringLiteral 'samples/Tests/ControlFlow/WhileLoop.vl' @3:31
 │                          │     └─ rhs
 │                          │        └─ StringLiteral ':' @3:11
 │                          └─ rhs

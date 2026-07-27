@@ -1,7 +1,4 @@
-# TODO: in the future add assert! to the std lib as macro
-# macro def assert!( condition : Bool ) -> Void
 def assert!( condition : Bool ) -> Void
-  # if not {{condition}}
   if not condition
     raise "Assertion failed #{__FILE__}:#{__LINE__}"
   end
@@ -43,20 +40,22 @@ def for_range -> Int32
 end
 
 #{
-#  users.each { |name, email, age| puts "#{name} (#{age}) can be reached at #{email}" }
+#  users.each { |_name, _email, age| total += age" }
 #}
-def for_array -> Void
+def for_array -> Int32
   users = [
             [ "Alice", "alice@petass.com", 42 ],
             [ "Morgan", "morgan@bg.fr", 25 ],
             [ "Bob", "bob@marley.lol", 30 ]
           ]
-  for name, email, age in users
-    puts "#{name} (#{age}) can be reached at #{email}"
+  total = 0
+  for _name, _email, age in users
+    total += age
   end
+  total
 end
 
 assert!( for_collection == 6 )
 assert!( for_dictionary == 6 )
 assert!( for_range == 3 )
-for_array
+assert!( for_array == 97 )

@@ -1,0 +1,110 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+def test_until_standard -> Void
+  i = 0
+  until i >= 10
+    i += 1
+  end
+
+  assert!( i == 10 )
+end
+
+
+def test_until_modifier -> Void
+  i = 10
+  i += 1 until i >= 20
+
+  assert!( i == 20 )
+end
+
+
+def test_until_already_true -> Void
+  i = 50
+  executed = false
+
+  until i >= 10
+    executed = true
+    i += 1
+  end
+
+  assert!( executed == false )
+  assert!( i == 50 )
+end
+
+
+def test_until_with_break -> Void
+  i = 0
+
+  until i >= 100
+    i += 1
+    if i == 7
+      break
+    end
+  end
+
+  assert!( i == 7 )
+end
+
+
+def test_until_with_next -> Void
+  i = 0
+  sum_odd = 0
+
+  until i >= 10
+    i += 1
+
+    if i % 2 == 0
+      next
+    end
+
+    sum_odd += i
+  end
+
+  assert!( sum_odd == 25 )
+end
+
+
+def test_begin_end_until -> Void
+  i = 100
+  iterations = 0
+
+  begin
+    iterations += 1
+    i += 1
+  end until i >= 10
+
+  assert!( iterations == 1 )
+  assert!( i == 101 )
+end
+
+
+def test_nested_until -> Void
+  outer = 0
+  total_iterations = 0
+
+  until outer >= 3
+    inner = 0
+    until inner >= 4
+      inner += 1
+      total_iterations += 1
+    end
+    outer += 1
+  end
+
+  assert!( outer == 3 )
+  assert!( total_iterations == 12 )
+end
+
+
+test_until_standard
+test_until_modifier
+test_until_already_true
+test_until_with_break
+test_until_with_next
+test_begin_end_until
+test_nested_until
