@@ -1,0 +1,51 @@
+# The raised object has to outlive the frame that raised it. Tier 1 unwinds by
+# *returning*, so an exception whose storage is the raising function's own
+# alloca is already dead by the time a `rescue` two frames up copies it out —
+# it only ever looked like it worked. `raise` therefore copies the object into
+# `volt.exc.storage` and publishes that address instead.
+#
+# Reading `e.message.size` is what makes the difference observable: a dangling
+# read gives whatever the stack happens to hold. The expected 21 also pins the
+# escape decoding — `\t` is one byte, not two, so the length only comes out
+# right if string literals are decoded where their bytes are materialised.
+#
+# The second `begin` is the shape that used to hang the compiler outright: a
+# body whose tail expression is a call returning `Void`, in a `begin` that does
+# have a result slot because its rescue arm yields one. Storing a void value
+# sends LLVM's DataLayout looking for the alignment of a type that has none.
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def level3 -> Void
+  raise ArgumentError.new( "deep message\tsurvives" )
+end
+
+def level2 -> Void
+  level3()
+end
+
+def quiet -> Void
+end
+
+def main -> Int32
+  total = 0
+
+  begin
+    level2()
+  rescue e : ArgumentError
+    total = e.message.size == 21_u64 ? 5 : 0
+  end
+
+  # Void tail in the body, a value in the arm. Nothing raises, so the arm never
+  # runs and the slot is never written — which is exactly the case that must
+  # not try to store a void.
+  begin
+    quiet()
+  rescue e : Exception
+    total = total + 100
+  end
+
+  total + 2
+end
+
+libc_exit( main() )
