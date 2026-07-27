@@ -195,6 +195,15 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // reused rather than inventing a second one.
     llvm::GlobalVariable *ExcValue = nullptr;
     llvm::GlobalVariable *ExcTag   = nullptr;
+    // Where the in-flight object itself lives. It cannot stay in the raising
+    // frame: tier 1 propagates by *returning*, so by the time a `rescue`
+    // several frames up copies it out — or the last-resort hook reports it,
+    // with every Volt frame already gone — that alloca is dead storage. So
+    // `raise` copies the object here first and publishes *this* address, and
+    // the buffer is sized once for the widest type that can reach it (every
+    // descendant of the `@[ExceptionRoot]`), measured by LayoutEngine.
+    llvm::GlobalVariable *ExcStorage = nullptr;
+    std::size_t ExcStorageSize       = 0;
     // `NominalId -> its immediate Super's NominalId, or InvalidValue`, one row
     // per type the store declares, built once from TypeStore::Type(Id).Super —
     // the same chain Sema's own IsSubclassOf walks (TypeResolve.cpp). A
@@ -541,6 +550,17 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // per module on first use.
     [[nodiscard]] llvm::GlobalVariable *ExceptionValueSlot ();
     [[nodiscard]] llvm::GlobalVariable *ExceptionTagSlot ();
+
+    // The thread-local buffer the raised object is copied into, sized and
+    // aligned for the widest descendant of the `@[ExceptionRoot]` this build
+    // declares. One buffer, matching the one-slot tag/value pair: tier 1 has
+    // exactly one exception in flight per thread.
+    [[nodiscard]] llvm::GlobalVariable *ExceptionStorageSlot ();
+
+    // The member the `@[ExceptionRoot]` annotates `@[Unhandled]`, or null when
+    // the stdlib declares none — reporting is opt-in, and a build whose stdlib
+    // stays silent is a configuration, not a missing middle-end fact.
+    [[nodiscard]] const Sema::Member *UnhandledHook ( Sema::NominalId &OutOwner ) const;
 
     // `NominalId -> immediate Super`, one row per declared type, emitted once
     // as module-level constant data.
