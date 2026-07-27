@@ -117,6 +117,40 @@ endif()
 
 #############################################################################
 
+# Round-trip proof for Meta::Serialize/Deserialize (Core/Meta/Serialize.hpp),
+# the generic reflected serializer issue #61's stdlib cache is built on. A
+# plain executable rather than a CLI/golden test since this is Core-internal
+# plumbing with no CLI surface of its own.
+add_executable( CoreSerializeTest ${VOLT_ROOT}/tests/CoreSerializeTest.cpp )
+target_link_libraries( CoreSerializeTest PRIVATE Volt::Core Volt::CompileOptions )
+add_test(
+  NAME    CoreSerializeTest
+  COMMAND CoreSerializeTest
+)
+
+# Same proof, one layer up: the hand-written cache serializers for the Sema
+# structures a raw Meta::Reflected walk cannot reach on its own (TypeStore,
+# UnitCallees' Decl fixup, ScopeTable's UseIndex fixup, UnitTypes' Dedup
+# rebuild, InterfaceRegistry's Publish-replay) — issue #61 Phase 2b.
+add_executable( SemaSerializeTest ${VOLT_ROOT}/tests/SemaSerializeTest.cpp )
+target_link_libraries( SemaSerializeTest PRIVATE Volt::Core Volt::Frontend Volt::Sema Volt::CompileOptions )
+add_test(
+  NAME    SemaSerializeTest
+  COMMAND SemaSerializeTest
+)
+
+# A real lexed + parsed AstContext round-tripped through
+# SerializeCache/DeserializeCache — proves the generic path reaches every
+# node kind the parser actually produces, not just hand-built fixtures.
+add_executable( FrontendSerializeTest ${VOLT_ROOT}/tests/FrontendSerializeTest.cpp )
+target_link_libraries( FrontendSerializeTest PRIVATE Volt::Core Volt::Frontend Volt::CompileOptions )
+add_test(
+  NAME    FrontendSerializeTest
+  COMMAND FrontendSerializeTest
+)
+
+#############################################################################
+
 add_test(
   NAME    ZeroHardcode
   COMMAND ${CMAKE_COMMAND} -P ${VOLT_ROOT}/tests/ZeroHardcode.cmake

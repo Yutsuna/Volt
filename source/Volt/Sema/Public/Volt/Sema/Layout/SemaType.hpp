@@ -9,6 +9,7 @@
 // a value, not a declaration, so it needs no global registration and the
 // frozen store is never mutated during the parallel sema phase.
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
@@ -23,6 +24,12 @@
 
 namespace Volt
 {
+
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
 
 namespace Sema
 {
@@ -46,7 +53,7 @@ namespace Sema
     // Every type one compile unit inferred. Mutated only by that unit's own
     // pass run, so the parallel sema phase needs no lock: unlike the store,
     // this is per-file state living on the CompileUnit.
-    class UnitTypes
+    class SEMA_EXPORT UnitTypes
     {
 
     public:
@@ -151,6 +158,18 @@ namespace Sema
         {
             return Types.Size();
         }
+
+        // --- Frontend cache (Issue #61) -----------------------------------
+        //
+        // Dedup is not serialised: it exists only to make Intern() an O(1)
+        // lookup during TypeChecker, and every key is recomputable from an
+        // already-loaded Types arena (its entries are never duplicated —
+        // Intern() itself ensures that), so DeserializeCache rebuilds it
+        // directly instead of persisting a redundant copy.
+        void SerializeCache ( Meta::Writer &W ) const;
+
+        // Expects a *fresh* UnitTypes (same contract as DeserializeArena).
+        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
 
     private:
 

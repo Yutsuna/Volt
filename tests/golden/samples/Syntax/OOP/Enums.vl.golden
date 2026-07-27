@@ -1,7 +1,7 @@
 Program 'samples/Syntax/OOP/Enums.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -102,12 +102,12 @@ Program 'samples/Syntax/OOP/Enums.vl'
 │     ├─ EnumCase 'None' @53:3
 │     ├─ EnumCase 'Some' @54:3
 │     │  └─ payload
-│     │     └─ Param 'value'
+│     │     └─ Param 'value' @54:9
 │     │        └─ decl_type
 │     │           └─ TypeRef 'T' @54:17
 │     └─ Method 'value_or' @56:3
 │        ├─ params
-│        │  └─ Param 'default_val'
+│        │  └─ Param 'default_val' @56:17
 │        │     └─ decl_type
 │        │        └─ TypeRef 'T' @56:31
 │        ├─ return_type

@@ -1,7 +1,7 @@
 Program 'samples/Sema/NilableUnsupported.vl'
 └─ Method 'nilable' @11:1
    ├─ params
-   │  └─ Param 'x'
+   │  └─ Param 'x' @11:14
    │     └─ decl_type
    │        └─ NilableType @11:18
    │           └─ inner

@@ -1,7 +1,7 @@
 Program 'samples/Syntax/OOP/Modules.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -27,7 +27,7 @@ Program 'samples/Syntax/OOP/Modules.vl'
 │  └─ body
 │     ├─ Method 'square' self @8:3
 │     │  ├─ params
-│     │  │  └─ Param 'n'
+│     │  │  └─ Param 'n' @8:20
 │     │  │     └─ decl_type
 │     │  │        └─ TypeRef 'Int32' @8:24
 │     │  ├─ return_type
@@ -42,7 +42,7 @@ Program 'samples/Syntax/OOP/Modules.vl'
 │     │                 └─ Identifier 'n' @9:9
 │     └─ Method 'cube' self @12:3
 │        ├─ params
-│        │  └─ Param 'n'
+│        │  └─ Param 'n' @12:18
 │        │     └─ decl_type
 │        │        └─ TypeRef 'Int32' @12:22
 │        ├─ return_type

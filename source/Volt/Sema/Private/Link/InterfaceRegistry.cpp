@@ -1,6 +1,7 @@
 #include "Volt/Sema/Link/InterfaceRegistry.hpp"
 
 #include "Volt/Core/Meta/Overloaded.hpp"
+#include "Volt/Core/Meta/Serialize.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -70,6 +71,35 @@ namespace Sema
     std::size_t PublishUnitInterface ( const Frontend::AstContext &Ast, std::uint32_t Unit, InterfaceRegistry &Registry )
     {
         return PublishDecls( Ast, std::string{}, Ast.TopDecls, Unit, Registry );
+    }
+
+    void InterfaceRegistry::SerializeCache ( Meta::Writer &W ) const
+    {
+        const auto Count = static_cast<std::uint32_t>( Decls.size() );
+        Meta::Serialize( W, Count );
+        for ( const ExportedDecl &Entry : Decls )
+        {
+            Meta::Serialize( W, Entry );
+        }
+    }
+
+    bool InterfaceRegistry::DeserializeCache ( Meta::Reader &R )
+    {
+        std::uint32_t Count = 0;
+        if ( not Meta::Deserialize( R, Count ) )
+        {
+            return false;
+        }
+        for ( std::uint32_t Index = 0; Index < Count; ++Index )
+        {
+            ExportedDecl Entry;
+            if ( not Meta::Deserialize( R, Entry ) )
+            {
+                return false;
+            }
+            Publish( std::move( Entry ) );
+        }
+        return true;
     }
 
 } // namespace Sema

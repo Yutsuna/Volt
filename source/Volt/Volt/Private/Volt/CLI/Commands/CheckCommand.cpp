@@ -1,6 +1,7 @@
 #include "Volt/CLI/Commands/CheckCommand.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"
 #include "Volt/Driver/WellKnown.hpp"
@@ -67,7 +68,7 @@ std::string_view Volt::CLI::FCheckCommand::GetUsage () const noexcept
 std::vector<Volt::CLI::FOption> Volt::CLI::FCheckCommand::GetOptions ()
 {
     // clang-format off
-    return {
+    std::vector<FOption> Options = {
         {
             "-i", "--input", "INPUT", "Code target directory or source file",
             [this] ( std::string_view Val ) { this->Input = Val; }
@@ -95,9 +96,19 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FCheckCommand::GetOptions ()
         {
             "", "--unused", "", "Flag unreferenced syntax structures and bindings",
             [this] ( std::string_view ) { this->bUnused = true; }
+        },
+        {
+            "-v", "--verbose", "", "Enable verbose output",
+            [this] ( std::string_view ) { this->bVerbose = true; this->StdlibFlags.bVerbose = true; }
         }
     };
     // clang-format on
+
+    for ( FOption &Option : StdlibCacheOptions( StdlibFlags ) )
+    {
+        Options.push_back( std::move( Option ) );
+    }
+    return Options;
 }
 
 std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_view> InArgs )
@@ -154,16 +165,18 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
 
+    const Driver::FCacheOptions CacheOpts = ToDriverCacheOptions( StdlibFlags );
+
     if ( const std::optional<fs::path> Manifest = Driver::DiscoverManifest( Input ) )
     {
         Core::FLogger::Info( "Circuit manifest found: " + Manifest->string(), "check" );
         Core::FLogger::Progress( "Running semantic analysis...", "check" );
-        Compiled = TheDriver.CompileCircuit( Manifest->string() );
+        Compiled = TheDriver.CompileCircuit( Manifest->string(), CacheOpts );
     }
     else
     {
         Core::FLogger::Progress( "Running semantic analysis...", "check" );
-        Compiled = TheDriver.CompileFiles( { Input } );
+        Compiled = TheDriver.CompileFiles( { Input }, CacheOpts );
     }
 
     const bool bFailed = TheDriver.HasErrors() or ( bWarnAsError and TheDriver.DiagnosticCount() > 0 );

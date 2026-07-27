@@ -35,9 +35,10 @@ gccStdenv.mkDerivation {
   ];
 
   installPhase = ''
-    mkdir -p $out/bin $out/lib
+    mkdir -p $out/bin $out/lib $out/share/volt/Lib
     cp bin/volt $out/bin/
     cp lib/*.so $out/lib 2>/dev/null || true
+    cp -r $src/source/Lib/. $out/share/volt/Lib/
   '';
 
   meta = with pkgs.lib; {

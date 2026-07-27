@@ -1,19 +1,13 @@
 #include "Volt/CLI/Commands/BuildCommand.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 
-#ifdef VOLT_ENABLE_LLVM
-    #include "Volt/BackendCore/TargetBackend.hpp"
-    #include "Volt/BackendLLVM/LlvmEmitter.hpp"
-#endif
-
-#include <cstdint>
 #include <filesystem>
 #include <iostream>
-#include <memory>
 #include <optional>
 #include <string>
 
@@ -50,7 +44,7 @@ std::string_view Volt::CLI::FBuildCommand::GetUsage () const noexcept
 std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
 {
     // clang-format off
-    return {
+    std::vector<FOption> Options = {
         {
             "-i", "--input", "INPUT", "File input source program",
             [this] ( std::string_view Val ) { this->Input = Val; }
@@ -74,9 +68,19 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
         {
             "", "--lto", "", "Enable link-time optimization (native only)",
             [this] ( std::string_view ) { this->bLto = true; }
+        },
+        {
+            "-v", "--verbose", "", "Enable verbose output",
+            [this] ( std::string_view ) { this->bVerbose = true; this->StdlibFlags.bVerbose = true; }
         }
     };
     // clang-format on
+
+    for ( FOption &Option : StdlibCacheOptions( StdlibFlags ) )
+    {
+        Options.push_back( std::move( Option ) );
+    }
+    return Options;
 }
 
 std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_view> InArgs )
@@ -129,31 +133,21 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         return ExitFailure;
     }
 
-    if ( Target != "native" )
-    {
-        Core::FLogger::Error( "Unsupported --target '" + Target + "': only 'native' is implemented", "build" );
-        return ExitFailure;
-    }
-
-#ifndef VOLT_ENABLE_LLVM
-    Core::FLogger::Error( "This build of volt was configured without LLVM (VOLT_ENABLE_LLVM=OFF); "
-                          "'volt build' is unavailable",
-                          "build" );
-    return ExitFailure;
-#else
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
+
+    const Driver::FCacheOptions CacheOpts = ToDriverCacheOptions( StdlibFlags );
 
     if ( const std::optional<fs::path> Manifest = Driver::DiscoverManifest( Input ) )
     {
         Core::FLogger::Info( "Circuit manifest found: " + Manifest->string(), "build" );
         Core::FLogger::Progress( "Compiling...", "build" );
-        Compiled = TheDriver.CompileCircuit( Manifest->string() );
+        Compiled = TheDriver.CompileCircuit( Manifest->string(), CacheOpts );
     }
     else
     {
         Core::FLogger::Progress( "Compiling...", "build" );
-        Compiled = TheDriver.CompileFiles( { Input } );
+        Compiled = TheDriver.CompileFiles( { Input }, CacheOpts );
     }
 
     Core::FLogger::Progress( TheDriver.HasErrors() ? "Compilation failed" : "Compilation complete", "build",
@@ -172,37 +166,29 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         return ExitFailure;
     }
 
-    Backend::Llvm::EmitOptions EmitOpts;
-    EmitOpts.OutputPath = Output;
-    EmitOpts.bLto       = bLto;
-
-    if ( Emit == "ir" )
-    {
-        EmitOpts.Stage = Backend::Llvm::EEmitStage::Ir;
-    }
-    else if ( Emit == "obj" )
-    {
-        EmitOpts.Stage = Backend::Llvm::EEmitStage::Object;
-    }
-    else if ( not Emit.empty() )
-    {
-        Core::FLogger::Error( "Unsupported --emit '" + Emit + "': expected 'ir' or 'obj'", "build" );
-        return ExitFailure;
-    }
+    Driver::BuildOptions BuildOpts;
+    BuildOpts.Target                 = Target;
+    BuildOpts.OutputPath             = Output;
+    BuildOpts.bLto                   = bLto;
+    BuildOpts.Emit                   = Emit;
+    BuildOpts.bStdlibArtifactNoCache = StdlibFlags.bNoStdlibCache;
+    BuildOpts.bStdlibArtifactFresh   = StdlibFlags.bFreshStdlib;
+    BuildOpts.StdlibArtifactKind     = StdlibFlags.Artifact;
+    BuildOpts.bVerbose               = bVerbose;
 
     if ( not OptLevel.empty() )
     {
         if ( OptLevel == "0" )
         {
-            EmitOpts.OptLevel = 0;
+            BuildOpts.OptLevel = 0;
         }
         else if ( OptLevel == "2" )
         {
-            EmitOpts.OptLevel = 2;
+            BuildOpts.OptLevel = 2;
         }
         else if ( OptLevel == "3" )
         {
-            EmitOpts.OptLevel = 3;
+            BuildOpts.OptLevel = 3;
         }
         else
         {
@@ -211,32 +197,18 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         }
     }
 
-    Backend::Llvm::LlvmBackend LlvmImpl;
-    LlvmImpl.SetOptions( EmitOpts );
-
-    std::unique_ptr<Backend::IBackend> TheBackend = Backend::MakeBackend( std::move( LlvmImpl ) );
-
-    const std::vector<Backend::UnitView> Views = TheDriver.MakeBackendViews();
-    const Backend::BackendInput BackendIn{ .Types = &TheDriver.MutableLayouts(), .Units = Views };
-    TheBackend->Begin( BackendIn );
-
-    // A unit that fails leaves State::Failed() set, so every later EmitUnit
-    // is a guarded no-op; Finalize() is still what surfaces the real message.
-    for ( const Backend::UnitView &Unit : Views )
+    // Driver::Build() is the *only* place --target resolves to a concrete
+    // backend (Driver/Private/DriverBuild.cpp): this command never includes
+    // a Backend* header at all.
+    const Driver::BuildResult Built = TheDriver.Build( BuildOpts );
+    if ( not Built.bOk )
     {
-        static_cast<void>( TheBackend->EmitUnit( Unit ) );
-    }
-
-    const Backend::EmitResult Emitted = TheBackend->Finalize();
-    if ( Emitted.Status != Backend::EEmitStatus::Ok )
-    {
-        Core::FLogger::Error( "Finalize failed: " + Emitted.Message, "build" );
+        Core::FLogger::Error( Built.Message, "build" );
         return ExitFailure;
     }
 
-    Core::FLogger::Info( "OK : " + Emitted.Artifact, "build" );
+    Core::FLogger::Info( "OK : " + Built.Artifact, "build" );
     return ExitSuccess;
-#endif
 }
 
 /**

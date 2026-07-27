@@ -1,7 +1,7 @@
 Program 'samples/Syntax/OOP/Structs.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -44,15 +44,15 @@ Program 'samples/Syntax/OOP/Structs.vl'
 │     │     └─ TypeRef 'Int32' @9:14
 │     ├─ Method 'initialize' @11:3
 │     │  └─ params
-│     │     ├─ Param 'x' instance_var
+│     │     ├─ Param 'x' instance_var @11:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'Int32' @11:24
-│     │     └─ Param 'y' instance_var
+│     │     └─ Param 'y' instance_var @11:31
 │     │        └─ decl_type
 │     │           └─ TypeRef 'Int32' @11:36
 │     └─ Method 'distance_squared' @14:3
 │        ├─ params
-│        │  └─ Param 'other'
+│        │  └─ Param 'other' @14:25
 │        │     └─ decl_type
 │        │        └─ TypeRef 'Point2D' @14:33
 │        ├─ return_type

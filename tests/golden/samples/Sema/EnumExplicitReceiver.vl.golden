@@ -6,7 +6,7 @@ Program 'samples/Sema/EnumExplicitReceiver.vl'
 │     └─ EnumCase 'Green' @9:3
 ├─ Method 'describe' @12:1
 │  ├─ params
-│  │  └─ Param 'light'
+│  │  └─ Param 'light' @12:16
 │  │     └─ decl_type
 │  │        └─ TypeRef 'TrafficLight' @12:24
 │  ├─ return_type

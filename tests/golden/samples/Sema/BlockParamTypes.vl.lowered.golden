@@ -6,7 +6,7 @@ Program 'samples/Sema/BlockParamTypes.vl'
 │     │     └─ TypeRef 'Int32' @7:18
 │     ├─ Method 'initialize' @9:3
 │     │  ├─ params
-│     │  │  └─ Param 'limit'
+│     │  │  └─ Param 'limit' @9:19
 │     │  │     ├─ decl_type
 │     │  │     │  └─ TypeRef 'Int32' @9:27
 │     │  │     └─ default
@@ -21,7 +21,7 @@ Program 'samples/Sema/BlockParamTypes.vl'
 │     │                 └─ Identifier 'limit' @10:14
 │     ├─ Method 'each' @13:3
 │     │  ├─ params
-│     │  │  └─ Param 'block' is_block
+│     │  │  └─ Param 'block' is_block @13:13
 │     │  │     └─ decl_type
 │     │  │        └─ FuncType @13:22
 │     │  │           ├─ return

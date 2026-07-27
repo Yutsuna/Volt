@@ -1,7 +1,7 @@
 Program 'samples/Syntax/Loop/ForLoop.vl'
 ├─ Method 'assert!' @3:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @3:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @3:26
 │  ├─ return_type

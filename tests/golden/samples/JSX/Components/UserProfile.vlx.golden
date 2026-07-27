@@ -1,7 +1,7 @@
 Program 'samples/JSX/Components/UserProfile.vlx'
 └─ Component 'UserProfile' @1:1
    ├─ params
-   │  └─ Param 'user'
+   │  └─ Param 'user' @1:24
    │     └─ decl_type
    │        └─ TypeRef 'User' @1:31
    └─ body
