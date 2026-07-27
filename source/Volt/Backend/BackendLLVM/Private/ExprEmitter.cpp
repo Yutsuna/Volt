@@ -1642,11 +1642,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCase ( Frontend::ExprI
             {
                 if ( const auto *Tail = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Index] ) ); Tail != nullptr )
                 {
-                    llvm::Value *Value = EmitExpr( Tail->Expr );
-                    if ( Value != nullptr )
-                    {
-                        static_cast<void>( Builder->CreateStore( CoerceWidth( Value, Shape ), Slot ) );
-                    }
+                    StoreTailValue( EmitExpr( Tail->Expr ), Slot, Shape );
                     continue;
                 }
             }

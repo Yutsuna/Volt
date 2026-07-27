@@ -398,6 +398,11 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // blocks and has no binding to key on.
     [[nodiscard]] llvm::AllocaInst *MakeTemp ( llvm::Type *Shape, std::string_view Name ) const;
 
+    // A statement list's trailing expression converging into a result slot.
+    // `begin` and `case` both do this and must do it identically, so the rule
+    // lives here once rather than at the two stores.
+    void StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape );
+
     // True when the block being written into already ends in a terminator, so
     // a walk stops appending instructions after a `return` / `break`.
     [[nodiscard]] bool Terminated () const;
