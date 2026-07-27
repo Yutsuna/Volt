@@ -71,6 +71,24 @@ inline void ConstrainNode ( const Volt::Frontend::Binary &Node,
                             Volt::Frontend::ExprId Expr,
                             Volt::Sema::SemaTypeId TargetType )
 {
+    // Resolve the operator on its own terms first — exactly what a bare visit
+    // would do — before deciding whether the outer target has any business
+    // reaching the operands. A self-typed operator (`Arithmetic#+`, `-`, ...)
+    // returns its receiver's own type, so `doubled : Int32 = value * 2` needs
+    // the target pushed through to settle `value` and `2`. A comparison
+    // (`Comparable#==`, `<`, ...) returns a fixed `Bool` regardless of the
+    // receiver, so pushing the target through it re-types the *operands* to
+    // Bool instead of Bool being the operator's own answer — `check( a + b ==
+    // 12.5 )` against a `Bool` parameter retyped `a + b` itself to Bool, and
+    // the backend then emitted `icmp` on the float `FAdd` result. Comparing
+    // the resolved result against the (independently resolved) receiver type
+    // tells the two apart without hardcoding a single operator token.
+    const Volt::Sema::SemaTypeId Natural = Volt::Sema::TypeCheckerPass::InferExpr( Self, Expr );
+    if ( Natural.IsValid() and Natural != Self.Ctx.Values.ExprType( Node.Lhs ) )
+    {
+        return;
+    }
+
     ConstrainChild( Self, Node.Lhs, TargetType );
     ConstrainChild( Self, Node.Rhs, TargetType );
     Self.Ctx.Values.SetExprType( Expr, TargetType );
