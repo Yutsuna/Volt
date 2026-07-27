@@ -219,6 +219,31 @@ Each is refused by a message naming the hole rather than guessed at, per
   `rules/core-ast.md`). The decoder trims the suffix and takes its width from
   the *layout*, always — honouring the suffix here would make the backend
   disagree with the type Sema assigned, which is worse than the known gap.
+- **A use's `ExprType` can lag behind its binding's `SiteType`.** A local with
+  no annotation settles late: `ConstrainNode( Identifier )` moves the site when
+  some later context finally says what the type is, but the uses *already*
+  inferred against the provisional type keep it. `i = 0_u64` in
+  `Exception#format_backtrace` leaves those uses reading `Int32` while the site
+  is correctly `UInt64`. Nothing is mis-emitted — the slot comes from
+  `SiteType`, which is right — but it fixes which of the two a store may
+  believe: **`EmitStore` takes its width from the destination itself**
+  (`SlotTypeOf`: an `alloca`'s allocated type, a global's value type) and falls
+  back on the handed layout only for an address that carries none, a GEP into
+  an aggregate. Trusting the target expression's layout instead rejects stores
+  that are correct.
+
+  The same drift in the other direction is a real corruption, and is now
+  refused rather than emitted. An unconstrained literal initialiser used to be
+  pinned by the assignment that *declared* the local — to a type read back off
+  the local it had just seeded, so `result = 1` stamped `Int32` — which
+  consumed the record that let it move later. `result *= base` then took the
+  site to `Int8` and left the literal at `Int32`, and the emitter put a
+  `store i32` into an `alloca i8`: three bytes past the end of the slot, a
+  smashed frame, and a jump to the PIE base at `ret`. Twelve of these existed
+  across the stdlib (`Int8/16/64#pow`, `String#hash/trim/upcase/downcase`,
+  `Array#push`, `Exception#format_backtrace`). Fixed upstream — the first word
+  is no longer spoken, so the last one wins — and `EmitStore` now reports any
+  survivor by naming both widths instead of storing it.
 
 ## Closures — `ClosureEnvFrame` is already computed
 
@@ -372,6 +397,33 @@ Tier 2 (once hot): Itanium zero-cost EH — `invoke` + `landingpad` with a
 custom personality; the clause matching logic (the ancestry walk above) is
 unchanged, only the transport differs. The choice is an emitter flag, not an
 AST concern.
+
+**An exception nobody catches is invisible from outside the process — known
+gap.** The poisoned path bottoms out at "return early carrying no value", and
+for a body returning an integer that value is `0`. Run it out to the top and
+`main` raising is `ret i32 0`, byte for byte what returning success looks
+like, so `libc_exit( main() )` exits `0`. There is no last-resort handler: the
+tag stays set in `volt.exc.tag` and nothing ever reads it again.
+
+This is not a middle-end hole — the unwinding is doing exactly what tier 1
+specifies — but a missing *runtime* boundary, and it is worth naming because
+it silently disarms the obvious way to write a test:
+
+```volt
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "..."            # exits 0 — asserts nothing at all
+  end
+end
+```
+
+`samples/Tests/*.vl` therefore calls the stdlib's `@[External]` `exit` directly
+rather than raising, so a failed assertion is observable as an exit code. The
+real fix is a top-level handler that runs after `main` returns: check the tag,
+and if one is in flight, report it and exit non-zero. It needs a decision on
+what "report" means — the stdlib still declares no output facility (the same
+wall `Array#to_string` hits above) — so the exit code alone is the honest
+first step.
 
 **Known interaction, not fixed here:** constructing the raised object via
 `SomeError.new(...)` goes through the pre-existing aggregate-*return* gap
