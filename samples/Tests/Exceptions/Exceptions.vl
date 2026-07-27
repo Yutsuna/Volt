@@ -1,0 +1,41 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def deep -> Void
+  raise ArgumentError.new( "from deep" )
+end
+
+
+def main -> Int32
+  total = 0
+
+  begin
+    deep()
+    total = total + 100
+  rescue e : IndexError
+    total = total + 200
+  rescue e : ArgumentError
+    total = total + 1
+  ensure
+    total = total + 2
+  end
+
+  begin
+    raise KeyError.new( "sub" )
+  rescue e : Exception
+    total = total + 4
+  end
+
+  begin
+    total = total + 8
+  rescue e : Exception
+    total = total + 400
+  ensure
+    total = total + 16
+  end
+
+  total
+end
+
+libc_exit( main )

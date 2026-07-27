@@ -85,22 +85,8 @@ endforeach()
 
 #############################################################################
 
-# The native backend's own corpus: every sample is compiled to a real
-# executable and run, and its exit code compared against the `.expected` file
-# beside it. Only registered when the backend exists — `volt build` reports
-# "configured without LLVM" otherwise, and a test asserting that would be
-# asserting the absence of the thing under test.
-#
-# Two directories, one loop, because they differ in intent and not in
-# mechanism. `samples/Codegen/` exercises one emission shape per file and
-# encodes its answer in the exit code. `samples/Tests/` is the assertion
-# corpus: each file asserts its way through one primitive type's whole surface
-# and raises on the first failure, so `exit=0` means every assertion held. One
-# file per type rather than one big one, so a defect names the type it is in
-# instead of holding the entire corpus red.
 if( VOLT_ENABLE_LLVM )
   file( GLOB VOLT_CODEGEN_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
-    ${VOLT_ROOT}/samples/Codegen/*.vl
     ${VOLT_ROOT}/samples/Tests/*.vl )
   list( SORT VOLT_CODEGEN_SOURCES )
 

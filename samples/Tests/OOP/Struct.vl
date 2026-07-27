@@ -1,0 +1,28 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+struct Vec2
+  getter x : Int32
+  getter y : Int32
+
+  def initialize( @x : Int32, @y : Int32 )
+  end
+
+  def sum -> Int32
+    @x + @y
+  end
+
+  def shifted( delta : Int32 ) -> Int32
+    @x + @y + delta
+  end
+end
+
+
+def main -> Int32
+  v = Vec2.new( 3, 4 )
+  v.sum + v.shifted( 5 )
+end
+
+
+libc_exit( main )

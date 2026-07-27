@@ -1,0 +1,61 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_int16 -> Void
+  a : Int16 = 1000
+  b : Int16 = 2000
+  zero : Int16 = 0
+  neg : Int16 = -500
+
+  assert!( a + b == 3000 )
+  assert!( b - a == 1000 )
+  assert!( a * 2 == 2000 )
+  assert!( b / 2 == 1000 )
+  assert!( b % a == 0 )
+  assert!( ( a & b ) == 960 )
+  assert!( ( a | b ) == 2040 )
+  assert!( ( a ^ b ) == 1080 )
+  assert!( ( a << 1 ) == 2000 )
+  assert!( ( b >> 1 ) == 1000 )
+  assert!( ~zero == -1 )
+
+  assert!( a.negate == -1000 )
+  assert!( neg.abs == 500 )
+  assert!( a.min( b ) == 1000 )
+  assert!( a.max( b ) == 2000 )
+  assert!( a.successor == 1001 )
+  assert!( a.predecessor == 999 )
+  assert!( a.between?( 500, 1500 ) )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( ( 1001 : Int16 ).odd? )
+  assert!( ( 1024 : Int16 ).power_of_two? )
+  assert!( b.divisible_by?( a ) )
+  assert!( a.clamp( 200, 800 ) == 800 )
+  assert!( a.distance( b ) == 1000 )
+  assert!( ( 10 : Int16 ).square == 100 )
+  assert!( a.double == 2000 )
+  assert!( b.half == 1000 )
+  assert!( ( 10 : Int16 ).cube == 1000 )
+  assert!( ( 3 : Int16 ).pow( 3 ) == 27 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_int16
+  0
+end
+
+libc_exit( main() )

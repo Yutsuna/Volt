@@ -1,0 +1,63 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_int32 -> Void
+  a : Int32 = 100000
+  b : Int32 = 50000
+  zero : Int32 = 0
+  neg : Int32 = -123456
+
+  assert!( a + b == 150000 )
+  assert!( a - b == 50000 )
+  # 100000 * 50000 is 5e9, which no Int32 holds — the operands have to stay
+  # inside the type for the assertion to mean anything.
+  assert!( a * 20 == 2000000 )
+  assert!( a / b == 2 )
+  assert!( a % b == 0 )
+  assert!( ( a & b ) == 33280 )
+  assert!( ( a | b ) == 116720 )
+  assert!( ( a ^ b ) == 83440 )
+  assert!( ( b << 1 ) == 100000 )
+  assert!( ( a >> 1 ) == 50000 )
+  assert!( ~zero == -1 )
+
+  assert!( a.negate == -100000 )
+  assert!( neg.abs == 123456 )
+  assert!( a.min( b ) == 50000 )
+  assert!( a.max( b ) == 100000 )
+  assert!( a.successor == 100001 )
+  assert!( a.predecessor == 99999 )
+  assert!( a.between?( 0, 200000 ) )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( ( 100001 : Int32 ).odd? )
+  assert!( ( 65536 : Int32 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.clamp( 0, 1000 ) == 1000 )
+  assert!( a.distance( b ) == 50000 )
+  assert!( ( 1000 : Int32 ).square == 1000000 )
+  assert!( b.double == 100000 )
+  assert!( a.half == 50000 )
+  assert!( ( 100 : Int32 ).cube == 1000000 )
+  assert!( ( 2 : Int32 ).pow( 10 ) == 1024 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_int32
+  0
+end
+
+libc_exit( main() )

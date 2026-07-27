@@ -1,0 +1,38 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def level3 -> Void
+  raise ArgumentError.new( "deep message\tsurvives" )
+end
+
+
+def level2 -> Void
+  level3
+end
+
+
+def quiet -> Void
+end
+
+
+def main -> Int32
+  total = 0
+
+  begin
+    level2
+  rescue e : ArgumentError
+    total = e.message.size == 21_u64 ? 5 : 0
+  end
+
+  begin
+    quiet
+  rescue e : Exception
+    total = total + 100
+  end
+
+  total + 2
+end
+
+
+libc_exit( main )

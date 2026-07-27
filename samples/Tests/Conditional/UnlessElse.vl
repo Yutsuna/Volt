@@ -1,0 +1,24 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+executed = false
+unless false
+  executed = true
+end
+assert!( executed == true )
+
+
+status = unless true
+  "active"
+else
+  "inactive"
+end
+assert!( status == "inactive" )
+
+
+res_unless_then = unless false then "ok" else "ko" end
+assert!( res_unless_then == "ok" )

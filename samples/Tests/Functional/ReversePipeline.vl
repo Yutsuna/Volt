@@ -1,0 +1,68 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+def double(x : Int32) -> Int32
+  x * 2
+end
+
+def add_three(x : Int32) -> Int32
+  x + 3
+end
+
+def scale(x : Int32, factor : Int32, offset : Int32) -> Int32
+  (x * factor) + offset
+end
+
+
+module MathHelper
+
+
+  def self.square(x : Int32) -> Int32
+    x * x
+  end
+
+  def self.add_constant(x : Int32, const : Int32) -> Int32
+    x + const
+  end
+
+
+end
+
+
+# double(add_three(5)) => double(8) => 16, right-associative:
+# double <| (add_three <| 5)
+res_no_parens = double <| add_three <| 5
+assert!(res_no_parens == 16)
+
+
+# x = double(5) => 10
+x = double <| 5
+assert!(x == 10)
+
+
+# scale(10, 3, 5) => (10 * 3) + 5 = 35
+res_multi_args = scale(3, 5) <| 10
+assert!(res_multi_args == 35)
+
+
+# MathHelper.add_constant(MathHelper.square(4), 10) => 26
+res_module = MathHelper.add_constant(10) <| MathHelper.square <| 4
+assert!(res_module == 26)
+
+
+# Mixed with the forward pipe: equal precedence but opposite associativity,
+# so the right-associative `<|` swallows the rest of the expression first:
+# double <| (5 |> add_three) => double(add_three(5)) => double(8) => 16
+res_mixed = double <| 5 |> add_three
+assert!(res_mixed == 16)
+
+
+# ((add_three <| double <| 2)) => add_three(double(2)) => add_three(4) => 7
+res_multiline = add_three
+  <| double
+  <| 2
+assert!(res_multiline == 7)

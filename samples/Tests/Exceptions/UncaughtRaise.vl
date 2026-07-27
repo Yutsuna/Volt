@@ -1,0 +1,12 @@
+def boom -> Int32
+  raise RuntimeError.new( "nobody catches this" )
+  0
+end
+
+
+def main -> Int32
+  boom
+end
+
+
+main

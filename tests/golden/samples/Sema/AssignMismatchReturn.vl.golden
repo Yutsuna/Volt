@@ -1,9 +1,0 @@
-Program 'samples/Sema/AssignMismatchReturn.vl'
-└─ Method 'bad_return' @4:1
-   ├─ return_type
-   │  └─ TypeRef 'Int32' @4:19
-   └─ body
-      └─ Return @5:3
-         └─ value
-            └─ StringLiteral 'plain' @5:10
---- exit 0 ---

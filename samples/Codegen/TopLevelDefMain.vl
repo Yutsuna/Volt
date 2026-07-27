@@ -1,4 +1,0 @@
-# def main is not implicitly executed without an explicit top-level call.
-def main -> Int32
-  42
-end

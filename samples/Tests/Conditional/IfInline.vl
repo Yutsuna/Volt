@@ -1,0 +1,22 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+counter = 0
+counter += 10 if true
+assert!( counter == 10 )
+
+
+counter += 10 if false
+assert!( counter == 10 )
+
+
+inline_res = "success" if true
+assert!( inline_res == "success" )
+
+
+inline_res_false = "success" if false
+assert!( inline_res_false.empty? )

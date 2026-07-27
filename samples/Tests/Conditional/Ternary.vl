@@ -1,0 +1,14 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+age = 20
+str_age = age >= 18 ? "Adult" : "Minor"
+assert!( str_age == "Adult" )
+
+score = 85
+grade = score >= 90 ? "A" : score >= 80 ? "B" : "C"
+assert!( grade == "B" )
