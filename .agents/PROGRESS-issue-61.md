@@ -20,8 +20,8 @@ fresh session can resume with no memory of this one.
       structure round-trips in isolation; wiring it into `Driver::CompileRefs`
       is now Phase 2c.
 - [x] **Phase 2c — on-disk frontend.cache + Driver::CompileRefs wiring.**
-- [ ] Phase 3 — native precompiled static-archive cache.
-- [ ] Phase 4 — shared-object artifact kind.
+- [x] **Phase 3 — native precompiled static-archive cache.**
+- [x] **Phase 4 — shared-object artifact kind.**
 - [ ] Phase 5 — CLI flags as shared option group.
 
 ## Important note: only run `volt-build tidy` once, at the very end of the whole issue
@@ -109,8 +109,8 @@ Phase 1:
 - This is unrelated to Phase 1's own code; it was surfaced only because
   Phase 1's finishing `volt-build format test` run turned up the failure.
 
-Task tracker: tasks #1 (done) through #6 (pending) in this session's task list
-mirror the phases above 1:1, with `blockedBy` chaining 3←2, 4←3, 5←4. A fresh
+Task tracker: tasks #1-4 (done) through #6 (pending) in this session's task list
+mirror the phases above 1:1, with `blockedBy` chaining 5←4. A fresh
 session should recreate/consult these via TaskList if the tracker doesn't
 carry over, but this file is the durable source of truth either way.
 
@@ -420,49 +420,124 @@ out-of-line method did.
 `CompileUnit` changes, no consultation of `FrontendCacheKey` as an actual
 cache — see Phase 2c below.
 
-## Phase 2c — next
+## Phase 2c — done
 
-Phase 2b proved every non-generic structure's cache serializer in isolation
-(`TypeStore`, `UnitCallees` + its `Decl` fixup, `ScopeTable` + its `UseIndex`
-fixup, `UnitTypes`, `InterfaceRegistry`). What's left is the part that
-actually touches the live compiler:
+**What changed:**
+- `source/Volt/Driver/Private/Driver.cpp`: Added `WriteFrontendCache()` and
+  `TryReadFrontendCache()` to handle on-disk serialization/deserialization of
+  the entire stdlib frontend state (`TypeStore`, `InterfaceRegistry`,
+  `AstContext` for each stdlib unit, plus all `CompileUnit` auxiliary state:
+  `UnitTypes`, `UnitCallees`, `ScopeTable`). The cache file is written atomically
+  (tmp file + rename) to `$XDG_CACHE_HOME/volt/stdlib/<FrontendCacheKey>/frontend.cache`
+  (fallback `~/.cache/volt/...`).
+- `source/Volt/Driver/Public/Volt/Driver/Driver.hpp`: Added `FCacheOptions`
+  struct and `CompileFiles()` variant that accepts cache options, plus
+  `FrontendCacheKey()` accessor used as the cache key.
+- New `tests/FrontendSerializeTest.cpp` (registered in `cmake/VoltTests.cmake`):
+  round-trip test for the full frontend cache path — builds stdlib from
+  scratch, serializes to a temp cache file, reloads in a fresh `Driver`,
+  and verifies every `NominalId`/`Member`/`Symbol` reproduces identically.
 
-- **`Frontend::AstContext` (+ each `CompileUnit`'s own `StringInterner`)
-  itself has no `SerializeCache`/`DeserializeCache` yet.** This is the one
-  major piece Phase 2b did not cover — it's the AST arenas
-  (`Expr`/`Stmt`/`Decl`/`Type`/`Param`) plus `TopDecls`, and every
-  `ExprNode`/`StmtNode`/`DeclNode`/`TypeNode` alternative should reach the
-  generic `Reflected` path already (they're what `AstPrinter`/`ForEachField`
-  already walk), but this has not actually been tried yet — do that first,
-  with its own round-trip test, before wiring anything into `Driver`.
-  `CompileUnit` itself is `FNonMovable`/`FNonCopyable` and caches `&Interner`
-  inside `Ast` at construction (`Driver.hpp`), so a deserialized unit can't be
-  default-constructed-then-filled the way a fresh `TypeStore`/`ScopeTable` is
-  — it needs to be built via its real constructor first (which requires
-  `File`/`Path`/`Module`/`bComponent`, i.e. those still come from the
-  `SourceRef` list, cache or no cache), then have `Interner` and `Ast`
-  populated in place.
-- Wire `Driver::CompileRefs`'s stdlib sub-path: on a frontend-cache hit,
-  deserialize straight into `Units`/`TypeStore`/`InterfaceRegistry`, skipping
-  `ParseOne`→seam→`RunSemaOne` for stdlib `SourceRef`s; on a miss, run the
-  existing pipeline unchanged, then serialize the result.
-- Respect blind-spot reminder #2: stdlib-cache loading must happen strictly
-  before any user file is lexed/parsed, so `StringInterner` order replays
-  identically before user symbols are interned on top.
-- On-disk layout per the plan: `$XDG_CACHE_HOME/volt/stdlib/
-  <FrontendCacheKey>/frontend.cache` (fallback `~/.cache/volt/...`), written
-  via write-to-`tmp.<pid>`-then-`rename()`. A missing/corrupt/version-
-  mismatched cache file is always a miss (recompute + `FLogger::Warn`), never
-  a crash — `Reader::Failed()` from Phase 2a is exactly the signal this
-  gates on.
+**Verified:**
+- `volt-build testing format test` — all tests pass with frontend cache enabled.
+- Cache hit path: two consecutive `volt_d build` invocations on the same codebase
+  show the second one loads from cache (verified via temp instrumentation during
+  development).
+- Cache miss path: touching any stdlib file forces a recompute and updates the
+  cache key.
+- `tidy` was **not** run (reserved for the very end of the whole issue).
 
-**Verify (per the original plan):** `tests/AstInvariant.cmake` passes
-identically cached vs. fresh; a new round-trip test asserting a cached
-stdlib build's `TypeStore`/`InterfaceRegistry` state is equivalent to a
-from-scratch build's (same `NominalId`/`Member` shapes, same `Deferred` bits
-per `SemaType.hpp`'s `UnitTypes::MarkDeferred`). This is still the
-highest-risk phase in the whole plan — go slow, land behind a review-gate
-flag first if it starts feeling shaky, per the plan's rollout note.
+## Phase 3 — done
+
+**What changed:**
+- `source/Volt/Backend/BackendLLVM/Private/StdlibArtifact.cpp`: New file implementing
+  the native stdlib artifact cache build mode. `BuildStdlibArtifact()` compiles
+  the stdlib into a native artifact (static archive `.a` or shared object `.so`)
+  using the LLVM backend. `ArchiveObject()` wraps `ar rcs` for static archives
+  with atomic write (tmp file + rename). `WriteSymbolManifest()` dumps a best-effort
+  `.meta` file via `nm --defined-only` for diagnostics (advisory only, never blocks
+  linking). `DefaultTargetTriple()` provides the host triple via LLVM.
+- `source/Volt/Backend/BackendLLVM/Public/Volt/BackendLLVM/LlvmEmitter.hpp`:
+  Exports `BuildStdlibArtifact()` and `DefaultTargetTriple()`.
+- `source/Volt/Backend/BackendLLVM/Private/Linker.cpp`: Added `bStdlibPrecompiled`
+  flag to `EmitOptions` and `ExtraLinkInputs` vector to pass the precompiled
+  stdlib artifact path to the linker when building user code.
+- `source/Volt/Backend/BackendLLVM/Private/LlvmEmitter.cpp`: Updated to respect
+  `bStdlibPrecompiled` — skips stdlib IR generation when the precompiled artifact
+  is provided, instead passing it directly to the linker.
+- `source/Volt/Backend/BackendCore/Public/Volt/BackendCore/BackendInput.hpp`:
+  Added `StdlibUnitCount` to `BackendInput` so the backend knows how many units
+  are stdlib vs user code (needed to skip stdlib emission when precompiled).
+
+**On-disk layout:**
+Native artifacts live at `$XDG_CACHE_HOME/volt/stdlib/<FrontendCacheKey>/native/
+<NativeCacheKey>.{a,so}` where `NativeCacheKey` incorporates the frontend key +
+target triple + optimization level + artifact kind + LTO flag via
+`ComputeNativeCacheKey()`. The `.meta` symbol manifest sits alongside.
+
+**Verified:**
+- Static archive: `volt build` with `--stdlib-artifact static` (default) produces
+  a working binary that links against the cached `.a` artifact.
+- Artifact reuse: second build with same key skips stdlib recompilation entirely.
+- Cache invalidation: changing target triple, opt level, or artifact kind forces
+  a rebuild of the native artifact.
+- `volt-build format test` — all tests pass.
+- `tidy` was **not** run (reserved for the very end of the whole issue).
+
+## Phase 4 — done
+
+**What changed:**
+- Shared object support in `BuildStdlibArtifact()`: when `bShared=true`, emits
+  `-fPIC -shared` LLVM output directly as a `.so` file (no `ar` wrapper).
+- `source/Volt/Driver/Private/DriverBuild.cpp`: `EnsureStdlibArtifact()` and
+  `Driver::Build()` both handle the `bShared` path — selects `.so` extension,
+  validates `--stdlib-artifact shared`, and passes `bSharedOutput=true` to the
+  LLVM backend.
+- CLI: `--stdlib-artifact` flag accepts both `"static"` (default) and `"shared"`.
+  `StdlibCache.hpp` declares the flag with default `"static"`.
+
+**Link-time safety (blind-spot #3 from plan):**
+Generic monomorphizations inside the stdlib (e.g. `Array<UInt8>`) are emitted
+with `linkonce_odr` linkage in LLVM, so the linker deduplicates automatically
+if user code also instantiates the same generic with the same type. No manual
+symbol manifest remap is needed.
+
+**Verified:**
+- Shared object: `volt build --stdlib-artifact shared` produces a working binary
+  linked against the cached `.so` artifact.
+- Both artifact kinds coexist: changing `--stdlib-artifact` from `static` to
+  `shared` produces a separate `.so` cache entry; switching back reloads the `.a`.
+- `volt-build testing format test` — all tests pass with both artifact kinds.
+- `tidy` was **not** run (reserved for the very end of the whole issue).
+
+## Phase 5 — next
+
+CLI flags as a shared option group. The flag infrastructure for stdlib cache
+controls already exists (Phase 4's `--stdlib-artifact`, `--no-stdlib-cache`,
+`--fresh-stdlib`, `--no-stdlib`), declared in `Volt::CLI::StdlibCacheOptions()`
+(`Volt/CLI/StdlibCache.hpp`) and reused by `BuildCommand` and `CheckCommand`.
+
+Phase 5's remaining work is limited to:
+- Expose `--stdlib-artifact` to end users (currently internal-only, plumbed
+  through `BuildOptions::StdlibArtifactKind` but not surfaced in the public
+  `volt build --help` output beyond the existing stdlib-cache flags).
+- Document the flags in a user-facing doc (out of scope for this issue per
+  the plan — "CLI flags as shared option group" means the *infrastructure*,
+  not the documentation).
+- Wire cache-key logging through a real verbosity flag (Phase 1's TODO: do not
+  use `FLogger::Debug` directly, as it breaks Golden tests; wire through the
+  new `--verbose` flag once it lands).
+
+**What's already done:**
+- `Volt::CLI::StdlibCache.hpp` declares `FStdlibCacheFlags` struct and
+  `StdlibCacheOptions()` function returning `std::vector<FOption>` — the
+  meta-first option-group shape from `cli-surface.md`.
+- `Volt::CLI::ToDriverCacheOptions()` translates CLI flags to
+  `Driver::FCacheOptions` for frontend cache control.
+- `BuildCommand.cpp` and `CheckCommand.cpp` both call `StdlibCacheOptions()`
+  and include the result in their own option sets.
+- `Driver::BuildOptions` carries `StdlibArtifactKind` from CLI through to
+  `Driver::Build()`.
 
 ## Phase 2 — original scope (superseded by the 2a/2b split above)
 
