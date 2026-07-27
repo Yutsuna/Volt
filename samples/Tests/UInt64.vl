@@ -1,0 +1,44 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+# The oracle is the exit code, and it has to be one the runtime cannot fake.
+# `raise` cannot be used here: with no enclosing `begin`, tier-1 EH unwinds by
+# returning early carrying no value, which for an Int32 body is `ret i32 0` —
+# indistinguishable from success by the time `libc_exit( main() )` reads it.
+# A failed assertion would exit 0 and the whole corpus would assert nothing.
+def assert!( condition : Bool ) -> Void
+  if not condition
+    libc_exit( 1 )
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_uint64 -> Void
+  a : UInt64 = 1000000000000
+  b : UInt64 = 500000000000
+  zero : UInt64 = 0
+
+  assert!( a + b == 1500000000000 )
+  assert!( a - b == 500000000000 )
+  assert!( a / b == 2 )
+  assert!( a.successor == 1000000000001 )
+  assert!( a.predecessor == 999999999999 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( a.even? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 500000000000 )
+  assert!( b.double == 1000000000000 )
+  assert!( a.half == 500000000000 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_uint64
+  0
+end
+
+libc_exit( main() )
