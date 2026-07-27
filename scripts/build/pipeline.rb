@@ -156,7 +156,7 @@ module Volt::Build
 
     def determine_binary_path
       postfix = @options[ :build_type ] == 'Debug' ? '_d' : ''
-      File.join( @build_dir, 'bin', "Volt#{postfix}" )
+      File.join( @build_dir, 'bin', "volt#{postfix}" )
     end
   end
 end
