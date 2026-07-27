@@ -206,6 +206,20 @@ namespace Frontend
         TypeId Type;
     };
 
+    // `( Value : Type )` — an explicit type ascription, not a cast: it
+    // constrains an otherwise-unconstrained value (chiefly an int/float
+    // literal) to `Type` instead of the default the literal would infer.
+    // Core rather than sugar for the same reason as `ArrayLit`/`HashLit`
+    // (`core-ast.md`): resolving `Type` and constraining `Value` against it
+    // needs `TypeChecker`, so lowering it away earlier would need types.
+    struct TypedExpr
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+        TypeId Type;
+    };
+
     // `*Operand` in value position.
     struct Deref
     {
