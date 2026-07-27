@@ -1,4 +1,4 @@
-Program 'samples/Syntax/OOP/Mixins.vl'
+Program 'samples/Tests/OOP/Mixins.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
 │  │  └─ Param 'condition' @1:14
@@ -17,12 +17,23 @@ Program 'samples/Syntax/OOP/Mixins.vl'
 │              └─ expr
 │                 └─ RaiseExpr @3:5
 │                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @3:31
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @3:43
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Tests/OOP/Mixins.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
 ├─ Mixin 'Identifiable' @7:1
 │  └─ body
 │     └─ Method 'id_prefix' @8:3
@@ -51,10 +62,19 @@ Program 'samples/Syntax/OOP/Mixins.vl'
 │        └─ body
 │           └─ ExprStmt @22:5
 │              └─ expr
-│                 └─ Interp @22:5
-│                    └─ parts
-│                       ├─ Identifier 'id_prefix' @22:8
-│                       └─ InstanceVar '@serial' @22:20
+│                 └─ Binary '+' @22:5
+│                    ├─ lhs
+│                    │  └─ Call @22:5
+│                    │     └─ callee
+│                    │        └─ Member 'to_string' @22:5
+│                    │           └─ object
+│                    │              └─ Identifier 'id_prefix' @22:8
+│                    └─ rhs
+│                       └─ Call @22:5
+│                          └─ callee
+│                             └─ Member 'to_string' @22:5
+│                                └─ object
+│                                   └─ InstanceVar '@serial' @22:20
 ├─ ExprStmt @26:1
 │  └─ expr
 │     └─ Assign '=' @26:8

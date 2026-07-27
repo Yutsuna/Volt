@@ -1,0 +1,268 @@
+Program 'samples/Tests/OOP/Accessors.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Interp @3:11
+│                          └─ parts
+│                             ├─ StringLiteral 'Assertion failed ' @3:11
+│                             ├─ Identifier '__FILE__' @3:31
+│                             ├─ StringLiteral ':' @3:11
+│                             └─ Identifier '__LINE__' @3:43
+├─ Class 'Config' @8:1
+│  └─ body
+│     ├─ Field 'host' getter @9:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @9:17
+│     ├─ Field 'port' setter @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @10:17
+│     ├─ Field 'debug' property @11:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Bool' @11:20
+│     ├─ Method 'initialize' @13:3
+│     │  └─ params
+│     │     ├─ Param 'host' instance_var @13:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'String' @13:27
+│     │     ├─ Param 'port' instance_var @13:35
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @13:43
+│     │     └─ Param 'debug' instance_var @13:50
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Bool' @13:59
+│     └─ Method 'port_val' @16:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @16:19
+│        └─ body
+│           └─ ExprStmt @17:5
+│              └─ expr
+│                 └─ InstanceVar '@port' @17:5
+├─ Struct 'Vec3d' @22:1
+│  └─ body
+│     ├─ Field 'x' getter @23:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Float64' @23:14
+│     ├─ Field 'y' setter @24:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Float64' @24:14
+│     ├─ Field 'z' property @25:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Float64' @25:16
+│     ├─ Method 'initialize' @27:3
+│     │  └─ params
+│     │     ├─ Param 'x' instance_var @27:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Float64' @27:24
+│     │     ├─ Param 'y' instance_var @27:33
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Float64' @27:38
+│     │     └─ Param 'z' instance_var @27:47
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Float64' @27:52
+│     └─ Method 'y_val' @30:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Float64' @30:16
+│        └─ body
+│           └─ ExprStmt @31:5
+│              └─ expr
+│                 └─ InstanceVar '@y' @31:5
+├─ Method 'test_class_accessors' @36:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @36:29
+│  └─ body
+│     ├─ ExprStmt @37:3
+│     │  └─ expr
+│     │     └─ Assign '=' @37:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'cfg' @37:3
+│     │        └─ value
+│     │           └─ Call @37:19
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @37:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Config' @37:9
+│     │              └─ args
+│     │                 ├─ StringLiteral 'localhost' @37:21
+│     │                 ├─ IntLiteral '8080' @37:34
+│     │                 └─ BoolLiteral false @37:40
+│     ├─ ExprStmt @38:3
+│     │  └─ expr
+│     │     └─ Call @38:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @38:3
+│     │        └─ args
+│     │           └─ Binary '==' @38:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'host' @38:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'cfg' @38:12
+│     │              └─ rhs
+│     │                 └─ StringLiteral 'localhost' @38:24
+│     ├─ ExprStmt @40:3
+│     │  └─ expr
+│     │     └─ Assign '=' @40:12
+│     │        ├─ target
+│     │        │  └─ Member 'port' @40:6
+│     │        │     └─ object
+│     │        │        └─ Identifier 'cfg' @40:3
+│     │        └─ value
+│     │           └─ IntLiteral '9090' @40:14
+│     ├─ ExprStmt @41:3
+│     │  └─ expr
+│     │     └─ Call @41:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @41:3
+│     │        └─ args
+│     │           └─ Binary '==' @41:25
+│     │              ├─ lhs
+│     │              │  └─ Member 'port_val' @41:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'cfg' @41:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '9090' @41:28
+│     ├─ ExprStmt @43:3
+│     │  └─ expr
+│     │     └─ Call @43:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @43:3
+│     │        └─ args
+│     │           └─ Binary '==' @43:22
+│     │              ├─ lhs
+│     │              │  └─ Member 'debug' @43:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'cfg' @43:12
+│     │              └─ rhs
+│     │                 └─ BoolLiteral false @43:25
+│     ├─ ExprStmt @44:3
+│     │  └─ expr
+│     │     └─ Assign '=' @44:13
+│     │        ├─ target
+│     │        │  └─ Member 'debug' @44:6
+│     │        │     └─ object
+│     │        │        └─ Identifier 'cfg' @44:3
+│     │        └─ value
+│     │           └─ BoolLiteral true @44:15
+│     └─ ExprStmt @45:3
+│        └─ expr
+│           └─ Call @45:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @45:3
+│              └─ args
+│                 └─ Binary '==' @45:22
+│                    ├─ lhs
+│                    │  └─ Member 'debug' @45:15
+│                    │     └─ object
+│                    │        └─ Identifier 'cfg' @45:12
+│                    └─ rhs
+│                       └─ BoolLiteral true @45:25
+├─ Method 'test_struct_accessors' @49:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @49:30
+│  └─ body
+│     ├─ ExprStmt @50:3
+│     │  └─ expr
+│     │     └─ Assign '=' @50:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'vec' @50:3
+│     │        └─ value
+│     │           └─ Call @50:18
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @50:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Vec3d' @50:9
+│     │              └─ args
+│     │                 ├─ FloatLiteral '1.0' @50:20
+│     │                 ├─ FloatLiteral '2.0' @50:25
+│     │                 └─ FloatLiteral '3.0' @50:30
+│     ├─ ExprStmt @51:3
+│     │  └─ expr
+│     │     └─ Call @51:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @51:3
+│     │        └─ args
+│     │           └─ Binary '==' @51:18
+│     │              ├─ lhs
+│     │              │  └─ Member 'x' @51:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'vec' @51:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '1.0' @51:21
+│     ├─ ExprStmt @53:3
+│     │  └─ expr
+│     │     └─ Assign '=' @53:9
+│     │        ├─ target
+│     │        │  └─ Member 'y' @53:6
+│     │        │     └─ object
+│     │        │        └─ Identifier 'vec' @53:3
+│     │        └─ value
+│     │           └─ FloatLiteral '5.5' @53:11
+│     ├─ ExprStmt @54:3
+│     │  └─ expr
+│     │     └─ Call @54:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @54:3
+│     │        └─ args
+│     │           └─ Binary '==' @54:22
+│     │              ├─ lhs
+│     │              │  └─ Member 'y_val' @54:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'vec' @54:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '5.5' @54:25
+│     ├─ ExprStmt @56:3
+│     │  └─ expr
+│     │     └─ Call @56:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @56:3
+│     │        └─ args
+│     │           └─ Binary '==' @56:18
+│     │              ├─ lhs
+│     │              │  └─ Member 'z' @56:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'vec' @56:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '3.0' @56:21
+│     ├─ ExprStmt @57:3
+│     │  └─ expr
+│     │     └─ Assign '=' @57:9
+│     │        ├─ target
+│     │        │  └─ Member 'z' @57:6
+│     │        │     └─ object
+│     │        │        └─ Identifier 'vec' @57:3
+│     │        └─ value
+│     │           └─ FloatLiteral '9.9' @57:11
+│     └─ ExprStmt @58:3
+│        └─ expr
+│           └─ Call @58:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @58:3
+│              └─ args
+│                 └─ Binary '==' @58:18
+│                    ├─ lhs
+│                    │  └─ Member 'z' @58:15
+│                    │     └─ object
+│                    │        └─ Identifier 'vec' @58:12
+│                    └─ rhs
+│                       └─ FloatLiteral '9.9' @58:21
+├─ ExprStmt @62:1
+│  └─ expr
+│     └─ Identifier 'test_class_accessors' @62:1
+└─ ExprStmt @63:1
+   └─ expr
+      └─ Identifier 'test_struct_accessors' @63:1
+--- exit 0 ---

@@ -4,6 +4,7 @@ def assert!( condition : Bool ) -> Void
   end
 end
 
+
 struct RenderBounds
   width : Int32
   height : Int32
@@ -16,17 +17,20 @@ struct RenderBounds
   end
 end
 
+
 mixin Loggable
   def log_prefix -> String
     "[LOG]"
   end
 end
 
+
 module UIConfig
   def self.default_theme -> String
     "dark"
   end
 end
+
 
 class Component
   include Loggable
@@ -43,6 +47,7 @@ class Component
   end
 end
 
+
 class Button < Component
   label : String
 
@@ -54,8 +59,10 @@ class Button < Component
   end
 end
 
+
 bounds = RenderBounds.new( 100, 50 )
 assert!( bounds.area == 5000 )
+
 
 btn = Button.new( "btn-save", "Save" )
 assert!( btn.describe == "[LOG] Component:btn-save" )

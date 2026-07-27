@@ -1,4 +1,4 @@
-Program 'samples/Syntax/OOP/Modules.vl'
+Program 'samples/Tests/OOP/Modules.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
 │  │  └─ Param 'condition' @1:14
@@ -25,7 +25,7 @@ Program 'samples/Syntax/OOP/Modules.vl'
 │                          │     │     ├─ lhs
 │                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
 │                          │     │     └─ rhs
-│                          │     │        └─ StringLiteral 'samples/Syntax/OOP/Modules.vl' @3:31
+│                          │     │        └─ StringLiteral 'samples/Tests/OOP/Modules.vl' @3:31
 │                          │     └─ rhs
 │                          │        └─ StringLiteral ':' @3:11
 │                          └─ rhs
@@ -34,74 +34,74 @@ Program 'samples/Syntax/OOP/Modules.vl'
 │                                   └─ Member 'to_string' @3:11
 │                                      └─ object
 │                                         └─ IntLiteral '3' @3:43
-├─ Module 'MathUtils' @7:1
+├─ Module 'MathUtils' @8:1
 │  └─ body
-│     ├─ Method 'square' self @8:3
+│     ├─ Method 'square' self @9:3
 │     │  ├─ params
-│     │  │  └─ Param 'n' @8:20
+│     │  │  └─ Param 'n' @9:20
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @8:24
+│     │  │        └─ TypeRef 'Int32' @9:24
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @8:35
+│     │  │  └─ TypeRef 'Int32' @9:35
 │     │  └─ body
-│     │     └─ ExprStmt @9:5
+│     │     └─ ExprStmt @10:5
 │     │        └─ expr
-│     │           └─ Binary '*' @9:7
+│     │           └─ Binary '*' @10:7
 │     │              ├─ lhs
-│     │              │  └─ Identifier 'n' @9:5
+│     │              │  └─ Identifier 'n' @10:5
 │     │              └─ rhs
-│     │                 └─ Identifier 'n' @9:9
-│     └─ Method 'cube' self @12:3
+│     │                 └─ Identifier 'n' @10:9
+│     └─ Method 'cube' self @13:3
 │        ├─ params
-│        │  └─ Param 'n' @12:18
+│        │  └─ Param 'n' @13:18
 │        │     └─ decl_type
-│        │        └─ TypeRef 'Int32' @12:22
+│        │        └─ TypeRef 'Int32' @13:22
 │        ├─ return_type
-│        │  └─ TypeRef 'Int32' @12:33
+│        │  └─ TypeRef 'Int32' @13:33
 │        └─ body
-│           └─ ExprStmt @13:5
+│           └─ ExprStmt @14:5
 │              └─ expr
-│                 └─ Binary '*' @13:11
+│                 └─ Binary '*' @14:11
 │                    ├─ lhs
-│                    │  └─ Binary '*' @13:7
+│                    │  └─ Binary '*' @14:7
 │                    │     ├─ lhs
-│                    │     │  └─ Identifier 'n' @13:5
+│                    │     │  └─ Identifier 'n' @14:5
 │                    │     └─ rhs
-│                    │        └─ Identifier 'n' @13:9
+│                    │        └─ Identifier 'n' @14:9
 │                    └─ rhs
-│                       └─ Identifier 'n' @13:13
-├─ ExprStmt @17:1
+│                       └─ Identifier 'n' @14:13
+├─ ExprStmt @19:1
 │  └─ expr
-│     └─ Call @17:8
+│     └─ Call @19:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @17:1
+│        │  └─ Identifier 'assert!' @19:1
 │        └─ args
-│           └─ Binary '==' @17:32
+│           └─ Binary '==' @19:32
 │              ├─ lhs
-│              │  └─ Call @17:26
+│              │  └─ Call @19:26
 │              │     ├─ callee
-│              │     │  └─ Member 'square' @17:19
+│              │     │  └─ Member 'square' @19:19
 │              │     │     └─ object
-│              │     │        └─ Identifier 'MathUtils' @17:10
+│              │     │        └─ Identifier 'MathUtils' @19:10
 │              │     └─ args
-│              │        └─ IntLiteral '4' @17:28
+│              │        └─ IntLiteral '4' @19:28
 │              └─ rhs
-│                 └─ IntLiteral '16' @17:35
-└─ ExprStmt @18:1
+│                 └─ IntLiteral '16' @19:35
+└─ ExprStmt @20:1
    └─ expr
-      └─ Call @18:8
+      └─ Call @20:8
          ├─ callee
-         │  └─ Identifier 'assert!' @18:1
+         │  └─ Identifier 'assert!' @20:1
          └─ args
-            └─ Binary '==' @18:30
+            └─ Binary '==' @20:30
                ├─ lhs
-               │  └─ Call @18:24
+               │  └─ Call @20:24
                │     ├─ callee
-               │     │  └─ Member 'cube' @18:19
+               │     │  └─ Member 'cube' @20:19
                │     │     └─ object
-               │     │        └─ Identifier 'MathUtils' @18:10
+               │     │        └─ Identifier 'MathUtils' @20:10
                │     └─ args
-               │        └─ IntLiteral '3' @18:26
+               │        └─ IntLiteral '3' @20:26
                └─ rhs
-                  └─ IntLiteral '27' @18:33
+                  └─ IntLiteral '27' @20:33
 --- exit 0 ---

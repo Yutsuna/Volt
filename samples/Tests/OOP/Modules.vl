@@ -4,6 +4,7 @@ def assert!( condition : Bool ) -> Void
   end
 end
 
+
 module MathUtils
   def self.square( n : Int32 ) -> Int32
     n * n
@@ -13,6 +14,7 @@ module MathUtils
     n * n * n
   end
 end
+
 
 assert!( MathUtils.square( 4 ) == 16 )
 assert!( MathUtils.cube( 3 ) == 27 )
