@@ -289,6 +289,16 @@ namespace Sema
                 Ast.Decl( Decl ) );
         }
 
+        // The written `< Parent`, read off the AST rather than
+        // `NominalType::Super` — SignatureResolver only fills that in Phase B,
+        // and layouts are attached before any signature is resolved
+        // (Driver.cpp). `class` is the only declaration that can name one.
+        [[nodiscard]] Frontend::TypeId TypeSuperOf ( const Frontend::AstContext &Ast, Frontend::DeclId Decl )
+        {
+            const auto *Type = std::get_if<Frontend::Class>( &Ast.Decl( Decl ) );
+            return Type != nullptr ? Type->Super : Frontend::TypeId{};
+        }
+
         // A cross-file `Aggregate` may recurse arbitrarily (`Exception`'s
         // `message : String`, and `String` could in principle name a further
         // aggregate); a genuine by-value cycle is not a layout Volt can build
@@ -332,12 +342,35 @@ namespace Sema
 
             const Frontend::AstContext &Ast = *Units[Type.Unit];
             const Frontend::DeclList *Body  = TypeBodyOf( Ast, Type.Decl );
-            if ( Body == nullptr or Body->IsEmpty() )
+            if ( Body == nullptr )
             {
                 return LayoutId{};
             }
 
             Aggregate Agg;
+
+            // A subclass's storage *is* one of its base: `super( message )`
+            // hands `self` straight to `Exception#initialize`, which GEPs
+            // `@message` at the offset *Exception's* layout gives it. So the
+            // base's fields lead, and they are spliced flat rather than nested
+            // — an inherited `@x` is looked up by name in the subclass's own
+            // layout (FieldAddress), and a nested base would hide every one of
+            // them. Without this a subclass laid out as `{}`: every
+            // `raise ArgumentError.new( "..." )` had `Exception#initialize`
+            // write 40 bytes into a zero-byte frame slot.
+            if ( const std::optional<NominalId> Parent = FieldTypeNominal( Ast, Store, TypeSuperOf( Ast, Type.Decl ) ) )
+            {
+                const LayoutId Inherited = EnsureStructLayout( Units, Store, *Parent, Depth + 1 );
+                if ( const auto *Base = Inherited.IsValid() ? std::get_if<Aggregate>( &Store.Get( Inherited ) ) : nullptr;
+                     Base != nullptr )
+                {
+                    for ( const FieldLayout &Field : Base->Fields )
+                    {
+                        Agg.Fields.PushBack( Field );
+                    }
+                }
+            }
+
             for ( const Frontend::DeclId Child : *Body )
             {
                 const auto *Field = std::get_if<Frontend::Field>( &Ast.Decl( Child ) );
