@@ -54,11 +54,16 @@ std::vector<std::string> Volt::Backend::Llvm::LlvmBackend::State::ExternLibrarie
     return Libraries;
 }
 
-bool Volt::Backend::Llvm::LlvmBackend::State::LinkExecutable ( std::string_view ObjectPath, std::string_view OutputPath )
+namespace
 {
-    // A driver, not the raw linker: it supplies the CRT objects, the dynamic
-    // linker path and the default libc that a bare `ld`/`mold`/`lld`
-    // invocation would otherwise have to hand-derive per platform.
+
+// Shared by LinkExecutable and LinkSharedLibrary: find the C driver, then
+// run it over a caller-supplied Args vector that already has "-o" and every
+// input in place. A driver, not the raw linker: it supplies the CRT objects,
+// the dynamic linker path and the default libc that a bare `ld`/`mold`/`lld`
+// invocation would otherwise have to hand-derive per platform.
+[[nodiscard]] llvm::ErrorOr<std::string> FindLinkerDriver ()
+{
     llvm::ErrorOr<std::string> Driver = llvm::sys::findProgramByName( "cc" );
     if ( not Driver )
     {
@@ -68,6 +73,25 @@ bool Volt::Backend::Llvm::LlvmBackend::State::LinkExecutable ( std::string_view 
     {
         Driver = llvm::sys::findProgramByName( "gcc" );
     }
+    return Driver;
+}
+
+// "libc" -> "-lc": the conventional stripping of a "lib" prefix a linker's
+// own `-l` flag already assumes; a name with no such prefix (an external C
+// library that spells itself, e.g. "SDL2") passes through as `-lSDL2`.
+[[nodiscard]] std::string LibraryFlag ( const std::string &Library )
+{
+    constexpr std::string_view Prefix = "lib";
+    const std::string_view Spelling =
+        Library.starts_with( Prefix ) ? std::string_view( Library ).substr( Prefix.size() ) : std::string_view( Library );
+    return Spelling.empty() ? std::string{} : "-l" + std::string( Spelling );
+}
+
+} // namespace
+
+bool Volt::Backend::Llvm::LlvmBackend::State::LinkExecutable ( std::string_view ObjectPath, std::string_view OutputPath )
+{
+    const llvm::ErrorOr<std::string> Driver = FindLinkerDriver();
     if ( not Driver )
     {
         static_cast<void>( Fail( "llvm: no C compiler driver ('cc', 'clang', 'gcc') found on PATH to link with" ) );
@@ -75,6 +99,16 @@ bool Volt::Backend::Llvm::LlvmBackend::State::LinkExecutable ( std::string_view 
     }
 
     std::vector<std::string> Args{ *Driver, "-o", std::string( OutputPath ), std::string( ObjectPath ) };
+
+    // The precompiled stdlib archive/.so (issue #61's native-artifact
+    // cache), when the caller set one: right after the primary object, so a
+    // static archive among them can still resolve the symbols that object
+    // references — a traditional single-pass linker only searches archives
+    // that come *after* the reference.
+    for ( const std::string &Extra : Options.ExtraLinkInputs )
+    {
+        Args.push_back( Extra );
+    }
 
     // Prefer mold, then LLD — the same preference cmake/VoltOptions.cmake
     // encodes for the compiler's own build — falling through to whatever the
@@ -90,18 +124,10 @@ bool Volt::Backend::Llvm::LlvmBackend::State::LinkExecutable ( std::string_view 
 
     for ( const std::string &Library : ExternLibraries() )
     {
-        // "libc" -> "-lc": the conventional stripping of a "lib" prefix a
-        // linker's own `-l` flag already assumes; a name with no such prefix
-        // (an external C library that spells itself, e.g. "SDL2") passes
-        // through as `-lSDL2`.
-        constexpr std::string_view Prefix = "lib";
-        const std::string_view Spelling =
-            Library.starts_with( Prefix ) ? std::string_view( Library ).substr( Prefix.size() ) : std::string_view( Library );
-        if ( Spelling.empty() )
+        if ( std::string Flag = LibraryFlag( Library ); not Flag.empty() )
         {
-            continue;
+            Args.emplace_back( std::move( Flag ) );
         }
-        Args.emplace_back( "-l" + std::string( Spelling ) );
     }
 
     std::vector<llvm::StringRef> ArgRefs;
@@ -118,6 +144,62 @@ bool Volt::Backend::Llvm::LlvmBackend::State::LinkExecutable ( std::string_view 
     {
         static_cast<void>(
             Fail( "llvm: link failed (" + *Driver + ", exit " + std::to_string( Result ) + "): " + ErrorMessage ) );
+        return false;
+    }
+
+    return true;
+}
+
+bool Volt::Backend::Llvm::LlvmBackend::State::LinkSharedLibrary ( std::string_view ObjectPath, std::string_view OutputPath )
+{
+    const llvm::ErrorOr<std::string> Driver = FindLinkerDriver();
+    if ( not Driver )
+    {
+        static_cast<void>( Fail( "llvm: no C compiler driver ('cc', 'clang', 'gcc') found on PATH to link with" ) );
+        return false;
+    }
+
+    // `-shared -fPIC`: InitTarget already selected Reloc::PIC_ for every
+    // build, so the object itself needs no different codegen — only the
+    // driver's final link mode changes.
+    std::vector<std::string> Args{ *Driver, "-shared", "-fPIC", "-o", std::string( OutputPath ), std::string( ObjectPath ) };
+
+    for ( const std::string &Extra : Options.ExtraLinkInputs )
+    {
+        Args.push_back( Extra );
+    }
+
+    if ( llvm::sys::findProgramByName( "mold" ) )
+    {
+        Args.emplace_back( "-fuse-ld=mold" );
+    }
+    else if ( llvm::sys::findProgramByName( "ld.lld" ) )
+    {
+        Args.emplace_back( "-fuse-ld=lld" );
+    }
+
+    for ( const std::string &Library : ExternLibraries() )
+    {
+        if ( std::string Flag = LibraryFlag( Library ); not Flag.empty() )
+        {
+            Args.emplace_back( std::move( Flag ) );
+        }
+    }
+
+    std::vector<llvm::StringRef> ArgRefs;
+    ArgRefs.reserve( Args.size() );
+    for ( const std::string &Arg : Args )
+    {
+        ArgRefs.emplace_back( Arg );
+    }
+
+    std::string ErrorMessage;
+    bool bExecutionFailed = false;
+    const int Result = llvm::sys::ExecuteAndWait( *Driver, ArgRefs, std::nullopt, {}, 0, 0, &ErrorMessage, &bExecutionFailed );
+    if ( bExecutionFailed or Result != 0 )
+    {
+        static_cast<void>(
+            Fail( "llvm: shared-object link failed (" + *Driver + ", exit " + std::to_string( Result ) + "): " + ErrorMessage ) );
         return false;
     }
 

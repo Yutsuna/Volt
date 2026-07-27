@@ -1,7 +1,7 @@
 Program 'samples/Syntax/Loop/WhileLoop.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -33,10 +33,10 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │     └─ TypeRef 'Bool' @11:21
 │     ├─ Method 'initialize' @13:3
 │     │  └─ params
-│     │     ├─ Param 'name' instance_var
+│     │     ├─ Param 'name' instance_var @13:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'String' @13:27
-│     │     └─ Param 'handled' instance_var
+│     │     └─ Param 'handled' instance_var @13:35
 │     │        ├─ decl_type
 │     │        │  └─ TypeRef 'Bool' @13:46
 │     │        └─ default
@@ -60,10 +60,10 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │     └─ TypeRef 'Bool' @25:12
 │     ├─ Method 'initialize' @27:3
 │     │  └─ params
-│     │     ├─ Param 'email' instance_var
+│     │     ├─ Param 'email' instance_var @27:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'String' @27:28
-│     │     └─ Param 'active' instance_var
+│     │     └─ Param 'active' instance_var @27:36
 │     │        └─ decl_type
 │     │           └─ TypeRef 'Bool' @27:46
 │     ├─ Method 'email' @30:3
@@ -86,12 +86,12 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │     │     └─ TypeRef 'Int32' @43:14
 │     ├─ Method 'initialize' @45:3
 │     │  └─ params
-│     │     ├─ Param 'connected' instance_var
+│     │     ├─ Param 'connected' instance_var @45:19
 │     │     │  ├─ decl_type
 │     │     │  │  └─ TypeRef 'Bool' @45:32
 │     │     │  └─ default
 │     │     │     └─ BoolLiteral false @45:39
-│     │     └─ Param 'attempts' instance_var
+│     │     └─ Param 'attempts' instance_var @45:46
 │     │        ├─ decl_type
 │     │        │  └─ TypeRef 'Int32' @45:58
 │     │        └─ default
@@ -137,7 +137,7 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │                 └─ InstanceVar '@connected' @61:5
 ├─ Method 'drain_event_queue' @67:1
 │  ├─ params
-│  │  └─ Param 'events'
+│  │  └─ Param 'events' @67:24
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Array' @67:33
 │  │           └─ generics
@@ -204,12 +204,12 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │           └─ Identifier 'handled_count' @76:3
 ├─ Method 'find_active_account' @79:1
 │  ├─ params
-│  │  ├─ Param 'accounts'
+│  │  ├─ Param 'accounts' @79:26
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Array' @79:37
 │  │  │        └─ generics
 │  │  │           └─ TypeRef 'Account' @79:43
-│  │  └─ Param 'target_email'
+│  │  └─ Param 'target_email' @79:53
 │  │     └─ decl_type
 │  │        └─ TypeRef 'String' @79:68
 │  ├─ return_type
@@ -292,10 +292,10 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │           └─ Identifier 'found' @90:3
 ├─ Method 'establish_connection' @93:1
 │  ├─ params
-│  │  ├─ Param 'socket'
+│  │  ├─ Param 'socket' @93:27
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'ConnectionSocket' @93:36
-│  │  └─ Param 'max_attempts'
+│  │  └─ Param 'max_attempts' @93:54
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @93:69
 │  ├─ return_type
@@ -338,7 +338,7 @@ Program 'samples/Syntax/Loop/WhileLoop.vl'
 │           └─ Identifier 'is_ready' @98:3
 ├─ Method 'strip_leading_spaces' @101:1
 │  ├─ params
-│  │  └─ Param 'text'
+│  │  └─ Param 'text' @101:27
 │  │     └─ decl_type
 │  │        └─ TypeRef 'String' @101:34
 │  ├─ return_type

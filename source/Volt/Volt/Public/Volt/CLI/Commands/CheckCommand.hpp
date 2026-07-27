@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Volt/CLI/GenericCommand.hpp"
+#include "Volt/CLI/StdlibCache.hpp"
 
 #include <string>
 
@@ -51,6 +52,9 @@ namespace CLI
         bool bWarnAsError = false;
         bool bMetrics     = false;
         bool bUnused      = false;
+        bool bVerbose     = false;
+
+        FStdlibCacheFlags StdlibFlags;
     };
 
 } // namespace CLI

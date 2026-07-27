@@ -1,7 +1,7 @@
 Program 'samples/Sema/FreeFunctions.vl'
 ├─ Method 'square' @8:1
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @8:13
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @8:21
 │  ├─ return_type
@@ -16,10 +16,10 @@ Program 'samples/Sema/FreeFunctions.vl'
 │                 └─ Identifier 'value' @9:11
 ├─ Method 'sum_of_squares' @15:1
 │  ├─ params
-│  │  ├─ Param 'a'
+│  │  ├─ Param 'a' @15:21
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @15:25
-│  │  └─ Param 'b'
+│  │  └─ Param 'b' @15:32
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @15:36
 │  ├─ return_type

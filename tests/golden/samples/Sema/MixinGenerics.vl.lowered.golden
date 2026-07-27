@@ -13,7 +13,7 @@ Program 'samples/Sema/MixinGenerics.vl'
 │     │           └─ Identifier 'get' @9:5
 │     └─ Method 'convert' [U] @12:3
 │        ├─ params
-│        │  └─ Param 'block' is_block
+│        │  └─ Param 'block' is_block @12:19
 │        │     └─ decl_type
 │        │        └─ FuncType @12:28
 │        │           ├─ return
@@ -68,7 +68,7 @@ Program 'samples/Sema/MixinGenerics.vl'
 │     │     └─ TypeRef 'Int32' @22:18
 │     ├─ Method 'initialize' @24:3
 │     │  ├─ params
-│     │  │  └─ Param 'value'
+│     │  │  └─ Param 'value' @24:19
 │     │  │     ├─ decl_type
 │     │  │     │  └─ TypeRef 'Int32' @24:27
 │     │  │     └─ default

@@ -1,10 +1,10 @@
 Program 'samples/Sema/CallableArgs.vl'
 ├─ Method 'apply_twice' @6:1
 │  ├─ params
-│  │  ├─ Param 'value'
+│  │  ├─ Param 'value' @6:18
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @6:26
-│  │  └─ Param 'block' is_block
+│  │  └─ Param 'block' is_block @6:33
 │  │     └─ decl_type
 │  │        └─ FuncType @6:42
 │  │           ├─ return
@@ -41,7 +41,7 @@ Program 'samples/Sema/CallableArgs.vl'
 │     │        └─ value
 │     │           └─ Lambda @11:13
 │     │              ├─ params
-│     │              │  └─ Param 'x'
+│     │              │  └─ Param 'x' @11:15
 │     │              │     └─ decl_type
 │     │              │        └─ TypeRef 'Int32' @11:19
 │     │              └─ body

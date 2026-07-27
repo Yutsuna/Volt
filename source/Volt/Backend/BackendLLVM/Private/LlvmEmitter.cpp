@@ -1,3 +1,5 @@
+// source/Volt/Backend/BackendLLVM/Private/LlvmEmitter.cpp
+
 // LlvmEmitter.cpp — LlvmBackend's lifecycle and the two sweeps over the units.
 //
 // The emission itself lives in sibling TUs (TypeMapper, ExprEmitter, ...);
@@ -215,7 +217,19 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::FunctionFor ( const Sem
         return nullptr;
     }
 
-    llvm::Function *Fn = llvm::Function::Create( Signature, llvm::Function::ExternalLinkage, Symbol, Mod.get() );
+    // A monomorphised instantiation (FlatArgs non-empty — only
+    // EmitMonomorphizedBody ever calls FunctionFor that way; every concrete
+    // declare/define call site passes {}) is `linkonce_odr`, not
+    // `External`: `Array<UInt8>` used internally by a precompiled stdlib
+    // archive and independently instantiated by a user build mangle to the
+    // *same* symbol (Mangler.hpp is deterministic and content-only), and
+    // without weak linkage the two definitions collide at link time
+    // (issue #61 blind-spot #3). `linkonce_odr` tells the linker any one
+    // definition will do, which is exactly true — Monomorphizer only ever
+    // reinstantiates the same body for the same FlatArgs.
+    const llvm::GlobalValue::LinkageTypes Linkage =
+        FlatArgs.empty() ? llvm::Function::ExternalLinkage : llvm::Function::LinkOnceODRLinkage;
+    llvm::Function *Fn = llvm::Function::Create( Signature, Linkage, Symbol, Mod.get() );
     Functions.emplace( Symbol, Fn );
     return Fn;
 }
@@ -261,6 +275,11 @@ bool Volt::Backend::Llvm::LlvmBackend::State::IsMixinOwner ( Sema::NominalId Id 
 
 void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
 {
+    if ( Build == nullptr or Build->Types == nullptr )
+    {
+        return;
+    }
+
     Sema::TypeStore &Store = *Build->Types;
 
     // The TypeStore is the declare sweep's input, not the ASTs: it is the
@@ -365,7 +384,29 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
 
         const Sema::BindingSite Site{ ParamRef };
-        Frame.Slots.emplace( Site, Arg );
+
+        // Same rule ClosureEmitter's/MonoEmitter's parameter binding already
+        // follows: an aggregate (or `&block`) arrives as a pointer to its own
+        // storage and *is* its own slot, so it is kept as-is. A scalar arrives
+        // as a bare value with no backing storage — without an alloca here, a
+        // later read of it as an Identifier (LoadPlace -> EmitAddress ->
+        // CreateLoad) tries to load through the value as if it were a pointer
+        // to itself, which the verifier rejects.
+        if ( Arg->getType()->isPointerTy() )
+        {
+            Frame.Slots.emplace( Site, Arg );
+        }
+        else
+        {
+            llvm::Value *Slot = SlotFor( Site, Arg->getType(), Unit.Ast->Text( Declared.Name ) );
+            if ( Slot == nullptr )
+            {
+                static_cast<void>( Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
+                                         std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
+                return;
+            }
+            static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+        }
 
         BindInstanceVarParam( ParamRef, Arg );
     }
@@ -499,6 +540,11 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitUnitInit ( const UnitView &Uni
 
 void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
 {
+    if ( Build == nullptr or Build->Types == nullptr )
+    {
+        return;
+    }
+
     Sema::TypeStore &Store = *Build->Types;
 
     // Symmetric with DeclareAll, and for the same reason: the store is the
@@ -585,9 +631,25 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
         return EEmitStatus::Error;
     }
 
+    if ( Impl->Build == nullptr or Impl->Build->Types == nullptr )
+    {
+        return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) +
+                           "' reached the backend with no build input or type store" );
+    }
+
     if ( Unit.Ast == nullptr or Unit.Values == nullptr or Unit.Callees == nullptr or Unit.Scopes == nullptr )
     {
         return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) + "' reached the backend with no sema output" );
+    }
+
+    // A stdlib unit under a precompiled build never gets a body here: it is
+    // already declared (DeclareAll runs over the whole TypeStore regardless
+    // of unit) and its definition is expected from the linked archive/.so
+    // instead — the same "declared, never defined" shape @[External]
+    // members already have.
+    if ( Impl->Options.bStdlibPrecompiled and Unit.Ordinal < Impl->Build->StdlibUnitCount )
+    {
+        return EEmitStatus::Ok;
     }
 
     Impl->DefineAll( Unit );
@@ -676,8 +738,12 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
         return MakeFailure();
     }
 
-    const std::string OutputPath = Impl->Options.OutputPath.empty() ? std::string( "a.out" ) : Impl->Options.OutputPath;
-    if ( not Impl->LinkExecutable( TempObject.str(), OutputPath ) )
+    const std::string DefaultName = Impl->Options.bSharedOutput ? BaseName + ".so" : std::string( "a.out" );
+    const std::string OutputPath  = Impl->Options.OutputPath.empty() ? DefaultName : Impl->Options.OutputPath;
+
+    const bool bLinked = Impl->Options.bSharedOutput ? Impl->LinkSharedLibrary( TempObject.str(), OutputPath )
+                                                     : Impl->LinkExecutable( TempObject.str(), OutputPath );
+    if ( not bLinked )
     {
         return MakeFailure();
     }

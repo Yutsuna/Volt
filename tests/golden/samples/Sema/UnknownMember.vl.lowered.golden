@@ -3,7 +3,7 @@ Program 'samples/Sema/UnknownMember.vl'
 │  └─ body
 │     └─ Method 'greet' self @2:3
 │        ├─ params
-│        │  └─ Param 'name'
+│        │  └─ Param 'name' @2:19
 │        │     └─ decl_type
 │        │        └─ TypeRef 'String' @2:26
 │        ├─ return_type

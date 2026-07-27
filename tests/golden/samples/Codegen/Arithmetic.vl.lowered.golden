@@ -5,17 +5,17 @@ Program 'samples/Codegen/Arithmetic.vl'
 │     └─ StringLiteral 'exit' @2:21
 ├─ Method 'libc_exit' external @3:10
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @3:25
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @3:33
 │  └─ return_type
 │     └─ TypeRef 'Void' @3:44
 ├─ Method 'add' @5:1
 │  ├─ params
-│  │  ├─ Param 'a'
+│  │  ├─ Param 'a' @5:10
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Int32' @5:14
-│  │  └─ Param 'b'
+│  │  └─ Param 'b' @5:21
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @5:25
 │  ├─ return_type

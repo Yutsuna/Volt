@@ -1,7 +1,7 @@
 Program 'samples/Syntax/ControlFlow/CaseWhen.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -25,7 +25,7 @@ Program 'samples/Syntax/ControlFlow/CaseWhen.vl'
 │                             └─ Identifier '__LINE__' @3:43
 ├─ Method 'categorize_status' @9:1
 │  ├─ params
-│  │  └─ Param 'code'
+│  │  └─ Param 'code' @9:24
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @9:31
 │  ├─ return_type
@@ -67,7 +67,7 @@ Program 'samples/Syntax/ControlFlow/CaseWhen.vl'
 │                       └─ StringLiteral 'Unknown Status' @14:8
 ├─ Method 'describe_symbol' @18:1
 │  ├─ params
-│  │  └─ Param 'sym'
+│  │  └─ Param 'sym' @18:22
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Symbol' @18:28
 │  ├─ return_type
@@ -100,7 +100,7 @@ Program 'samples/Syntax/ControlFlow/CaseWhen.vl'
 │                       └─ StringLiteral 'Status Other' @22:8
 ├─ Method 'classify_number' @26:1
 │  ├─ params
-│  │  └─ Param 'n'
+│  │  └─ Param 'n' @26:22
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @26:26
 │  ├─ return_type
@@ -132,7 +132,7 @@ Program 'samples/Syntax/ControlFlow/CaseWhen.vl'
 │                       └─ StringLiteral 'odd' @30:8
 ├─ Method 'eval_grade' @34:1
 │  ├─ params
-│  │  └─ Param 'score'
+│  │  └─ Param 'score' @34:17
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @34:25
 │  ├─ return_type

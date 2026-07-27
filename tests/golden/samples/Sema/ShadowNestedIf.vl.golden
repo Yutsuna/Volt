@@ -1,10 +1,10 @@
 Program 'samples/Sema/ShadowNestedIf.vl'
 ├─ Method 'shadow_in_nested_if' @1:1
 │  ├─ params
-│  │  ├─ Param 'flag'
+│  │  ├─ Param 'flag' @1:26
 │  │  │  └─ decl_type
 │  │  │     └─ TypeRef 'Bool' @1:33
-│  │  └─ Param 'x'
+│  │  └─ Param 'x' @1:39
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @1:43
 │  ├─ return_type

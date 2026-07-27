@@ -1,7 +1,7 @@
 Program 'samples/Sema/StringInterp.vl'
 ├─ Method 'literal_and_expr' @11:1
 │  ├─ params
-│  │  └─ Param 'n'
+│  │  └─ Param 'n' @11:23
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @11:27
 │  ├─ return_type
@@ -16,7 +16,7 @@ Program 'samples/Sema/StringInterp.vl'
 │                 └─ StringLiteral ' items' @12:3
 ├─ Method 'expr_only' @15:1
 │  ├─ params
-│  │  └─ Param 'n'
+│  │  └─ Param 'n' @15:16
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Int32' @15:20
 │  ├─ return_type
@@ -108,7 +108,7 @@ Program 'samples/Sema/StringInterp.vl'
 │                 └─ Identifier 'letter' @38:16
 ├─ Method 'nested' @43:1
 │  ├─ params
-│  │  └─ Param 'name'
+│  │  └─ Param 'name' @43:13
 │  │     └─ decl_type
 │  │        └─ TypeRef 'String' @43:20
 │  ├─ return_type
@@ -134,7 +134,7 @@ Program 'samples/Sema/StringInterp.vl'
 │                 └─ StringLiteral ' done' @45:3
 └─ Method 'leading_and_trailing' @48:1
    ├─ params
-   │  └─ Param 'n'
+   │  └─ Param 'n' @48:27
    │     └─ decl_type
    │        └─ TypeRef 'Int32' @48:31
    ├─ return_type

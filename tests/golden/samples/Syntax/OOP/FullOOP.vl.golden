@@ -1,7 +1,7 @@
 Program 'samples/Syntax/OOP/FullOOP.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -33,10 +33,10 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │     │     └─ TypeRef 'Int32' @9:12
 │     ├─ Method 'initialize' @11:3
 │     │  └─ params
-│     │     ├─ Param 'width' instance_var
+│     │     ├─ Param 'width' instance_var @11:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'Int32' @11:28
-│     │     └─ Param 'height' instance_var
+│     │     └─ Param 'height' instance_var @11:35
 │     │        └─ decl_type
 │     │           └─ TypeRef 'Int32' @11:45
 │     └─ Method 'area' @14:3
@@ -78,12 +78,12 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │     │     └─ TypeRef 'String' @34:8
 │     ├─ Method 'initialize' @36:3
 │     │  └─ params
-│     │     └─ Param 'id' instance_var
+│     │     └─ Param 'id' instance_var @36:19
 │     │        └─ decl_type
 │     │           └─ TypeRef 'String' @36:25
 │     ├─ Method 'render' abstract @39:12
 │     │  ├─ params
-│     │  │  └─ Param 'bounds'
+│     │  │  └─ Param 'bounds' @39:24
 │     │  │     └─ decl_type
 │     │  │        └─ TypeRef 'RenderBounds' @39:33
 │     │  └─ return_type
@@ -108,15 +108,15 @@ Program 'samples/Syntax/OOP/FullOOP.vl'
 │     │     └─ TypeRef 'String' @47:11
 │     ├─ Method 'initialize' @49:3
 │     │  └─ params
-│     │     ├─ Param 'id' instance_var
+│     │     ├─ Param 'id' instance_var @49:19
 │     │     │  └─ decl_type
 │     │     │     └─ TypeRef 'String' @49:25
-│     │     └─ Param 'label' instance_var
+│     │     └─ Param 'label' instance_var @49:33
 │     │        └─ decl_type
 │     │           └─ TypeRef 'String' @49:42
 │     └─ Method 'render' @52:3
 │        ├─ params
-│        │  └─ Param 'bounds'
+│        │  └─ Param 'bounds' @52:15
 │        │     └─ decl_type
 │        │        └─ TypeRef 'RenderBounds' @52:24
 │        ├─ return_type

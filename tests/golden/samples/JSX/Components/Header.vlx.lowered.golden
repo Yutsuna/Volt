@@ -1,7 +1,7 @@
 Program 'samples/JSX/Components/Header.vlx'
 └─ Component 'Header' @1:1
    ├─ params
-   │  └─ Param 'title'
+   │  └─ Param 'title' @1:19
    │     └─ decl_type
    │        └─ TypeRef 'String' @1:27
    └─ body

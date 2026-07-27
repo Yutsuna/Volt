@@ -26,7 +26,7 @@ Program 'samples/Sema/LeadingDotChain.vl'
 │           └─ Identifier 'tidy' @19:3
 ├─ Method 'chain_in_argument' @22:1
 │  ├─ params
-│  │  └─ Param 'value'
+│  │  └─ Param 'value' @22:24
 │  │     └─ decl_type
 │  │        └─ TypeRef 'String' @22:32
 │  ├─ return_type

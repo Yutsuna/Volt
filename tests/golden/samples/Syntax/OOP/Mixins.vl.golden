@@ -1,7 +1,7 @@
 Program 'samples/Syntax/OOP/Mixins.vl'
 ├─ Method 'assert!' @1:1
 │  ├─ params
-│  │  └─ Param 'condition'
+│  │  └─ Param 'condition' @1:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'Bool' @1:26
 │  ├─ return_type
@@ -42,7 +42,7 @@ Program 'samples/Syntax/OOP/Mixins.vl'
 │     │     └─ TypeRef 'String' @16:12
 │     ├─ Method 'initialize' @18:3
 │     │  └─ params
-│     │     └─ Param 'serial' instance_var
+│     │     └─ Param 'serial' instance_var @18:19
 │     │        └─ decl_type
 │     │           └─ TypeRef 'String' @18:29
 │     └─ Method 'full_id' @21:3
