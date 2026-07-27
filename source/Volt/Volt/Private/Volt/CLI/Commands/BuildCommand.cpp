@@ -68,13 +68,14 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
         {
             "", "--lto", "", "Enable link-time optimization (native only)",
             [this] ( std::string_view ) { this->bLto = true; }
+        },
+        {
+            "-v", "--verbose", "", "Enable verbose output",
+            [this] ( std::string_view ) { this->bVerbose = true; this->StdlibFlags.bVerbose = true; }
         }
     };
     // clang-format on
 
-    // The shared cache flags (Volt::CLI::StdlibCacheOptions() — issue #61,
-    // Phase 5): one row set declared once, reused by reference here and,
-    // the moment they exist, by `run`/`repl` too.
     for ( FOption &Option : StdlibCacheOptions( StdlibFlags ) )
     {
         Options.push_back( std::move( Option ) );
@@ -173,6 +174,7 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
     BuildOpts.bStdlibArtifactNoCache = StdlibFlags.bNoStdlibCache;
     BuildOpts.bStdlibArtifactFresh   = StdlibFlags.bFreshStdlib;
     BuildOpts.StdlibArtifactKind     = StdlibFlags.Artifact;
+    BuildOpts.bVerbose               = bVerbose;
 
     if ( not OptLevel.empty() )
     {
