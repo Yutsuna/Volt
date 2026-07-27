@@ -1,0 +1,273 @@
+Program 'samples/Syntax/OOP/FullOOP.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ StringLiteral 'samples/Syntax/OOP/FullOOP.vl' @3:31
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '3' @3:43
+├─ Struct 'RenderBounds' @7:1
+│  └─ body
+│     ├─ Field 'width' @8:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @8:11
+│     ├─ Field 'height' @9:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @9:12
+│     ├─ Method 'initialize' @11:3
+│     │  └─ params
+│     │     ├─ Param 'width' instance_var @11:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @11:28
+│     │     └─ Param 'height' instance_var @11:35
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @11:45
+│     └─ Method 'area' @14:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @14:15
+│        └─ body
+│           └─ ExprStmt @15:5
+│              └─ expr
+│                 └─ Binary '*' @15:12
+│                    ├─ lhs
+│                    │  └─ InstanceVar '@width' @15:5
+│                    └─ rhs
+│                       └─ InstanceVar '@height' @15:14
+├─ Mixin 'Loggable' @19:1
+│  └─ body
+│     └─ Method 'log_prefix' @20:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @20:21
+│        └─ body
+│           └─ ExprStmt @21:5
+│              └─ expr
+│                 └─ StringLiteral '[LOG]' @21:5
+├─ Module 'UIConfig' @25:1
+│  └─ body
+│     └─ Method 'default_theme' self @26:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @26:29
+│        └─ body
+│           └─ ExprStmt @27:5
+│              └─ expr
+│                 └─ StringLiteral 'dark' @27:5
+├─ Class 'Component' @31:1
+│  └─ body
+│     ├─ Include @32:3
+│     │  └─ target
+│     │     └─ TypeRef 'Loggable' @32:11
+│     ├─ Field 'id' @34:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @34:8
+│     ├─ Method 'initialize' @36:3
+│     │  └─ params
+│     │     └─ Param 'id' instance_var @36:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'String' @36:25
+│     ├─ Method 'render' abstract @39:12
+│     │  ├─ params
+│     │  │  └─ Param 'bounds' @39:24
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'RenderBounds' @39:33
+│     │  └─ return_type
+│     │     └─ TypeRef 'String' @39:51
+│     └─ Method 'describe' @41:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @41:19
+│        └─ body
+│           └─ ExprStmt @42:5
+│              └─ expr
+│                 └─ Binary '+' @42:5
+│                    ├─ lhs
+│                    │  └─ Binary '+' @42:5
+│                    │     ├─ lhs
+│                    │     │  └─ Call @42:5
+│                    │     │     └─ callee
+│                    │     │        └─ Member 'to_string' @42:5
+│                    │     │           └─ object
+│                    │     │              └─ Identifier 'log_prefix' @42:8
+│                    │     └─ rhs
+│                    │        └─ StringLiteral ' Component:' @42:5
+│                    └─ rhs
+│                       └─ Call @42:5
+│                          └─ callee
+│                             └─ Member 'to_string' @42:5
+│                                └─ object
+│                                   └─ InstanceVar '@id' @42:32
+├─ Class 'Button' @46:1
+│  ├─ super
+│  │  └─ TypeRef 'Component' @46:16
+│  └─ body
+│     ├─ Field 'label' @47:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @47:11
+│     ├─ Method 'initialize' @49:3
+│     │  └─ params
+│     │     ├─ Param 'id' instance_var @49:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'String' @49:25
+│     │     └─ Param 'label' instance_var @49:33
+│     │        └─ decl_type
+│     │           └─ TypeRef 'String' @49:42
+│     └─ Method 'render' @52:3
+│        ├─ params
+│        │  └─ Param 'bounds' @52:15
+│        │     └─ decl_type
+│        │        └─ TypeRef 'RenderBounds' @52:24
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @52:42
+│        └─ body
+│           └─ ExprStmt @53:5
+│              └─ expr
+│                 └─ Binary '+' @53:5
+│                    ├─ lhs
+│                    │  └─ Binary '+' @53:5
+│                    │     ├─ lhs
+│                    │     │  └─ Binary '+' @53:5
+│                    │     │     ├─ lhs
+│                    │     │     │  └─ Binary '+' @53:5
+│                    │     │     │     ├─ lhs
+│                    │     │     │     │  └─ Binary '+' @53:5
+│                    │     │     │     │     ├─ lhs
+│                    │     │     │     │     │  └─ Binary '+' @53:5
+│                    │     │     │     │     │     ├─ lhs
+│                    │     │     │     │     │     │  └─ StringLiteral '<button id=\"' @53:5
+│                    │     │     │     │     │     └─ rhs
+│                    │     │     │     │     │        └─ Call @53:5
+│                    │     │     │     │     │           └─ callee
+│                    │     │     │     │     │              └─ Member 'to_string' @53:5
+│                    │     │     │     │     │                 └─ object
+│                    │     │     │     │     │                    └─ InstanceVar '@id' @53:21
+│                    │     │     │     │     └─ rhs
+│                    │     │     │     │        └─ StringLiteral '\" area=\"' @53:5
+│                    │     │     │     └─ rhs
+│                    │     │     │        └─ Call @53:5
+│                    │     │     │           └─ callee
+│                    │     │     │              └─ Member 'to_string' @53:5
+│                    │     │     │                 └─ object
+│                    │     │     │                    └─ Member 'area' @53:43
+│                    │     │     │                       └─ object
+│                    │     │     │                          └─ Identifier 'bounds' @53:37
+│                    │     │     └─ rhs
+│                    │     │        └─ StringLiteral '\">' @53:5
+│                    │     └─ rhs
+│                    │        └─ Call @53:5
+│                    │           └─ callee
+│                    │              └─ Member 'to_string' @53:5
+│                    │                 └─ object
+│                    │                    └─ InstanceVar '@label' @53:54
+│                    └─ rhs
+│                       └─ StringLiteral '</button>' @53:5
+├─ ExprStmt @57:1
+│  └─ expr
+│     └─ Assign '=' @57:8
+│        ├─ target
+│        │  └─ Identifier 'bounds' @57:1
+│        └─ value
+│           └─ Call @57:26
+│              ├─ callee
+│              │  └─ Member 'new' @57:22
+│              │     └─ object
+│              │        └─ Identifier 'RenderBounds' @57:10
+│              └─ args
+│                 ├─ IntLiteral '100' @57:28
+│                 └─ IntLiteral '50' @57:33
+├─ ExprStmt @58:1
+│  └─ expr
+│     └─ Call @58:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @58:1
+│        └─ args
+│           └─ Binary '==' @58:22
+│              ├─ lhs
+│              │  └─ Member 'area' @58:16
+│              │     └─ object
+│              │        └─ Identifier 'bounds' @58:10
+│              └─ rhs
+│                 └─ IntLiteral '5000' @58:25
+├─ ExprStmt @60:1
+│  └─ expr
+│     └─ Assign '=' @60:5
+│        ├─ target
+│        │  └─ Identifier 'btn' @60:1
+│        └─ value
+│           └─ Call @60:17
+│              ├─ callee
+│              │  └─ Member 'new' @60:13
+│              │     └─ object
+│              │        └─ Identifier 'Button' @60:7
+│              └─ args
+│                 ├─ StringLiteral 'btn-save' @60:19
+│                 └─ StringLiteral 'Save' @60:31
+├─ ExprStmt @61:1
+│  └─ expr
+│     └─ Call @61:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @61:1
+│        └─ args
+│           └─ Binary '==' @61:23
+│              ├─ lhs
+│              │  └─ Member 'describe' @61:13
+│              │     └─ object
+│              │        └─ Identifier 'btn' @61:10
+│              └─ rhs
+│                 └─ StringLiteral '[LOG] Component:btn-save' @61:26
+├─ ExprStmt @62:1
+│  └─ expr
+│     └─ Call @62:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @62:1
+│        └─ args
+│           └─ Binary '==' @62:31
+│              ├─ lhs
+│              │  └─ Call @62:20
+│              │     ├─ callee
+│              │     │  └─ Member 'render' @62:13
+│              │     │     └─ object
+│              │     │        └─ Identifier 'btn' @62:10
+│              │     └─ args
+│              │        └─ Identifier 'bounds' @62:22
+│              └─ rhs
+│                 └─ StringLiteral '<button id=\"btn-save\" area=\"5000\">Save</button>' @62:34
+└─ ExprStmt @63:1
+   └─ expr
+      └─ Call @63:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @63:1
+         └─ args
+            └─ Binary '==' @63:33
+               ├─ lhs
+               │  └─ Member 'default_theme' @63:18
+               │     └─ object
+               │        └─ Identifier 'UIConfig' @63:10
+               └─ rhs
+                  └─ StringLiteral 'dark' @63:36
+--- exit 0 ---

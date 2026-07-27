@@ -1,0 +1,11 @@
+Program 'samples/Sema/AssignMismatchDefault.vl'
+└─ Method 'bad_default' @4:1
+   ├─ params
+   │  └─ Param 'n' @4:18
+   │     ├─ decl_type
+   │     │  └─ TypeRef 'Int32' @4:22
+   │     └─ default
+   │        └─ StringLiteral 'plain' @4:30
+   └─ return_type
+      └─ TypeRef 'Void' @4:43
+--- exit 0 ---

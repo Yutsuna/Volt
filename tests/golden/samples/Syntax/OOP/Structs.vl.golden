@@ -1,0 +1,136 @@
+Program 'samples/Syntax/OOP/Structs.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Interp @3:11
+│                          └─ parts
+│                             ├─ StringLiteral 'Assertion failed ' @3:11
+│                             ├─ Identifier '__FILE__' @3:31
+│                             ├─ StringLiteral ':' @3:11
+│                             └─ Identifier '__LINE__' @3:43
+├─ Struct 'Point2D' @7:1
+│  └─ body
+│     ├─ Field 'x' getter @8:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @8:14
+│     ├─ Field 'y' getter @9:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @9:14
+│     ├─ Method 'initialize' @11:3
+│     │  └─ params
+│     │     ├─ Param 'x' instance_var @11:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @11:24
+│     │     └─ Param 'y' instance_var @11:31
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @11:36
+│     └─ Method 'distance_squared' @14:3
+│        ├─ params
+│        │  └─ Param 'other' @14:25
+│        │     └─ decl_type
+│        │        └─ TypeRef 'Point2D' @14:33
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @14:46
+│        └─ body
+│           ├─ ExprStmt @15:5
+│           │  └─ expr
+│           │     └─ Assign '=' @15:8
+│           │        ├─ target
+│           │        │  └─ Identifier 'dx' @15:5
+│           │        └─ value
+│           │           └─ Binary '-' @15:13
+│           │              ├─ lhs
+│           │              │  └─ InstanceVar '@x' @15:10
+│           │              └─ rhs
+│           │                 └─ Member 'x' @15:20
+│           │                    └─ object
+│           │                       └─ Identifier 'other' @15:15
+│           ├─ ExprStmt @16:5
+│           │  └─ expr
+│           │     └─ Assign '=' @16:8
+│           │        ├─ target
+│           │        │  └─ Identifier 'dy' @16:5
+│           │        └─ value
+│           │           └─ Binary '-' @16:13
+│           │              ├─ lhs
+│           │              │  └─ InstanceVar '@y' @16:10
+│           │              └─ rhs
+│           │                 └─ Member 'y' @16:20
+│           │                    └─ object
+│           │                       └─ Identifier 'other' @16:15
+│           └─ ExprStmt @17:5
+│              └─ expr
+│                 └─ Binary '+' @17:13
+│                    ├─ lhs
+│                    │  └─ Binary '*' @17:8
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'dx' @17:5
+│                    │     └─ rhs
+│                    │        └─ Identifier 'dx' @17:10
+│                    └─ rhs
+│                       └─ Binary '*' @17:18
+│                          ├─ lhs
+│                          │  └─ Identifier 'dy' @17:15
+│                          └─ rhs
+│                             └─ Identifier 'dy' @17:20
+├─ ExprStmt @21:1
+│  └─ expr
+│     └─ Assign '=' @21:4
+│        ├─ target
+│        │  └─ Identifier 'p1' @21:1
+│        └─ value
+│           └─ Call @21:17
+│              ├─ callee
+│              │  └─ Member 'new' @21:13
+│              │     └─ object
+│              │        └─ Identifier 'Point2D' @21:6
+│              └─ args
+│                 ├─ IntLiteral '0' @21:19
+│                 └─ IntLiteral '0' @21:22
+├─ ExprStmt @22:1
+│  └─ expr
+│     └─ Assign '=' @22:4
+│        ├─ target
+│        │  └─ Identifier 'p2' @22:1
+│        └─ value
+│           └─ Call @22:17
+│              ├─ callee
+│              │  └─ Member 'new' @22:13
+│              │     └─ object
+│              │        └─ Identifier 'Point2D' @22:6
+│              └─ args
+│                 ├─ IntLiteral '3' @22:19
+│                 └─ IntLiteral '4' @22:22
+└─ ExprStmt @23:1
+   └─ expr
+      └─ Call @23:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @23:1
+         └─ args
+            └─ Binary '==' @23:36
+               ├─ lhs
+               │  └─ Call @23:29
+               │     ├─ callee
+               │     │  └─ Member 'distance_squared' @23:12
+               │     │     └─ object
+               │     │        └─ Identifier 'p1' @23:10
+               │     └─ args
+               │        └─ Identifier 'p2' @23:31
+               └─ rhs
+                  └─ IntLiteral '25' @23:39
+--- exit 0 ---

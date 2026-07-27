@@ -1,0 +1,20 @@
+Program 'samples/Sema/FreeFunctionTypeMismatch.vl'
+├─ Method 'greet' @6:1
+│  ├─ params
+│  │  └─ Param 'name' @6:12
+│  │     └─ decl_type
+│  │        └─ TypeRef 'String' @6:19
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @6:31
+│  └─ body
+│     └─ ExprStmt @7:3
+│        └─ expr
+│           └─ Identifier 'name' @7:3
+└─ ExprStmt @10:1
+   └─ expr
+      └─ Call @10:6
+         ├─ callee
+         │  └─ Identifier 'greet' @10:1
+         └─ args
+            └─ BoolLiteral true @10:8
+--- exit 0 ---

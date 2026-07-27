@@ -1,0 +1,96 @@
+Program 'samples/Syntax/OOP/Modules.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Interp @3:11
+│                          └─ parts
+│                             ├─ StringLiteral 'Assertion failed ' @3:11
+│                             ├─ Identifier '__FILE__' @3:31
+│                             ├─ StringLiteral ':' @3:11
+│                             └─ Identifier '__LINE__' @3:43
+├─ Module 'MathUtils' @7:1
+│  └─ body
+│     ├─ Method 'square' self @8:3
+│     │  ├─ params
+│     │  │  └─ Param 'n' @8:20
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Int32' @8:24
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @8:35
+│     │  └─ body
+│     │     └─ ExprStmt @9:5
+│     │        └─ expr
+│     │           └─ Binary '*' @9:7
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'n' @9:5
+│     │              └─ rhs
+│     │                 └─ Identifier 'n' @9:9
+│     └─ Method 'cube' self @12:3
+│        ├─ params
+│        │  └─ Param 'n' @12:18
+│        │     └─ decl_type
+│        │        └─ TypeRef 'Int32' @12:22
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @12:33
+│        └─ body
+│           └─ ExprStmt @13:5
+│              └─ expr
+│                 └─ Binary '*' @13:11
+│                    ├─ lhs
+│                    │  └─ Binary '*' @13:7
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'n' @13:5
+│                    │     └─ rhs
+│                    │        └─ Identifier 'n' @13:9
+│                    └─ rhs
+│                       └─ Identifier 'n' @13:13
+├─ ExprStmt @17:1
+│  └─ expr
+│     └─ Call @17:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @17:1
+│        └─ args
+│           └─ Binary '==' @17:32
+│              ├─ lhs
+│              │  └─ Call @17:26
+│              │     ├─ callee
+│              │     │  └─ Member 'square' @17:19
+│              │     │     └─ object
+│              │     │        └─ Identifier 'MathUtils' @17:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @17:28
+│              └─ rhs
+│                 └─ IntLiteral '16' @17:35
+└─ ExprStmt @18:1
+   └─ expr
+      └─ Call @18:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @18:1
+         └─ args
+            └─ Binary '==' @18:30
+               ├─ lhs
+               │  └─ Call @18:24
+               │     ├─ callee
+               │     │  └─ Member 'cube' @18:19
+               │     │     └─ object
+               │     │        └─ Identifier 'MathUtils' @18:10
+               │     └─ args
+               │        └─ IntLiteral '3' @18:26
+               └─ rhs
+                  └─ IntLiteral '27' @18:33
+--- exit 0 ---

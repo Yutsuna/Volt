@@ -1,0 +1,27 @@
+Program 'samples/Circuits/TwoDeps/Source/Models/User.vl'
+└─ Module 'Models' @1:1
+   └─ body
+      └─ Struct 'User' @4:3
+         └─ body
+            ├─ Field 'id' @5:5
+            │  └─ decl_type
+            │     └─ TypeRef 'Int32' @5:10
+            ├─ Field 'name' @6:5
+            │  └─ decl_type
+            │     └─ TypeRef 'String' @6:12
+            ├─ Method 'initialize' @8:5
+            │  └─ params
+            │     ├─ Param 'id' instance_var @8:21
+            │     │  └─ decl_type
+            │     │     └─ TypeRef 'Int32' @8:27
+            │     └─ Param 'name' instance_var @8:34
+            │        └─ decl_type
+            │           └─ TypeRef 'String' @8:42
+            └─ Method 'get_id' @11:5
+               ├─ return_type
+               │  └─ TypeRef 'Int32' @11:19
+               └─ body
+                  └─ ExprStmt @12:7
+                     └─ expr
+                        └─ InstanceVar '@id' @12:7
+--- exit 0 ---

@@ -1,0 +1,28 @@
+samples/Tests/Conditional/UnlessElse.vl:9:1: error: expected an expression
+    unless false
+    ^~~~~~
+samples/Tests/Conditional/UnlessElse.vl:11:1: error: expected an expression
+    end
+    ^~~
+samples/Tests/Conditional/UnlessElse.vl:15:10: error: expected an expression
+    status = unless true
+             ^~~~~~
+samples/Tests/Conditional/UnlessElse.vl:17:1: error: expected an expression
+    else
+    ^~~~
+samples/Tests/Conditional/UnlessElse.vl:19:1: error: expected an expression
+    end
+    ^~~
+samples/Tests/Conditional/UnlessElse.vl:23:19: error: expected an expression
+    res_unless_then = unless false then "ok" else "ko" end
+                      ^~~~~~
+samples/Tests/Conditional/UnlessElse.vl:23:32: error: expected an expression
+    res_unless_then = unless false then "ok" else "ko" end
+                                   ^~~~
+samples/Tests/Conditional/UnlessElse.vl:23:42: error: expected an expression
+    res_unless_then = unless false then "ok" else "ko" end
+                                             ^~~~
+samples/Tests/Conditional/UnlessElse.vl:23:52: error: expected an expression
+    res_unless_then = unless false then "ok" else "ko" end
+                                                       ^~~
+--- exit 84 ---

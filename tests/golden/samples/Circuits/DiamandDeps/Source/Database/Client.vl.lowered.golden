@@ -1,0 +1,20 @@
+Program 'samples/Circuits/DiamandDeps/Source/Database/Client.vl'
+├─ Annotation 'Link' @1:1
+│  └─ args
+│     └─ StringLiteral 'Core' @1:8
+└─ Module 'Database' @4:1
+   └─ body
+      └─ Class 'DbClient' @7:3
+         └─ body
+            ├─ Field 'config' @8:5
+            │  └─ decl_type
+            │     └─ TypeRef 'Core::AppConfig' @8:14
+            ├─ Method 'initialize' @10:5
+            │  └─ params
+            │     └─ Param 'config' instance_var @10:21
+            │        └─ decl_type
+            │           └─ TypeRef 'Core::AppConfig' @10:31
+            └─ Method 'connect' @13:5
+               └─ return_type
+                  └─ TypeRef 'Void' @13:20
+--- exit 0 ---

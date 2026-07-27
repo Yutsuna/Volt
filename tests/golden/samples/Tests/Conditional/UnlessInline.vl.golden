@@ -1,0 +1,85 @@
+Program 'samples/Tests/Conditional/UnlessInline.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Interp @3:11
+│                          └─ parts
+│                             ├─ StringLiteral 'FAIL ' @3:11
+│                             ├─ Identifier '__FILE__' @3:19
+│                             ├─ StringLiteral ':\tCalled by ' @3:11
+│                             ├─ Identifier '__FUNCTION__' @3:43
+│                             ├─ StringLiteral ' at ' @3:11
+│                             ├─ Identifier '__LINE__' @3:62
+│                             ├─ StringLiteral ':' @3:11
+│                             └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:12
+│        ├─ target
+│        │  └─ Identifier 'val_unless' @8:1
+│        └─ value
+│           └─ IntLiteral '50' @8:14
+├─ If @9:18
+│  ├─ cond
+│  │  └─ Unary '!' @9:18
+│  │     └─ operand
+│  │        └─ BoolLiteral false @9:25
+│  └─ then
+│     └─ ExprStmt @9:1
+│        └─ expr
+│           └─ Assign '=' @9:12
+│              ├─ target
+│              │  └─ Identifier 'val_unless' @9:1
+│              └─ value
+│                 └─ IntLiteral '100' @9:14
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Binary '==' @10:21
+│              ├─ lhs
+│              │  └─ Identifier 'val_unless' @10:10
+│              └─ rhs
+│                 └─ IntLiteral '100' @10:24
+├─ If @13:18
+│  ├─ cond
+│  │  └─ Unary '!' @13:18
+│  │     └─ operand
+│  │        └─ BoolLiteral true @13:25
+│  └─ then
+│     └─ ExprStmt @13:1
+│        └─ expr
+│           └─ Assign '=' @13:12
+│              ├─ target
+│              │  └─ Identifier 'val_unless' @13:1
+│              └─ value
+│                 └─ IntLiteral '200' @13:14
+└─ ExprStmt @14:1
+   └─ expr
+      └─ Call @14:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @14:1
+         └─ args
+            └─ Binary '==' @14:21
+               ├─ lhs
+               │  └─ Identifier 'val_unless' @14:10
+               └─ rhs
+                  └─ IntLiteral '100' @14:24
+--- exit 0 ---

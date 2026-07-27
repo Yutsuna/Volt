@@ -1,0 +1,48 @@
+Program 'samples/Syntax/Macros/Delegate.vl'
+├─ Class 'User' @19:1
+│  └─ body
+│     ├─ Field 'name' @20:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @20:11
+│     ├─ Field 'email' @21:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @21:11
+│     ├─ Field 'age' @22:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @22:11
+│     └─ Method 'initialize' @24:3
+│        └─ params
+│           ├─ Param 'name' instance_var @24:19
+│           │  └─ decl_type
+│           │     └─ TypeRef 'String' @24:27
+│           ├─ Param 'email' instance_var @24:35
+│           │  └─ decl_type
+│           │     └─ TypeRef 'String' @24:44
+│           └─ Param 'age' instance_var @24:52
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @24:59
+└─ Class 'Session' @30:1
+   └─ body
+      ├─ Field 'user' getter @31:3
+      │  └─ decl_type
+      │     └─ TypeRef 'User' @31:17
+      ├─ Method 'initialize' @33:3
+      │  └─ params
+      │     └─ Param 'user' instance_var @33:19
+      │        └─ decl_type
+      │           └─ TypeRef 'User' @33:27
+      ├─ Method 'name' @36:3
+      │  └─ body
+      │     └─ ExprStmt @36:3
+      │        └─ expr
+      │           └─ Member 'name' @36:3
+      │              └─ object
+      │                 └─ Identifier 'user' @36:3
+      └─ Method 'email' @36:3
+         └─ body
+            └─ ExprStmt @36:3
+               └─ expr
+                  └─ Member 'email' @36:3
+                     └─ object
+                        └─ Identifier 'user' @36:3
+--- exit 0 ---

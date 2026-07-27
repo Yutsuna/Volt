@@ -1,0 +1,100 @@
+Program 'samples/Sema/LeadingDotChain.vl'
+├─ Method 'leading_dot_chain' @9:1
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @9:26
+│  └─ body
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Assign '=' @10:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'raw' @10:3
+│     │        └─ value
+│     │           └─ StringLiteral '  ALICE  ' @10:9
+│     ├─ ExprStmt @14:3
+│     │  └─ expr
+│     │     └─ Assign '=' @14:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'tidy' @14:3
+│     │        └─ value
+│     │           └─ Member 'downcase' @17:5
+│     │              └─ object
+│     │                 └─ Member 'trim' @15:5
+│     │                    └─ object
+│     │                       └─ Identifier 'raw' @14:10
+│     └─ ExprStmt @19:3
+│        └─ expr
+│           └─ Identifier 'tidy' @19:3
+├─ Method 'chain_in_argument' @22:1
+│  ├─ params
+│  │  └─ Param 'value' @22:24
+│  │     └─ decl_type
+│  │        └─ TypeRef 'String' @22:32
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @22:44
+│  └─ body
+│     └─ ExprStmt @23:3
+│        └─ expr
+│           └─ Identifier 'value' @23:3
+├─ Method 'leading_dot_in_call' @26:1
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @26:28
+│  └─ body
+│     ├─ ExprStmt @27:3
+│     │  └─ expr
+│     │     └─ Assign '=' @27:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'raw' @27:3
+│     │        └─ value
+│     │           └─ StringLiteral '  BOB  ' @27:9
+│     └─ ExprStmt @29:3
+│        └─ expr
+│           └─ Call @29:20
+│              ├─ callee
+│              │  └─ Identifier 'chain_in_argument' @29:3
+│              └─ args
+│                 └─ Member 'downcase' @31:5
+│                    └─ object
+│                       └─ Member 'trim' @30:5
+│                          └─ object
+│                             └─ Identifier 'raw' @29:22
+└─ Method 'no_false_continuation' @34:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @34:30
+   └─ body
+      ├─ ExprStmt @35:3
+      │  └─ expr
+      │     └─ Assign '=' @35:10
+      │        ├─ target
+      │        │  └─ Identifier 'values' @35:3
+      │        └─ value
+      │           └─ ArrayLit @35:12
+      │              └─ elements
+      │                 ├─ IntLiteral '1' @35:14
+      │                 ├─ IntLiteral '2' @35:17
+      │                 └─ IntLiteral '3' @35:20
+      ├─ ExprStmt @39:3
+      │  └─ expr
+      │     └─ Assign '=' @39:9
+      │        ├─ target
+      │        │  └─ Identifier 'spare' @39:3
+      │        └─ value
+      │           └─ ArrayLit @39:11
+      │              └─ elements
+      │                 ├─ IntLiteral '4' @39:13
+      │                 └─ IntLiteral '5' @39:16
+      └─ ExprStmt @41:3
+         └─ expr
+            └─ Binary '+' @41:13
+               ├─ lhs
+               │  └─ Index @41:9
+               │     ├─ object
+               │     │  └─ Identifier 'values' @41:3
+               │     └─ args
+               │        └─ IntLiteral '0' @41:10
+               └─ rhs
+                  └─ Index @41:20
+                     ├─ object
+                     │  └─ Identifier 'spare' @41:15
+                     └─ args
+                        └─ IntLiteral '0' @41:21
+--- exit 0 ---

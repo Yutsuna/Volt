@@ -1,0 +1,64 @@
+Program 'samples/Syntax/Macros/Serializable.vl'
+├─ MacroDef 'serializable' 'def to_string -> String
+    "User(" +
+      {% for field, index in fields %}
+        "{{ field }}: #{@{{ field }}.to_string}" + {% if index < fields.size - 1 %} ", " + {% end %}
+      {% end %}
+    ")"
+  end
+
+  def to_json -> String
+    "{" +
+      {% for field, index in fields %}
+        "\"{{ field }}\": " + @{{ field }}.to_json + {% if index < fields.size - 1 %} ", " + {% end %}
+      {% end %}
+    "}"
+  end
+
+  def self.from_string( str : String ) -> self
+    # parse the string as a key value pair and create a new instance of the class
+    # then create & return a new instance of the class
+  end
+
+  def self.from_json( json : String ) -> self
+    # parse the json as a key value pair and create a new instance of the class
+    # then create & return a new instance of the class
+  end
+
+' @6:1
+│  └─ params
+│     └─ Param 'fields' @6:25
+│        └─ decl_type
+│           └─ TypeRef 'Array' @6:34
+│              └─ generics
+│                 └─ TypeRef 'Symbol' @6:40
+└─ Class 'User' @38:1
+   └─ body
+      ├─ Field 'name' @39:3
+      │  └─ decl_type
+      │     └─ TypeRef 'String' @39:11
+      ├─ Field 'email' @40:3
+      │  └─ decl_type
+      │     └─ TypeRef 'String' @40:11
+      ├─ Field 'age' @41:3
+      │  └─ decl_type
+      │     └─ TypeRef 'Int32' @41:11
+      ├─ Method 'initialize' @43:3
+      │  └─ params
+      │     ├─ Param 'name' instance_var @43:19
+      │     │  └─ decl_type
+      │     │     └─ TypeRef 'String' @43:27
+      │     ├─ Param 'email' instance_var @43:35
+      │     │  └─ decl_type
+      │     │     └─ TypeRef 'String' @43:44
+      │     └─ Param 'age' instance_var @43:52
+      │        └─ decl_type
+      │           └─ TypeRef 'Int32' @43:59
+      └─ MacroInvoke 'serializable' @46:3
+         └─ args
+            └─ ArrayLit @46:17
+               └─ elements
+                  ├─ SymbolLiteral ':name' @46:19
+                  ├─ SymbolLiteral ':email' @46:26
+                  └─ SymbolLiteral ':age' @46:34
+--- exit 0 ---

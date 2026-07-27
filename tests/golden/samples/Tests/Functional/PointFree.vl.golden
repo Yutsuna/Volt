@@ -1,0 +1,333 @@
+Program 'samples/Tests/Functional/PointFree.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Interp @3:11
+│                          └─ parts
+│                             ├─ StringLiteral 'FAIL ' @3:11
+│                             ├─ Identifier '__FILE__' @3:19
+│                             ├─ StringLiteral ':\tCalled by ' @3:11
+│                             ├─ Identifier '__FUNCTION__' @3:43
+│                             ├─ StringLiteral ' at ' @3:11
+│                             ├─ Identifier '__LINE__' @3:62
+│                             ├─ StringLiteral ':' @3:11
+│                             └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:14
+│        ├─ target
+│        │  └─ Identifier 'calc_pointed' @8:1
+│        └─ value
+│           └─ Lambda @8:16
+│              ├─ params
+│              │  └─ Param 'x' @8:18
+│              │     └─ decl_type
+│              │        └─ TypeRef 'Int32' @8:22
+│              └─ body
+│                 └─ Binary '*' @8:46
+│                    ├─ lhs
+│                    │  └─ Binary '+' @8:39
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'x' @8:37
+│                    │     └─ rhs
+│                    │        └─ IntLiteral '10' @8:41
+│                    └─ rhs
+│                       └─ IntLiteral '2' @8:48
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Assign '=' @9:16
+│        ├─ target
+│        │  └─ Identifier 'calc_pointfree' @9:1
+│        └─ value
+│           └─ Composition @9:29
+│              ├─ lhs
+│              │  └─ Section operator '+' @9:20
+│              │     └─ args
+│              │        └─ IntLiteral '10' @9:24
+│              └─ rhs
+│                 └─ Section operator '*' @9:34
+│                    └─ args
+│                       └─ IntLiteral '2' @9:38
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Binary '==' @10:28
+│              ├─ lhs
+│              │  └─ Call @10:22
+│              │     ├─ callee
+│              │     │  └─ Identifier 'calc_pointed' @10:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @10:24
+│              └─ rhs
+│                 └─ IntLiteral '24' @10:31
+├─ ExprStmt @11:1
+│  └─ expr
+│     └─ Call @11:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @11:1
+│        └─ args
+│           └─ Binary '==' @11:30
+│              ├─ lhs
+│              │  └─ Call @11:24
+│              │     ├─ callee
+│              │     │  └─ Identifier 'calc_pointfree' @11:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @11:26
+│              └─ rhs
+│                 └─ IntLiteral '24' @11:33
+├─ ExprStmt @12:1
+│  └─ expr
+│     └─ Call @12:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @12:1
+│        └─ args
+│           └─ Binary '==' @12:30
+│              ├─ lhs
+│              │  └─ Pipeline @12:12
+│              │     ├─ lhs
+│              │     │  └─ IntLiteral '2' @12:10
+│              │     └─ rhs
+│              │        └─ Identifier 'calc_pointfree' @12:15
+│              └─ rhs
+│                 └─ IntLiteral '24' @12:33
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Assign '=' @15:15
+│        ├─ target
+│        │  └─ Identifier 'clean_pointed' @15:1
+│        └─ value
+│           └─ Lambda @15:17
+│              ├─ params
+│              │  └─ Param 's' @15:19
+│              │     └─ decl_type
+│              │        └─ TypeRef 'String' @15:23
+│              └─ body
+│                 └─ Call @15:59
+│                    ├─ callee
+│                    │  └─ Member 'prefix' @15:52
+│                    │     └─ object
+│                    │        └─ Member 'downcase' @15:43
+│                    │           └─ object
+│                    │              └─ Member 'trim' @15:38
+│                    │                 └─ object
+│                    │                    └─ Identifier 's' @15:37
+│                    └─ args
+│                       └─ StringLiteral '[user]: ' @15:60
+├─ ExprStmt @16:1
+│  └─ expr
+│     └─ Assign '=' @16:17
+│        ├─ target
+│        │  └─ Identifier 'clean_pointfree' @16:1
+│        └─ value
+│           └─ Composition @18:16
+│              ├─ lhs
+│              │  └─ Composition @17:16
+│              │     ├─ lhs
+│              │     │  └─ Section instance_method 'trim' @16:20
+│              │     └─ rhs
+│              │        └─ Section instance_method 'downcase' @17:20
+│              └─ rhs
+│                 └─ Section instance_method 'prefix' @18:20
+│                    └─ args
+│                       └─ StringLiteral '[user]: ' @18:29
+├─ ExprStmt @20:1
+│  └─ expr
+│     └─ Call @20:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @20:1
+│        └─ args
+│           └─ Binary '==' @20:38
+│              ├─ lhs
+│              │  └─ Call @20:25
+│              │     ├─ callee
+│              │     │  └─ Identifier 'clean_pointfree' @20:10
+│              │     └─ args
+│              │        └─ StringLiteral '  ALICE ' @20:26
+│              └─ rhs
+│                 └─ StringLiteral '[user]: alice' @20:41
+├─ ExprStmt @21:1
+│  └─ expr
+│     └─ Call @21:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @21:1
+│        └─ args
+│           └─ Binary '==' @21:38
+│              ├─ lhs
+│              │  └─ Pipeline @21:19
+│              │     ├─ lhs
+│              │     │  └─ StringLiteral '  BOB ' @21:10
+│              │     └─ rhs
+│              │        └─ Identifier 'clean_pointfree' @21:22
+│              └─ rhs
+│                 └─ StringLiteral '[user]: bob' @21:41
+├─ ExprStmt @24:1
+│  └─ expr
+│     └─ Assign '=' @24:9
+│        ├─ target
+│        │  └─ Identifier 'numbers' @24:1
+│        └─ value
+│           └─ ArrayLit @24:11
+│              └─ elements
+│                 └─ Binary '..' @24:14
+│                    ├─ lhs
+│                    │  └─ IntLiteral '1' @24:13
+│                    └─ rhs
+│                       └─ IntLiteral '5' @24:16
+├─ ExprStmt @25:1
+│  └─ expr
+│     └─ Assign '=' @25:9
+│        ├─ target
+│        │  └─ Identifier 'results' @25:1
+│        └─ value
+│           └─ Call @25:22
+│              ├─ callee
+│              │  └─ Member 'map' @25:18
+│              │     └─ object
+│              │        └─ Identifier 'numbers' @25:11
+│              └─ block_arg
+│                 └─ Composition @25:35
+│                    ├─ lhs
+│                    │  └─ Section operator '+' @25:26
+│                    │     └─ args
+│                    │        └─ IntLiteral '10' @25:30
+│                    └─ rhs
+│                       └─ Section operator '*' @25:40
+│                          └─ args
+│                             └─ IntLiteral '2' @25:44
+├─ ExprStmt @27:1
+│  └─ expr
+│     └─ Call @27:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @27:1
+│        └─ args
+│           └─ Binary '==' @27:21
+│              ├─ lhs
+│              │  └─ Index @27:17
+│              │     ├─ object
+│              │     │  └─ Identifier 'results' @27:10
+│              │     └─ args
+│              │        └─ IntLiteral '0' @27:18
+│              └─ rhs
+│                 └─ IntLiteral '22' @27:24
+├─ ExprStmt @28:1
+│  └─ expr
+│     └─ Call @28:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @28:1
+│        └─ args
+│           └─ Binary '==' @28:21
+│              ├─ lhs
+│              │  └─ Index @28:17
+│              │     ├─ object
+│              │     │  └─ Identifier 'results' @28:10
+│              │     └─ args
+│              │        └─ IntLiteral '1' @28:18
+│              └─ rhs
+│                 └─ IntLiteral '24' @28:24
+├─ ExprStmt @29:1
+│  └─ expr
+│     └─ Call @29:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @29:1
+│        └─ args
+│           └─ Binary '==' @29:21
+│              ├─ lhs
+│              │  └─ Index @29:17
+│              │     ├─ object
+│              │     │  └─ Identifier 'results' @29:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @29:18
+│              └─ rhs
+│                 └─ IntLiteral '26' @29:24
+├─ ExprStmt @32:1
+│  └─ expr
+│     └─ Assign '=' @32:11
+│        ├─ target
+│        │  └─ Identifier 'transform' @32:1
+│        └─ value
+│           └─ Composition @32:24
+│              ├─ lhs
+│              │  └─ Section instance_method 'trim' @32:15
+│              └─ rhs
+│                 └─ Section instance_method 'prefix' @32:29
+│                    └─ args
+│                       └─ StringLiteral 'usr_' @32:39
+├─ ExprStmt @33:1
+│  └─ expr
+│     └─ Assign '=' @33:11
+│        ├─ target
+│        │  └─ Identifier 'raw_users' @33:1
+│        └─ value
+│           └─ ArrayLit @33:13
+│              └─ elements
+│                 ├─ StringLiteral ' alice ' @33:15
+│                 ├─ StringLiteral ' bob ' @33:26
+│                 └─ StringLiteral '    ' @33:36
+├─ ExprStmt @34:1
+│  └─ expr
+│     └─ Assign '=' @34:13
+│        ├─ target
+│        │  └─ Identifier 'clean_users' @34:1
+│        └─ value
+│           └─ Call @36:7
+│              ├─ callee
+│              │  └─ Member 'map' @36:3
+│              │     └─ object
+│              │        └─ Call @35:10
+│              │           ├─ callee
+│              │           │  └─ Member 'filter' @35:3
+│              │           │     └─ object
+│              │           │        └─ Identifier 'raw_users' @34:15
+│              │           └─ block_arg
+│              │              └─ Section instance_method 'empty?' negated @35:13
+│              └─ args
+│                 └─ Identifier 'transform' @36:9
+├─ ExprStmt @37:1
+│  └─ expr
+│     └─ Call @37:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @37:1
+│        └─ args
+│           └─ Binary '==' @37:25
+│              ├─ lhs
+│              │  └─ Index @37:21
+│              │     ├─ object
+│              │     │  └─ Identifier 'clean_users' @37:10
+│              │     └─ args
+│              │        └─ IntLiteral '0' @37:22
+│              └─ rhs
+│                 └─ StringLiteral 'usr_alice' @37:28
+└─ ExprStmt @38:1
+   └─ expr
+      └─ Call @38:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @38:1
+         └─ args
+            └─ Binary '==' @38:25
+               ├─ lhs
+               │  └─ Index @38:21
+               │     ├─ object
+               │     │  └─ Identifier 'clean_users' @38:10
+               │     └─ args
+               │        └─ IntLiteral '1' @38:22
+               └─ rhs
+                  └─ StringLiteral 'usr_bob' @38:28
+--- exit 0 ---

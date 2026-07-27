@@ -1,0 +1,22 @@
+samples/Tests/Conditional/IfElsifElse.vl:20:7: error: expected an expression
+    val = if 10 > 5
+          ^~
+samples/Tests/Conditional/IfElsifElse.vl:22:1: error: expected an expression
+    else
+    ^~~~
+samples/Tests/Conditional/IfElsifElse.vl:24:1: error: expected an expression
+    end
+    ^~~
+samples/Tests/Conditional/IfElsifElse.vl:28:12: error: expected an expression
+    res_then = if true then "oui" else "non" end
+               ^~
+samples/Tests/Conditional/IfElsifElse.vl:28:20: error: expected an expression
+    res_then = if true then "oui" else "non" end
+                       ^~~~
+samples/Tests/Conditional/IfElsifElse.vl:28:31: error: expected an expression
+    res_then = if true then "oui" else "non" end
+                                  ^~~~
+samples/Tests/Conditional/IfElsifElse.vl:28:42: error: expected an expression
+    res_then = if true then "oui" else "non" end
+                                             ^~~
+--- exit 84 ---

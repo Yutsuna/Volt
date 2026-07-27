@@ -1,0 +1,50 @@
+Program 'samples/Sema/ImplicitSelfCall.vl'
+└─ Struct 'Counter' @9:1
+   └─ body
+      ├─ Field 'value' getter @11:3
+      │  └─ decl_type
+      │     └─ TypeRef 'Int32' @11:18
+      ├─ Method 'initialize' @13:3
+      │  ├─ params
+      │  │  └─ Param 'value' @13:19
+      │  │     └─ decl_type
+      │  │        └─ TypeRef 'Int32' @13:27
+      │  ├─ return_type
+      │  │  └─ TypeRef 'Void' @13:38
+      │  └─ body
+      │     └─ ExprStmt @14:5
+      │        └─ expr
+      │           └─ Assign '=' @14:12
+      │              ├─ target
+      │              │  └─ InstanceVar '@value' @14:5
+      │              └─ value
+      │                 └─ Identifier 'value' @14:14
+      ├─ Method 'bump' @18:3
+      │  ├─ return_type
+      │  │  └─ TypeRef 'Int32' @18:15
+      │  └─ body
+      │     └─ ExprStmt @19:5
+      │        └─ expr
+      │           └─ DotCall 'step' @19:5
+      ├─ Method 'step' @22:3
+      │  ├─ return_type
+      │  │  └─ TypeRef 'Int32' @22:15
+      │  └─ body
+      │     └─ ExprStmt @23:5
+      │        └─ expr
+      │           └─ InstanceVar '@value' @23:5
+      ├─ Method 'make' self @27:3
+      │  ├─ return_type
+      │  │  └─ TypeRef 'Int32' @27:20
+      │  └─ body
+      │     └─ ExprStmt @28:5
+      │        └─ expr
+      │           └─ DotCall 'seed' @28:5
+      └─ Method 'seed' self @31:3
+         ├─ return_type
+         │  └─ TypeRef 'Int32' @31:20
+         └─ body
+            └─ ExprStmt @32:5
+               └─ expr
+                  └─ IntLiteral '0' @32:5
+--- exit 0 ---

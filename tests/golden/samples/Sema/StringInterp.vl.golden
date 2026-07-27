@@ -1,0 +1,150 @@
+Program 'samples/Sema/StringInterp.vl'
+├─ Method 'literal_and_expr' @11:1
+│  ├─ params
+│  │  └─ Param 'n' @11:23
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @11:27
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @11:38
+│  └─ body
+│     └─ ExprStmt @12:3
+│        └─ expr
+│           └─ Interp @12:3
+│              └─ parts
+│                 ├─ StringLiteral 'count = ' @12:3
+│                 ├─ Identifier 'n' @12:15
+│                 └─ StringLiteral ' items' @12:3
+├─ Method 'expr_only' @15:1
+│  ├─ params
+│  │  └─ Param 'n' @15:16
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @15:20
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @15:31
+│  └─ body
+│     └─ ExprStmt @16:3
+│        └─ expr
+│           └─ Interp @16:3
+│              └─ parts
+│                 └─ Identifier 'n' @16:7
+├─ Method 'integer_widths' @19:1
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @19:23
+│  └─ body
+│     ├─ LocalDecl 'small' @20:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int8' @20:11
+│     │  └─ init
+│     │     └─ IntLiteral '7' @20:18
+│     ├─ LocalDecl 'big' @21:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int64' @21:9
+│     │  └─ init
+│     │     └─ Unary '-' @21:17
+│     │        └─ operand
+│     │           └─ IntLiteral '1234' @21:18
+│     ├─ LocalDecl 'unsigned' @22:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'UInt64' @22:14
+│     │  └─ init
+│     │     └─ IntLiteral '99' @22:23
+│     └─ ExprStmt @23:3
+│        └─ expr
+│           └─ Interp @23:3
+│              └─ parts
+│                 ├─ Identifier 'small' @23:7
+│                 ├─ StringLiteral '/' @23:3
+│                 ├─ Identifier 'big' @23:18
+│                 ├─ StringLiteral '/' @23:3
+│                 └─ Identifier 'unsigned' @23:27
+├─ Method 'floating' @26:1
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @26:17
+│  └─ body
+│     ├─ LocalDecl 'ratio' @27:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Float64' @27:11
+│     │  └─ init
+│     │     └─ FloatLiteral '1.5' @27:21
+│     └─ ExprStmt @28:3
+│        └─ expr
+│           └─ Interp @28:3
+│              └─ parts
+│                 ├─ StringLiteral 'ratio = ' @28:3
+│                 └─ Identifier 'ratio' @28:15
+├─ Method 'boolean' @31:1
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @31:16
+│  └─ body
+│     ├─ ExprStmt @32:3
+│     │  └─ expr
+│     │     └─ Assign '=' @32:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'flag' @32:3
+│     │        └─ value
+│     │           └─ BoolLiteral true @32:10
+│     └─ ExprStmt @33:3
+│        └─ expr
+│           └─ Interp @33:3
+│              └─ parts
+│                 ├─ StringLiteral 'flag = ' @33:3
+│                 └─ Identifier 'flag' @33:14
+├─ Method 'character' @36:1
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @36:18
+│  └─ body
+│     ├─ ExprStmt @37:3
+│     │  └─ expr
+│     │     └─ Assign '=' @37:10
+│     │        ├─ target
+│     │        │  └─ Identifier 'letter' @37:3
+│     │        └─ value
+│     │           └─ CharLiteral 'A' @37:12
+│     └─ ExprStmt @38:3
+│        └─ expr
+│           └─ Interp @38:3
+│              └─ parts
+│                 ├─ StringLiteral 'letter = ' @38:3
+│                 └─ Identifier 'letter' @38:16
+├─ Method 'nested' @43:1
+│  ├─ params
+│  │  └─ Param 'name' @43:13
+│  │     └─ decl_type
+│  │        └─ TypeRef 'String' @43:20
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @43:32
+│  └─ body
+│     ├─ ExprStmt @44:3
+│     │  └─ expr
+│     │     └─ Assign '=' @44:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'inner' @44:3
+│     │        └─ value
+│     │           └─ Interp @44:11
+│     │              └─ parts
+│     │                 ├─ StringLiteral '[' @44:11
+│     │                 ├─ Identifier 'name' @44:16
+│     │                 └─ StringLiteral ']' @44:11
+│     └─ ExprStmt @45:3
+│        └─ expr
+│           └─ Interp @45:3
+│              └─ parts
+│                 ├─ StringLiteral 'wrapped ' @45:3
+│                 ├─ Identifier 'inner' @45:15
+│                 └─ StringLiteral ' done' @45:3
+└─ Method 'leading_and_trailing' @48:1
+   ├─ params
+   │  └─ Param 'n' @48:27
+   │     └─ decl_type
+   │        └─ TypeRef 'Int32' @48:31
+   ├─ return_type
+   │  └─ TypeRef 'String' @48:42
+   └─ body
+      └─ ExprStmt @49:3
+         └─ expr
+            └─ Interp @49:3
+               └─ parts
+                  ├─ Identifier 'n' @49:7
+                  ├─ StringLiteral ' and ' @49:3
+                  └─ Identifier 'n' @49:18
+--- exit 0 ---

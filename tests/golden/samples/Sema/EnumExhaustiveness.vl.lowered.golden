@@ -1,0 +1,122 @@
+Program 'samples/Sema/EnumExhaustiveness.vl'
+├─ Enum 'TrafficLight' @4:1
+│  └─ body
+│     ├─ EnumCase 'Red' @5:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @5:3
+│     ├─ EnumCase 'Yellow' @6:3
+│     │  └─ value
+│     │     └─ IntLiteral '1' @6:3
+│     ├─ EnumCase 'Green' @7:3
+│     │  └─ value
+│     │     └─ IntLiteral '2' @7:3
+│     └─ Method 'next_light' @10:3
+│        ├─ return_type
+│        │  └─ TypeRef 'self' @10:21
+│        └─ body
+│           └─ ExprStmt @11:5
+│              └─ expr
+│                 └─ CaseExpr @11:5
+│                    ├─ target
+│                    │  └─ SelfExpr @11:10
+│                    └─ clauses
+│                       ├─ WhenClause @12:5
+│                       │  ├─ patterns
+│                       │  │  └─ Call @12:10
+│                       │  │     └─ callee
+│                       │  │        └─ Member 'Red' @12:10
+│                       │  │           └─ object
+│                       │  │              └─ SelfExpr @11:10
+│                       │  └─ body
+│                       │     └─ ExprStmt @12:23
+│                       │        └─ expr
+│                       │           └─ Member 'Green' @12:35
+│                       │              └─ object
+│                       │                 └─ Identifier 'TrafficLight' @12:23
+│                       ├─ WhenClause @13:5
+│                       │  ├─ patterns
+│                       │  │  └─ Call @13:10
+│                       │  │     └─ callee
+│                       │  │        └─ Member 'Yellow' @13:10
+│                       │  │           └─ object
+│                       │  │              └─ SelfExpr @11:10
+│                       │  └─ body
+│                       │     └─ ExprStmt @13:23
+│                       │        └─ expr
+│                       │           └─ Member 'Red' @13:35
+│                       │              └─ object
+│                       │                 └─ Identifier 'TrafficLight' @13:23
+│                       └─ WhenClause @14:5
+│                          ├─ patterns
+│                          │  └─ Call @14:10
+│                          │     └─ callee
+│                          │        └─ Member 'Green' @14:10
+│                          │           └─ object
+│                          │              └─ SelfExpr @11:10
+│                          └─ body
+│                             └─ ExprStmt @14:23
+│                                └─ expr
+│                                   └─ Member 'Yellow' @14:35
+│                                      └─ object
+│                                         └─ Identifier 'TrafficLight' @14:23
+├─ Enum 'Direction' @21:1
+│  └─ body
+│     ├─ EnumCase 'North' @22:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @22:3
+│     ├─ EnumCase 'South' @23:3
+│     │  └─ value
+│     │     └─ IntLiteral '1' @23:3
+│     ├─ EnumCase 'East' @24:3
+│     │  └─ value
+│     │     └─ IntLiteral '2' @24:3
+│     ├─ EnumCase 'West' @25:3
+│     │  └─ value
+│     │     └─ IntLiteral '3' @25:3
+│     └─ Method 'is_north' @27:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @27:19
+│        └─ body
+│           └─ ExprStmt @28:5
+│              └─ expr
+│                 └─ CaseExpr @28:5
+│                    ├─ target
+│                    │  └─ SelfExpr @28:10
+│                    ├─ clauses
+│                    │  └─ WhenClause @29:5
+│                    │     ├─ patterns
+│                    │     │  └─ Call @29:10
+│                    │     │     └─ callee
+│                    │     │        └─ Member 'North' @29:10
+│                    │     │           └─ object
+│                    │     │              └─ SelfExpr @28:10
+│                    │     └─ body
+│                    │        └─ ExprStmt @29:22
+│                    │           └─ expr
+│                    │              └─ BoolLiteral true @29:22
+│                    └─ else_body
+│                       └─ ExprStmt @30:22
+│                          └─ expr
+│                             └─ BoolLiteral false @30:22
+├─ Method 'light_cycle' @35:1
+│  ├─ return_type
+│  │  └─ TypeRef 'self' @35:20
+│  └─ body
+│     ├─ LocalDecl 'light' @36:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'TrafficLight' @36:11
+│     │  └─ init
+│     │     └─ Member 'Red' @36:38
+│     │        └─ object
+│     │           └─ Identifier 'TrafficLight' @36:26
+│     └─ ExprStmt @37:3
+│        └─ expr
+│           └─ Member 'next_light' @37:8
+│              └─ object
+│                 └─ Identifier 'light' @37:3
+└─ ExprStmt @40:1
+   └─ expr
+      └─ Call @40:12
+         └─ callee
+            └─ Identifier 'light_cycle' @40:1
+--- exit 0 ---

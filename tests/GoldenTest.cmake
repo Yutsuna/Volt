@@ -6,7 +6,7 @@ set( GOLDEN_DIR ${ROOT}/tests/golden )
 #############################################################################
 
 if( NOT DEFINED VOLT_BIN )
-  foreach( CANDIDATE ${ROOT}/build/bin/Volt_d ${ROOT}/build/bin/volt )
+  foreach( CANDIDATE ${ROOT}/build/bin/volt_d ${ROOT}/build/bin/volt ${ROOT}/build/bin/volt_test )
     if( EXISTS ${CANDIDATE} )
       set( VOLT_BIN ${CANDIDATE} )
       break()

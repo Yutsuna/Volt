@@ -1,0 +1,437 @@
+Program 'samples/Tests/Conditional/CaseWhen.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ If @2:3
+│        ├─ cond
+│        │  └─ Unary 'not' @2:6
+│        │     └─ operand
+│        │        └─ Identifier 'condition' @2:10
+│        └─ then
+│           └─ ExprStmt @3:5
+│              └─ expr
+│                 └─ RaiseExpr @3:5
+│                    └─ exception
+│                       └─ Binary '+' @3:11
+│                          ├─ lhs
+│                          │  └─ Binary '+' @3:11
+│                          │     ├─ lhs
+│                          │     │  └─ Binary '+' @3:11
+│                          │     │     ├─ lhs
+│                          │     │     │  └─ Binary '+' @3:11
+│                          │     │     │     ├─ lhs
+│                          │     │     │     │  └─ Binary '+' @3:11
+│                          │     │     │     │     ├─ lhs
+│                          │     │     │     │     │  └─ Binary '+' @3:11
+│                          │     │     │     │     │     ├─ lhs
+│                          │     │     │     │     │     │  └─ Binary '+' @3:11
+│                          │     │     │     │     │     │     ├─ lhs
+│                          │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
+│                          │     │     │     │     │     │     └─ rhs
+│                          │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Conditional/CaseWhen.vl' @3:19
+│                          │     │     │     │     │     └─ rhs
+│                          │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
+│                          │     │     │     │     └─ rhs
+│                          │     │     │     │        └─ StringLiteral 'assert!' @3:43
+│                          │     │     │     └─ rhs
+│                          │     │     │        └─ StringLiteral ' at ' @3:11
+│                          │     │     └─ rhs
+│                          │     │        └─ Call @3:11
+│                          │     │           └─ callee
+│                          │     │              └─ Member 'to_string' @3:11
+│                          │     │                 └─ object
+│                          │     │                    └─ IntLiteral '3' @3:62
+│                          │     └─ rhs
+│                          │        └─ StringLiteral ':' @3:11
+│                          └─ rhs
+│                             └─ Call @3:11
+│                                └─ callee
+│                                   └─ Member 'to_string' @3:11
+│                                      └─ object
+│                                         └─ IntLiteral '74' @3:74
+├─ Method 'categorize_status' @9:1
+│  ├─ params
+│  │  └─ Param 'code' @9:24
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @9:31
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @9:42
+│  └─ body
+│     └─ ExprStmt @10:3
+│        └─ expr
+│           └─ CaseExpr @10:3
+│              ├─ target
+│              │  └─ Identifier 'code' @10:8
+│              ├─ clauses
+│              │  ├─ WhenClause @11:3
+│              │  │  ├─ patterns
+│              │  │  │  ├─ Binary '===' @11:8
+│              │  │  │  │  ├─ lhs
+│              │  │  │  │  │  └─ IntLiteral '200' @11:8
+│              │  │  │  │  └─ rhs
+│              │  │  │  │     └─ Identifier 'code' @10:8
+│              │  │  │  └─ Binary '===' @11:13
+│              │  │  │     ├─ lhs
+│              │  │  │     │  └─ IntLiteral '201' @11:13
+│              │  │  │     └─ rhs
+│              │  │  │        └─ Identifier 'code' @10:8
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @11:22
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'Success' @11:22
+│              │  ├─ WhenClause @12:3
+│              │  │  ├─ patterns
+│              │  │  │  ├─ Binary '===' @12:8
+│              │  │  │  │  ├─ lhs
+│              │  │  │  │  │  └─ IntLiteral '400' @12:8
+│              │  │  │  │  └─ rhs
+│              │  │  │  │     └─ Identifier 'code' @10:8
+│              │  │  │  └─ Binary '===' @12:13
+│              │  │  │     ├─ lhs
+│              │  │  │     │  └─ IntLiteral '404' @12:13
+│              │  │  │     └─ rhs
+│              │  │  │        └─ Identifier 'code' @10:8
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @12:22
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'Client Error' @12:22
+│              │  └─ WhenClause @13:3
+│              │     ├─ patterns
+│              │     │  ├─ Binary '===' @13:8
+│              │     │  │  ├─ lhs
+│              │     │  │  │  └─ IntLiteral '500' @13:8
+│              │     │  │  └─ rhs
+│              │     │  │     └─ Identifier 'code' @10:8
+│              │     │  └─ Binary '===' @13:13
+│              │     │     ├─ lhs
+│              │     │     │  └─ IntLiteral '502' @13:13
+│              │     │     └─ rhs
+│              │     │        └─ Identifier 'code' @10:8
+│              │     └─ body
+│              │        └─ ExprStmt @13:22
+│              │           └─ expr
+│              │              └─ StringLiteral 'Server Error' @13:22
+│              └─ else_body
+│                 └─ ExprStmt @14:8
+│                    └─ expr
+│                       └─ StringLiteral 'Unknown Status' @14:8
+├─ Method 'describe_symbol' @18:1
+│  ├─ params
+│  │  └─ Param 'sym' @18:22
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Symbol' @18:28
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @18:40
+│  └─ body
+│     └─ ExprStmt @19:3
+│        └─ expr
+│           └─ CaseExpr @19:3
+│              ├─ target
+│              │  └─ Identifier 'sym' @19:8
+│              ├─ clauses
+│              │  ├─ WhenClause @20:3
+│              │  │  ├─ patterns
+│              │  │  │  └─ Binary '===' @20:8
+│              │  │  │     ├─ lhs
+│              │  │  │     │  └─ SymbolLiteral ':ok' @20:8
+│              │  │  │     └─ rhs
+│              │  │  │        └─ Identifier 'sym' @19:8
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @20:17
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'Status OK' @20:17
+│              │  └─ WhenClause @21:3
+│              │     ├─ patterns
+│              │     │  ├─ Binary '===' @21:8
+│              │     │  │  ├─ lhs
+│              │     │  │  │  └─ SymbolLiteral ':error' @21:8
+│              │     │  │  └─ rhs
+│              │     │  │     └─ Identifier 'sym' @19:8
+│              │     │  └─ Binary '===' @21:16
+│              │     │     ├─ lhs
+│              │     │     │  └─ SymbolLiteral ':fail' @21:16
+│              │     │     └─ rhs
+│              │     │        └─ Identifier 'sym' @19:8
+│              │     └─ body
+│              │        └─ ExprStmt @21:27
+│              │           └─ expr
+│              │              └─ StringLiteral 'Status Error' @21:27
+│              └─ else_body
+│                 └─ ExprStmt @22:8
+│                    └─ expr
+│                       └─ StringLiteral 'Status Other' @22:8
+├─ Method 'classify_number' @26:1
+│  ├─ params
+│  │  └─ Param 'n' @26:22
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @26:26
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @26:37
+│  └─ body
+│     └─ ExprStmt @27:3
+│        └─ expr
+│           └─ CaseExpr @27:3
+│              ├─ target
+│              │  └─ Identifier 'n' @27:8
+│              ├─ clauses
+│              │  ├─ WhenClause @28:3
+│              │  │  ├─ patterns
+│              │  │  │  └─ Call @28:8
+│              │  │  │     └─ callee
+│              │  │  │        └─ Member 'zero?' @28:8
+│              │  │  │           └─ object
+│              │  │  │              └─ Identifier 'n' @27:8
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @28:20
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'zero' @28:20
+│              │  └─ WhenClause @29:3
+│              │     ├─ patterns
+│              │     │  └─ Call @29:8
+│              │     │     └─ callee
+│              │     │        └─ Member 'even?' @29:8
+│              │     │           └─ object
+│              │     │              └─ Identifier 'n' @27:8
+│              │     └─ body
+│              │        └─ ExprStmt @29:20
+│              │           └─ expr
+│              │              └─ StringLiteral 'even' @29:20
+│              └─ else_body
+│                 └─ ExprStmt @30:8
+│                    └─ expr
+│                       └─ StringLiteral 'odd' @30:8
+├─ Method 'eval_grade' @34:1
+│  ├─ params
+│  │  └─ Param 'score' @34:17
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @34:25
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @34:36
+│  └─ body
+│     └─ ExprStmt @35:3
+│        └─ expr
+│           └─ CaseExpr @35:3
+│              ├─ clauses
+│              │  ├─ WhenClause @36:3
+│              │  │  ├─ patterns
+│              │  │  │  └─ Binary '>=' @36:14
+│              │  │  │     ├─ lhs
+│              │  │  │     │  └─ Identifier 'score' @36:8
+│              │  │  │     └─ rhs
+│              │  │  │        └─ IntLiteral '90' @36:17
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @36:25
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'A' @36:25
+│              │  ├─ WhenClause @37:3
+│              │  │  ├─ patterns
+│              │  │  │  └─ Binary '>=' @37:14
+│              │  │  │     ├─ lhs
+│              │  │  │     │  └─ Identifier 'score' @37:8
+│              │  │  │     └─ rhs
+│              │  │  │        └─ IntLiteral '80' @37:17
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @37:25
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'B' @37:25
+│              │  └─ WhenClause @38:3
+│              │     ├─ patterns
+│              │     │  └─ Binary '>=' @38:14
+│              │     │     ├─ lhs
+│              │     │     │  └─ Identifier 'score' @38:8
+│              │     │     └─ rhs
+│              │     │        └─ IntLiteral '70' @38:17
+│              │     └─ body
+│              │        └─ ExprStmt @38:25
+│              │           └─ expr
+│              │              └─ StringLiteral 'C' @38:25
+│              └─ else_body
+│                 └─ ExprStmt @39:8
+│                    └─ expr
+│                       └─ StringLiteral 'F' @39:8
+├─ ExprStmt @45:1
+│  └─ expr
+│     └─ Call @45:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @45:1
+│        └─ args
+│           └─ Binary '==' @45:35
+│              ├─ lhs
+│              │  └─ Call @45:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'categorize_status' @45:10
+│              │     └─ args
+│              │        └─ IntLiteral '200' @45:29
+│              └─ rhs
+│                 └─ StringLiteral 'Success' @45:38
+├─ ExprStmt @46:1
+│  └─ expr
+│     └─ Call @46:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @46:1
+│        └─ args
+│           └─ Binary '==' @46:35
+│              ├─ lhs
+│              │  └─ Call @46:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'categorize_status' @46:10
+│              │     └─ args
+│              │        └─ IntLiteral '404' @46:29
+│              └─ rhs
+│                 └─ StringLiteral 'Client Error' @46:38
+├─ ExprStmt @47:1
+│  └─ expr
+│     └─ Call @47:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @47:1
+│        └─ args
+│           └─ Binary '==' @47:35
+│              ├─ lhs
+│              │  └─ Call @47:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'categorize_status' @47:10
+│              │     └─ args
+│              │        └─ IntLiteral '500' @47:29
+│              └─ rhs
+│                 └─ StringLiteral 'Server Error' @47:38
+├─ ExprStmt @48:1
+│  └─ expr
+│     └─ Call @48:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @48:1
+│        └─ args
+│           └─ Binary '==' @48:35
+│              ├─ lhs
+│              │  └─ Call @48:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'categorize_status' @48:10
+│              │     └─ args
+│              │        └─ IntLiteral '999' @48:29
+│              └─ rhs
+│                 └─ StringLiteral 'Unknown Status' @48:38
+├─ ExprStmt @50:1
+│  └─ expr
+│     └─ Call @50:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @50:1
+│        └─ args
+│           └─ Binary '==' @50:33
+│              ├─ lhs
+│              │  └─ Call @50:25
+│              │     ├─ callee
+│              │     │  └─ Identifier 'describe_symbol' @50:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':ok' @50:27
+│              └─ rhs
+│                 └─ StringLiteral 'Status OK' @50:36
+├─ ExprStmt @51:1
+│  └─ expr
+│     └─ Call @51:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @51:1
+│        └─ args
+│           └─ Binary '==' @51:36
+│              ├─ lhs
+│              │  └─ Call @51:25
+│              │     ├─ callee
+│              │     │  └─ Identifier 'describe_symbol' @51:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':error' @51:27
+│              └─ rhs
+│                 └─ StringLiteral 'Status Error' @51:39
+├─ ExprStmt @53:1
+│  └─ expr
+│     └─ Call @53:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @53:1
+│        └─ args
+│           └─ Binary '==' @53:31
+│              ├─ lhs
+│              │  └─ Call @53:25
+│              │     ├─ callee
+│              │     │  └─ Identifier 'classify_number' @53:10
+│              │     └─ args
+│              │        └─ IntLiteral '0' @53:27
+│              └─ rhs
+│                 └─ StringLiteral 'zero' @53:34
+├─ ExprStmt @54:1
+│  └─ expr
+│     └─ Call @54:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @54:1
+│        └─ args
+│           └─ Binary '==' @54:31
+│              ├─ lhs
+│              │  └─ Call @54:25
+│              │     ├─ callee
+│              │     │  └─ Identifier 'classify_number' @54:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @54:27
+│              └─ rhs
+│                 └─ StringLiteral 'even' @54:34
+├─ ExprStmt @55:1
+│  └─ expr
+│     └─ Call @55:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @55:1
+│        └─ args
+│           └─ Binary '==' @55:31
+│              ├─ lhs
+│              │  └─ Call @55:25
+│              │     ├─ callee
+│              │     │  └─ Identifier 'classify_number' @55:10
+│              │     └─ args
+│              │        └─ IntLiteral '7' @55:27
+│              └─ rhs
+│                 └─ StringLiteral 'odd' @55:34
+├─ ExprStmt @57:1
+│  └─ expr
+│     └─ Call @57:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @57:1
+│        └─ args
+│           └─ Binary '==' @57:27
+│              ├─ lhs
+│              │  └─ Call @57:20
+│              │     ├─ callee
+│              │     │  └─ Identifier 'eval_grade' @57:10
+│              │     └─ args
+│              │        └─ IntLiteral '95' @57:22
+│              └─ rhs
+│                 └─ StringLiteral 'A' @57:30
+├─ ExprStmt @58:1
+│  └─ expr
+│     └─ Call @58:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @58:1
+│        └─ args
+│           └─ Binary '==' @58:27
+│              ├─ lhs
+│              │  └─ Call @58:20
+│              │     ├─ callee
+│              │     │  └─ Identifier 'eval_grade' @58:10
+│              │     └─ args
+│              │        └─ IntLiteral '82' @58:22
+│              └─ rhs
+│                 └─ StringLiteral 'B' @58:30
+└─ ExprStmt @59:1
+   └─ expr
+      └─ Call @59:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @59:1
+         └─ args
+            └─ Binary '==' @59:27
+               ├─ lhs
+               │  └─ Call @59:20
+               │     ├─ callee
+               │     │  └─ Identifier 'eval_grade' @59:10
+               │     └─ args
+               │        └─ IntLiteral '50' @59:22
+               └─ rhs
+                  └─ StringLiteral 'F' @59:30
+--- exit 0 ---

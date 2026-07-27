@@ -1,0 +1,134 @@
+Program 'samples/Sema/ClosureCaptures.vl'
+├─ Method 'test_lambda_captures' @1:1
+│  ├─ params
+│  │  └─ Param 'base' @1:27
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @1:34
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:45
+│  └─ body
+│     ├─ LocalDecl 'local_val' @2:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @2:15
+│     │  └─ init
+│     │     └─ IntLiteral '10' @2:23
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'f' @3:3
+│     │        └─ value
+│     │           └─ Lambda @3:7
+│     │              ├─ params
+│     │              │  └─ Param 'x' @3:9
+│     │              │     └─ decl_type
+│     │              │        └─ TypeRef 'Int32' @3:13
+│     │              └─ body
+│     │                 └─ Lambda @3:24
+│     │                    ├─ params
+│     │                    │  └─ Param 'y' @3:26
+│     │                    │     └─ decl_type
+│     │                    │        └─ TypeRef 'Int32' @3:30
+│     │                    └─ body
+│     │                       └─ Binary '+' @3:62
+│     │                          ├─ lhs
+│     │                          │  └─ Binary '+' @3:58
+│     │                          │     ├─ lhs
+│     │                          │     │  └─ Binary '+' @3:46
+│     │                          │     │     ├─ lhs
+│     │                          │     │     │  └─ Identifier 'base' @3:41
+│     │                          │     │     └─ rhs
+│     │                          │     │        └─ Identifier 'local_val' @3:48
+│     │                          │     └─ rhs
+│     │                          │        └─ Identifier 'x' @3:60
+│     │                          └─ rhs
+│     │                             └─ Identifier 'y' @3:64
+│     ├─ ExprStmt @4:3
+│     │  └─ expr
+│     │     └─ Assign '=' @4:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'g' @4:3
+│     │        └─ value
+│     │           └─ Call @4:8
+│     │              ├─ callee
+│     │              │  └─ Identifier 'f' @4:7
+│     │              └─ args
+│     │                 └─ IntLiteral '20' @4:10
+│     └─ ExprStmt @5:3
+│        └─ expr
+│           └─ Call @5:4
+│              ├─ callee
+│              │  └─ Identifier 'g' @5:3
+│              └─ args
+│                 └─ IntLiteral '5' @5:6
+├─ Method 'test_block_captures' @8:1
+│  ├─ params
+│  │  └─ Param 'factor' @8:26
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @8:35
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @8:46
+│  └─ body
+│     ├─ LocalDecl 'acc' @9:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @9:9
+│     │  └─ init
+│     │     └─ IntLiteral '0' @9:17
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Assign '=' @10:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'items' @10:3
+│     │        └─ value
+│     │           └─ ArrayLit @10:11
+│     │              └─ elements
+│     │                 ├─ IntLiteral '1' @10:13
+│     │                 ├─ IntLiteral '2' @10:16
+│     │                 └─ IntLiteral '3' @10:19
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Call @11:14
+│     │        ├─ callee
+│     │        │  └─ Member 'each' @11:8
+│     │        │     └─ object
+│     │        │        └─ Identifier 'items' @11:3
+│     │        └─ block_arg
+│     │           └─ Block @11:14
+│     │              ├─ params
+│     │              │  └─ Param 'item'
+│     │              │     └─ decl_type
+│     │              │        └─ TypeRef 'Int32' @11:25
+│     │              └─ body
+│     │                 └─ ExprStmt @12:5
+│     │                    └─ expr
+│     │                       └─ Assign '=' @12:9
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'acc' @12:5
+│     │                          └─ value
+│     │                             └─ Binary '+' @12:15
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'acc' @12:11
+│     │                                └─ rhs
+│     │                                   └─ Binary '*' @12:22
+│     │                                      ├─ lhs
+│     │                                      │  └─ Identifier 'item' @12:17
+│     │                                      └─ rhs
+│     │                                         └─ Identifier 'factor' @12:24
+│     └─ ExprStmt @14:3
+│        └─ expr
+│           └─ Identifier 'acc' @14:3
+├─ ExprStmt @17:1
+│  └─ expr
+│     └─ Call @17:21
+│        ├─ callee
+│        │  └─ Identifier 'test_lambda_captures' @17:1
+│        └─ args
+│           └─ IntLiteral '100' @17:23
+└─ ExprStmt @18:1
+   └─ expr
+      └─ Call @18:20
+         ├─ callee
+         │  └─ Identifier 'test_block_captures' @18:1
+         └─ args
+            └─ IntLiteral '10' @18:22
+--- exit 0 ---
