@@ -40,6 +40,7 @@ namespace CLI
         bool bFreshStdlib    = false;    // --fresh-stdlib
         bool bNoStdlib       = false;    // --no-stdlib
         std::string Artifact = "static"; // --stdlib-artifact=<backend-defined>
+        bool bVerbose        = false;    // --verbose
     };
 
     // The shared row set: --no-stdlib-cache, --fresh-stdlib, --no-stdlib,

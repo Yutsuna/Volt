@@ -52,6 +52,7 @@ namespace CLI
         bool bWarnAsError = false;
         bool bMetrics     = false;
         bool bUnused      = false;
+        bool bVerbose     = false;
 
         FStdlibCacheFlags StdlibFlags;
     };
