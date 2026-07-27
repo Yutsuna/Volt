@@ -96,6 +96,10 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FCheckCommand::GetOptions ()
         {
             "", "--unused", "", "Flag unreferenced syntax structures and bindings",
             [this] ( std::string_view ) { this->bUnused = true; }
+        },
+        {
+            "-v", "--verbose", "", "Enable verbose output",
+            [this] ( std::string_view ) { this->bVerbose = true; this->StdlibFlags.bVerbose = true; }
         }
     };
     // clang-format on
