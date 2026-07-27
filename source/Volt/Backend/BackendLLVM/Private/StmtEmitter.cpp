@@ -50,6 +50,44 @@ llvm::AllocaInst *Volt::Backend::Llvm::LlvmBackend::State::MakeTemp ( llvm::Type
     return Entry.CreateAlloca( Shape, nullptr, Name );
 }
 
+void Volt::Backend::Llvm::LlvmBackend::State::StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape )
+{
+    // A tail expression with no value converges nothing. The ordinary case is a
+    // call to a `-> Void` member: `begin level3() rescue e : E then 7 end` in
+    // statement position is valid Volt where only the rescue arm has a value,
+    // so the slot is simply never written on this path. Nothing to report.
+    //
+    // It is also not something to hand to CreateStore. A void operand builds an
+    // ill-formed instruction, and LLVM answers that by asking its DataLayout
+    // for the alignment of a type that has none — which is not a diagnostic but
+    // an unbounded scan inside the library. That was a compiler hang, on a
+    // fifteen-line program.
+    if ( Value == nullptr or Slot == nullptr or Shape == nullptr or Value->getType()->isVoidTy() )
+    {
+        return;
+    }
+
+    // Any *other* disagreement is a real one: the slot's type is the one Sema
+    // gave the whole `begin`/`case`, so a value that does not fit it after
+    // coercion means the arms were typed inconsistently. Named here rather than
+    // stored through an opaque pointer, which is exactly how a mismatched width
+    // becomes silent corruption (the reason EmitStore reconciles centrally).
+    llvm::Value *Fitted = CoerceWidth( Value, Shape );
+    if ( Fitted == nullptr or Fitted->getType() != Shape )
+    {
+        std::string ValueText;
+        std::string SlotText;
+        llvm::raw_string_ostream ValueStream( ValueText );
+        llvm::raw_string_ostream SlotStream( SlotText );
+        ( Fitted != nullptr ? Fitted->getType() : Value->getType() )->print( ValueStream );
+        Shape->print( SlotStream );
+        static_cast<void>( Fail( "llvm: a `begin`/`case` arm yields " + ValueStream.str() + " but the result slot is " +
+                                 SlotStream.str() + " — the arms of one expression were typed inconsistently" ) );
+        return;
+    }
+    static_cast<void>( Builder->CreateStore( Fitted, Slot ) );
+}
+
 llvm::Value *
 Volt::Backend::Llvm::LlvmBackend::State::SlotFor ( const Sema::BindingSite &Site, llvm::Type *Shape, std::string_view Name )
 {
