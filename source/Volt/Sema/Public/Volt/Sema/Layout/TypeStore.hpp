@@ -112,6 +112,15 @@ namespace Sema
         // node marks its own `call`, and arity follows the receiver, which no
         // fixed declaration could express.
         bool bApply = false;
+        // `@[Unhandled]`: the hook a target calls when an exception reaches the
+        // top of the program with nothing having rescued it. Declared on the
+        // `@[ExceptionRoot]` type and given the in-flight object as its
+        // receiver; what it *does* — the wording, the stream, whether it
+        // reports at all — is Volt code in the stdlib, so no target ever names
+        // a field or a message (rules/zero-hardcode.md). Recorded here for the
+        // same reason ExternSymbol is: a backend must never re-scan an AST for
+        // sibling Annotation decls.
+        bool bUnhandled = false;
         // `@[External( "libc", "malloc" )]`: implemented outside Volt, so the
         // member is a *declaration* of a symbol the linker resolves rather
         // than a body any backend emits. Recorded here, at the one seam that
