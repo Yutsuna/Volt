@@ -108,6 +108,9 @@ namespace Driver
         // cache either way; bNoCache/bFresh together with this are ignored
         // with a warning, not an error.
         bool bNoStdlib = false;
+
+        // Phase 5: verbose output for cache keys
+        bool bVerbose = false;
     };
 
     // What `volt build` (or, once it exists, any other command emitting
@@ -145,6 +148,9 @@ namespace Driver
         // -shared`) — which native/<NativeCacheKey>.{a,so} Driver::Build()
         // builds/consumes.
         std::string StdlibArtifactKind = "static";
+
+        // --- Issue #61 Phase 5: verbose output ---
+        bool bVerbose = false;
     };
 
     // What one Driver::Build() produced.
