@@ -7,10 +7,10 @@ require 'json'
 module Volt::Build
   class Pipeline
     FEATURE_BIN_NAMES = {
-      'VOLT_ENABLE_ASAN'    => 'Volt_asan',
-      'VOLT_ENABLE_TSAN'    => 'Volt_tsan',
-      'VOLT_ENABLE_UBSAN'   => 'Volt_ubsan',
-      'VOLT_ENABLE_TESTING' => 'Volt_test'
+      'VOLT_ENABLE_ASAN'    => 'volt_asan',
+      'VOLT_ENABLE_TSAN'    => 'volt_tsan',
+      'VOLT_ENABLE_UBSAN'   => 'volt_ubsan',
+      'VOLT_ENABLE_TESTING' => 'volt_test'
     }.freeze
 
     def initialize( options, threads_per_job: SystemInfo.total_cpus )
