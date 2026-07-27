@@ -76,6 +76,19 @@ inline void ConstrainNode ( const Volt::Frontend::Binary &Node,
     Self.Ctx.Values.SetExprType( Expr, TargetType );
 }
 
+// `neg : Int8 = -5` — `-5` is a `Unary` over the still-unconstrained literal
+// `5`; without this overload it fell to the no-op default below and `5` kept
+// its default `Int32`, so the assignment failed against `Int8`. Same shape as
+// `Binary`, one operand.
+inline void ConstrainNode ( const Volt::Frontend::Unary &Node,
+                            Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                            Volt::Frontend::ExprId Expr,
+                            Volt::Sema::SemaTypeId TargetType )
+{
+    ConstrainChild( Self, Node.Operand, TargetType );
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
+}
+
 inline void ConstrainNode ( const Volt::Frontend::ArrayLit &Node,
                             Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
                             Volt::Frontend::ExprId Expr,
