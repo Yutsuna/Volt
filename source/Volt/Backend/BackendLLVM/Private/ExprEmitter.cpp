@@ -612,6 +612,12 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             [] ( const Frontend::GenericInst & ) -> llvm::Value * { return nullptr; },
             [this, Id] ( const Frontend::SizeOf & ) -> llvm::Value * { return EmitSizeOf( Id ); },
 
+            // `( Value : Type )` — TypeChecker already constrained `Value` to
+            // `Type` and stamped both with the same SemaTypeId (core-ast.md),
+            // so by codegen it is a pure passthrough: no instruction of its
+            // own, just `Value`'s.
+            [this] ( const Frontend::TypedExpr &Node ) -> llvm::Value * { return EmitExpr( Node.Value ); },
+
             [this, Id] ( const auto & ) -> llvm::Value *
             {
                 // Sugar, by elimination: AstInvariant (order 40) proves none
