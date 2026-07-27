@@ -534,21 +534,37 @@ bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
     // it a `raise` in `main` and a clean exit are the same status, which
     // silently disarms `raise` as an assertion oracle.
     //
-    // Reporting *what* was raised needs an output facility the stdlib does not
-    // declare yet (the same wall `Array#to_string` hits), so the status alone
-    // is the honest part. `volt.exc.value` is deliberately left where it is:
-    // nothing here may dereference it, since it points at a frame that has
-    // already returned.
+    // *Reporting* it is not this file's business. The stdlib annotates one
+    // member `@[Unhandled]` on its `@[ExceptionRoot]`, and all the emitter does
+    // is call it with the in-flight object as the receiver — the wording, the
+    // stream, the decision to say anything at all are Volt code. No field name,
+    // no type name, no byte of message enters C++ (rules/zero-hardcode.md).
     llvm::Value *Tag = Shell.CreateLoad( ExitCodeTy, ExceptionTagSlot(), "exc.tag" );
     llvm::Value *Pending =
         Shell.CreateICmpNE( Tag, llvm::ConstantInt::get( ExitCodeTy, Sema::NominalId::InvalidValue ), "exc.pending" );
 
-    // A select, not a branch: both arms are constants with no side effect, so
-    // the two-block shape `Ternary` needs for arbitrary expressions buys
-    // nothing here.
-    static_cast<void>(
-        Shell.CreateRet( Shell.CreateSelect( Pending, llvm::ConstantInt::get( ExitCodeTy, UncaughtExceptionStatus ),
-                                             llvm::ConstantInt::get( ExitCodeTy, 0 ), "exit.status" ) ) );
+    llvm::BasicBlock *Unhandled = llvm::BasicBlock::Create( Context, "exc.unhandled", MainFn );
+    llvm::BasicBlock *Clean     = llvm::BasicBlock::Create( Context, "exit.clean", MainFn );
+    static_cast<void>( Shell.CreateCondBr( Pending, Unhandled, Clean ) );
+
+    // The receiver is `volt.exc.storage`, not `volt.exc.value`'s pointee taken
+    // on faith: by here every Volt frame has returned, and the storage global
+    // is precisely what makes the object still readable (ExceptionEmitter.cpp).
+    // A stdlib that annotates no hook is simply silent — an opt-in that was
+    // not taken, not a fact the middle-end owes, so nothing is refused here.
+    Shell.SetInsertPoint( Unhandled );
+    Sema::NominalId HookOwner;
+    if ( const Sema::Member *Hook = UnhandledHook( HookOwner ); Hook != nullptr )
+    {
+        if ( llvm::Function *Report = FunctionFor( *Hook, HookOwner, {} ); Report != nullptr )
+        {
+            static_cast<void>( Shell.CreateCall( Report, { ExceptionStorageSlot() } ) );
+        }
+    }
+    static_cast<void>( Shell.CreateRet( llvm::ConstantInt::get( ExitCodeTy, UncaughtExceptionStatus ) ) );
+
+    Shell.SetInsertPoint( Clean );
+    static_cast<void>( Shell.CreateRet( llvm::ConstantInt::get( ExitCodeTy, 0 ) ) );
     return true;
 }
 
