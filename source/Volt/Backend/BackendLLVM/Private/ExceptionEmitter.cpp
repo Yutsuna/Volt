@@ -61,6 +61,100 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionTagSlot 
     return ExcTag;
 }
 
+namespace
+{
+
+// Reflexive and depth-bounded, exactly like the ancestry walk below and like
+// Sema's own IsSubclassOf: "is `Id` the root, or does its Super chain reach
+// it". The bound is the same one TypeStore::LookupMember uses — a malformed
+// cyclic hierarchy must not hang codegen.
+[[nodiscard]] bool DescendsFrom ( const Volt::Sema::TypeStore &Store, Volt::Sema::NominalId Id, Volt::Sema::NominalId Root )
+{
+    for ( std::uint32_t Depth = 0; Id.IsValid() and Depth <= 16; ++Depth )
+    {
+        if ( Id == Root )
+        {
+            return true;
+        }
+        Id = Store.BaseOf( Store.Type( Id ).Super );
+    }
+    return false;
+}
+
+} // namespace
+
+llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionStorageSlot ()
+{
+    if ( ExcStorage != nullptr )
+    {
+        return ExcStorage;
+    }
+
+    Sema::TypeStore &Store = *Build->Types;
+
+    // The widest thing that can ever be in flight, measured rather than
+    // guessed: every type that descends from the one annotated
+    // `@[ExceptionRoot]`, sized by LayoutEngine — the single ABI authority
+    // (abi.md). No type name enters, and an empty answer (no root declared, so
+    // nothing can be raised at all) still yields a valid one-byte buffer
+    // rather than a zero-length global.
+    std::size_t Size      = 1;
+    std::size_t Alignment = 1;
+    if ( const auto Root = Store.GetExceptionRoot(); Root.has_value() and Layouts.has_value() )
+    {
+        for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+        {
+            const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
+            const Sema::LayoutId Shape = Store.Type( Id ).Layout;
+            if ( not Shape.IsValid() or not DescendsFrom( Store, Id, *Root ) )
+            {
+                continue;
+            }
+            const SizeAlign Measured = Layouts->Of( Shape );
+            Size                     = std::max( Size, Measured.Size );
+            Alignment                = std::max( Alignment, Measured.Alignment );
+        }
+    }
+
+    llvm::ArrayType *Bytes = llvm::ArrayType::get( llvm::Type::getInt8Ty( Context ), Size );
+    ExcStorage             = new llvm::GlobalVariable( *Mod, Bytes, false, llvm::GlobalValue::InternalLinkage,
+                                                       llvm::Constant::getNullValue( Bytes ), "volt.exc.storage" );
+    ExcStorage->setThreadLocal( true );
+    ExcStorage->setAlignment( llvm::Align( Alignment ) );
+    ExcStorageSize = Size;
+    return ExcStorage;
+}
+
+const Volt::Sema::Member *Volt::Backend::Llvm::LlvmBackend::State::UnhandledHook ( Sema::NominalId &OutOwner ) const
+{
+    if ( Build == nullptr or Build->Types == nullptr )
+    {
+        return nullptr;
+    }
+    const Sema::TypeStore &Store = *Build->Types;
+
+    const auto Root = Store.GetExceptionRoot();
+    if ( not Root.has_value() )
+    {
+        return nullptr;
+    }
+
+    // Looked up on the root only, and called statically. Volt dispatches
+    // methods statically everywhere else too (llvm.md, SuperExpr), so a
+    // subclass overriding the hook would not be picked up — routing by the tag
+    // would need a per-NominalId dispatch table, which is tier-2 work and
+    // buys nothing until Volt has virtual dispatch at all.
+    for ( const Sema::Member &Entry : Store.Type( *Root ).Members )
+    {
+        if ( Entry.Kind == Sema::EMemberKind::Method and Entry.bUnhandled )
+        {
+            OutOwner = *Root;
+            return &Entry;
+        }
+    }
+    return nullptr;
+}
+
 llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::AncestryTable ()
 {
     if ( Ancestry != nullptr )
@@ -219,7 +313,25 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitRaise ( Frontend::Expr
         return nullptr;
     }
 
-    static_cast<void>( Builder->CreateStore( ExcPtr, ExceptionValueSlot() ) );
+    // Out of the frame before that frame returns. Tier 1 unwinds by returning,
+    // so publishing `ExcPtr` itself would hand every `rescue` — and the
+    // last-resort hook, which runs with no Volt frame left at all — an address
+    // in dead storage. The copy is one memcpy on a path that is already
+    // exceptional, and it is what makes "the object outlives the raise" true
+    // rather than true-in-practice.
+    llvm::GlobalVariable *Storage = ExceptionStorageSlot();
+    const Sema::LayoutId Shape    = LayoutOfExpr( Node.Exception );
+    if ( Layouts.has_value() and Shape.IsValid() and Layouts->Of( Shape ).Size > ExcStorageSize )
+    {
+        static_cast<void>( Fail( "llvm: the raised object needs " + std::to_string( Layouts->Of( Shape ).Size ) +
+                                 " bytes but volt.exc.storage holds " + std::to_string( ExcStorageSize ) +
+                                 " — the buffer is sized for every descendant of the @[ExceptionRoot], so this type is "
+                                 "not one of them" ) );
+        return nullptr;
+    }
+    EmitStore( Storage, ExcPtr, Shape );
+
+    static_cast<void>( Builder->CreateStore( Storage, ExceptionValueSlot() ) );
     static_cast<void>(
         Builder->CreateStore( llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Nominal.Value ), ExceptionTagSlot() ) );
 
