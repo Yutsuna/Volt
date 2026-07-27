@@ -86,7 +86,7 @@ endforeach()
 #############################################################################
 
 if( VOLT_ENABLE_LLVM )
-  file( GLOB VOLT_CODEGEN_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
+  file( GLOB_RECURSE VOLT_CODEGEN_SOURCES RELATIVE ${VOLT_ROOT} CONFIGURE_DEPENDS
     ${VOLT_ROOT}/samples/Tests/*.vl )
   list( SORT VOLT_CODEGEN_SOURCES )
 
