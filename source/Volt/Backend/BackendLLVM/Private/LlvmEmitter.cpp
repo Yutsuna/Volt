@@ -1,3 +1,5 @@
+// source/Volt/Backend/BackendLLVM/Private/LlvmEmitter.cpp
+
 // LlvmEmitter.cpp — LlvmBackend's lifecycle and the two sweeps over the units.
 //
 // The emission itself lives in sibling TUs (TypeMapper, ExprEmitter, ...);
@@ -273,6 +275,11 @@ bool Volt::Backend::Llvm::LlvmBackend::State::IsMixinOwner ( Sema::NominalId Id 
 
 void Volt::Backend::Llvm::LlvmBackend::State::DeclareAll ()
 {
+    if ( Build == nullptr or Build->Types == nullptr )
+    {
+        return;
+    }
+
     Sema::TypeStore &Store = *Build->Types;
 
     // The TypeStore is the declare sweep's input, not the ASTs: it is the
@@ -533,6 +540,11 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitUnitInit ( const UnitView &Uni
 
 void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
 {
+    if ( Build == nullptr or Build->Types == nullptr )
+    {
+        return;
+    }
+
     Sema::TypeStore &Store = *Build->Types;
 
     // Symmetric with DeclareAll, and for the same reason: the store is the
@@ -619,6 +631,12 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
         return EEmitStatus::Error;
     }
 
+    if ( Impl->Build == nullptr or Impl->Build->Types == nullptr )
+    {
+        return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) +
+                           "' reached the backend with no build input or type store" );
+    }
+
     if ( Unit.Ast == nullptr or Unit.Values == nullptr or Unit.Callees == nullptr or Unit.Scopes == nullptr )
     {
         return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) + "' reached the backend with no sema output" );
@@ -629,7 +647,7 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
     // of unit) and its definition is expected from the linked archive/.so
     // instead — the same "declared, never defined" shape @[External]
     // members already have.
-    if ( Impl->Options.bStdlibPrecompiled and Impl->Build != nullptr and Unit.Ordinal < Impl->Build->StdlibUnitCount )
+    if ( Impl->Options.bStdlibPrecompiled and Unit.Ordinal < Impl->Build->StdlibUnitCount )
     {
         return EEmitStatus::Ok;
     }
