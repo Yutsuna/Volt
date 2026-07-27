@@ -567,6 +567,11 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
             {
                 const Volt::Sema::SemaTypeId Value = InferExpr( Context, Expr.Value );
+                // A first write that *declares* the local — `result = 1`, no
+                // annotation, no prior binding — records the initialiser as
+                // provisional below. Pinning it afterwards would defeat that
+                // record, so the two are mutually exclusive.
+                bool bProvisional = false;
                 if ( const auto *Target = std::get_if<Frontend::Identifier>( &Context.Ctx.Ast.Expr( Expr.Target ) ) )
                 {
                     const std::optional<SemaTypeId> Known = Context.FindLocal( Expr.Target, Target->Name );
@@ -582,6 +587,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                         if ( Context.IsUnconstrainedInit( Expr.Value, Value ) )
                         {
                             Context.UnconstrainedVarInitializers[Target->Name] = Expr.Value;
+                            bProvisional                                       = true;
                         }
                         Context.UninitializedLocals.erase( Target->Name );
                     }
@@ -590,7 +596,20 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // `x = x op v`, so compound assignment reaches this one check
                 // with no case of its own.
                 const SemaTypeId TargetType = InferExpr( Context, Expr.Target );
-                Context.ConstrainExprType( Expr.Value, TargetType );
+                // Constraining a provisional initialiser here would pin it to a
+                // type read back off the local we just wrote *from that very
+                // initialiser* — Int32 for `result = 1`. That is a no-op on the
+                // type and a loss everywhere else: ConstrainExprType consumes
+                // the UnconstrainedLiterals entry, and the literal is then
+                // unreachable when the local finally settles. `result *= base`
+                // moved the binding site to Int8 while the literal kept Int32,
+                // and the backend stored an i32 into the i8 slot — three bytes
+                // past its end. The last word has to win, so the first word
+                // must not be spoken.
+                if ( not bProvisional )
+                {
+                    Context.ConstrainExprType( Expr.Value, TargetType );
+                }
                 CheckAssignable( Context, Expr.Value, TargetType, EAssignSite::Assign );
                 return Value;
             },

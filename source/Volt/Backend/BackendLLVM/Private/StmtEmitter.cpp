@@ -298,7 +298,9 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
                 {
                     return;
                 }
-                EmitStore( Address, IsAggregate( Shape ) ? Value : CoerceWidth( Value, Slot ), Shape );
+                // The initialiser widens into the slot inside EmitStore, which
+                // reconciles the two widths for every store there is.
+                EmitStore( Address, Value, Shape );
             },
             [this] ( const Frontend::RescueClause & )
             { static_cast<void>( Fail( "llvm: a `rescue` clause needs the exception emitter (backend phase 6)" ) ); },
