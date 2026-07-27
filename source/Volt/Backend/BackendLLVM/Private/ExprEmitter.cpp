@@ -540,7 +540,22 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             [this, Id] ( const Frontend::HashLit & ) -> llvm::Value * { return FailAggregateLiteral( Id, "HashLit" ); },
 
             // --- Access ----------------------------------------------------
-            [this, Id] ( const Frontend::Identifier & ) -> llvm::Value * { return LoadPlace( Id ); },
+            [this, Id] ( const Frontend::Identifier & ) -> llvm::Value *
+            {
+                // `test_int8` — a paren-less, receiver-less call is a bare
+                // `Identifier`, exactly as a paren-less `Member` is; only the
+                // resolution tells it apart from a local/free-function-name
+                // read. Sema records one for every member-ish node
+                // (rules/core-ast.md); EmitResolvedCall already handles a
+                // receiver-less entry (`Receiver` invalid, `Frame.Self` or no
+                // owner at all for a module-level free function).
+                if ( const Sema::CalleeEntry *Entry = Frame.Callees->Get( Id );
+                     Entry != nullptr and Entry->Decl != nullptr and Entry->Decl->Kind == Sema::EMemberKind::Method )
+                {
+                    return EmitResolvedCall( Id, *Entry, Frontend::ExprId{}, {}, Frontend::ExprId{} );
+                }
+                return LoadPlace( Id );
+            },
             [this, Id] ( const Frontend::InstanceVar & ) -> llvm::Value * { return LoadPlace( Id ); },
             [this, Id] ( const Frontend::Member &Node ) -> llvm::Value *
             {
@@ -677,7 +692,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIntLiteral ( Frontend:
     // `@[Literal]`, resolved by Sema onto this very expression — never from a
     // default the compiler picked.
     llvm::Type *Shape = TypeOfExpr( Id );
-    if ( Shape == nullptr or not Shape->isIntegerTy() )
+    if ( Shape == nullptr or not( Shape->isIntegerTy() or Shape->isFloatingPointTy() ) )
     {
         static_cast<void>(
             Fail( "llvm: integer literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) + "' has no integer layout" ) );
@@ -690,6 +705,18 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIntLiteral ( Frontend:
         static_cast<void>(
             Fail( "llvm: cannot decode integer literal '" + std::string( Frame.Unit->Ast->Text( Node.Raw ) ) + "'" ) );
         return nullptr;
+    }
+
+    // `self == 0` inside a generic `Arithmetic` default (`zero?`, `abs`, ...)
+    // is unconstrained until instantiation, and adopts whatever `self`
+    // turns out to be — a bare digit sequence is as much an unconstrained
+    // literal as a `FloatLiteral` when the receiver is `Float32`/`Float64`
+    // (TypeCheckerConstraint's `Expected` propagation types it there, never
+    // this emitter), so the same node must be able to materialise either
+    // constant kind.
+    if ( Shape->isFloatingPointTy() )
+    {
+        return llvm::ConstantFP::get( Shape, static_cast<double>( Value ) );
     }
     return llvm::ConstantInt::get( Shape, Value );
 }
