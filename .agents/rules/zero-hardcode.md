@@ -15,6 +15,34 @@ What the C++ side is allowed to know:
 - The name → layout binding is filled into `Sema/Layout/TypeStore.hpp` by a pass,
   from the stdlib Volt + those annotations (full resolution: TypeChecker phase).
 
+## Runtime behaviour is annotated too, not only layout
+
+The same mechanism answers "what should the runtime *do*", not just "what shape
+is this". When an exception reaches the top of a program uncaught, something
+has to report it — and a message is exactly the kind of thing that would
+otherwise be a hardcoded string in a backend. It is not: the type annotated
+`@[ExceptionRoot]` annotates one of its own methods `@[Unhandled]`, and a
+target's only job is to call that member with the in-flight object as its
+receiver.
+
+```volt
+@[Unhandled]
+def report_unhandled -> Void
+  text = "Unhandled exception: " + @message + "\n"
+  libc_write( 2, text.data, text.size )   # @[External( "libc", "write" )]
+end
+```
+
+The wording, the stream, and whether anything is printed at all are Volt. A
+stdlib that annotates no hook is silent, which is an opt-in not taken rather
+than a missing fact, so nothing is refused. Read the flag off `Member`
+(`bUnhandled`, recorded at the same seam `ExternSymbol` is) — never re-scan an
+AST for annotations from a backend.
+
+The general shape: if a backend is about to *name* something the language
+owns — a type, a field, a message, a symbol — the answer is an annotation the
+stdlib writes and the store records.
+
 Guardrail — these must not appear as identifiers in `Frontend/` or `Sema/`
 (outside comments / tests):
 
