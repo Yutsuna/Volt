@@ -45,6 +45,12 @@ void InitialiseNativeTarget ()
                     } );
 }
 
+// The status the process exits with when an exception reaches the top with
+// nobody to catch it. One value, not the raised type's NominalId: an id is a
+// build-internal number with no meaning outside the process, and 8 bits of
+// exit status is no place to encode one.
+constexpr int UncaughtExceptionStatus = 1;
+
 } // namespace
 
 Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::State::Fail ( std::string InMessage )
@@ -377,35 +383,25 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
         Index = 1;
     }
 
+    std::size_t Ordinal = 0;
     for ( const Frontend::ParamId ParamRef : Node->Params )
     {
         llvm::Value *Arg                = Fn->getArg( Index++ );
         const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
 
-        const Sema::BindingSite Site{ ParamRef };
+        // Read out of the *signature*'s own inputs, in the order FunctionTypeOf
+        // consumed them, so "by address" cannot drift between the two.
+        const bool bBlock     = Ordinal < Entry.ParamIsBlock.Size() and Entry.ParamIsBlock[Ordinal];
+        const bool bByAddress = bBlock or ( Ordinal < Entry.Params.Size() and
+                                            IsAggregate( SignatureLayoutOf( Store, Entry.Params[Ordinal], Owner, {} ) ) );
+        ++Ordinal;
 
-        // Same rule ClosureEmitter's/MonoEmitter's parameter binding already
-        // follows: an aggregate (or `&block`) arrives as a pointer to its own
-        // storage and *is* its own slot, so it is kept as-is. A scalar arrives
-        // as a bare value with no backing storage — without an alloca here, a
-        // later read of it as an Identifier (LoadPlace -> EmitAddress ->
-        // CreateLoad) tries to load through the value as if it were a pointer
-        // to itself, which the verifier rejects.
-        if ( Arg->getType()->isPointerTy() )
+        if ( not BindParameter( Sema::BindingSite{ ParamRef }, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
         {
-            Frame.Slots.emplace( Site, Arg );
-        }
-        else
-        {
-            llvm::Value *Slot = SlotFor( Site, Arg->getType(), Unit.Ast->Text( Declared.Name ) );
-            if ( Slot == nullptr )
-            {
-                static_cast<void>( Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
-                                         std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
-                return;
-            }
-            static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+            static_cast<void>( Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
+                                     std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
+            return;
         }
 
         BindInstanceVarParam( ParamRef, Arg );
@@ -431,6 +427,38 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
     }
 
     Frame = FunctionFrame{};
+}
+
+bool Volt::Backend::Llvm::LlvmBackend::State::BindParameter ( const Sema::BindingSite &Site,
+                                                              llvm::Value *Arg,
+                                                              bool bByAddress,
+                                                              std::string_view Name )
+{
+    // An aggregate (and a `&block`, whose `{ code, env }` pair is one) arrives
+    // as a pointer to the caller's storage and *is* its own slot, so it is kept
+    // as-is. A scalar arrives as a bare value with no backing storage — without
+    // an alloca here, a later read of it as an Identifier (LoadPlace ->
+    // EmitAddress -> CreateLoad) loads *through* the value as if it pointed at
+    // itself.
+    //
+    // The question is the parameter's **layout**, never its LLVM type. `ptr` is
+    // not a proxy for "aggregate": a `@[Primitive( "ptr", 64 )]` scalar — every
+    // `Pointer<T>` — maps to `ptr` too, and answering from the LLVM type made
+    // every pointer parameter its own slot, so `String.from_c_string( p )` read
+    // `*p` instead of `p` and handed `strlen` whatever the pointee held.
+    if ( bByAddress )
+    {
+        Frame.Slots.emplace( Site, Arg );
+        return true;
+    }
+
+    llvm::Value *Slot = SlotFor( Site, Arg->getType(), Name );
+    if ( Slot == nullptr )
+    {
+        return false;
+    }
+    static_cast<void>( Builder->CreateStore( Arg, Slot ) );
+    return true;
 }
 
 void Volt::Backend::Llvm::LlvmBackend::State::BindInstanceVarParam ( Frontend::ParamId ParamRef, llvm::Value *Value )
@@ -497,7 +525,30 @@ bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
         }
     }
 
-    static_cast<void>( Shell.CreateRet( llvm::ConstantInt::get( ExitCodeTy, 0 ) ) );
+    // The last-resort handler. Tier 1's poisoned path bottoms out at "return
+    // early carrying no value" (ExceptionEmitter.cpp), so an exception nobody
+    // caught arrives here as a set tag behind an ordinary-looking return — for
+    // an `-> Int32` body, `ret i32 0`, byte for byte what success looks like.
+    // This is the one place that reads the tag back, and reading it is the
+    // whole of what makes `raise` observable from outside the process: without
+    // it a `raise` in `main` and a clean exit are the same status, which
+    // silently disarms `raise` as an assertion oracle.
+    //
+    // Reporting *what* was raised needs an output facility the stdlib does not
+    // declare yet (the same wall `Array#to_string` hits), so the status alone
+    // is the honest part. `volt.exc.value` is deliberately left where it is:
+    // nothing here may dereference it, since it points at a frame that has
+    // already returned.
+    llvm::Value *Tag = Shell.CreateLoad( ExitCodeTy, ExceptionTagSlot(), "exc.tag" );
+    llvm::Value *Pending =
+        Shell.CreateICmpNE( Tag, llvm::ConstantInt::get( ExitCodeTy, Sema::NominalId::InvalidValue ), "exc.pending" );
+
+    // A select, not a branch: both arms are constants with no side effect, so
+    // the two-block shape `Ternary` needs for arbitrary expressions buys
+    // nothing here.
+    static_cast<void>(
+        Shell.CreateRet( Shell.CreateSelect( Pending, llvm::ConstantInt::get( ExitCodeTy, UncaughtExceptionStatus ),
+                                             llvm::ConstantInt::get( ExitCodeTy, 0 ), "exit.status" ) ) );
     return true;
 }
 

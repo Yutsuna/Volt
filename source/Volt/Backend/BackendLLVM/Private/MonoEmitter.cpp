@@ -132,6 +132,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitMonomorphizedBody ( const Mono
         Index = 1;
     }
 
+    std::size_t Ordinal = 0;
     for ( const Frontend::ParamId ParamRef : MethodNode->Params )
     {
         if ( Index >= Fn->arg_size() )
@@ -146,22 +147,21 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitMonomorphizedBody ( const Mono
         Arg->setName( DeclUnit->Ast->Text( Declared.Name ) );
         ++Index;
 
-        const Sema::BindingSite Site{ ParamRef };
-        if ( Arg->getType()->isPointerTy() )
-        {
-            Frame.Slots.emplace( Site, Arg );
-            BindInstanceVarParam( ParamRef, Arg );
-            continue;
-        }
+        // Same reading as DefineMember's, at this request's own arguments: the
+        // signature decided by address or by value from the layout, and so does
+        // the binding.
+        const bool bBlock = Ordinal < Entry->ParamIsBlock.Size() and Entry->ParamIsBlock[Ordinal];
+        const bool bByAddress =
+            bBlock or ( Ordinal < Entry->Params.Size() and
+                        IsAggregate( SignatureLayoutOf( Store, Entry->Params[Ordinal], Request.Owner, Request.Args ) ) );
+        ++Ordinal;
 
-        llvm::Value *Slot = SlotFor( Site, Arg->getType(), DeclUnit->Ast->Text( Declared.Name ) );
-        if ( Slot == nullptr )
+        if ( not BindParameter( Sema::BindingSite{ ParamRef }, Arg, bByAddress, DeclUnit->Ast->Text( Declared.Name ) ) )
         {
             static_cast<void>( Fail( "llvm: parameter '" + std::string( DeclUnit->Ast->Text( Declared.Name ) ) + "' of '" +
                                      std::string( Store.Text( Entry->Name ) ) + "' has no storage" ) );
             return;
         }
-        static_cast<void>( Builder->CreateStore( Arg, Slot ) );
         BindInstanceVarParam( ParamRef, Arg );
     }
 

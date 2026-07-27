@@ -178,24 +178,16 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::EmitClosureBody ( Front
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
         ++Index;
 
-        // Same rule as a method's parameters: an aggregate arrives as a pointer
-        // to the caller's storage and *is* its own slot; only a scalar needs an
-        // alloca, so that assigning to the parameter works.
+        // Same rule as a method's parameters, read from the same place the
+        // signature above read it: the binding site's own layout.
         const Sema::BindingSite Site{ ParamRef };
-        if ( Arg->getType()->isPointerTy() )
-        {
-            Frame.Slots.emplace( Site, Arg );
-            continue;
-        }
-
-        llvm::Value *Slot = SlotFor( Site, Arg->getType(), Unit.Ast->Text( Declared.Name ) );
-        if ( Slot == nullptr )
+        const bool bByAddress = IsAggregate( LayoutOfValue( Values, Values.SiteType( Site ) ) );
+        if ( not BindParameter( Site, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
         {
             static_cast<void>(
                 Fail( "llvm: closure parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' has no storage" ) );
             break;
         }
-        static_cast<void>( Builder->CreateStore( Arg, Slot ) );
     }
 
     if ( not Failed() )

@@ -361,6 +361,14 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // field of that name. No-op for an ordinary parameter.
     void BindInstanceVarParam ( Frontend::ParamId ParamRef, llvm::Value *Value );
 
+    // Give an incoming argument its slot, the one way every parameter list
+    // does it — a method's, a monomorphised body's, a closure's. `bByAddress`
+    // must be the *same* answer ParamTypeOfLayout gave when it built the
+    // signature: an aggregate travels as a pointer to the caller's storage and
+    // therefore already *is* its slot, everything else arrives as a bare value
+    // and needs one. False when the slot could not be opened.
+    [[nodiscard]] bool BindParameter ( const Sema::BindingSite &Site, llvm::Value *Arg, bool bByAddress, std::string_view Name );
+
     // The C-linkage shim the runtime starts at, calling the Volt function
     // EmitOptions names as the entry. False only when it failed and Status
     // already says why.
