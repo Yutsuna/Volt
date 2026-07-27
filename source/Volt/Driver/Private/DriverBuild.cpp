@@ -9,6 +9,7 @@
 #ifdef VOLT_ENABLE_LLVM
     #include "Volt/BackendCore/TargetBackend.hpp"
     #include "Volt/BackendLLVM/LlvmEmitter.hpp"
+    #include "Volt/Core/Log/Logger.hpp"
     #include "Volt/Core/Support/ContentHash.hpp"
 
     #include <filesystem>
@@ -73,6 +74,12 @@ namespace fs = std::filesystem;
     const std::string Triple      = Volt::Backend::Llvm::DefaultTargetTriple();
     const std::uint64_t NativeKey = Volt::Driver::ComputeNativeCacheKey(
         TheDriver.FrontendCacheKey(), Triple, std::to_string( Options.OptLevel ), Options.StdlibArtifactKind, Options.bLto );
+
+    // Phase 5: log cache keys when verbose mode is enabled
+    if ( Options.bVerbose )
+    {
+        Volt::Core::FLogger::Info( "Native cache key: " + Volt::Core::ToHex( NativeKey ), "driver" );
+    }
 
     const fs::path NativeDir = CacheDir / "native";
     const fs::path Artifact  = NativeDir / ( Volt::Core::ToHex( NativeKey ) + ( bShared ? ".so" : ".a" ) );

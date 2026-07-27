@@ -2,6 +2,7 @@
 
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Diagnostics/Diagnostic.hpp"
+#include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Core/Meta/Serialize.hpp"
 #include "Volt/Core/Support/ContentHash.hpp"
 #include "Volt/Driver/WellKnown.hpp"
@@ -626,6 +627,11 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vect
                                                 "--no-stdlib-cache/--fresh-stdlib" );
     }
 
+    if ( CacheOpts.bVerbose )
+    {
+        Core::FLogger::Info( "Frontend cache key: " + Core::ToHex( FrontendKey ), "driver" );
+    }
+
     std::vector<SourceRef> Refs;
     if ( not CacheOpts.bNoStdlib )
     {
@@ -702,6 +708,12 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
     {
         ReportDriver( Core::ESeverity::Warning, "--no-stdlib disables the stdlib entirely; ignoring "
                                                 "--no-stdlib-cache/--fresh-stdlib" );
+    }
+
+    // Phase 5: log cache keys when verbose mode is enabled
+    if ( CacheOpts.bVerbose )
+    {
+        Core::FLogger::Info( "Frontend cache key: " + Core::ToHex( FrontendKey ), "driver" );
     }
 
     // The manifest is its own unit; parse it to read entrypoint + modules.
