@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 namespace
 {
@@ -226,6 +227,24 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     }
 
     Sema::Aggregate Shape;
+
+    // The base's fields lead, flattened — the same shape TypeBinder gives a
+    // non-generic class, and for the same reason: a method the base declares
+    // GEPs its own fields at its own offsets through this very pointer, and an
+    // inherited `@x` is looked up by name in the subclass's layout. Here the
+    // parent link is a *signature*, so it goes through OfSig and its arguments
+    // are substituted out of FlatArgs exactly like a field's would be.
+    if ( const Sema::LayoutId Inherited = OfSig( Store, Store.Type( Base ).Super, FlatArgs, 1 ); Inherited.IsValid() )
+    {
+        if ( const auto *Parent = std::get_if<Sema::Aggregate>( &Store.Get( Inherited ) ); Parent != nullptr )
+        {
+            for ( const Sema::FieldLayout &Field : Parent->Fields )
+            {
+                Shape.Fields.PushBack( Field );
+            }
+        }
+    }
+
     for ( const Sema::Member &Entry : Store.Type( Base ).Members )
     {
         if ( Entry.Kind != Sema::EMemberKind::Field )
