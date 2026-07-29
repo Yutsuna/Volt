@@ -4,7 +4,7 @@
 }:
 let
   gccStdenv = pkgs.gcc16Stdenv;
-  llvmAttrs = pkgs.llvmPackages_latest;
+  deps = import ./deps.nix { inherit pkgs; };
   version = with builtins; head (split "\n" (readFile ../VERSION.md));
 in
 gccStdenv.mkDerivation {
@@ -12,25 +12,14 @@ gccStdenv.mkDerivation {
   inherit version;
   src = pkgs.lib.cleanSource ../.;
 
-  nativeBuildInputs = with pkgs; [
-    cmake
-    ninja
-    pkg-config
-    ccache
-    mold
-    autoPatchelfHook
-  ];
-
-  buildInputs = with llvmAttrs; [
-    llvm
-    libllvm
-  ];
+  nativeBuildInputs = deps.nativeBuildInputs ++ [ pkgs.autoPatchelfHook ];
+  inherit (deps) buildInputs;
 
   cmakeFlags = [
-    "-DCMAKE_BUILD_TYPE=Release" # TODO: Add option to change build type
-    "-DVOLT_USE_CCACHE=ON" # TODO: Add option to disable ccache
-    "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON" # TODO: Add option to disable rpath
-    "-DVOLT_ENABLE_LLVM=ON" # TODO: Add option to change backend target
+    "-DCMAKE_BUILD_TYPE=Release"
+    "-DVOLT_USE_CCACHE=ON"
+    "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON"
+    "-DVOLT_ENABLE_LLVM=ON"
     "-DCMAKE_INSTALL_RPATH=${placeholder "out"}/lib"
   ];
 
