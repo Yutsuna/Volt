@@ -26,10 +26,8 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-    export CXX=g++
-    export CC=gcc
+    export CXX="$(command -v g++)"
+    export CC="$(command -v gcc)"
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
-
-    # python3 scripts/graphify/update_graphify.py
   '';
 }
