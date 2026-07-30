@@ -172,8 +172,9 @@ namespace
 {
     using namespace Volt::Sema::TypeCheckerPass;
 
-    const bool bHasTarget                      = Expr.Target.IsValid();
-    const Volt::Sema::SemaTypeId ScrutineeType = bHasTarget ? InferExpr( Context, Expr.Target ) : Context.SelfValue;
+    const Volt::Frontend::ExprId ScrutineeId   = Expr.Scrutinee.IsValid() ? Expr.Scrutinee : Expr.Target;
+    const bool bHasTarget                      = ScrutineeId.IsValid();
+    const Volt::Sema::SemaTypeId ScrutineeType = bHasTarget ? InferExpr( Context, ScrutineeId ) : Context.SelfValue;
     const Volt::Sema::NominalId Nominal        = ScrutineeNominal( Context, ScrutineeType );
     const bool bIsEnum                         = HasEnumCases( Context.Ctx.Types, Nominal );
 
