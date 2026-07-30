@@ -44,7 +44,8 @@ using namespace Volt;
 // --- The primitive instruction manifest ------------------------------------
 
 // The family a spelling belongs to. Derived from one character, which is the
-// whole vocabulary rules/zero-hardcode.md grants the C++ side: `"i32"` selects
+// whole voca
+// using nambulary rules/zero-hardcode.md grants the C++ side: `"i32"` selects
 // signed instructions because it starts with `i`, not because anything here
 // knows it was written `Int32`.
 enum class EOpFamily : std::uint8_t
@@ -1623,10 +1624,13 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCase ( Frontend::ExprI
 
     // A `case` in value position needs a slot: its clauses are statement lists,
     // so their results converge through storage rather than a phi over blocks
-    // whose count is not known until the ladder is built.
-    llvm::Type *Shape      = TypeOfExpr( Id );
-    llvm::AllocaInst *Slot = nullptr;
-    if ( Shape != nullptr and not IsAggregate( LayoutOfExpr( Id ) ) )
+    // whose count is not known until the ladder is built. An aggregate result
+    // gets a slot too — `StoreTailValue` converges it by `EmitStore`'s memcpy,
+    // not a plain `CreateStore` of an SSA struct value.
+    llvm::Type *Shape           = TypeOfExpr( Id );
+    const Sema::LayoutId Layout = LayoutOfExpr( Id );
+    llvm::AllocaInst *Slot      = nullptr;
+    if ( Shape != nullptr )
     {
         Slot = MakeTemp( Shape, "case.result" );
     }
@@ -1642,7 +1646,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCase ( Frontend::ExprI
             {
                 if ( const auto *Tail = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Index] ) ); Tail != nullptr )
                 {
-                    StoreTailValue( EmitExpr( Tail->Expr ), Slot, Shape );
+                    StoreTailValue( EmitExpr( Tail->Expr ), Slot, Shape, Layout );
                     continue;
                 }
             }
