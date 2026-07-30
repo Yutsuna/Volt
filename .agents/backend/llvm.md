@@ -341,20 +341,31 @@ will let the VM and wasm read a closure this backend wrote. The claim is asked
 of the store through `@[Literal]`, the same protocol that identifies the type
 behind `nil` or a string literal, so no Volt type name enters.
 
-### Invoking one: `@[Apply]` is the whole protocol
+### Invoking one: the resolution says so, the backend does not ask
 
 `f( x )` on a local holding a callable and `block.call( x )` on a `&block`
-parameter are the *same* emission. `MemberResolver` resolves both to the
-member the callable's type annotates `@[Apply]`, and records that the signature
-is the receiver's own type arguments — result first, then the parameters. The
-emitter therefore:
+parameter are the *same* emission. `MemberResolver` resolves both the same
+way, and the recognition costs no annotation: the callable type is whichever
+type claims the `FuncType` node kind (`IsCallableType`, one
+`LookupNodeKind`), and the member invoked is that type's single `abstract`
+contract, found by walking its members — so the spelling `call` never enters
+C++. The signature is then read off the receiver's own type arguments —
+result first, then the parameters — because a callable's arity lives in its
+type, not in that contract's declaration.
+
+All of that happens **once**, in Sema, and lands on the resolution as
+`CalleeEntry::bIndirect` (next to `bConstructs`). The emitter therefore:
 
 ```
-Entry.Decl->bApply  ->  load { code, env } from the receiver, build the
-                        FunctionType from Entry.Result / Entry.Params, and
-                        call `code` indirectly with `env` appended
-otherwise           ->  direct call to the mangled symbol, as before
+Entry.bIndirect  ->  load { code, env } from the receiver, build the
+                     FunctionType from Entry.Result / Entry.Params, and
+                     call `code` indirectly with `env` appended
+otherwise        ->  direct call to the mangled symbol, as before
 ```
+
+That single bit is the whole backend-facing contract, which is the point: a
+second target reads the same bit and re-identifies nothing
+(rules/zero-hardcode.md).
 
 This is the one place a `FunctionType` is built from a *type* rather than from
 a declaration — a callable has no declaration to build it from. The receiver
