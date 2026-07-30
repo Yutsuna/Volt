@@ -418,7 +418,11 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
     {
         if ( Frame.bReturnsValue )
         {
-            static_cast<void>( Builder->CreateRet( llvm::ConstantInt::get( Fn->getReturnType(), 0 ) ) );
+            // `getNullValue`, not `ConstantInt::get`: the return type is not
+            // always an integer (a `String`-returning method is `{ ptr, i64 }`),
+            // and `ConstantInt::get` on a non-integer type is an unchecked
+            // `cast` in a release build — silent corruption, not a diagnostic.
+            static_cast<void>( Builder->CreateRet( llvm::Constant::getNullValue( Fn->getReturnType() ) ) );
         }
         else
         {
