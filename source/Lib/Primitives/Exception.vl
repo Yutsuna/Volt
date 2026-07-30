@@ -13,7 +13,7 @@ external def libc_write( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -
   @brief Represents an exception that occurred in the program.
   @example raise Exception.new( "An exception occurred" )
 #}
-@[ExceptionRoot]
+@[Literal( RaiseExpr )]
 class Exception
   getter message   : String
   getter backtrace : Array<String>
