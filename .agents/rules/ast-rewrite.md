@@ -86,4 +86,5 @@ no node at all.
    ```sh
    ./build/bin/Volt_d parse --lowered --no-color --no-location F | grep -cE '─ Target\b'
    ```
-4. `volt-build debug asan` on a sample exercising the pass: no report.
+4. An ASan build (Debug, `VOLT_ENABLE_ASAN=ON`), run through the IDE, on a
+   sample exercising the pass: no report.

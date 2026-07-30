@@ -17,16 +17,19 @@ You keep the build correct and reproducible.
 - **Toolchain**: `flake.nix` / `flake.lock` + `.envrc` (`use flake .#default`);
   `direnv` loads the dev shell. Warnings/`-Werror`, sanitizers and LLVM live in
   `cmake/VoltCompiler.cmake`, `cmake/VoltOptions.cmake`, `cmake/VoltLLVM.cmake`.
-- **Build**: `volt-build` from the dev shell (Nix-wrapped `scripts/build.rb`;
-  `ruby` is not on PATH — all build/test operations go through `volt-build`). Sanitizers
-  are opt-in and Debug-only; TSAN and ASan are mutually exclusive — for a TSAN
-  build pass `-DVOLT_ENABLE_ASAN=OFF`.
+- **Build**: through the IDE (CLion), which drives CMake/Ninja directly — the
+  old Ruby-based wrapper script has been removed. Never "run" a module
+  configuration (a library target, `.so`/`.a`); run an executable or test
+  configuration instead, which builds its dependencies first. Sanitizers are
+  opt-in and Debug-only; TSAN and ASan are mutually exclusive — for a TSAN
+  build pass `-DVOLT_ENABLE_ASAN=OFF` at configure time.
 - **Tooling targets**: `format` / `tidy` are stamp-based per-file CMake targets
   from `cmake/VoltTooling.cmake` (generic `volt_per_file_tool()`), declared in
-  `cmake/VoltFormat.cmake` / `cmake/VoltTidy.cmake`; `volt-build test` drives
-  the ctest suites of `cmake/VoltTests.cmake`. Files come from the
+  `cmake/VoltFormat.cmake` / `cmake/VoltTidy.cmake`, exposed as the `format`
+  and `tidy` IDE configurations; the `All CTest` configuration drives the
+  ctest suites of `cmake/VoltTests.cmake`. Files come from the
   `VOLT_ALL_FILES` global property `VoltModule` fills; a new tool = one
   `volt_per_file_tool` call, never an ad-hoc loop.
 
-Verify a green `-Werror` configure+build after any wiring change, then
+Verify a green `-Werror` configure+build through the IDE after any wiring change, then
 `graphify update .`.

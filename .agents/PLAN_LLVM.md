@@ -2,7 +2,8 @@
 
 ## Context
 
-`volt-build test llvm` est aujourd'hui à **43/68** (25 échecs sur 68 tests, soit 13 samples
+La suite de tests LLVM (configuration `All CTest`, filtrée sur `^Llvm`, lancée depuis
+l'IDE) est aujourd'hui à **43/68** (25 échecs sur 68 tests, soit 13 samples
 sur 34 dans `samples/Tests/**`). Chaque sample est enregistré deux fois par
 `cmake/VoltTests.cmake:88-110` : `LlvmIr.*` (émission + `verifyModule`) et `LlvmRun.*`
 (binaire lié, exécuté, comparé à `.expected`).
@@ -19,7 +20,8 @@ l'émetteur LLVM. Deux d'entre eux sont des défauts silencieux graves — **un 
 compilateur** (`Composition.vl`, exit 139) et **une boucle `until` post-test compilée en
 pré-test** (`UntilLoop.vl`, code faux sans aucun diagnostic).
 
-Objectif : `volt-build test llvm` vert, sans hardcode de type Volt, sans lowering dans le
+Objectif : la suite de tests LLVM verte (configuration `All CTest`, filtre `^Llvm`), sans
+hardcode de type Volt, sans lowering dans le
 backend, sans code non modulaire — et avec la dette restante **écrite** plutôt que
 contournée.
 
@@ -565,11 +567,14 @@ item de travail, pas le type lui-même.
 
 ## Phase 8 — Finition
 
-- `volt-build format test` (formatage parallèle et caché par fichier ; le build est
-  `-Werror`).
-- Régénérer les goldens : target CMake `golden-update` (pas de sous-commande `volt-build`
-  pour ça). Obligatoire après la phase 4d, et après la phase 2 si `Scrutinee` s'imprime.
-- `volt-build tidy` **une seule fois, à la toute fin** — jamais deux en parallèle.
+- Configuration `format` (formatage parallèle et caché par fichier), à lancer une seule
+  fois en fin de phase, puis un build et les tests à travers l'IDE (`-Werror`).
+- Régénérer les goldens : configuration `golden-update` (target CMake, lancée depuis
+  l'IDE). Obligatoire après la phase 4d, et après la phase 2 si `Scrutinee` s'imprime.
+- Configuration `tidy` **une seule fois, à la toute fin de l'epic** (toutes les phases
+  terminées) — jamais deux en parallèle, jamais en cours de phase : c'est coûteux, et
+  parfois peu pertinent en C++26 ; privilégier les diagnostics de l'IDE pendant
+  l'itération.
 - `graphify update .` (AST-only, sans coût API) : les phases 4d, 5 et 6 ajoutent des
   fonctions top-level et une entrée de manifeste.
 - Mettre à jour la doc dans le même geste :
@@ -610,9 +615,10 @@ L'ordre n'est pas cosmétique : plusieurs phases s'invalident mutuellement.
 
 À chaque phase, avant de la déclarer close :
 
-```sh
-volt-build format test
-```
+Un build et les tests à travers l'IDE (jamais un « run » sur une cible module —
+`Core`/`Frontend`/`Sema`/… sont des bibliothèques, pas des exécutables ; lancer une
+configuration de test comme `All CTest`, qui construit ses dépendances). La
+configuration `format` ne se lance qu'en fin de phase, pas à chaque itération.
 
 Ciblage pendant l'itération (le binaire est `build/bin/volt_d`) :
 
@@ -642,11 +648,12 @@ Contrôles spécifiques :
   `RedeclareSameScope.vl` et `BranchLocals.vl`.
 - **Phase 4d** — après `golden-update`, relire le diff des goldens : seul le
   *rattachement* de `If` doit changer, jamais la structure des branches.
-- **Phase 5/6** — `volt-build debug asan` sur `Composition.vl`, `BreakNext.vl` et
+- **Phase 5/6** — un build ASan (Debug, `VOLT_ENABLE_ASAN=ON`, via l'IDE) sur
+  `Composition.vl`, `BreakNext.vl` et
   `ForLoop.vl` : aucun rapport (`rules/ast-rewrite.md`, checklist).
 - **Global** — `AstInvariant`, `ZeroHardcode`, `Corpus.*`, `Golden.*` et les trois
   `*SerializeTest` doivent rester verts ; la phase 5b touche la sérialisation du cache
   (issue #61), donc `SemaSerializeTest` est le garde-fou de cette phase.
 
-**Critère de sortie : 68/68 sur `ctest -R '^Llvm'`, et `volt-build format test` vert
-en entier.**
+**Critère de sortie : 68/68 sur la configuration `All CTest` filtrée `^Llvm`, et un
+build + tests verts en entier à travers l'IDE, formatage inclus.**

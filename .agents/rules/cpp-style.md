@@ -12,14 +12,23 @@
   PUBLIC_INCLUDES "Public/" DEPS ..)` and registered in
   `cmake/VoltBuild.cmake`'s `VoltAddModules(...)`. Libraries are shared and
   cascade their `DEPS` (`Frontend → Core`, `Sema → Frontend`, `Driver → Sema`).
-- **Formatting is mechanical**: run `volt-build format` (Allman braces, `SpacesInParens`,
-  `ColumnLimit: 170` — parallel, per-file cached). Do not hand-format; let the tool do it.
+- **Formatting is mechanical**: run the `format` IDE configuration (Allman braces,
+  `SpacesInParens`, `ColumnLimit: 170` — parallel, per-file cached). Do not
+  hand-format; let the tool do it. Run it once, at the end of a phase — not
+  after every edit.
 - **`[[nodiscard]]`** on every pure accessor / factory. Prefer free functions +
   `std::visit(Overloaded{…})` over virtual dispatch.
 
-Before finishing: `volt-build format` → `volt-build` (clean, no warnings) →
-`volt-build test` green (see skill `format-and-check`).
+Before finishing: build and test through the IDE (see skill
+`format-and-check`) — never "run" a module target, only an executable or test
+configuration; a clean, warning-free build under `-Werror` and a green test
+run are both required.
 
 ## Static analysis & Tidy
 
-`volt-build tidy` runs static analysis over the codebase. Ensure formatting (`volt-build format`), tidy (`volt-build tidy`), clean compilation (`volt-build`) and tests (`volt-build test`) pass cleanly under `-Werror`.
+The `tidy` IDE configuration runs static analysis over the codebase. It is
+expensive and its C++26 diagnostics are sometimes not pertinent — run it only
+once, at the end of an epic (every phase complete), never mid-phase. Prefer
+the IDE's own inspections (clangd / IntelliJ diagnostics) while iterating.
+Ensure formatting (`format`), a clean `-Werror` build, and tests all pass
+before calling an epic done.

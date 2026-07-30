@@ -20,7 +20,7 @@ This project maintains a Graphify knowledge graph located at `graphify-out/`.
 
 ## Two Reflexes on Every Change
 
-1. **Format & Build.** Run `volt-build format test` before calling a task done (Allman style, `SpacesInParens`, column 170) — formatting is parallel and per-file cached, touching only modified files. The build is `-Werror`; warnings are treated as failures. All build, format, tidy, and test tasks must go through `volt-build`. Prefer single-command invocations (`volt-build format test`) over chaining multiple `volt-build` calls with `&&`. See [`rules/cpp-style.md`](rules/cpp-style.md).
+1. **Build & Format, through the IDE.** Build and test through the IDE (CLion) — never "run" a module configuration: a module (`Core`, `Frontend`, `Sema`, `Driver`, `BackendLLVM`, …) is a library target (`.so`/`.a`), not an executable. Run an executable or test configuration instead (e.g. `All CTest`), which builds every dependency first. The build is `-Werror`; warnings are treated as failures. Run the `format` configuration (Allman style, `SpacesInParens`, column 170) once, at the **end of a phase** — not mid-phase, since it reformats every touched file in one pass and re-running it early wastes time. Run the `tidy` configuration only at the **end of an epic** (once every phase is complete): it is expensive and, under C++26, occasionally flags things that are not actually a problem — prefer the IDE's own diagnostics while iterating. See [`rules/cpp-style.md`](rules/cpp-style.md).
 2. **Keep the Map Current.** After a significant architecture change, run `graphify update .` (AST-only, no API cost) so `graphify-out/` reflects the modified code. See [`rules/graphify.md`](rules/graphify.md).
 
 ## The Meta-First Bet

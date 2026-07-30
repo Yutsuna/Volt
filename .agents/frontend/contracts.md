@@ -67,15 +67,16 @@ void InvariantChecker::CheckExpr(ExprId Id)
 
 ## Verification Commands
 
-To verify frontend correctness, formatting, and build compliance during development:
+To verify frontend correctness and build compliance during development, build
+and test through the IDE — never "run" a module configuration (a library
+target); run a test configuration (e.g. `All CTest`) instead, which builds
+its dependencies first.
 
 ```bash
-# 1. Rebuild compiler and run full test suite (includes AstInvariant checks)
-volt-build format test
-
-# 2. Inspect desugared AST output for a test file
+# Inspect desugared AST output for a test file
 volt parse --lowered tests/fixtures/syntax_test.vl
-
-# 3. Run static code analysis
-volt-build tidy
 ```
+
+Run the `format` configuration once, at the end of a phase — not mid-phase.
+Run the `tidy` configuration only at the end of an epic, once every phase is
+complete; prefer the IDE's own diagnostics while iterating.

@@ -49,7 +49,7 @@ methods — only annotate them if the linker actually asks for one.
 ## How to find what's missing
 
 Don't guess from a static read of the headers — the linker is the ground
-truth. Build with `VOLT_BUILD_SHARED=ON` (`volt-build clean debug`) and fix the
-exact symbols mold reports, module by module, rebuilding between passes. This
-finds the precise minimal set faster and more reliably than annotating every
-public declaration up front.
+truth. Configure with `VOLT_BUILD_SHARED=ON` and rebuild through the IDE, then
+fix the exact symbols mold reports, module by module, rebuilding between
+passes. This finds the precise minimal set faster and more reliably than
+annotating every public declaration up front.
