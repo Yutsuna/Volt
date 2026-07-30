@@ -58,6 +58,9 @@ VOLT_LLVM_BINOP( SInt, Shr, AShr ) // arithmetic: the sign bit is meaningful
 
 VOLT_LLVM_CMP( SInt, EqEq, ICMP_EQ )
 VOLT_LLVM_CMP( SInt, NotEq, ICMP_NE )
+// `===` is `CaseLowering`'s synthesized `pattern === target` (rules/core-ast.md);
+// on a primitive receiver it is structural equality, same predicate as `==`.
+VOLT_LLVM_CMP( SInt, TripleEq, ICMP_EQ )
 VOLT_LLVM_CMP( SInt, Lt, ICMP_SLT )
 VOLT_LLVM_CMP( SInt, Gt, ICMP_SGT )
 VOLT_LLVM_CMP( SInt, Le, ICMP_SLE )
@@ -82,6 +85,7 @@ VOLT_LLVM_BINOP( UInt, Shr, LShr ) // logical: there is no sign bit to preserve
 
 VOLT_LLVM_CMP( UInt, EqEq, ICMP_EQ )
 VOLT_LLVM_CMP( UInt, NotEq, ICMP_NE )
+VOLT_LLVM_CMP( UInt, TripleEq, ICMP_EQ )
 VOLT_LLVM_CMP( UInt, Lt, ICMP_ULT )
 VOLT_LLVM_CMP( UInt, Gt, ICMP_UGT )
 VOLT_LLVM_CMP( UInt, Le, ICMP_ULE )
@@ -105,6 +109,7 @@ VOLT_LLVM_BINOP( Float, Percent, FRem )
 // *unordered* predicate.
 VOLT_LLVM_CMP( Float, EqEq, FCMP_OEQ )
 VOLT_LLVM_CMP( Float, NotEq, FCMP_UNE )
+VOLT_LLVM_CMP( Float, TripleEq, FCMP_OEQ )
 VOLT_LLVM_CMP( Float, Lt, FCMP_OLT )
 VOLT_LLVM_CMP( Float, Gt, FCMP_OGT )
 VOLT_LLVM_CMP( Float, Le, FCMP_OLE )
