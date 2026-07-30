@@ -2,7 +2,7 @@
 external def libc_exit( value : Int32 ) -> Void
 
 
-#{ TODO: add `abstract` keyword to support abstract classes }#
+#{ TODO: add `abstract` keyword to support abstract classes #}
 class Base
   getter a : Int32
   getter b : Int32

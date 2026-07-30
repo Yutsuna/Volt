@@ -39,18 +39,32 @@ def for_range -> Int32
   total
 end
 
+class User
+  getter name  : String
+  getter email : String
+  getter age   : Int32
+
+  def initialize( @name : String, @email : String, @age : Int32 )
+  end
+end
+
 #{
 #  users.each { |_name, _email, age| total += age" }
 #}
 def for_array -> Int32
+  # users = [
+  #           [ "Alice", "alice@petass.com", 42 ],
+  #           [ "Morgan", "morgan@bg.fr", 25 ],
+  #           [ "Bob", "bob@marley.lol", 30 ]
+  #         ]
   users = [
-            [ "Alice", "alice@petass.com", 42 ],
-            [ "Morgan", "morgan@bg.fr", 25 ],
-            [ "Bob", "bob@marley.lol", 30 ]
+            User.new( "Alice", "alice@petass.com", 42 ),
+            User.new( "Morgan", "morgan@bg.fr", 25 ),
+            User.new( "Bob", "bob@marley.lol", 30 )
           ]
   total = 0
-  for _name, _email, age in users
-    total += age
+  for user in users
+    total += user.age
   end
   total
 end

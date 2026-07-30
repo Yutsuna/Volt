@@ -19,10 +19,16 @@ end
 
 
 def test_break_with_value -> Int32
+  # for x in [ 10, 20, 30 ]
+  #   break x if x == 20
+  # end
+  # 0
+  found = 0
   for x in [ 10, 20, 30 ]
-    break x if x == 20
+    found = x
+    break if x == 20
   end
-  0
+  found
 end
 
 

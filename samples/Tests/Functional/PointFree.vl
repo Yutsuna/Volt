@@ -33,6 +33,6 @@ transform = ( &.trim ) >> ( &.prefix( "usr_" ) )
 raw_users = [ " alice ", " bob " , "    " ]
 clean_users = raw_users
   .filter( (&.empty?.!) )
-  .map( transform )
+  .map( &transform )
 assert!( clean_users[0] == "usr_alice" )
 assert!( clean_users[1] == "usr_bob" )
