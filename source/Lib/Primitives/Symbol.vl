@@ -1,17 +1,12 @@
-@[Literal( SymbolLiteral )]
+@[Primitive( "u64", 64 ), Literal( SymbolLiteral )]
 struct Symbol
   include Comparable
   include Hashable
 
-  getter id : UInt64
-
-  def initialize( @id : UInt64 )
-  end
-
   def <=>( other : Symbol ) -> Int32
-    if @id < other.id
+    if self < other
       -1
-    elsif @id > other.id
+    elsif self > other
       1
     else
       0
@@ -19,6 +14,6 @@ struct Symbol
   end
 
   def hash -> UInt64
-    @id
+    self
   end
 end
