@@ -338,6 +338,12 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // rather than to a loaded struct value.
     [[nodiscard]] bool IsAggregate ( Sema::LayoutId Id ) const;
 
+    /// The value a slot-converging expression (`if`, `case`, `begin`) hands
+    /// back to its consumer. The counterpart of StoreTailValue, and it obeys
+    /// the same convention: an aggregate is only ever an *address*, so the
+    /// slot itself is the value; a scalar is loaded out of it.
+    [[nodiscard]] llvm::Value *LoadConverged ( llvm::Value *Slot, llvm::Type *Shape, Sema::LayoutId Layout, const char *Name );
+
     // --- Sweeps (LlvmEmitter.cpp) -----------------------------------------
 
     // Fill in the bodies every member of `Unit` declares. Reads the TypeStore
@@ -470,6 +476,7 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::Value *EmitShortCircuit ( const Frontend::Binary &Node );
     [[nodiscard]] llvm::Value *EmitTernary ( Frontend::ExprId Id, const Frontend::Ternary &Node );
     [[nodiscard]] llvm::Value *EmitCase ( Frontend::ExprId Id, const Frontend::CaseExpr &Node );
+    [[nodiscard]] llvm::Value *EmitIf ( Frontend::ExprId Id, const Frontend::If &Node );
     [[nodiscard]] llvm::Value *EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node );
 
     // The declared default for a parameter a call omits, emitted in the unit

@@ -6,14 +6,17 @@
 // property, not a typing one, so it is decided here by position alone:
 //
 //   EmitStmts( List, bTail ) marks the last statement of a list as being in
-//   result position, and only two node kinds do anything with it — an
-//   ExprStmt emits `ret`, and an `If` passes it on to both of its branches.
+//   result position, and exactly one node kind does anything with it — an
+//   ExprStmt emits `ret`.
 //
 // No other node propagates it, because no other node's value can be the
-// function's: a `while` has none, and a `return` already is one. The rule
-// therefore needs nothing from Sema, which is what lets it live in a backend
-// at all — see .agents/backend/llvm.md for why it arguably belongs in a
-// Lowering instead.
+// function's: a `while` has none, and a `return` already is one. `If` used to
+// be the second reader, forwarding the flag into both branches; now that it is
+// an expression (Expr.hpp) it converges its branches into a slot and hands the
+// loaded value back to the enclosing ExprStmt, which emits the single `ret`.
+// The rule therefore needs nothing from Sema, which is what lets it live in a
+// backend at all — see .agents/backend/llvm.md for why it arguably belongs in
+// a Lowering instead.
 //
 // One `std::visit` for the whole category, like ExprEmitter: a statement the
 // contract says cannot reach a backend falls into the `auto` arm and is
@@ -101,6 +104,29 @@ void Volt::Backend::Llvm::LlvmBackend::State::StoreTailValue ( llvm::Value *Valu
     static_cast<void>( Builder->CreateStore( Fitted, Slot ) );
 }
 
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::LoadConverged ( llvm::Value *Slot,
+                                                                      llvm::Type *Shape,
+                                                                      Sema::LayoutId Layout,
+                                                                      const char *Name )
+{
+    if ( Slot == nullptr or Shape == nullptr )
+    {
+        return nullptr;
+    }
+
+    // Loading an aggregate out of the slot would produce an SSA struct, and
+    // every consumer of an aggregate expects an address instead: `EmitStore`
+    // memcpys from it, a call passes it byval. Handing back the loaded struct
+    // built a memcpy whose operand was `{ ptr, i64 }` rather than `ptr`, which
+    // the module verifier rejects — the same convention StoreTailValue applies
+    // on the way in, applied on the way out.
+    if ( IsAggregate( Layout ) )
+    {
+        return Slot;
+    }
+    return Builder->CreateLoad( Shape, Slot, Name );
+}
+
 llvm::Value *
 Volt::Backend::Llvm::LlvmBackend::State::SlotFor ( const Sema::BindingSite &Site, llvm::Type *Shape, std::string_view Name )
 {
@@ -184,42 +210,6 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
                 }
                 static_cast<void>( Builder->CreateRet( CoerceWidth( Value, Frame.Fn->getReturnType() ) ) );
             },
-            [this, bTail] ( const Frontend::If &Node )
-            {
-                llvm::Value *Cond = EmitExpr( Node.Cond );
-                if ( Cond == nullptr )
-                {
-                    return;
-                }
-
-                const bool bHasElse     = Node.Else.Size() > 0;
-                llvm::BasicBlock *Then  = llvm::BasicBlock::Create( Context, "if.then", Frame.Fn );
-                llvm::BasicBlock *Else  = bHasElse ? llvm::BasicBlock::Create( Context, "if.else", Frame.Fn ) : nullptr;
-                llvm::BasicBlock *Merge = llvm::BasicBlock::Create( Context, "if.end", Frame.Fn );
-                static_cast<void>( Builder->CreateCondBr( Cond, Then, bHasElse ? Else : Merge ) );
-
-                // Both branches inherit the tail flag: an `elsif` chain is a
-                // nested If in the Else branch (Stmt.hpp), so passing it on is
-                // exactly what makes the whole chain a result.
-                Builder->SetInsertPoint( Then );
-                EmitStmts( Node.Then, bTail );
-                if ( not Terminated() )
-                {
-                    static_cast<void>( Builder->CreateBr( Merge ) );
-                }
-
-                if ( bHasElse )
-                {
-                    Builder->SetInsertPoint( Else );
-                    EmitStmts( Node.Else, bTail );
-                    if ( not Terminated() )
-                    {
-                        static_cast<void>( Builder->CreateBr( Merge ) );
-                    }
-                }
-
-                Builder->SetInsertPoint( Merge );
-            },
             [this] ( const Frontend::While &Node )
             {
                 // The condition gets its own block rather than being emitted
@@ -229,7 +219,12 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
                 llvm::BasicBlock *Body  = llvm::BasicBlock::Create( Context, "while.body", Frame.Fn );
                 llvm::BasicBlock *Merge = llvm::BasicBlock::Create( Context, "while.end", Frame.Fn );
 
-                static_cast<void>( Builder->CreateBr( Test ) );
+                // A post-test loop — `begin ... end while c` — differs by one
+                // edge: entry goes to the body instead of the test, so the
+                // body runs once before the condition is ever evaluated. The
+                // LoopFrame is unchanged, which is the point of carrying a flag
+                // rather than desugaring: `next` still branches to Test.
+                static_cast<void>( Builder->CreateBr( Node.bPostTest ? Body : Test ) );
                 Builder->SetInsertPoint( Test );
                 llvm::Value *Cond = EmitExpr( Node.Cond );
                 if ( Cond == nullptr )

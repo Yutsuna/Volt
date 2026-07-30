@@ -718,6 +718,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
 
             // --- Control ---------------------------------------------------
             [this, Id] ( const Frontend::CaseExpr &Node ) -> llvm::Value * { return EmitCase( Id, Node ); },
+            [this, Id] ( const Frontend::If &Node ) -> llvm::Value * { return EmitIf( Id, Node ); },
             [this, Id] ( const Frontend::BeginExpr &Node ) -> llvm::Value * { return EmitBegin( Id, Node ); },
             [this, Id] ( const Frontend::RaiseExpr &Node ) -> llvm::Value * { return EmitRaise( Id, Node ); },
 
@@ -1708,5 +1709,74 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCase ( Frontend::ExprI
     {
         return nullptr;
     }
-    return Builder->CreateLoad( Shape, Slot, "case" );
+    return LoadConverged( Slot, Shape, Layout, "case" );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIf ( Frontend::ExprId Id, const Frontend::If &Node )
+{
+    // An `if` converges the same way a `case` does, and for the same reason:
+    // a branch is a *statement list*, so the number of blocks reaching the
+    // merge is only known once the whole chain has been emitted — which rules
+    // out a phi. A slot plus StoreTailValue handles that, and handles an
+    // aggregate result (a branch producing a String) by memcpy rather than by
+    // storing an SSA struct.
+    llvm::Value *Cond = EmitExpr( Node.Cond );
+    if ( Cond == nullptr )
+    {
+        return nullptr;
+    }
+
+    const Frontend::AstContext &Ast = *Frame.Unit->Ast;
+    const bool bHasElse             = Node.Else.Size() > 0;
+
+    llvm::BasicBlock *Then  = llvm::BasicBlock::Create( Context, "if.then", Frame.Fn );
+    llvm::BasicBlock *Else  = bHasElse ? llvm::BasicBlock::Create( Context, "if.else", Frame.Fn ) : nullptr;
+    llvm::BasicBlock *Merge = llvm::BasicBlock::Create( Context, "if.end", Frame.Fn );
+    static_cast<void>( Builder->CreateCondBr( Cond, Then, bHasElse ? Else : Merge ) );
+
+    // No shape means the `if` is in statement position (or a `-> Void` tail):
+    // there is nothing to converge, and the branches are emitted for effect.
+    llvm::Type *Shape           = TypeOfExpr( Id );
+    const Sema::LayoutId Layout = LayoutOfExpr( Id );
+    llvm::AllocaInst *Slot      = Shape != nullptr ? MakeTemp( Shape, "if.result" ) : nullptr;
+
+    const auto EmitBranch = [&] ( const Frontend::StmtList &Body )
+    {
+        for ( std::size_t Index = 0; Index < Body.Size() and not Terminated(); ++Index )
+        {
+            const bool bLast = Index + 1 == Body.Size();
+            if ( bLast and Slot != nullptr )
+            {
+                if ( const auto *Tail = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Index] ) ); Tail != nullptr )
+                {
+                    StoreTailValue( EmitExpr( Tail->Expr ), Slot, Shape, Layout );
+                    continue;
+                }
+            }
+            EmitStmt( Body[Index], false );
+        }
+        if ( not Terminated() )
+        {
+            static_cast<void>( Builder->CreateBr( Merge ) );
+        }
+    };
+
+    // An `elsif` chain is a nested If inside Else (Expr.hpp), so it is emitted
+    // by the recursive call this branch makes through EmitStmt — the chain
+    // needs no special case of its own.
+    Builder->SetInsertPoint( Then );
+    EmitBranch( Node.Then );
+
+    if ( bHasElse )
+    {
+        Builder->SetInsertPoint( Else );
+        EmitBranch( Node.Else );
+    }
+
+    Builder->SetInsertPoint( Merge );
+    if ( Slot == nullptr )
+    {
+        return nullptr;
+    }
+    return LoadConverged( Slot, Shape, Layout, "if" );
 }

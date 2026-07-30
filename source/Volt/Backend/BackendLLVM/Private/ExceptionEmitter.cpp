@@ -518,5 +518,5 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBegin ( Frontend::Expr
     {
         return nullptr;
     }
-    return Builder->CreateLoad( Shape, Slot, "begin" );
+    return LoadConverged( Slot, Shape, Layout, "begin" );
 }
