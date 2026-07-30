@@ -9,9 +9,15 @@
 @[Literal( FuncType ), Literal( Lambda ), Literal( Block )]
 struct Proc<R>
 
-  # Invoking a callable: `@[Apply]` says the signature is the receiver's own
-  # arguments, since a Proc's arity is carried by its type, not by this line.
-  @[Apply]
+  # The one contract of a callable. It is `abstract` for the same reason
+  # `Int32#+` is: the target supplies the operation. `+` on a primitive layout
+  # is a machine instruction; `call` on the type claiming FuncType is an
+  # indirect call through the `{ code, env }` pair — both decided by what the
+  # receiver *is*, never by an annotation naming this line.
+  #
+  # It takes no parameters here because it cannot: a Proc's arity lives in its
+  # type arguments (`Proc<R, A, B>`), which is why the resolution reads the
+  # signature off the receiver rather than off this declaration.
   abstract def call -> R
 
 end
