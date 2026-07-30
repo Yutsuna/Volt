@@ -105,13 +105,6 @@ namespace Sema
         // one to state what an including type owes it, and that debt is
         // what the conformance check collects.
         bool bAbstract = false;
-        // `@[Apply]`: the member's signature *is* the receiver's type
-        // arguments — result first, then parameters — rather than what it
-        // wrote down. This is how a callable is invoked without the compiler
-        // knowing what a callable is: the stdlib type claiming the FuncType
-        // node marks its own `call`, and arity follows the receiver, which no
-        // fixed declaration could express.
-        bool bApply = false;
         // `@[Unhandled]`: the hook a target calls when an exception reaches the
         // top of the program with nothing having rescued it. Declared on the
         // `@[ExceptionRoot]` type and given the in-flight object as its

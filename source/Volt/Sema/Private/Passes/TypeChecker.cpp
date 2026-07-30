@@ -65,7 +65,8 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
                                                                           .BlockParam  = Found.BlockParam,
                                                                           .Bindings    = Found.Bindings,
                                                                           .Receiver    = Found.Receiver,
-                                                                          .bConstructs = Found.bConstructs } );
+                                                                          .bConstructs = Found.bConstructs,
+                                                                          .bIndirect   = Found.bIndirect } );
         }
     }
 }

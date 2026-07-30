@@ -834,13 +834,13 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     const SemaTypeId Callee = InferExpr( Context, Expr.Callee );
 
     // A callee that resolved to no member may still be callable: a local
-    // holding a closure is called as `f( x )`, which means the member its
-    // type annotates `@[Apply]`. Without this, `f( x )` evaluated to `f`
+    // holding a closure is called as `f( x )`, which invokes the contract of
+    // the type claiming FuncType. Without this, `f( x )` evaluated to `f`
     // itself, and every point-free pipeline stayed typed as its own Proc.
     auto It = Context.CalleeResolution.find( Expr.Callee.Value );
     if ( It == Context.CalleeResolution.end() )
     {
-        const Resolution Applied = LookupApplyOn( Context, Callee );
+        const Resolution Applied = LookupCallOn( Context, Callee );
         if ( Applied.Decl != nullptr )
         {
             It = Context.CalleeResolution.emplace( Expr.Callee.Value, Applied ).first;

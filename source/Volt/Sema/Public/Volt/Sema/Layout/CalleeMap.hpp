@@ -64,6 +64,20 @@ namespace Sema
         // re-deriving it in a backend would mean recognising the spelling
         // "new", which is a Volt name no backend may know.
         bool bConstructs = false;
+        // The callee is a *value*, not a symbol: `f( x )` where `f` holds a
+        // callable. The call goes through the `{ code, env }` pair rather
+        // than to a mangled name, and the signature above came from the
+        // receiver's type arguments rather than from `Decl->Params` — a
+        // callable's arity lives in its type, which no fixed declaration
+        // could express.
+        //
+        // Recorded here for the same reason bConstructs is: the decision
+        // belongs to the resolver, which is the one place that knows the
+        // receiver is the type claiming the FuncType node kind. A backend
+        // re-deriving it would have to identify that type itself, and every
+        // target would then carry the same identification
+        // (rules/zero-hardcode.md).
+        bool bIndirect = false;
     };
 
     // Every callee one compile unit resolved, keyed by the *callee

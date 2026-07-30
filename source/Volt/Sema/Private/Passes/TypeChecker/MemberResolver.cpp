@@ -96,7 +96,12 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         return Resolution{};
     }
 
-    if ( Found.Decl->bApply )
+    // Invoking a callable. The signature is not what the contract wrote down
+    // — it *cannot* be, since a Proc's arity lives in its type arguments —
+    // so it is read off the receiver: result first, then one parameter per
+    // remaining argument. Nothing here names a type or a member; the receiver
+    // being the FuncType claimant is the whole test.
+    if ( IsCallableType( Context, Receiver ) and Found.Decl->bAbstract )
     {
         const Core::SmallVec<SemaTypeId, 2> &Signature = Context.Ctx.Values.Get( Receiver ).Args;
         Core::SmallVec<SemaTypeId, 4> Params;
@@ -104,14 +109,15 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         {
             Params.PushBack( Signature[Index] );
         }
-        // No block slot: an `@[Apply]` signature is the receiver's own
-        // arguments, and a callable takes its argument positionally.
+        // No block slot: the signature is the receiver's own arguments, and a
+        // callable takes its arguments positionally.
         return Resolution{ .Decl       = Found.Decl,
                            .Result     = Signature.IsEmpty() ? SemaTypeId{} : Signature[0],
                            .Params     = std::move( Params ),
                            .BlockParam = SemaTypeId{},
                            .Bindings   = {},
-                           .Receiver   = Receiver };
+                           .Receiver   = Receiver,
+                           .bIndirect  = true };
     }
 
     // A signature's ParamIndex counts against the type that *declares* it,
@@ -190,7 +196,10 @@ Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupFreeF
 
 void Volt::Sema::TypeCheckerPass::Reinstantiate ( TypeCheckerContext &Context, Resolution &Found )
 {
-    if ( Found.Decl == nullptr or Found.Decl->bApply )
+    // An indirect callee's signature came from its receiver's type arguments,
+    // not from `Decl->Params`; recomputing it from the declaration would
+    // overwrite it with the empty contract.
+    if ( Found.Decl == nullptr or Found.bIndirect )
     {
         return;
     }
@@ -293,23 +302,37 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
     }
 }
 
-Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupApplyOn ( TypeCheckerContext &Context,
-                                                                                     SemaTypeId Receiver )
+bool Volt::Sema::TypeCheckerPass::IsCallableType ( const TypeCheckerContext &Context, SemaTypeId Receiver )
 {
     if ( not Context.Ctx.Values.Has( Receiver ) )
     {
-        return Resolution{};
+        return false;
     }
-
     const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
     if ( not Base.IsValid() )
     {
+        return false;
+    }
+    const auto Callable = Context.Ctx.Types.LookupNodeKind( "FuncType" );
+    return Callable.has_value() and *Callable == Base;
+}
+
+Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupCallOn ( TypeCheckerContext &Context,
+                                                                                    SemaTypeId Receiver )
+{
+    if ( not IsCallableType( Context, Receiver ) )
+    {
         return Resolution{};
     }
 
+    // The contract, not a spelling: the callable type declares exactly one
+    // abstract member and that member is what invoking a value means. Reading
+    // it out of the store rather than writing "call" here is what keeps the
+    // member's name Volt's to choose.
+    const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
     for ( const Member &Entry : Context.Ctx.Types.Type( Base ).Members )
     {
-        if ( Entry.bApply )
+        if ( Entry.Kind == EMemberKind::Method and Entry.bAbstract )
         {
             // Re-resolved by name rather than used directly, so the call goes
             // through the same instantiation path as `f.call( x )` would.

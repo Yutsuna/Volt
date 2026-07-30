@@ -33,6 +33,7 @@ namespace Sema
             Meta::Serialize( W, Entry.Bindings );
             Meta::Serialize( W, Entry.Receiver );
             Meta::Serialize( W, Entry.bConstructs );
+            Meta::Serialize( W, Entry.bIndirect );
         }
     }
 
@@ -94,6 +95,10 @@ namespace Sema
                 return false;
             }
             if ( not Meta::Deserialize( R, Entry.bConstructs ) )
+            {
+                return false;
+            }
+            if ( not Meta::Deserialize( R, Entry.bIndirect ) )
             {
                 return false;
             }

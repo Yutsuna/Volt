@@ -42,6 +42,9 @@ struct Resolution
     // `T.new( … )`: the callee is the initializer, and the call constructs.
     // See CalleeEntry::bConstructs — this is where that fact is decided.
     bool bConstructs = false;
+    // `f( x )` on a callable. See CalleeEntry::bIndirect — decided here, in
+    // the one place that knows the receiver claims the FuncType node kind.
+    bool bIndirect = false;
 };
 
 struct TypeCheckerContext

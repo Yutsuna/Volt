@@ -198,7 +198,8 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
                                                                     .BlockParam  = Found.BlockParam,
                                                                     .Bindings    = Found.Bindings,
                                                                     .Receiver    = Found.Receiver,
-                                                                    .bConstructs = Found.bConstructs } );
+                                                                    .bConstructs = Found.bConstructs,
+                                                                    .bIndirect   = Found.bIndirect } );
     }
 
     return Result;

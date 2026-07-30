@@ -431,7 +431,6 @@ namespace Sema
             // but the enum's own identity.)
             void DeclareMembers ( NominalId Id, const Frontend::DeclList &Body )
             {
-                bool bApply     = false;
                 bool bUnhandled = false;
                 std::vector<PendingAnnotation> Pending;
 
@@ -446,7 +445,6 @@ namespace Sema
                     // they do at file scope.
                     if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Ast.Decl( Child ) ) )
                     {
-                        bApply     = bApply or Ast.Text( Anno->Name ) == "Apply";
                         bUnhandled = bUnhandled or Ast.Text( Anno->Name ) == "Unhandled";
                         Pending.push_back( PendingAnnotation{ .Name = Anno->Name, .Args = Anno->Args, .Loc = Anno->Loc } );
                         continue;
@@ -471,7 +469,6 @@ namespace Sema
                                 Slot.Unit       = Unit;
                                 Slot.Decl       = Child;
                                 Slot.bSelf      = Entry.bSelf;
-                                Slot.bApply     = bApply;
                                 Slot.bUnhandled = bUnhandled;
                                 Slot.bAbstract  = Entry.bAbstract;
                                 ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), Slot );
@@ -491,7 +488,6 @@ namespace Sema
                         },
                         Ast.Decl( Child ) );
 
-                    bApply     = false;
                     bUnhandled = false;
                     Pending.clear();
                 }

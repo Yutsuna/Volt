@@ -23,11 +23,21 @@ constexpr std::string_view ConstructorName = "initialize";
 // a free function as a receiver-less Member.
 [[nodiscard]] Resolution LookupFreeFunction ( TypeCheckerContext &Context, std::string_view Name );
 
+// Whether `Receiver` is *the* callable type — the one the stdlib declares
+// with `@[Literal( FuncType )]`. That claim is the only fact needed: a
+// written signature, a lambda and a block all denote one thing, so one type
+// wraps the three node kinds and nothing else can be invoked.
+//
+// This is the same identification `TypeCompat` makes for `nil`
+// (`LookupNodeKind( "NilLiteral" )`) and `ExprInferencer` for a pointee
+// (`LookupNodeKind( "PointerType" )`) — a *node kind* is the compiler's own
+// vocabulary, unlike a Volt type name (rules/zero-hardcode.md).
+[[nodiscard]] bool IsCallableType ( const TypeCheckerContext &Context, SemaTypeId Receiver );
+
 // Calling a value directly — `f( x )` where `f` is not a method name but a
-// callable — invokes whatever member its type declares as `@[Apply]`. Which
-// member that is comes from the annotation, so no member name is ever known
-// to the compiler; a type that declares none is simply not callable.
-[[nodiscard]] Resolution LookupApplyOn ( TypeCheckerContext &Context, SemaTypeId Receiver );
+// callable. The member invoked is the callable type's one abstract contract,
+// found by walking its members rather than by spelling `call` in C++.
+[[nodiscard]] Resolution LookupCallOn ( TypeCheckerContext &Context, SemaTypeId Receiver );
 
 // Recompute a resolution's result, parameters and block slot from its
 // current Bindings. Idempotent, and called again each time inference
