@@ -7,7 +7,6 @@
 let
   gccAttrs = pkgs.gcc16;
   deps = import ./deps.nix { inherit pkgs; };
-  voltBuild = pkgs.callPackage ./volt-build.nix { };
 in
 pkgs.mkShell {
 
@@ -23,7 +22,6 @@ pkgs.mkShell {
       cmake-lint
       ruby-lsp
       graphify
-      voltBuild
     ]);
 
   shellHook = ''
