@@ -344,7 +344,8 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitRaise ( Frontend::Expr
 
 void Volt::Backend::Llvm::LlvmBackend::State::EmitBeginTail ( const Frontend::StmtList &Body,
                                                               llvm::AllocaInst *Slot,
-                                                              llvm::Type *Shape )
+                                                              llvm::Type *Shape,
+                                                              Sema::LayoutId Layout )
 {
     const Frontend::AstContext &Ast = *Frame.Unit->Ast;
     for ( std::size_t Index = 0; Index < Body.Size() and not Terminated() and not Failed(); ++Index )
@@ -354,7 +355,7 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitBeginTail ( const Frontend::St
         {
             if ( const auto *Tail = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Index] ) ); Tail != nullptr )
             {
-                StoreTailValue( EmitExpr( Tail->Expr ), Slot, Shape );
+                StoreTailValue( EmitExpr( Tail->Expr ), Slot, Shape, Layout );
                 continue;
             }
         }
@@ -370,10 +371,13 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBegin ( Frontend::Expr
     // A `begin` in value position needs a slot for the same reason `case`
     // does: its body and every clause are statement lists, so their results
     // converge through storage rather than a phi over a block count fixed only
-    // once the clause ladder is built.
-    llvm::Type *Shape      = TypeOfExpr( Id );
-    llvm::AllocaInst *Slot = nullptr;
-    if ( Shape != nullptr and not IsAggregate( LayoutOfExpr( Id ) ) )
+    // once the clause ladder is built. An aggregate result gets a slot too —
+    // `StoreTailValue` converges it by `EmitStore`'s memcpy, not a plain
+    // `CreateStore` of an SSA struct value.
+    llvm::Type *Shape           = TypeOfExpr( Id );
+    const Sema::LayoutId Layout = LayoutOfExpr( Id );
+    llvm::AllocaInst *Slot      = nullptr;
+    if ( Shape != nullptr )
     {
         Slot = MakeTemp( Shape, "begin.result" );
     }
@@ -385,7 +389,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBegin ( Frontend::Expr
     // The body's own raises, and any call inside it that finds one pending,
     // land in Dispatch — this begin gets first refusal.
     Frame.Rescues.push_back( Dispatch );
-    EmitBeginTail( Node.Body, Slot, Shape );
+    EmitBeginTail( Node.Body, Slot, Shape, Layout );
     Frame.Rescues.pop_back();
     if ( not Terminated() )
     {
@@ -469,7 +473,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBegin ( Frontend::Expr
             EmitStore( VarSlot, ExcPtr, FilterShape );
         }
 
-        EmitBeginTail( Clause->Body, Slot, Shape );
+        EmitBeginTail( Clause->Body, Slot, Shape, Layout );
         if ( not Terminated() )
         {
             static_cast<void>( Builder->CreateBr( Ensure ) );
