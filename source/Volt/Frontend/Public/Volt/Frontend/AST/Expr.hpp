@@ -324,6 +324,23 @@ namespace Frontend
         StmtList EnsureBody;
     };
 
+    // `if Cond [then] ... [else ...] end`, and `unless` after the parser has
+    // negated its condition. An `elsif` chain is a nested If living in the
+    // Else branch — no separate node needed.
+    //
+    // An expression, like CaseExpr and BeginExpr, and for the same reason:
+    // `val = if c ... end` is ordinary Volt, so the node has to be able to
+    // carry a value. Statement position is reached through ParseStatement's
+    // default arm, which wraps it in an ExprStmt.
+    struct If
+    {
+        using Self = If;
+        Core::SourceRange Loc;
+        ExprId Cond;
+        StmtList Then;
+        StmtList Else;
+    };
+
     enum class ExprKind
     {
 
