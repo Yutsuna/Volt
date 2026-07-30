@@ -50,7 +50,10 @@ llvm::AllocaInst *Volt::Backend::Llvm::LlvmBackend::State::MakeTemp ( llvm::Type
     return Entry.CreateAlloca( Shape, nullptr, Name );
 }
 
-void Volt::Backend::Llvm::LlvmBackend::State::StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape )
+void Volt::Backend::Llvm::LlvmBackend::State::StoreTailValue ( llvm::Value *Value,
+                                                               llvm::Value *Slot,
+                                                               llvm::Type *Shape,
+                                                               Sema::LayoutId Layout )
 {
     // A tail expression with no value converges nothing. The ordinary case is a
     // call to a `-> Void` member: `begin level3() rescue e : E then 7 end` in
@@ -64,6 +67,16 @@ void Volt::Backend::Llvm::LlvmBackend::State::StoreTailValue ( llvm::Value *Valu
     // fifteen-line program.
     if ( Value == nullptr or Slot == nullptr or Shape == nullptr or Value->getType()->isVoidTy() )
     {
+        return;
+    }
+
+    // An aggregate value is only ever an address (rules/core-ast.md): the arm
+    // handed back the address of its own storage, and converging it into the
+    // slot is `EmitStore`'s ordinary memcpy, exactly like assigning one String
+    // to another — never a load into an SSA value of the struct type.
+    if ( IsAggregate( Layout ) )
+    {
+        EmitStore( Slot, Value, Layout );
         return;
     }
 
