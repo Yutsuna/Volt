@@ -42,12 +42,15 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     RejectNilableTypes( Context );
 
     TypeCheckerPass::TypeCheckerContext State{ Context, TypeCheckerPass::MetadataExprs( Context.Ast ) };
-    TypeCheckerPass::WalkDecls( State, Context.Ast.TopDecls );
 
+    // Top-level statements first, same order ScopeResolver settled on: a file
+    // is a module, its top-level locals are its globals, and a `def` anywhere
+    // in the file can read them regardless of textual position.
     for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
     {
         TypeCheckerPass::WalkStmt( State, Id );
     }
+    TypeCheckerPass::WalkDecls( State, Context.Ast.TopDecls );
 
     // Snapshot the settled resolutions into the unit before the pass-local
     // state dies — inference refines entries in place, so only the final map
