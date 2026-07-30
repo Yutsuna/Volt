@@ -196,8 +196,13 @@ namespace Frontend
         // --- Grammar: statements (ParseStmt.cpp) -------------------------
 
         [[nodiscard]] StmtId ParseStatement ();
-        [[nodiscard]] StmtId ParseIf ();
-        [[nodiscard]] StmtId ParseElsif ();
+        // If is an expression node (Expr.hpp), so these return an ExprId and
+        // are reached from ParsePrimary; ParseStatement wraps the result in an
+        // ExprStmt through its default arm.
+        [[nodiscard]] ExprId ParseIf ();
+        [[nodiscard]] ExprId ParseElsif ();
+        [[nodiscard]] ExprId ParseUnless ();
+        void ParseConditionalTail ( If &Node, const char *CloseHint );
         [[nodiscard]] StmtId ParseWhile ();
         [[nodiscard]] StmtId ParseUntil ();
         [[nodiscard]] StmtId ParseFor ();
@@ -211,6 +216,20 @@ namespace Frontend
         // could ever see it.
         void ParseStatementBlock ( StmtList &Out, TokenKind ExtraTerminator = TokenKind::Eof );
         [[nodiscard]] StmtId ApplyModifiers ( StmtId Inner );
+
+        /// Lifts an expression into statement position.
+        [[nodiscard]] StmtId WrapExpr ( ExprId Expr, Core::SourceRange Span );
+
+        /// `not Cond` — the single spelling of a negated condition, shared by
+        /// `unless` and `until` in both their block and modifier forms. `not`
+        /// rather than `!` because that is what `Bool` declares abstract
+        /// (source/Lib/Primitives/Bool.vl), so it is the one the backend
+        /// supplies directly instead of calling a Volt body.
+        [[nodiscard]] ExprId NegateCond ( ExprId Cond, Core::SourceRange Span );
+
+        /// True when Inner is an ExprStmt wrapping a `begin ... end` block —
+        /// the one shape that makes `stmt while/until cond` a post-test loop.
+        [[nodiscard]] bool WrapsBeginBlock ( StmtId Inner ) const;
 
         // --- Grammar: declarations (ParseDecl.cpp) -----------------------
 

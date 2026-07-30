@@ -206,22 +206,6 @@ private:
 
         std::visit(
             Meta::Overloaded{
-                // Then and Else are separate Branch scopes: a Then
-                // local is never visible in Else.
-                [&] ( const Frontend::If &Node )
-                {
-                    WalkExpr( Node.Cond, Current );
-                    const ScopeId ThenScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                    for ( const Frontend::StmtId Child : Node.Then )
-                    {
-                        WalkStmt( Child, ThenScope );
-                    }
-                    const ScopeId ElseScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
-                    for ( const Frontend::StmtId Child : Node.Else )
-                    {
-                        WalkStmt( Child, ElseScope );
-                    }
-                },
                 [&] ( const Frontend::While &Node )
                 {
                     WalkExpr( Node.Cond, Current );
@@ -358,6 +342,22 @@ private:
                 // scope. Each RescueClause pushes and populates its
                 // own Branch scope already (WalkStmt above), so its
                 // clauses are simply walked in Current here.
+                // Then and Else are separate Branch scopes: a Then
+                // local is never visible in Else.
+                [&] ( const Frontend::If &Node )
+                {
+                    WalkExpr( Node.Cond, Current );
+                    const ScopeId ThenScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.Then )
+                    {
+                        WalkStmt( Child, ThenScope );
+                    }
+                    const ScopeId ElseScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );
+                    for ( const Frontend::StmtId Child : Node.Else )
+                    {
+                        WalkStmt( Child, ElseScope );
+                    }
+                },
                 [&] ( const Frontend::BeginExpr &Node )
                 {
                     const ScopeId BodyScope = Context.Scopes.PushScope( Current, EScopeKind::Branch );

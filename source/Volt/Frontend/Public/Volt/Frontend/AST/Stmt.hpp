@@ -19,23 +19,18 @@ namespace Frontend
         ExprId Expr{};
     };
 
-    // `if Cond ... [else ...] end`. An `elsif` chain is represented as a
-    // nested If living in the Else branch — no separate node needed.
-    struct If
-    {
-
-        Core::SourceRange Loc{};
-        ExprId Cond{};
-        StmtList Then{};
-        StmtList Else{};
-    };
-
+    // `while Cond ... end`, and `until` after the parser has negated its
+    // condition. bPostTest marks the do-while form — `begin ... end while c`
+    // — whose body runs once before Cond is ever evaluated. A flag rather
+    // than a desugaring so that `next` still branches to the test and not to
+    // the top of the body.
     struct While
     {
 
         Core::SourceRange Loc{};
         ExprId Cond{};
         StmtList Body{};
+        bool bPostTest{};
     };
 
     // `return [Value]` — Value is invalid for a bare `return`.

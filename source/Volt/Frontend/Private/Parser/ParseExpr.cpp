@@ -430,6 +430,12 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
     case TokenKind::KwCase:
         return ParseCaseExpr();
 
+    case TokenKind::KwIf:
+        return ParseIf();
+
+    case TokenKind::KwUnless:
+        return ParseUnless();
+
     case TokenKind::Dot:
         return ParsePostfix( ParseDotCall() );
 

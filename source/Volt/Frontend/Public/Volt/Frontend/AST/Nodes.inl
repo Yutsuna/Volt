@@ -68,10 +68,10 @@ VOLT_EXPR_SUGAR( Section )
 VOLT_EXPR_SUGAR( Composition )
 VOLT_EXPR( RaiseExpr )
 VOLT_EXPR( BeginExpr )
+VOLT_EXPR( If )
 
 // --- Statements ------------------------------------------------------------
 VOLT_STMT( ExprStmt )
-VOLT_STMT( If )
 VOLT_STMT( While )
 VOLT_STMT( Return )
 VOLT_STMT( Break )
