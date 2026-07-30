@@ -102,7 +102,7 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::EmitClosureBody ( Front
                                                                            const Frontend::StmtList *Stmts )
 {
     const UnitView &Unit          = *Frame.Unit;
-    const Sema::UnitTypes &Values = *Unit.Values;
+    const Sema::UnitTypes &Values = *Frame.Values;
 
     std::vector<llvm::Type *> Slots;
     Slots.reserve( Params.Size() + 1 );
@@ -159,6 +159,8 @@ llvm::Function *Volt::Backend::Llvm::LlvmBackend::State::EmitClosureBody ( Front
     Frame               = FunctionFrame{};
     Frame.Fn            = Fn;
     Frame.Unit          = Enclosing.Unit;
+    Frame.Values        = Enclosing.Values;
+    Frame.Callees       = Enclosing.Callees;
     Frame.Owner         = Enclosing.Owner;
     Frame.OwnerArgs     = Enclosing.OwnerArgs;
     Frame.Entry         = llvm::BasicBlock::Create( Context, "entry", Fn );
