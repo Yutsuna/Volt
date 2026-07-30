@@ -259,11 +259,15 @@ namespace Frontend
     // `case [Target] when Pattern1, Pattern2 [then] Body... [else ElseBody...] end`.
     // Target is invalid for a `case` without target expression (defaults to true matching).
     // Clauses is a StmtList of StmtIds referring to WhenClause nodes.
+    // CaseLowering (order 22) folds Target into each clause's patterns and moves it here —
+    // Scrutinee keeps the scrutinee sub-expression reachable for ScopeResolver/TypeChecker
+    // without a backend having to re-derive it from folded patterns (rules/core-ast.md).
     struct CaseExpr
     {
 
         Core::SourceRange Loc;
         ExprId Target;
+        ExprId Scrutinee;
         StmtList Clauses;
         StmtList ElseBody;
     };

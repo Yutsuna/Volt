@@ -32,7 +32,7 @@ namespace Frontend
         static_assert( Meta::FieldCount<NilLiteral>() == 0 );
         static_assert( Meta::FieldCount<DotCall>() == 3 );
         static_assert( Meta::FieldCount<WhenClause>() == 2 );
-        static_assert( Meta::FieldCount<CaseExpr>() == 3 );
+        static_assert( Meta::FieldCount<CaseExpr>() == 4 );
         static_assert( Meta::EnumName( ExprKind::IntLiteral ) == "IntLiteral" );
         static_assert( Meta::EnumName( ExprKind::CaseExpr ) == "CaseExpr" );
 #endif
