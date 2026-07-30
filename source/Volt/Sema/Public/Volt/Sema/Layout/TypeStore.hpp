@@ -499,26 +499,6 @@ namespace Sema
             return Find( ByNodeKind, NodeKind );
         }
 
-        // --- Exception root ------------------------------------------------
-
-        // The one stdlib type annotated `@[ExceptionRoot]` (Exception.vl).
-        // `raise`/`rescue` reason about it through this binding instead of
-        // the C++ side ever spelling out the Volt type name "Exception".
-        bool SetExceptionRoot ( NominalId Id )
-        {
-            if ( ExceptionRoot.IsValid() and ExceptionRoot != Id )
-            {
-                return false;
-            }
-            ExceptionRoot = Id;
-            return true;
-        }
-
-        [[nodiscard]] std::optional<NominalId> GetExceptionRoot () const
-        {
-            return ExceptionRoot.IsValid() ? std::optional<NominalId>{ ExceptionRoot } : std::nullopt;
-        }
-
         // --- Layouts -----------------------------------------------------
 
         [[nodiscard]] LayoutId AddPrimitive ( Symbol Spelling, std::uint32_t Bits )
@@ -578,7 +558,7 @@ namespace Sema
         }
 
         // Serialises the whole store: both arenas, both name indexes,
-        // Functions + its index, Modules, ExceptionRoot and the store's own
+        // Functions + its index, Modules and the store's own
         // (private) StringInterner. A hand-written pair rather than a
         // Meta::Reflected fallback because TypeStore is a class with private
         // state and derived indexes, exactly like Core::Arena/StringInterner
@@ -608,7 +588,6 @@ namespace Sema
             Layouts = Core::Arena<LayoutNode, LayoutId>{};
             ByName.clear();
             ByNodeKind.clear();
-            ExceptionRoot = NominalId{};
             Functions.clear();
             FunctionByName.clear();
             Modules.clear();
