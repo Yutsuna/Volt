@@ -744,6 +744,23 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 }
                 return Result;
             },
+            // `if` is an expression — `val = if c ... else ... end` — so its
+            // type is the join of the branches' trailing values, computed
+            // exactly as CaseExpr's is. TrailingType also *walks* each branch,
+            // which is what types the statements inside it.
+            //
+            // A branch that produces nothing (an `if` with no `else`, or one
+            // whose body ends in an assignment) contributes an invalid type,
+            // and UnifyBranchTypes lets the other side stand. That is the
+            // right answer in statement position, where the enclosing ExprStmt
+            // discards the value anyway.
+            [&] ( const Frontend::If &Expr ) -> SemaTypeId
+            {
+                static_cast<void>( InferExpr( Context, Expr.Cond ) );
+                const SemaTypeId Then = TrailingType( Context, Expr.Then );
+                const SemaTypeId Else = TrailingType( Context, Expr.Else );
+                return Context.UnifyBranchTypes( Then, Else );
+            },
             [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Context, Expr ); },
             [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Context, Id, Expr ); },
             // No Frontend::DotCall branch: DotCallLowering (order 23) rewrites
