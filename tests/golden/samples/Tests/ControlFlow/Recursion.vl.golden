@@ -18,41 +18,43 @@ Program 'samples/Tests/ControlFlow/Recursion.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @5:25
 │  └─ body
-│     └─ If @6:3
-│        ├─ cond
-│        │  └─ Binary '<=' @6:8
-│        │     ├─ lhs
-│        │     │  └─ Identifier 'n' @6:6
-│        │     └─ rhs
-│        │        └─ IntLiteral '1' @6:11
-│        ├─ then
-│        │  └─ ExprStmt @7:5
-│        │     └─ expr
-│        │        └─ Identifier 'n' @7:5
-│        └─ else
-│           └─ ExprStmt @9:5
-│              └─ expr
-│                 └─ Binary '+' @9:18
-│                    ├─ lhs
-│                    │  └─ Call @9:8
-│                    │     ├─ callee
-│                    │     │  └─ Identifier 'fib' @9:5
-│                    │     └─ args
-│                    │        └─ Binary '-' @9:12
-│                    │           ├─ lhs
-│                    │           │  └─ Identifier 'n' @9:10
-│                    │           └─ rhs
-│                    │              └─ IntLiteral '1' @9:14
-│                    └─ rhs
-│                       └─ Call @9:23
-│                          ├─ callee
-│                          │  └─ Identifier 'fib' @9:20
-│                          └─ args
-│                             └─ Binary '-' @9:27
-│                                ├─ lhs
-│                                │  └─ Identifier 'n' @9:25
-│                                └─ rhs
-│                                   └─ IntLiteral '2' @9:29
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ If @6:3
+│              ├─ cond
+│              │  └─ Binary '<=' @6:8
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'n' @6:6
+│              │     └─ rhs
+│              │        └─ IntLiteral '1' @6:11
+│              ├─ then
+│              │  └─ ExprStmt @7:5
+│              │     └─ expr
+│              │        └─ Identifier 'n' @7:5
+│              └─ else
+│                 └─ ExprStmt @9:5
+│                    └─ expr
+│                       └─ Binary '+' @9:18
+│                          ├─ lhs
+│                          │  └─ Call @9:8
+│                          │     ├─ callee
+│                          │     │  └─ Identifier 'fib' @9:5
+│                          │     └─ args
+│                          │        └─ Binary '-' @9:12
+│                          │           ├─ lhs
+│                          │           │  └─ Identifier 'n' @9:10
+│                          │           └─ rhs
+│                          │              └─ IntLiteral '1' @9:14
+│                          └─ rhs
+│                             └─ Call @9:23
+│                                ├─ callee
+│                                │  └─ Identifier 'fib' @9:20
+│                                └─ args
+│                                   └─ Binary '-' @9:27
+│                                      ├─ lhs
+│                                      │  └─ Identifier 'n' @9:25
+│                                      └─ rhs
+│                                         └─ IntLiteral '2' @9:29
 ├─ Method 'main' @14:1
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @14:13

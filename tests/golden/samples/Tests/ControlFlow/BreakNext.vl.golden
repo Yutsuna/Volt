@@ -7,22 +7,24 @@ Program 'samples/Tests/ControlFlow/BreakNext.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @3:31
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @3:43
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
 ├─ Method 'test_loop_control' @8:1
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @8:26
@@ -56,28 +58,32 @@ Program 'samples/Tests/ControlFlow/BreakNext.vl'
 │     │     │        │  └─ Identifier 'i' @12:5
 │     │     │        └─ value
 │     │     │           └─ IntLiteral '1' @12:10
-│     │     ├─ If @13:10
-│     │     │  ├─ cond
-│     │     │  │  └─ Binary '==' @13:19
-│     │     │  │     ├─ lhs
-│     │     │  │     │  └─ Binary '%' @13:15
-│     │     │  │     │     ├─ lhs
-│     │     │  │     │     │  └─ Identifier 'i' @13:13
-│     │     │  │     │     └─ rhs
-│     │     │  │     │        └─ IntLiteral '2' @13:17
-│     │     │  │     └─ rhs
-│     │     │  │        └─ IntLiteral '0' @13:22
-│     │     │  └─ then
-│     │     │     └─ Next @13:5
-│     │     ├─ If @14:11
-│     │     │  ├─ cond
-│     │     │  │  └─ Binary '>' @14:16
-│     │     │  │     ├─ lhs
-│     │     │  │     │  └─ Identifier 'i' @14:14
-│     │     │  │     └─ rhs
-│     │     │  │        └─ IntLiteral '7' @14:18
-│     │     │  └─ then
-│     │     │     └─ Break @14:5
+│     │     ├─ ExprStmt @13:10
+│     │     │  └─ expr
+│     │     │     └─ If @13:10
+│     │     │        ├─ cond
+│     │     │        │  └─ Binary '==' @13:19
+│     │     │        │     ├─ lhs
+│     │     │        │     │  └─ Binary '%' @13:15
+│     │     │        │     │     ├─ lhs
+│     │     │        │     │     │  └─ Identifier 'i' @13:13
+│     │     │        │     │     └─ rhs
+│     │     │        │     │        └─ IntLiteral '2' @13:17
+│     │     │        │     └─ rhs
+│     │     │        │        └─ IntLiteral '0' @13:22
+│     │     │        └─ then
+│     │     │           └─ Next @13:5
+│     │     ├─ ExprStmt @14:11
+│     │     │  └─ expr
+│     │     │     └─ If @14:11
+│     │     │        ├─ cond
+│     │     │        │  └─ Binary '>' @14:16
+│     │     │        │     ├─ lhs
+│     │     │        │     │  └─ Identifier 'i' @14:14
+│     │     │        │     └─ rhs
+│     │     │        │        └─ IntLiteral '7' @14:18
+│     │     │        └─ then
+│     │     │           └─ Break @14:5
 │     │     └─ ExprStmt @15:5
 │     │        └─ expr
 │     │           └─ Assign '+=' @15:9
@@ -92,56 +98,70 @@ Program 'samples/Tests/ControlFlow/BreakNext.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @21:30
 │  └─ body
-│     ├─ ExprStmt @22:3
+│     ├─ ExprStmt @26:3
 │     │  └─ expr
-│     │     └─ Call @22:3
+│     │     └─ Assign '=' @26:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'found' @26:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @26:11
+│     ├─ ExprStmt @27:3
+│     │  └─ expr
+│     │     └─ Call @27:3
 │     │        ├─ callee
-│     │        │  └─ Member 'each' @22:3
+│     │        │  └─ Member 'each' @27:3
 │     │        │     └─ object
-│     │        │        └─ ArrayLit @22:12
+│     │        │        └─ ArrayLit @27:12
 │     │        │           └─ elements
-│     │        │              ├─ IntLiteral '10' @22:14
-│     │        │              ├─ IntLiteral '20' @22:18
-│     │        │              └─ IntLiteral '30' @22:22
+│     │        │              ├─ IntLiteral '10' @27:14
+│     │        │              ├─ IntLiteral '20' @27:18
+│     │        │              └─ IntLiteral '30' @27:22
 │     │        └─ block_arg
-│     │           └─ Block @22:3
+│     │           └─ Block @27:3
 │     │              ├─ params
-│     │              │  └─ Param 'x' @22:7
+│     │              │  └─ Param 'x' @27:7
 │     │              └─ body
-│     │                 └─ If @23:13
-│     │                    ├─ cond
-│     │                    │  └─ Binary '==' @23:18
-│     │                    │     ├─ lhs
-│     │                    │     │  └─ Identifier 'x' @23:16
-│     │                    │     └─ rhs
-│     │                    │        └─ IntLiteral '20' @23:21
-│     │                    └─ then
-│     │                       └─ Break @23:5
-│     │                          └─ value
-│     │                             └─ Identifier 'x' @23:11
-│     └─ ExprStmt @25:3
+│     │                 ├─ ExprStmt @28:5
+│     │                 │  └─ expr
+│     │                 │     └─ Assign '=' @28:11
+│     │                 │        ├─ target
+│     │                 │        │  └─ Identifier 'found' @28:5
+│     │                 │        └─ value
+│     │                 │           └─ Identifier 'x' @28:13
+│     │                 └─ ExprStmt @29:11
+│     │                    └─ expr
+│     │                       └─ If @29:11
+│     │                          ├─ cond
+│     │                          │  └─ Binary '==' @29:16
+│     │                          │     ├─ lhs
+│     │                          │     │  └─ Identifier 'x' @29:14
+│     │                          │     └─ rhs
+│     │                          │        └─ IntLiteral '20' @29:19
+│     │                          └─ then
+│     │                             └─ Break @29:5
+│     └─ ExprStmt @31:3
 │        └─ expr
-│           └─ IntLiteral '0' @25:3
-├─ ExprStmt @29:1
+│           └─ Identifier 'found' @31:3
+├─ ExprStmt @35:1
 │  └─ expr
-│     └─ Call @29:8
+│     └─ Call @35:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @29:1
+│        │  └─ Identifier 'assert!' @35:1
 │        └─ args
-│           └─ Binary '==' @29:28
+│           └─ Binary '==' @35:28
 │              ├─ lhs
-│              │  └─ Identifier 'test_loop_control' @29:10
+│              │  └─ Identifier 'test_loop_control' @35:10
 │              └─ rhs
-│                 └─ IntLiteral '16' @29:31
-└─ ExprStmt @30:1
+│                 └─ IntLiteral '16' @35:31
+└─ ExprStmt @36:1
    └─ expr
-      └─ Call @30:8
+      └─ Call @36:8
          ├─ callee
-         │  └─ Identifier 'assert!' @30:1
+         │  └─ Identifier 'assert!' @36:1
          └─ args
-            └─ Binary '==' @30:32
+            └─ Binary '==' @36:32
                ├─ lhs
-               │  └─ Identifier 'test_break_with_value' @30:10
+               │  └─ Identifier 'test_break_with_value' @36:10
                └─ rhs
-                  └─ IntLiteral '20' @30:35
+                  └─ IntLiteral '20' @36:35
 --- exit 0 ---

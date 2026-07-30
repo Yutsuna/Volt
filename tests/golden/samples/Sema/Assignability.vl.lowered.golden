@@ -151,17 +151,19 @@ Program 'samples/Sema/Assignability.vl'
       │        │              └─ TypeRef 'UInt8' @65:34
       │        └─ args
       │           └─ IntLiteral '8' @65:49
-      └─ If @66:3
-         ├─ cond
-         │  └─ Binary '!=' @66:10
-         │     ├─ lhs
-         │     │  └─ Identifier 'buf' @66:6
-         │     └─ rhs
-         │        └─ NilLiteral @66:13
-         └─ then
-            └─ ExprStmt @67:5
-               └─ expr
-                  └─ Member 'free' @67:8
-                     └─ object
-                        └─ Identifier 'buf' @67:5
+      └─ ExprStmt @66:3
+         └─ expr
+            └─ If @66:3
+               ├─ cond
+               │  └─ Binary '!=' @66:10
+               │     ├─ lhs
+               │     │  └─ Identifier 'buf' @66:6
+               │     └─ rhs
+               │        └─ NilLiteral @66:13
+               └─ then
+                  └─ ExprStmt @67:5
+                     └─ expr
+                        └─ Member 'free' @67:8
+                           └─ object
+                              └─ Identifier 'buf' @67:5
 --- exit 0 ---

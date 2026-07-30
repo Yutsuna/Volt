@@ -7,22 +7,24 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'Assertion failed ' @3:11
-│                             ├─ Identifier '__FILE__' @3:31
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__LINE__' @3:43
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
 ├─ Class 'Event' @9:1
 │  └─ body
 │     ├─ Field 'name' getter @10:3
@@ -42,6 +44,8 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │        └─ default
 │     │           └─ BoolLiteral false @13:53
 │     └─ Method 'mark_handled' @16:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @16:23
 │        └─ body
 │           └─ ExprStmt @17:5
 │              └─ expr
@@ -67,11 +71,15 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │        └─ decl_type
 │     │           └─ TypeRef 'Bool' @27:46
 │     ├─ Method 'email' @30:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'String' @30:16
 │     │  └─ body
 │     │     └─ ExprStmt @31:5
 │     │        └─ expr
 │     │           └─ InstanceVar '@email' @31:5
 │     └─ Method 'active?' @34:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @34:18
 │        └─ body
 │           └─ ExprStmt @35:5
 │              └─ expr
@@ -107,30 +115,36 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │     │        │  └─ InstanceVar '@attempts' @49:5
 │     │     │        └─ value
 │     │     │           └─ IntLiteral '1' @49:18
-│     │     ├─ If @50:5
-│     │     │  ├─ cond
-│     │     │  │  └─ Binary '>=' @50:18
-│     │     │  │     ├─ lhs
-│     │     │  │     │  └─ InstanceVar '@attempts' @50:8
-│     │     │  │     └─ rhs
-│     │     │  │        └─ IntLiteral '3' @50:21
-│     │     │  └─ then
-│     │     │     └─ ExprStmt @51:7
-│     │     │        └─ expr
-│     │     │           └─ Assign '=' @51:18
-│     │     │              ├─ target
-│     │     │              │  └─ InstanceVar '@connected' @51:7
-│     │     │              └─ value
-│     │     │                 └─ BoolLiteral true @51:20
+│     │     ├─ ExprStmt @50:5
+│     │     │  └─ expr
+│     │     │     └─ If @50:5
+│     │     │        ├─ cond
+│     │     │        │  └─ Binary '>=' @50:18
+│     │     │        │     ├─ lhs
+│     │     │        │     │  └─ InstanceVar '@attempts' @50:8
+│     │     │        │     └─ rhs
+│     │     │        │        └─ IntLiteral '3' @50:21
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @51:7
+│     │     │              └─ expr
+│     │     │                 └─ Assign '=' @51:18
+│     │     │                    ├─ target
+│     │     │                    │  └─ InstanceVar '@connected' @51:7
+│     │     │                    └─ value
+│     │     │                       └─ BoolLiteral true @51:20
 │     │     └─ ExprStmt @53:5
 │     │        └─ expr
 │     │           └─ InstanceVar '@connected' @53:5
 │     ├─ Method 'attempts' @56:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @56:19
 │     │  └─ body
 │     │     └─ ExprStmt @57:5
 │     │        └─ expr
 │     │           └─ InstanceVar '@attempts' @57:5
 │     └─ Method 'connected?' @60:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @60:21
 │        └─ body
 │           └─ ExprStmt @61:5
 │              └─ expr
@@ -165,7 +179,7 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │  │     ├─ lhs
 │     │  │     │  └─ Identifier 'index' @70:9
 │     │  │     └─ rhs
-│     │  │        └─ Member 'length' @70:23
+│     │  │        └─ Member 'size' @70:23
 │     │  │           └─ object
 │     │  │              └─ Identifier 'events' @70:17
 │     │  └─ body
@@ -231,19 +245,19 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │           └─ BoolLiteral false @81:11
 │     ├─ While @82:3
 │     │  ├─ cond
-│     │  │  └─ Binary 'and' @82:33
+│     │  │  └─ Binary 'and' @82:31
 │     │  │     ├─ lhs
 │     │  │     │  └─ Binary '<' @82:15
 │     │  │     │     ├─ lhs
 │     │  │     │     │  └─ Identifier 'index' @82:9
 │     │  │     │     └─ rhs
-│     │  │     │        └─ Member 'length' @82:25
+│     │  │     │        └─ Member 'size' @82:25
 │     │  │     │           └─ object
 │     │  │     │              └─ Identifier 'accounts' @82:17
 │     │  │     └─ rhs
-│     │  │        └─ Unary 'not' @82:37
+│     │  │        └─ Unary 'not' @82:35
 │     │  │           └─ operand
-│     │  │              └─ Identifier 'found' @82:41
+│     │  │              └─ Identifier 'found' @82:39
 │     │  └─ body
 │     │     ├─ ExprStmt @83:5
 │     │     │  └─ expr
@@ -256,37 +270,39 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │     │              │  └─ Identifier 'accounts' @83:15
 │     │     │              └─ args
 │     │     │                 └─ Identifier 'index' @83:24
-│     │     └─ If @84:5
-│     │        ├─ cond
-│     │        │  └─ Binary 'and' @84:38
-│     │        │     ├─ lhs
-│     │        │     │  └─ Binary '==' @84:22
-│     │        │     │     ├─ lhs
-│     │        │     │     │  └─ Member 'email' @84:15
-│     │        │     │     │     └─ object
-│     │        │     │     │        └─ Identifier 'account' @84:8
-│     │        │     │     └─ rhs
-│     │        │     │        └─ Identifier 'target_email' @84:25
-│     │        │     └─ rhs
-│     │        │        └─ Member 'active?' @84:49
-│     │        │           └─ object
-│     │        │              └─ Identifier 'account' @84:42
-│     │        ├─ then
-│     │        │  └─ ExprStmt @85:7
-│     │        │     └─ expr
-│     │        │        └─ Assign '=' @85:13
-│     │        │           ├─ target
-│     │        │           │  └─ Identifier 'found' @85:7
-│     │        │           └─ value
-│     │        │              └─ BoolLiteral true @85:15
-│     │        └─ else
-│     │           └─ ExprStmt @87:7
-│     │              └─ expr
-│     │                 └─ Assign '+=' @87:13
-│     │                    ├─ target
-│     │                    │  └─ Identifier 'index' @87:7
-│     │                    └─ value
-│     │                       └─ IntLiteral '1' @87:16
+│     │     └─ ExprStmt @84:5
+│     │        └─ expr
+│     │           └─ If @84:5
+│     │              ├─ cond
+│     │              │  └─ Binary 'and' @84:38
+│     │              │     ├─ lhs
+│     │              │     │  └─ Binary '==' @84:22
+│     │              │     │     ├─ lhs
+│     │              │     │     │  └─ Member 'email' @84:15
+│     │              │     │     │     └─ object
+│     │              │     │     │        └─ Identifier 'account' @84:8
+│     │              │     │     └─ rhs
+│     │              │     │        └─ Identifier 'target_email' @84:25
+│     │              │     └─ rhs
+│     │              │        └─ Member 'active?' @84:49
+│     │              │           └─ object
+│     │              │              └─ Identifier 'account' @84:42
+│     │              ├─ then
+│     │              │  └─ ExprStmt @85:7
+│     │              │     └─ expr
+│     │              │        └─ Assign '=' @85:13
+│     │              │           ├─ target
+│     │              │           │  └─ Identifier 'found' @85:7
+│     │              │           └─ value
+│     │              │              └─ BoolLiteral true @85:15
+│     │              └─ else
+│     │                 └─ ExprStmt @87:7
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @87:13
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'index' @87:7
+│     │                          └─ value
+│     │                             └─ IntLiteral '1' @87:16
 │     └─ ExprStmt @90:3
 │        └─ expr
 │           └─ Identifier 'found' @90:3
@@ -342,7 +358,7 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │  │     └─ decl_type
 │  │        └─ TypeRef 'String' @101:34
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @101:46
+│  │  └─ TypeRef 'UInt64' @101:46
 │  └─ body
 │     ├─ ExprStmt @102:3
 │     │  └─ expr
@@ -350,7 +366,7 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │     │        ├─ target
 │     │        │  └─ Identifier 'length' @102:3
 │     │        └─ value
-│     │           └─ Member 'length' @102:16
+│     │           └─ Member 'size' @102:16
 │     │              └─ object
 │     │                 └─ Identifier 'text' @102:12
 │     ├─ ExprStmt @103:3
@@ -440,7 +456,7 @@ Program 'samples/Tests/ControlFlow/WhileLoop.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @118:1
 │        └─ args
-│           └─ Member 'handled?' @118:27
+│           └─ Member 'handled' @118:27
 │              └─ object
 │                 └─ Index @118:24
 │                    ├─ object

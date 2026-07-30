@@ -25,6 +25,14 @@ end
 assert!(val == "greater")
 
 
+val2 = if 10 < 5 then
+  "lesser"
+else
+  "greater"
+end
+assert!(val2 == "greater")
+
+
 res_then = if true then "oui" else "non" end
 assert!( res_then == "oui" )
 #{ TODO

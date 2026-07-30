@@ -7,26 +7,28 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'FAIL ' @3:11
-│                             ├─ Identifier '__FILE__' @3:19
-│                             ├─ StringLiteral ':\tCalled by ' @3:11
-│                             ├─ Identifier '__FUNCTION__' @3:43
-│                             ├─ StringLiteral ' at ' @3:11
-│                             ├─ Identifier '__LINE__' @3:62
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__COLUMN__' @3:74
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'FAIL ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:19
+│                                   ├─ StringLiteral ':\tCalled by ' @3:11
+│                                   ├─ Identifier '__FUNCTION__' @3:43
+│                                   ├─ StringLiteral ' at ' @3:11
+│                                   ├─ Identifier '__LINE__' @3:62
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__COLUMN__' @3:74
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
@@ -298,8 +300,10 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │           │        └─ Identifier 'raw_users' @34:15
 │              │           └─ block_arg
 │              │              └─ Section instance_method 'empty?' negated @35:13
-│              └─ args
-│                 └─ Identifier 'transform' @36:9
+│              └─ block_arg
+│                 └─ Section static_capture @36:9
+│                    └─ target_expr
+│                       └─ Identifier 'transform' @36:10
 ├─ ExprStmt @37:1
 │  └─ expr
 │     └─ Call @37:8

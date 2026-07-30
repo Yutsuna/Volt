@@ -7,33 +7,35 @@ Program 'samples/Tests/ControlFlow/UntilLoop.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Binary '+' @3:11
-│                          ├─ lhs
-│                          │  └─ Binary '+' @3:11
-│                          │     ├─ lhs
-│                          │     │  └─ Binary '+' @3:11
-│                          │     │     ├─ lhs
-│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
-│                          │     │     └─ rhs
-│                          │     │        └─ StringLiteral 'samples/Tests/ControlFlow/UntilLoop.vl' @3:31
-│                          │     └─ rhs
-│                          │        └─ StringLiteral ':' @3:11
-│                          └─ rhs
-│                             └─ Call @3:11
-│                                └─ callee
-│                                   └─ Member 'to_string' @3:11
-│                                      └─ object
-│                                         └─ IntLiteral '3' @3:43
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/ControlFlow/UntilLoop.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
 ├─ Method 'test_until_standard' @8:1
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @8:28
@@ -220,15 +222,17 @@ Program 'samples/Tests/ControlFlow/UntilLoop.vl'
 │     │     │              │  └─ Identifier 'i' @44:5
 │     │     │              └─ rhs
 │     │     │                 └─ IntLiteral '1' @44:10
-│     │     └─ If @45:5
-│     │        ├─ cond
-│     │        │  └─ Binary '==' @45:10
-│     │        │     ├─ lhs
-│     │        │     │  └─ Identifier 'i' @45:8
-│     │        │     └─ rhs
-│     │        │        └─ IntLiteral '7' @45:13
-│     │        └─ then
-│     │           └─ Break @46:7
+│     │     └─ ExprStmt @45:5
+│     │        └─ expr
+│     │           └─ If @45:5
+│     │              ├─ cond
+│     │              │  └─ Binary '==' @45:10
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'i' @45:8
+│     │              │     └─ rhs
+│     │              │        └─ IntLiteral '7' @45:13
+│     │              └─ then
+│     │                 └─ Break @46:7
 │     └─ ExprStmt @50:3
 │        └─ expr
 │           └─ Call @50:10
@@ -279,19 +283,21 @@ Program 'samples/Tests/ControlFlow/UntilLoop.vl'
 │     │     │              │  └─ Identifier 'i' @59:5
 │     │     │              └─ rhs
 │     │     │                 └─ IntLiteral '1' @59:10
-│     │     ├─ If @61:5
-│     │     │  ├─ cond
-│     │     │  │  └─ Binary '==' @61:14
-│     │     │  │     ├─ lhs
-│     │     │  │     │  └─ Binary '%' @61:10
-│     │     │  │     │     ├─ lhs
-│     │     │  │     │     │  └─ Identifier 'i' @61:8
-│     │     │  │     │     └─ rhs
-│     │     │  │     │        └─ IntLiteral '2' @61:12
-│     │     │  │     └─ rhs
-│     │     │  │        └─ IntLiteral '0' @61:17
-│     │     │  └─ then
-│     │     │     └─ Next @62:7
+│     │     ├─ ExprStmt @61:5
+│     │     │  └─ expr
+│     │     │     └─ If @61:5
+│     │     │        ├─ cond
+│     │     │        │  └─ Binary '==' @61:14
+│     │     │        │     ├─ lhs
+│     │     │        │     │  └─ Binary '%' @61:10
+│     │     │        │     │     ├─ lhs
+│     │     │        │     │     │  └─ Identifier 'i' @61:8
+│     │     │        │     │     └─ rhs
+│     │     │        │     │        └─ IntLiteral '2' @61:12
+│     │     │        │     └─ rhs
+│     │     │        │        └─ IntLiteral '0' @61:17
+│     │     │        └─ then
+│     │     │           └─ Next @62:7
 │     │     └─ ExprStmt @65:5
 │     │        └─ expr
 │     │           └─ Assign '=' @65:13
@@ -332,7 +338,7 @@ Program 'samples/Tests/ControlFlow/UntilLoop.vl'
 │     │        │  └─ Identifier 'iterations' @74:3
 │     │        └─ value
 │     │           └─ IntLiteral '0' @74:16
-│     ├─ While @79:7
+│     ├─ While post_test @79:7
 │     │  ├─ cond
 │     │  │  └─ Unary 'not' @79:7
 │     │  │     └─ operand

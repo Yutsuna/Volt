@@ -10,28 +10,32 @@ Program 'samples/Sema/ShadowNestedIf.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Int32' @1:54
 │  └─ body
-│     ├─ If @2:3
-│     │  ├─ cond
-│     │  │  └─ Identifier 'flag' @2:6
-│     │  └─ then
-│     │     ├─ LocalDecl 'x' @3:5
-│     │     │  ├─ decl_type
-│     │     │  │  └─ TypeRef 'Int32' @3:9
-│     │     │  └─ init
-│     │     │     └─ IntLiteral '0' @3:17
-│     │     └─ If @4:5
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ If @2:3
 │     │        ├─ cond
-│     │        │  └─ Binary '>' @4:10
-│     │        │     ├─ lhs
-│     │        │     │  └─ Identifier 'x' @4:8
-│     │        │     └─ rhs
-│     │        │        └─ IntLiteral '1' @4:12
+│     │        │  └─ Identifier 'flag' @2:6
 │     │        └─ then
-│     │           └─ LocalDecl 'x' @5:7
-│     │              ├─ decl_type
-│     │              │  └─ TypeRef 'Int32' @5:11
-│     │              └─ init
-│     │                 └─ IntLiteral '2' @5:19
+│     │           ├─ LocalDecl 'x' @3:5
+│     │           │  ├─ decl_type
+│     │           │  │  └─ TypeRef 'Int32' @3:9
+│     │           │  └─ init
+│     │           │     └─ IntLiteral '0' @3:17
+│     │           └─ ExprStmt @4:5
+│     │              └─ expr
+│     │                 └─ If @4:5
+│     │                    ├─ cond
+│     │                    │  └─ Binary '>' @4:10
+│     │                    │     ├─ lhs
+│     │                    │     │  └─ Identifier 'x' @4:8
+│     │                    │     └─ rhs
+│     │                    │        └─ IntLiteral '1' @4:12
+│     │                    └─ then
+│     │                       └─ LocalDecl 'x' @5:7
+│     │                          ├─ decl_type
+│     │                          │  └─ TypeRef 'Int32' @5:11
+│     │                          └─ init
+│     │                             └─ IntLiteral '2' @5:19
 │     └─ ExprStmt @8:3
 │        └─ expr
 │           └─ Identifier 'x' @8:3

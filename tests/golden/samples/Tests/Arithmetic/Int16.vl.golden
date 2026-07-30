@@ -18,26 +18,28 @@ Program 'samples/Tests/Arithmetic/Int16.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @4:36
 │  └─ body
-│     └─ If @5:3
-│        ├─ cond
-│        │  └─ Unary 'not' @5:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @5:10
-│        └─ then
-│           └─ ExprStmt @6:5
-│              └─ expr
-│                 └─ RaiseExpr @6:5
-│                    └─ exception
-│                       └─ Interp @6:11
-│                          └─ parts
-│                             ├─ StringLiteral 'FAIL ' @6:11
-│                             ├─ Identifier '__FILE__' @6:19
-│                             ├─ StringLiteral ':\tCalled by ' @6:11
-│                             ├─ Identifier '__FUNCTION__' @6:43
-│                             ├─ StringLiteral ' at ' @6:11
-│                             ├─ Identifier '__LINE__' @6:62
-│                             ├─ StringLiteral ':' @6:11
-│                             └─ Identifier '__COLUMN__' @6:74
+│     └─ ExprStmt @5:3
+│        └─ expr
+│           └─ If @5:3
+│              ├─ cond
+│              │  └─ Unary 'not' @5:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @5:10
+│              └─ then
+│                 └─ ExprStmt @6:5
+│                    └─ expr
+│                       └─ RaiseExpr @6:5
+│                          └─ exception
+│                             └─ Interp @6:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'FAIL ' @6:11
+│                                   ├─ Identifier '__FILE__' @6:19
+│                                   ├─ StringLiteral ':\tCalled by ' @6:11
+│                                   ├─ Identifier '__FUNCTION__' @6:43
+│                                   ├─ StringLiteral ' at ' @6:11
+│                                   ├─ Identifier '__LINE__' @6:62
+│                                   ├─ StringLiteral ':' @6:11
+│                                   └─ Identifier '__COLUMN__' @6:74
 ├─ Method 'test_int16' @12:1
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @12:19

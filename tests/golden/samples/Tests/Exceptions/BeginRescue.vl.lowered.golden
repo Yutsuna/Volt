@@ -7,53 +7,55 @@ Program 'samples/Tests/Exceptions/BeginRescue.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Binary '+' @3:11
-│                          ├─ lhs
-│                          │  └─ Binary '+' @3:11
-│                          │     ├─ lhs
-│                          │     │  └─ Binary '+' @3:11
-│                          │     │     ├─ lhs
-│                          │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     ├─ lhs
-│                          │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     ├─ lhs
-│                          │     │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     │     ├─ lhs
-│                          │     │     │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     │     │     ├─ lhs
-│                          │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
-│                          │     │     │     │     │     │     └─ rhs
-│                          │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Exceptions/BeginRescue.vl' @3:19
-│                          │     │     │     │     │     └─ rhs
-│                          │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
-│                          │     │     │     │     └─ rhs
-│                          │     │     │     │        └─ StringLiteral 'assert!' @3:43
-│                          │     │     │     └─ rhs
-│                          │     │     │        └─ StringLiteral ' at ' @3:11
-│                          │     │     └─ rhs
-│                          │     │        └─ Call @3:11
-│                          │     │           └─ callee
-│                          │     │              └─ Member 'to_string' @3:11
-│                          │     │                 └─ object
-│                          │     │                    └─ IntLiteral '3' @3:62
-│                          │     └─ rhs
-│                          │        └─ StringLiteral ':' @3:11
-│                          └─ rhs
-│                             └─ Call @3:11
-│                                └─ callee
-│                                   └─ Member 'to_string' @3:11
-│                                      └─ object
-│                                         └─ IntLiteral '74' @3:74
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     ├─ lhs
+│                                │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     ├─ lhs
+│                                │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
+│                                │     │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Exceptions/BeginRescue.vl' @3:19
+│                                │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
+│                                │     │     │     │     └─ rhs
+│                                │     │     │     │        └─ StringLiteral 'assert!' @3:43
+│                                │     │     │     └─ rhs
+│                                │     │     │        └─ StringLiteral ' at ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ Call @3:11
+│                                │     │           └─ callee
+│                                │     │              └─ Member 'to_string' @3:11
+│                                │     │                 └─ object
+│                                │     │                    └─ IntLiteral '3' @3:62
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '74' @3:74
 ├─ Method 'calculate' @13:1
 │  ├─ params
 │  │  └─ Param 'x' @13:16
@@ -66,19 +68,21 @@ Program 'samples/Tests/Exceptions/BeginRescue.vl'
 │        └─ expr
 │           └─ BeginExpr @14:3
 │              ├─ body
-│              │  ├─ If @15:5
-│              │  │  ├─ cond
-│              │  │  │  └─ Binary '==' @15:10
-│              │  │  │     ├─ lhs
-│              │  │  │     │  └─ Identifier 'x' @15:8
-│              │  │  │     └─ rhs
-│              │  │  │        └─ IntLiteral '0' @15:13
-│              │  │  └─ then
-│              │  │     └─ ExprStmt @16:7
-│              │  │        └─ expr
-│              │  │           └─ RaiseExpr @16:7
-│              │  │              └─ exception
-│              │  │                 └─ StringLiteral 'Division by zero' @16:13
+│              │  ├─ ExprStmt @15:5
+│              │  │  └─ expr
+│              │  │     └─ If @15:5
+│              │  │        ├─ cond
+│              │  │        │  └─ Binary '==' @15:10
+│              │  │        │     ├─ lhs
+│              │  │        │     │  └─ Identifier 'x' @15:8
+│              │  │        │     └─ rhs
+│              │  │        │        └─ IntLiteral '0' @15:13
+│              │  │        └─ then
+│              │  │           └─ ExprStmt @16:7
+│              │  │              └─ expr
+│              │  │                 └─ RaiseExpr @16:7
+│              │  │                    └─ exception
+│              │  │                       └─ StringLiteral 'Division by zero' @16:13
 │              │  └─ ExprStmt @18:5
 │              │     └─ expr
 │              │        └─ Binary '/' @18:9
@@ -127,19 +131,21 @@ Program 'samples/Tests/Exceptions/BeginRescue.vl'
 │        └─ expr
 │           └─ BeginExpr @34:1
 │              ├─ body
-│              │  ├─ If @30:3
-│              │  │  ├─ cond
-│              │  │  │  └─ Binary '<' @30:8
-│              │  │  │     ├─ lhs
-│              │  │  │     │  └─ Identifier 'y' @30:6
-│              │  │  │     └─ rhs
-│              │  │  │        └─ IntLiteral '0' @30:10
-│              │  │  └─ then
-│              │  │     └─ ExprStmt @31:5
-│              │  │        └─ expr
-│              │  │           └─ RaiseExpr @31:5
-│              │  │              └─ exception
-│              │  │                 └─ StringLiteral 'Negative value' @31:11
+│              │  ├─ ExprStmt @30:3
+│              │  │  └─ expr
+│              │  │     └─ If @30:3
+│              │  │        ├─ cond
+│              │  │        │  └─ Binary '<' @30:8
+│              │  │        │     ├─ lhs
+│              │  │        │     │  └─ Identifier 'y' @30:6
+│              │  │        │     └─ rhs
+│              │  │        │        └─ IntLiteral '0' @30:10
+│              │  │        └─ then
+│              │  │           └─ ExprStmt @31:5
+│              │  │              └─ expr
+│              │  │                 └─ RaiseExpr @31:5
+│              │  │                    └─ exception
+│              │  │                       └─ StringLiteral 'Negative value' @31:11
 │              │  └─ ExprStmt @33:3
 │              │     └─ expr
 │              │        └─ Binary '*' @33:5

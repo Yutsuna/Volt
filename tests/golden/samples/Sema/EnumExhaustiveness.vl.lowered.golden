@@ -17,7 +17,7 @@ Program 'samples/Sema/EnumExhaustiveness.vl'
 │           └─ ExprStmt @11:5
 │              └─ expr
 │                 └─ CaseExpr @11:5
-│                    ├─ target
+│                    ├─ scrutinee
 │                    │  └─ SelfExpr @11:10
 │                    └─ clauses
 │                       ├─ WhenClause @12:5
@@ -80,7 +80,7 @@ Program 'samples/Sema/EnumExhaustiveness.vl'
 │           └─ ExprStmt @28:5
 │              └─ expr
 │                 └─ CaseExpr @28:5
-│                    ├─ target
+│                    ├─ scrutinee
 │                    │  └─ SelfExpr @28:10
 │                    ├─ clauses
 │                    │  └─ WhenClause @29:5

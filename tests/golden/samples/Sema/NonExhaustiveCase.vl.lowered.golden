@@ -17,7 +17,7 @@ Program 'samples/Sema/NonExhaustiveCase.vl'
 │           └─ ExprStmt @10:5
 │              └─ expr
 │                 └─ CaseExpr @10:5
-│                    ├─ target
+│                    ├─ scrutinee
 │                    │  └─ SelfExpr @10:10
 │                    └─ clauses
 │                       ├─ WhenClause @11:5

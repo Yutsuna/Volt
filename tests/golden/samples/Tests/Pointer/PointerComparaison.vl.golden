@@ -116,33 +116,35 @@ Program 'samples/Tests/Pointer/PointerComparaison.vl'
 │     │     └─ Member 'free' @15:5
 │     │        └─ object
 │     │           └─ Identifier 'p1' @15:3
-│     └─ If @17:3
-│        ├─ cond
-│        │  └─ Binary 'and' @17:30
-│        │     ├─ lhs
-│        │     │  └─ Binary 'and' @17:23
-│        │     │     ├─ lhs
-│        │     │     │  └─ Binary 'and' @17:16
-│        │     │     │     ├─ lhs
-│        │     │     │     │  └─ Binary 'and' @17:9
-│        │     │     │     │     ├─ lhs
-│        │     │     │     │     │  └─ Identifier 'c1' @17:6
-│        │     │     │     │     └─ rhs
-│        │     │     │     │        └─ Identifier 'c2' @17:13
-│        │     │     │     └─ rhs
-│        │     │     │        └─ Identifier 'c3' @17:20
-│        │     │     └─ rhs
-│        │     │        └─ Identifier 'c4' @17:27
-│        │     └─ rhs
-│        │        └─ Identifier 'c5' @17:34
-│        ├─ then
-│        │  └─ ExprStmt @18:5
-│        │     └─ expr
-│        │        └─ IntLiteral '0' @18:5
-│        └─ else
-│           └─ ExprStmt @20:5
-│              └─ expr
-│                 └─ IntLiteral '1' @20:5
+│     └─ ExprStmt @17:3
+│        └─ expr
+│           └─ If @17:3
+│              ├─ cond
+│              │  └─ Binary 'and' @17:30
+│              │     ├─ lhs
+│              │     │  └─ Binary 'and' @17:23
+│              │     │     ├─ lhs
+│              │     │     │  └─ Binary 'and' @17:16
+│              │     │     │     ├─ lhs
+│              │     │     │     │  └─ Binary 'and' @17:9
+│              │     │     │     │     ├─ lhs
+│              │     │     │     │     │  └─ Identifier 'c1' @17:6
+│              │     │     │     │     └─ rhs
+│              │     │     │     │        └─ Identifier 'c2' @17:13
+│              │     │     │     └─ rhs
+│              │     │     │        └─ Identifier 'c3' @17:20
+│              │     │     └─ rhs
+│              │     │        └─ Identifier 'c4' @17:27
+│              │     └─ rhs
+│              │        └─ Identifier 'c5' @17:34
+│              ├─ then
+│              │  └─ ExprStmt @18:5
+│              │     └─ expr
+│              │        └─ IntLiteral '0' @18:5
+│              └─ else
+│                 └─ ExprStmt @20:5
+│                    └─ expr
+│                       └─ IntLiteral '1' @20:5
 └─ ExprStmt @25:1
    └─ expr
       └─ Call @25:10

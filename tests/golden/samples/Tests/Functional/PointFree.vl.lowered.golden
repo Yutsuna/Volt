@@ -7,53 +7,55 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Binary '+' @3:11
-│                          ├─ lhs
-│                          │  └─ Binary '+' @3:11
-│                          │     ├─ lhs
-│                          │     │  └─ Binary '+' @3:11
-│                          │     │     ├─ lhs
-│                          │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     ├─ lhs
-│                          │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     ├─ lhs
-│                          │     │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     │     ├─ lhs
-│                          │     │     │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     │     │     ├─ lhs
-│                          │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
-│                          │     │     │     │     │     │     └─ rhs
-│                          │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Functional/PointFree.vl' @3:19
-│                          │     │     │     │     │     └─ rhs
-│                          │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
-│                          │     │     │     │     └─ rhs
-│                          │     │     │     │        └─ StringLiteral 'assert!' @3:43
-│                          │     │     │     └─ rhs
-│                          │     │     │        └─ StringLiteral ' at ' @3:11
-│                          │     │     └─ rhs
-│                          │     │        └─ Call @3:11
-│                          │     │           └─ callee
-│                          │     │              └─ Member 'to_string' @3:11
-│                          │     │                 └─ object
-│                          │     │                    └─ IntLiteral '3' @3:62
-│                          │     └─ rhs
-│                          │        └─ StringLiteral ':' @3:11
-│                          └─ rhs
-│                             └─ Call @3:11
-│                                └─ callee
-│                                   └─ Member 'to_string' @3:11
-│                                      └─ object
-│                                         └─ IntLiteral '74' @3:74
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     ├─ lhs
+│                                │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     ├─ lhs
+│                                │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
+│                                │     │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Functional/PointFree.vl' @3:19
+│                                │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
+│                                │     │     │     │     └─ rhs
+│                                │     │     │     │        └─ StringLiteral 'assert!' @3:43
+│                                │     │     │     └─ rhs
+│                                │     │     │        └─ StringLiteral ' at ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ Call @3:11
+│                                │     │           └─ callee
+│                                │     │              └─ Member 'to_string' @3:11
+│                                │     │                 └─ object
+│                                │     │                    └─ IntLiteral '3' @3:62
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '74' @3:74
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
@@ -453,8 +455,16 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │                                └─ Member 'empty?' @35:13
 │              │                                   └─ object
 │              │                                      └─ Identifier 'fn_tmp_14' @35:13
-│              └─ args
-│                 └─ Identifier 'transform' @36:9
+│              └─ block_arg
+│                 └─ Lambda @36:9
+│                    ├─ params
+│                    │  └─ Param 'fn_tmp_15' @36:9
+│                    └─ body
+│                       └─ Call @36:9
+│                          ├─ callee
+│                          │  └─ Identifier 'transform' @36:10
+│                          └─ args
+│                             └─ Identifier 'fn_tmp_15' @36:9
 ├─ ExprStmt @37:1
 │  └─ expr
 │     └─ Call @37:8

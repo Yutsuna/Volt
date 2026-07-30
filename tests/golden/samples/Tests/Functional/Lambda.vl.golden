@@ -7,26 +7,28 @@ Program 'samples/Tests/Functional/Lambda.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Interp @3:11
-│                          └─ parts
-│                             ├─ StringLiteral 'FAIL ' @3:11
-│                             ├─ Identifier '__FILE__' @3:19
-│                             ├─ StringLiteral ':\tCalled by ' @3:11
-│                             ├─ Identifier '__FUNCTION__' @3:43
-│                             ├─ StringLiteral ' at ' @3:11
-│                             ├─ Identifier '__LINE__' @3:62
-│                             ├─ StringLiteral ':' @3:11
-│                             └─ Identifier '__COLUMN__' @3:74
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'FAIL ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:19
+│                                   ├─ StringLiteral ':\tCalled by ' @3:11
+│                                   ├─ Identifier '__FUNCTION__' @3:43
+│                                   ├─ StringLiteral ' at ' @3:11
+│                                   ├─ Identifier '__LINE__' @3:62
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__COLUMN__' @3:74
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:8
@@ -44,30 +46,23 @@ Program 'samples/Tests/Functional/Lambda.vl'
 │                    │  └─ Identifier 'x' @8:29
 │                    └─ rhs
 │                       └─ IntLiteral '2' @8:33
-├─ ExprStmt @9:1
+├─ ExprStmt @10:1
 │  └─ expr
-│     └─ Assign '=' @9:10
+│     └─ Assign '=' @10:10
 │        ├─ target
-│        │  └─ Identifier 'add_five' @9:1
+│        │  └─ Identifier 'add_five' @10:1
 │        └─ value
-│           └─ Section operator '+' @9:14
-│              └─ args
-│                 └─ IntLiteral '5' @9:18
-├─ ExprStmt @11:1
-│  └─ expr
-│     └─ Call @11:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @11:1
-│        └─ args
-│           └─ Binary '==' @11:22
-│              ├─ lhs
-│              │  └─ Call @11:16
-│              │     ├─ callee
-│              │     │  └─ Identifier 'double' @11:10
-│              │     └─ args
-│              │        └─ IntLiteral '4' @11:18
-│              └─ rhs
-│                 └─ IntLiteral '8' @11:25
+│           └─ Lambda @10:12
+│              ├─ params
+│              │  └─ Param 'x' @10:14
+│              │     └─ decl_type
+│              │        └─ TypeRef 'Int32' @10:18
+│              └─ body
+│                 └─ Binary '+' @10:31
+│                    ├─ lhs
+│                    │  └─ Identifier 'x' @10:29
+│                    └─ rhs
+│                       └─ IntLiteral '5' @10:33
 ├─ ExprStmt @12:1
 │  └─ expr
 │     └─ Call @12:8
@@ -76,11 +71,11 @@ Program 'samples/Tests/Functional/Lambda.vl'
 │        └─ args
 │           └─ Binary '==' @12:22
 │              ├─ lhs
-│              │  └─ Pipeline @12:12
-│              │     ├─ lhs
-│              │     │  └─ IntLiteral '4' @12:10
-│              │     └─ rhs
-│              │        └─ Identifier 'double' @12:15
+│              │  └─ Call @12:16
+│              │     ├─ callee
+│              │     │  └─ Identifier 'double' @12:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @12:18
 │              └─ rhs
 │                 └─ IntLiteral '8' @12:25
 ├─ ExprStmt @13:1
@@ -89,28 +84,43 @@ Program 'samples/Tests/Functional/Lambda.vl'
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @13:1
 │        └─ args
-│           └─ Binary '==' @13:25
+│           └─ Binary '==' @13:22
 │              ├─ lhs
-│              │  └─ Call @13:18
-│              │     ├─ callee
-│              │     │  └─ Identifier 'add_five' @13:10
-│              │     └─ args
-│              │        └─ IntLiteral '10' @13:20
+│              │  └─ Pipeline @13:12
+│              │     ├─ lhs
+│              │     │  └─ IntLiteral '4' @13:10
+│              │     └─ rhs
+│              │        └─ Identifier 'double' @13:15
 │              └─ rhs
-│                 └─ IntLiteral '15' @13:28
-└─ ExprStmt @14:1
+│                 └─ IntLiteral '8' @13:25
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Call @14:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @14:1
+│        └─ args
+│           └─ Binary '==' @14:25
+│              ├─ lhs
+│              │  └─ Call @14:18
+│              │     ├─ callee
+│              │     │  └─ Identifier 'add_five' @14:10
+│              │     └─ args
+│              │        └─ IntLiteral '10' @14:20
+│              └─ rhs
+│                 └─ IntLiteral '15' @14:28
+└─ ExprStmt @15:1
    └─ expr
-      └─ Call @14:8
+      └─ Call @15:8
          ├─ callee
-         │  └─ Identifier 'assert!' @14:1
+         │  └─ Identifier 'assert!' @15:1
          └─ args
-            └─ Binary '==' @14:25
+            └─ Binary '==' @15:25
                ├─ lhs
-               │  └─ Pipeline @14:13
+               │  └─ Pipeline @15:13
                │     ├─ lhs
-               │     │  └─ IntLiteral '10' @14:10
+               │     │  └─ IntLiteral '10' @15:10
                │     └─ rhs
-               │        └─ Identifier 'add_five' @14:16
+               │        └─ Identifier 'add_five' @15:16
                └─ rhs
-                  └─ IntLiteral '15' @14:28
+                  └─ IntLiteral '15' @15:28
 --- exit 0 ---

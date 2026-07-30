@@ -7,53 +7,55 @@ Program 'samples/Tests/Conditional/IfInline.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Binary '+' @3:11
-│                          ├─ lhs
-│                          │  └─ Binary '+' @3:11
-│                          │     ├─ lhs
-│                          │     │  └─ Binary '+' @3:11
-│                          │     │     ├─ lhs
-│                          │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     ├─ lhs
-│                          │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     ├─ lhs
-│                          │     │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     │     ├─ lhs
-│                          │     │     │     │     │     │  └─ Binary '+' @3:11
-│                          │     │     │     │     │     │     ├─ lhs
-│                          │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
-│                          │     │     │     │     │     │     └─ rhs
-│                          │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Conditional/IfInline.vl' @3:19
-│                          │     │     │     │     │     └─ rhs
-│                          │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
-│                          │     │     │     │     └─ rhs
-│                          │     │     │     │        └─ StringLiteral 'assert!' @3:43
-│                          │     │     │     └─ rhs
-│                          │     │     │        └─ StringLiteral ' at ' @3:11
-│                          │     │     └─ rhs
-│                          │     │        └─ Call @3:11
-│                          │     │           └─ callee
-│                          │     │              └─ Member 'to_string' @3:11
-│                          │     │                 └─ object
-│                          │     │                    └─ IntLiteral '3' @3:62
-│                          │     └─ rhs
-│                          │        └─ StringLiteral ':' @3:11
-│                          └─ rhs
-│                             └─ Call @3:11
-│                                └─ callee
-│                                   └─ Member 'to_string' @3:11
-│                                      └─ object
-│                                         └─ IntLiteral '74' @3:74
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     ├─ lhs
+│                                │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     ├─ lhs
+│                                │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
+│                                │     │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Conditional/IfInline.vl' @3:19
+│                                │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
+│                                │     │     │     │     └─ rhs
+│                                │     │     │     │        └─ StringLiteral 'assert!' @3:43
+│                                │     │     │     └─ rhs
+│                                │     │     │        └─ StringLiteral ' at ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ Call @3:11
+│                                │     │           └─ callee
+│                                │     │              └─ Member 'to_string' @3:11
+│                                │     │                 └─ object
+│                                │     │                    └─ IntLiteral '3' @3:62
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '74' @3:74
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:9
@@ -61,21 +63,23 @@ Program 'samples/Tests/Conditional/IfInline.vl'
 │        │  └─ Identifier 'counter' @8:1
 │        └─ value
 │           └─ IntLiteral '0' @8:11
-├─ If @9:15
-│  ├─ cond
-│  │  └─ BoolLiteral true @9:18
-│  └─ then
-│     └─ ExprStmt @9:1
-│        └─ expr
-│           └─ Assign '=' @9:9
-│              ├─ target
-│              │  └─ Identifier 'counter' @9:1
-│              └─ value
-│                 └─ Binary '+' @9:9
-│                    ├─ lhs
+├─ ExprStmt @9:15
+│  └─ expr
+│     └─ If @9:15
+│        ├─ cond
+│        │  └─ BoolLiteral true @9:18
+│        └─ then
+│           └─ ExprStmt @9:1
+│              └─ expr
+│                 └─ Assign '=' @9:9
+│                    ├─ target
 │                    │  └─ Identifier 'counter' @9:1
-│                    └─ rhs
-│                       └─ IntLiteral '10' @9:12
+│                    └─ value
+│                       └─ Binary '+' @9:9
+│                          ├─ lhs
+│                          │  └─ Identifier 'counter' @9:1
+│                          └─ rhs
+│                             └─ IntLiteral '10' @9:12
 ├─ ExprStmt @10:1
 │  └─ expr
 │     └─ Call @10:8
@@ -87,21 +91,23 @@ Program 'samples/Tests/Conditional/IfInline.vl'
 │              │  └─ Identifier 'counter' @10:10
 │              └─ rhs
 │                 └─ IntLiteral '10' @10:21
-├─ If @13:15
-│  ├─ cond
-│  │  └─ BoolLiteral false @13:18
-│  └─ then
-│     └─ ExprStmt @13:1
-│        └─ expr
-│           └─ Assign '=' @13:9
-│              ├─ target
-│              │  └─ Identifier 'counter' @13:1
-│              └─ value
-│                 └─ Binary '+' @13:9
-│                    ├─ lhs
+├─ ExprStmt @13:15
+│  └─ expr
+│     └─ If @13:15
+│        ├─ cond
+│        │  └─ BoolLiteral false @13:18
+│        └─ then
+│           └─ ExprStmt @13:1
+│              └─ expr
+│                 └─ Assign '=' @13:9
+│                    ├─ target
 │                    │  └─ Identifier 'counter' @13:1
-│                    └─ rhs
-│                       └─ IntLiteral '10' @13:12
+│                    └─ value
+│                       └─ Binary '+' @13:9
+│                          ├─ lhs
+│                          │  └─ Identifier 'counter' @13:1
+│                          └─ rhs
+│                             └─ IntLiteral '10' @13:12
 ├─ ExprStmt @14:1
 │  └─ expr
 │     └─ Call @14:8
@@ -113,17 +119,19 @@ Program 'samples/Tests/Conditional/IfInline.vl'
 │              │  └─ Identifier 'counter' @14:10
 │              └─ rhs
 │                 └─ IntLiteral '10' @14:21
-├─ If @17:24
-│  ├─ cond
-│  │  └─ BoolLiteral true @17:27
-│  └─ then
-│     └─ ExprStmt @17:1
-│        └─ expr
-│           └─ Assign '=' @17:12
-│              ├─ target
-│              │  └─ Identifier 'inline_res' @17:1
-│              └─ value
-│                 └─ StringLiteral 'success' @17:14
+├─ ExprStmt @17:24
+│  └─ expr
+│     └─ If @17:24
+│        ├─ cond
+│        │  └─ BoolLiteral true @17:27
+│        └─ then
+│           └─ ExprStmt @17:1
+│              └─ expr
+│                 └─ Assign '=' @17:12
+│                    ├─ target
+│                    │  └─ Identifier 'inline_res' @17:1
+│                    └─ value
+│                       └─ StringLiteral 'success' @17:14
 ├─ ExprStmt @18:1
 │  └─ expr
 │     └─ Call @18:8
@@ -135,17 +143,19 @@ Program 'samples/Tests/Conditional/IfInline.vl'
 │              │  └─ Identifier 'inline_res' @18:10
 │              └─ rhs
 │                 └─ StringLiteral 'success' @18:24
-├─ If @21:30
-│  ├─ cond
-│  │  └─ BoolLiteral false @21:33
-│  └─ then
-│     └─ ExprStmt @21:1
-│        └─ expr
-│           └─ Assign '=' @21:18
-│              ├─ target
-│              │  └─ Identifier 'inline_res_false' @21:1
-│              └─ value
-│                 └─ StringLiteral 'success' @21:20
+├─ ExprStmt @21:30
+│  └─ expr
+│     └─ If @21:30
+│        ├─ cond
+│        │  └─ BoolLiteral false @21:33
+│        └─ then
+│           └─ ExprStmt @21:1
+│              └─ expr
+│                 └─ Assign '=' @21:18
+│                    ├─ target
+│                    │  └─ Identifier 'inline_res_false' @21:1
+│                    └─ value
+│                       └─ StringLiteral 'success' @21:20
 └─ ExprStmt @22:1
    └─ expr
       └─ Call @22:8

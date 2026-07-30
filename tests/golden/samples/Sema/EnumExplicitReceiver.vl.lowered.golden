@@ -21,7 +21,7 @@ Program 'samples/Sema/EnumExplicitReceiver.vl'
 │     └─ ExprStmt @13:3
 │        └─ expr
 │           └─ CaseExpr @13:3
-│              ├─ target
+│              ├─ scrutinee
 │              │  └─ Identifier 'light' @13:8
 │              └─ clauses
 │                 ├─ WhenClause @14:3
