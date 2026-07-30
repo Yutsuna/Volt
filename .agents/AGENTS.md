@@ -1,4 +1,4 @@
-# `.agents/` — How to Contribute to Volt (Human or AI)
+********# `.agents/` — How to Contribute to Volt (Human or AI)
 
 This directory is the **portable, versioned source of truth** for the agents, rules, and skills that frame every contribution to the Volt compiler. Claude Code reads subagents from `.claude/agents/` and skills from `.claude/skills/`; those are symlinks back here, so editing a file under `.agents/` updates the harness harness.
 
@@ -17,6 +17,7 @@ This project maintains a Graphify knowledge graph located at `graphify-out/`.
 - Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md` for god nodes and community structure.
 - If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
 - After modifying code files in a session, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- When applicable, prefer using `clion-index MCP tools` for `code navigation` and `refactoring`.
 
 ## Two Reflexes on Every Change
 
