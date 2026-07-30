@@ -595,17 +595,6 @@ namespace Sema
                             Store.SetLiteralSlots( Id, ReadLiteralSlots( Anno.Args ) );
                         }
                     }
-                    else if ( AnnoName == "ExceptionRoot" )
-                    {
-                        // The one stdlib type `raise`/`rescue` reason about
-                        // without the C++ side ever spelling out "Exception".
-                        if ( not Store.SetExceptionRoot( Id ) )
-                        {
-                            Report( Core::ESeverity::Error, Anno.Loc,
-                                    "@[ExceptionRoot] is already claimed by another type; only one type may be the "
-                                    "exception root" );
-                        }
-                    }
                 }
 
                 // Without @[Primitive] the layout is structural — a field may
