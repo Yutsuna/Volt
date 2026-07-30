@@ -400,8 +400,10 @@ struct Volt::Backend::Llvm::LlvmBackend::State
 
     // A statement list's trailing expression converging into a result slot.
     // `begin` and `case` both do this and must do it identically, so the rule
-    // lives here once rather than at the two stores.
-    void StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape );
+    // lives here once rather than at the two stores. `Layout` decides the
+    // convergence itself: a plain store for a scalar, `EmitStore`'s memcpy for
+    // an aggregate, since an aggregate value is only ever an address.
+    void StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape, Sema::LayoutId Layout );
 
     // True when the block being written into already ends in a terminator, so
     // a walk stops appending instructions after a `return` / `break`.
@@ -598,7 +600,7 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // the trailing expression of a StmtList, stored into `Slot` rather than
     // returned — `Begin`'s value converges through storage, like `CaseExpr`'s,
     // since its clauses are statement lists whose count is not fixed structure.
-    void EmitBeginTail ( const Frontend::StmtList &Body, llvm::AllocaInst *Slot, llvm::Type *Shape );
+    void EmitBeginTail ( const Frontend::StmtList &Body, llvm::AllocaInst *Slot, llvm::Type *Shape, Sema::LayoutId Layout );
 
     // --- Monomorphisation (MonoEmitter.cpp) --------------------------------
 
