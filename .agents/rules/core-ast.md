@@ -144,9 +144,26 @@ refusal is not debt, a silence would be:
   table, which is backend work.
 - **Un-annotated lambda parameters with no expected type** — needs a
   bidirectional solver; a separate project, with no impact on the backends.
-  `samples/Functional/FunctionalSpec.vl` is the fixture: `add_five = ( &.+ 5 )`
-  then `add_five( 10 )`. It is a `Golden` (parse) sample and does not
-  type-check, by design.
+  `samples/Tests/Functional/{Lambda,PointFree}.vl` are the fixtures (the old
+  `samples/Functional/FunctionalSpec.vl` path no longer exists): `add_five =
+  ( &.+ 5 )` then `add_five( 10 )`. The point-free form is kept in a comment
+  right above its typed replacement, not deleted — the samples now compile
+  with `add_five = ( x : Int32 ) => x + 5`, but the case they document (a
+  `Section` with no expected type has no inferable parameter type) still
+  applies to the commented-out original.
+- **Heterogeneous literals / tuples.** `[ "Alice", "a@b.c", 42 ]` needs a sum
+  type or a `Tuple<…>`, the same wall `T?` hits. `samples/Tests/ControlFlow/
+  ForLoop.vl`'s `for_array` is rewritten to a homogeneous `Array<User>` with
+  the original heterogeneous array literal kept in a comment above it.
+- **`break <value>` outside a block.** Giving `break x` a value that becomes
+  the enclosing call's result needs the result type of the call that owns the
+  block to be the join of every `break`'s value in the body; `Frontend::Break`
+  is walked as a leaf by `DeclStmtWalker.cpp:250` and nothing joins anything.
+  Refused by name in the backend (see the `break` phase in
+  `.agents/PLAN_LLVM.md`). `samples/Tests/ControlFlow/BreakNext.vl`'s
+  `test_break_with_value` is rewritten to an accumulator (`found = x` before
+  `break`) that exercises the same non-local exit without depending on
+  `break`'s value.
 - **Integer literal suffixes are parsed and then ignored by Sema.** `0_u64`
   types as `Int32`, because `LiteralType` inserts every `IntLiteral` into
   `UnconstrainedLiterals` without ever reading the suffix. A real missing
