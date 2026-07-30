@@ -45,13 +45,17 @@ public:
     void Run ()
     {
         const ScopeId Root = Context.Scopes.PushScope( ScopeId{}, EScopeKind::Unit );
-        for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
-        {
-            WalkDecl( Id, Root );
-        }
+        // Top-level statements first: a file is a module, and its top-level
+        // locals are its globals (rules/core-ast.md's sibling decision) — a
+        // `def` declared anywhere in the file can read them, so their binding
+        // sites must exist before any `def` body is walked, not after.
         for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
         {
             WalkStmt( Id, Root );
+        }
+        for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
+        {
+            WalkDecl( Id, Root );
         }
     }
 
@@ -69,6 +73,25 @@ private:
         {
             Report( Loc, "redeclaration of " + std::string{ Context.Ast.Text( Name ) } + " in the same scope" );
         }
+    }
+
+    // The scope an implicit `name = expr` declares into: the nearest
+    // enclosing scope that is not a bare lexical `Branch` (Then/Else of an
+    // `If`, the body of a `While`, a `begin`/`ensure`/`rescue` body). Volt's
+    // TypeChecker already implements a flat, Ruby-style local model per
+    // *method* — `x = v if c` is visible after the `if`, not only inside its
+    // Then — so ScopeResolver must agree, or the backend later refuses a
+    // binding TypeChecker considers perfectly typed. Stops at `Block` too: a
+    // closure body keeps its own assignments (RecordCapture depends on the
+    // scope chain not skipping over it).
+    [[nodiscard]] ScopeId NearestNonBranchScope ( ScopeId From ) const
+    {
+        ScopeId It = From;
+        while ( It.IsValid() and Context.Scopes.Get( It ).Kind == EScopeKind::Branch )
+        {
+            It = Context.Scopes.Get( It ).Parent;
+        }
+        return It.IsValid() ? It : From;
     }
 
     // Params of a Method/Block declare into that scope; a default
@@ -376,18 +399,32 @@ private:
                     {
                         const auto *Target   = std::get_if<Frontend::Identifier>( &Context.Ast.Expr( Node.Target ) );
                         const Binding *Found = Target != nullptr ? Context.Scopes.Resolve( Current, Target->Name ) : nullptr;
-                        if ( Target != nullptr and ( Found == nullptr or not IsValueBinding( Found->Site ) ) and
-                             Context.Scopes.Declare( Current, Target->Name, BindingSite{ Node.Target } ) )
+                        if ( Target != nullptr and ( Found == nullptr or not IsValueBinding( Found->Site ) ) )
                         {
-                            // Bound, so every consumer reaches the new binding
-                            // through BindingOf like any other; not counted, so
-                            // a variable nothing ever reads is still unused.
-                            if ( const Binding *Declared = Context.Scopes.Resolve( Current, Target->Name ) )
+                            // `x = v if c` parses as `If{ Then: [Assign] }`
+                            // (ApplyModifiers) — Current is the Then's own
+                            // Branch scope, but TypeChecker's locals are flat
+                            // per method, so the declaration must land where
+                            // TypeChecker will actually see it live on: the
+                            // nearest enclosing Method/Block/Type/Unit.
+                            const ScopeId DeclScope = NearestNonBranchScope( Current );
+                            if ( Context.Scopes.Declare( DeclScope, Target->Name, BindingSite{ Node.Target } ) )
                             {
-                                Context.Scopes.BindUse( Node.Target, *Declared, /*bCountsAsUse=*/false );
-                                ++Context.Stats.ScopesResolved;
+                                // Bound, so every consumer reaches the new binding
+                                // through BindingOf like any other; not counted, so
+                                // a variable nothing ever reads is still unused.
+                                if ( const Binding *Declared = Context.Scopes.Resolve( Current, Target->Name ) )
+                                {
+                                    Context.Scopes.BindUse( Node.Target, *Declared, /*bCountsAsUse=*/false );
+                                    ++Context.Stats.ScopesResolved;
+                                }
+                                // `SlotFor` (StmtEmitter.cpp) routes a global
+                                // vs. a frame `alloca` by asking this exact
+                                // question of the *site* — never of `Current`,
+                                // which would still say `Branch`.
+                                Context.Scopes.SetScopeOfExpr( Node.Target, DeclScope );
+                                return;
                             }
-                            return;
                         }
                     }
                     WalkExpr( Node.Target, Current );
