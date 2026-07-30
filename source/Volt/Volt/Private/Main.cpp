@@ -9,7 +9,7 @@
 namespace
 {
 
-int Run ( std::span<const std::string_view> Args )
+int Run ( const std::span<const std::string_view> Args )
 {
     using Volt::CLI::FCommandRegistry;
     using Volt::Core::FLogger;
@@ -35,9 +35,7 @@ int Run ( std::span<const std::string_view> Args )
 
 } // namespace
 
-// Front CLI: dispatch to the registered command (parse/check/circuit/help...),
-// which drives the Driver pipeline and reports through the async logger.
-int main ( int ArgCount, const char **ArgValues )
+int main ( const int ArgCount, const char **ArgValues )
 {
     const Volt::Core::FLogScope LogScope;
 
