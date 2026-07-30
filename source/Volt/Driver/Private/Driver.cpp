@@ -164,7 +164,9 @@ namespace
 // Bumping this invalidates every on-disk cache unconditionally (a
 // Serialize.hpp layout change is not otherwise reflected in FrontendCacheKey,
 // which only hashes stdlib source + the running binary's own identity).
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453031ULL; // "VOLTFE01"
+// Bumped to 02 when `@[Apply]` was deleted: `Member` lost `bApply` and
+// `CalleeEntry` gained `bIndirect`, so both cached records changed shape.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453032ULL; // "VOLTFE02"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )

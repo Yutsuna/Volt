@@ -6,7 +6,7 @@
 // to the innermost `begin` this function owns, or an early return carrying no
 // value, exactly as if the raising call itself had simply returned. Every
 // ordinary call this emitter makes is followed by a check of that same state
-// (EmitExceptionCheck, wired into EmitResolvedCall / EmitApplyCall in
+// (EmitExceptionCheck, wired into EmitResolvedCall / EmitIndirectCall in
 // ExprEmitter.cpp / ClosureEmitter.cpp), so a `raise` several calls deep
 // unwinds one `ret` at a time until some caller's frame is inside a `begin`.
 // Simple, portable, correct, and — because it never reserves a channel in any

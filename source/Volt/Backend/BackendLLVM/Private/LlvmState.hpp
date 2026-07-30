@@ -542,12 +542,12 @@ struct Volt::Backend::Llvm::LlvmBackend::State
 
     // An indirect call through a closure value: `f( x )` on a local holding a
     // callable, and `block.call( x )` on a `&block` parameter, are the same
-    // emission — the callee's `@[Apply]` member says the signature is the
-    // receiver's own type arguments (result first, then parameters).
-    [[nodiscard]] llvm::Value *EmitApplyCall ( Frontend::ExprId Id,
-                                               const Sema::CalleeEntry &Entry,
-                                               Frontend::ExprId Receiver,
-                                               std::span<const Frontend::ExprId> Args );
+    // emission — `CalleeEntry::bIndirect`, with the signature Sema read off
+    // the receiver's own type arguments (result first, then parameters).
+    [[nodiscard]] llvm::Value *EmitIndirectCall ( Frontend::ExprId Id,
+                                                  const Sema::CalleeEntry &Entry,
+                                                  Frontend::ExprId Receiver,
+                                                  std::span<const Frontend::ExprId> Args );
 
     // --- Exceptions, Tier 1 (ExceptionEmitter.cpp) ------------------------
     //

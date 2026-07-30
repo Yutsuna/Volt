@@ -333,10 +333,10 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitBlockNext ( Frontend::ExprId V
     }
 }
 
-llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitApplyCall ( Frontend::ExprId Id,
-                                                                      const Sema::CalleeEntry &Entry,
-                                                                      Frontend::ExprId Receiver,
-                                                                      std::span<const Frontend::ExprId> Args )
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIndirectCall ( Frontend::ExprId Id,
+                                                                         const Sema::CalleeEntry &Entry,
+                                                                         Frontend::ExprId Receiver,
+                                                                         std::span<const Frontend::ExprId> Args )
 {
     if ( not Receiver.IsValid() )
     {
@@ -347,10 +347,10 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitApplyCall ( Frontend::
 
     const Sema::UnitTypes &Values = *Frame.Values;
 
-    // `@[Apply]` means the signature *is* the receiver's own type arguments,
-    // and MemberResolver already unpacked them into the entry: result first,
-    // then one parameter per remaining argument. So the shape of this call
-    // comes from the type of the thing being called — nothing is re-derived.
+    // The signature *is* the receiver's own type arguments, and MemberResolver
+    // already unpacked them into the entry: result first, then one parameter
+    // per remaining argument. So the shape of this call comes from the type of
+    // the thing being called — nothing is re-derived.
     std::vector<llvm::Type *> Slots;
     Slots.reserve( Entry.Params.Size() + 1 );
     for ( const Sema::SemaTypeId Param : Entry.Params )
@@ -411,7 +411,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitApplyCall ( Frontend::
     // declaration to build it from.
     llvm::Value *Call = Builder->CreateCall( Signature, Code, Actuals );
 
-    // Always Volt code behind an `@[Apply]` — never external — so the
+    // Always Volt code behind a callable — never external — so the
     // post-call check always runs, same as an ordinary resolved call.
     EmitExceptionCheck();
     return Call;

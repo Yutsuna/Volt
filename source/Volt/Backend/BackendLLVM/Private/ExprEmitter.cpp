@@ -1243,14 +1243,14 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCall ( Frontend::ExprI
 
     // The receiver is the callee's own object, when the callee is a member
     // access. A free function's callee is an Identifier and has none — unless
-    // the resolution is `@[Apply]`, where the callee expression *is* the
+    // the resolution is indirect, where the callee expression *is* the
     // callable being invoked: `f( x )` on a local holding a closure.
     Frontend::ExprId Receiver;
     if ( const auto *Access = std::get_if<Frontend::Member>( &Frame.Unit->Ast->Expr( Node.Callee ) ); Access != nullptr )
     {
         Receiver = Access->Object;
     }
-    else if ( Entry->Decl->bApply )
+    else if ( Entry->bIndirect )
     {
         Receiver = Node.Callee;
     }
@@ -1265,10 +1265,11 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
                                                                          std::span<const Frontend::ExprId> Args,
                                                                          Frontend::ExprId Block )
 {
-    // `@[Apply]` resolves to a member that has no body and no symbol: the
-    // callable being invoked is the receiver, and the call goes through its
-    // `{ code, env }` pair rather than to a mangled name.
-    if ( Entry.Decl->bApply )
+    // An indirect callee has no body and no symbol: the callable being
+    // invoked is the receiver, and the call goes through its `{ code, env }`
+    // pair rather than to a mangled name. Sema decided this (CalleeEntry::
+    // bIndirect); nothing is re-derived here.
+    if ( Entry.bIndirect )
     {
         if ( Block.IsValid() )
         {
@@ -1276,7 +1277,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
                                      " passes a trailing block to a callable, whose type carries positional arguments only" ) );
             return nullptr;
         }
-        return EmitApplyCall( Id, Entry, Receiver, Args );
+        return EmitIndirectCall( Id, Entry, Receiver, Args );
     }
 
     const Sema::UnitTypes &Values = *Frame.Values;
