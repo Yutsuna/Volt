@@ -130,6 +130,9 @@ private:
             Clause.Patterns = std::move( DesugaredPatterns );
         }
 
+        Case.Scrutinee = TargetId;
+        Case.Target    = Frontend::ExprId{};
+
         Context.Expr( CaseId ) = Frontend::ExprNode{ std::move( Case ) };
     }
 
