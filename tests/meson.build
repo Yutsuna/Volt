@@ -27,6 +27,13 @@ foreach sample_path : sample_files
   endif
 
   rel_sample = sample_path.replace(samples_root + '/', '')
+  # Root-relative, e.g. `samples/JSX/Foo.vlx` — never the absolute
+  # `sample_path`. `volt parse` echoes whatever `-i` gets, verbatim, in its
+  # `Program '...'` header, and that header is exactly what a golden file
+  # records: an absolute path would bake this machine's checkout location
+  # into a committed fixture. `workdir` below is what makes the relative
+  # path resolve the same way on any machine or in CI.
+  root_rel_sample = 'samples' / rel_sample
   golden_path = golden_root / (rel_sample + '.golden')
   lowered_golden_path = golden_root / (rel_sample + '.lowered.golden')
 
@@ -35,9 +42,10 @@ foreach sample_path : sample_files
       args : [
         '-c',
         'OUT="$("$1" parse --no-color -i "$2" 2>&1)"; CODE=$?; printf "%s\n--- exit %d ---\n" "$OUT" "$CODE" | diff -u "$3" -',
-        'sh', volt_exe.full_path(), sample_path, golden_path
+        'sh', volt_exe.full_path(), root_rel_sample, golden_path
       ],
       depends : volt_exe,
+      workdir : meson.project_source_root(),
       suite : 'golden'
     )
   endif
@@ -47,16 +55,17 @@ foreach sample_path : sample_files
       args : [
         '-c',
         'OUT="$("$1" parse --no-color --lowered -i "$2" 2>&1)"; CODE=$?; printf "%s\n--- exit %d ---\n" "$OUT" "$CODE" | diff -u "$3" -',
-        'sh', volt_exe.full_path(), sample_path, lowered_golden_path
+        'sh', volt_exe.full_path(), root_rel_sample, lowered_golden_path
       ],
       depends : volt_exe,
+      workdir : meson.project_source_root(),
       suite : 'golden-lowered'
     )
   endif
 
   golden_update_targets += custom_target('up_' + rel_sample.underscorify(),
     output : rel_sample.underscorify() + '.stamp',
-    command : [bash, update_script, volt_exe.full_path(), sample_path, golden_path, lowered_golden_path, '@OUTPUT@'],
+    command : [bash, update_script, meson.project_source_root(), volt_exe.full_path(), root_rel_sample, golden_path, lowered_golden_path, '@OUTPUT@'],
     depends : volt_exe
   )
 endforeach
@@ -90,13 +99,15 @@ foreach test_path : exec_test_files
   expected_path = test_path + '.expected'
   if fs.exists(expected_path)
     rel_test = test_path.replace(samples_root + '/', '')
+    root_rel_test = 'samples' / rel_test
     test('sample/' + rel_test, sh,
       args : [
         '-c',
         'TMPBIN="$(mktemp)"; "$1" build -i "$2" -o "$TMPBIN" >/dev/null 2>&1 && "$TMPBIN" >/dev/null 2>&1; CODE=$?; rm -f "$TMPBIN"; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
-        'sh', volt_exe.full_path(), test_path, expected_path
+        'sh', volt_exe.full_path(), root_rel_test, expected_path
       ],
       depends : volt_exe,
+      workdir : meson.project_source_root(),
       suite : 'samples'
     )
   endif
