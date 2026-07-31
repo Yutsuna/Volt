@@ -1,4 +1,4 @@
-[*.{vl,vlx,volt}]
+[*.{vl,vlx,volt,nix}]
 indent_style = space
 indent_size = 2
 trim_trailing_whitespace = true
