@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CMakePythonSetting">
+    <option name="pythonIntegrationState" value="YES" />
+  </component>
+  <component name="CidrRootsConfiguration">
+    <sourceRoots>
+      <file path="$PROJECT_DIR$/source" />
+    </sourceRoots>
+    <excludeRoots>
+      <file path="$PROJECT_DIR$/.cache" />
+      <file path="$PROJECT_DIR$/.direnv" />
+      <file path="$PROJECT_DIR$/build" />
+      <file path="$PROJECT_DIR$/build-release" />
+      <file path="$PROJECT_DIR$/build-testing" />
+      <file path="$PROJECT_DIR$/graphify-out" />
+      <file path="$PROJECT_DIR$/tests/golden" />
+    </excludeRoots>
+  </component>
+  <component name="ExternalStorageConfigurationManager" enabled="true" />
+  <component name="MesonSettings">
+    <option name="linkedExternalProjectsSettings">
+      <MesonProjectSettings>
+        <option name="externalProjectPath" value="$PROJECT_DIR$" />
+        <option name="modules">
+          <set>
+            <option value="$PROJECT_DIR$" />
+          </set>
+        </option>
+        <option name="profiles">
+          <MesonProfile>
+            <option name="name" value="build-debug" />
+            <option name="buildDir" value="build" />
+            <option name="toolchainName" value="System" />
+            <option name="arguments" value="--buildtype=debug" />
+          </MesonProfile>
+          <MesonProfile>
+            <option name="name" value="build-release" />
+            <option name="buildDir" value="build-release" />
+            <option name="toolchainName" value="System" />
+            <option name="arguments" value="--buildtype=release -Denable_lto=true" />
+          </MesonProfile>
+          <MesonProfile>
+            <option name="name" value="build-testing" />
+            <option name="buildDir" value="build-testing" />
+            <option name="toolchainName" value="System" />
+            <option name="arguments" value="--buildtype=debugoptimized -Denable_asan=true -Denable_ubsan=true" />
+          </MesonProfile>
+        </option>
+      </MesonProjectSettings>
+    </option>
+  </component>
+  <component name="MesonWorkspace" PROJECT_DIR="$PROJECT_DIR$">
+    <contentRoot DIR="$PROJECT_DIR$" />
+  </component>
+</project>
