@@ -2,30 +2,39 @@
 
 A backend is written by declarative pattern-matching over a **core AST**. This
 file is that contract: what a backend may be handed, and what it may assume.
-`Nodes.inl` declares **36 `VOLT_EXPR`** — **27 core, 9 sugar**.
+`Nodes.inl` declares **36 `VOLT_EXPR`** — **26 core, 10 sugar** (was 27/9;
+`ArrayLit` moved to sugar per `.agents/PLAN_LITERAL_LOWERING.md` — `HashLit`
+is next, at which point this becomes 25/11).
 
 Two invariants make the contract mechanical rather than aspirational, and
 `AstInvariant` (order 40) checks both on every build:
 
-1. **No sugar survives `Lowering`.** The 9 nodes below are gone from the arena
-   by the time `TypeChecker` runs.
+1. **No sugar survives `Lowering`.** The 10 nodes below are gone from the
+   arena by the time `TypeChecker` runs.
 2. **Every expression in value position has a type.** `Values.Has( Id )` holds
    for it.
 
-## The 9 sugar nodes
+## The 10 sugar nodes
 
 `Interp` · `Index` · `DotCall` · `Section` · `Composition` · `Pipeline` ·
-`JsxElement` · `JsxFragment` · `JsxText`
+`JsxElement` · `JsxFragment` · `JsxText` · `ArrayLit`
 
 They are marked `VOLT_EXPR_SUGAR` in `Frontend/AST/Nodes.inl` — one line each,
 and that mark is what `AstInvariant` reads. Adding a sugar node is one line;
 forgetting to lower it is a build error, not a discovery made in the backend.
 
-## The 27 core nodes
+`ArrayLit` is not lowered by a `Lowering`-kind pass like the other nine —
+`LowerArrayLits` runs as a post-walk sweep *inside* `TypeChecker` itself
+(`EPassKind::Analysis`), once every constraint in the file has settled. See
+`.agents/PLAN_LITERAL_LOWERING.md` §2 for why (a real ordering bug forced this
+away from the simpler "rewrite it inline the moment TypeChecker" design the
+`VOLT_EXPR_SUGAR` machinery would suggest).
+
+## The 26 core nodes
 
 | Category | Nodes | What a backend does with it |
 |---|---|---|
-| Terminals (9) | `IntLiteral` `FloatLiteral` `StringLiteral` `CharLiteral` `BoolLiteral` `NilLiteral` `SymbolLiteral` `ArrayLit` `HashLit` | materialise a constant / aggregate from the `MemoryLayout` of the type that claimed the node kind via `@[Literal]` (`NominalType::LiteralSlots`) |
+| Terminals (8) | `IntLiteral` `FloatLiteral` `StringLiteral` `CharLiteral` `BoolLiteral` `NilLiteral` `SymbolLiteral` `HashLit` | materialise a constant / aggregate from the `MemoryLayout` of the type that claimed the node kind via `@[Literal]` (`NominalType::LiteralSlots`) |
 | Access (6) | `Identifier` `InstanceVar` `SelfExpr` `SuperExpr` `Member` `Deref` | load / GEP |
 | Operations (3) | `Call` `Assign` `Ternary` | call through `CalleeResolution`, store, select/branch |
 | Operators (2) | `Binary` `Unary` | see below |
@@ -33,33 +42,43 @@ forgetting to lower it is a build error, not a discovery made in the backend.
 | Closures (2) | `Lambda` `Block` | function + `ClosureEnvFrame` (size, alignment, `bEscapes` already computed) |
 | Inert (2) | `GenericInst` `SizeOf` | carry no runtime value: read `Values.Get( Id )` (resp. the layout size) and **never descend into them** |
 
-### Why `ArrayLit` / `HashLit` / `CaseExpr` are core, not sugar
+### Why `HashLit` / `CaseExpr` are core, not sugar
 
 They are not sugar being tolerated; lowering them would *cost* more than
 keeping them.
 
-> **Superseded for `ArrayLit`/`HashLit`** — see `.agents/PLAN_LITERAL_LOWERING.md`
-> and `rules/backend-machine-only.md`. The reasoning below (lowering needs a
-> pass that hand-annotates types, which the structural invariant forbids) was
-> wrong: the rewrite itself needs no type information (it is purely
-> structural, N elements → N calls), only the *result* needs the stabilized
-> type, and that can happen **inside** `TypeChecker`'s own handling of the
-> node rather than in a separate pass after it — nothing the invariant
-> forbids. Once that lands, `ArrayLit`/`HashLit` move to `VOLT_EXPR_SUGAR`,
-> the backend loses its dispatch arms for them entirely
+> **Superseded for `HashLit`** — see `.agents/PLAN_LITERAL_LOWERING.md` and
+> `rules/backend-machine-only.md`. The reasoning below (lowering needs a pass
+> that hand-annotates types, which the structural invariant forbids) is wrong,
+> for the same reason it was already found wrong for `ArrayLit`: the rewrite
+> itself needs no type information (it is purely structural), only the
+> *result* needs the stabilized type — and that can be read back **after**
+> `TypeChecker`'s own walk has finished settling every constraint in the file,
+> in a post-walk sweep still inside the `TypeChecker` pass function, nothing
+> the structural invariant forbids (see `ArrayLit`'s `LowerArrayLits`,
+> `LiteralLowering.cpp`, for the pattern to copy — including the ordering bug
+> a naive "rewrite the instant a type is first computed" version hits, and the
+> fix). Once `HashLit` lands the same way, it moves to `VOLT_EXPR_SUGAR`, the
+> backend loses its dispatch arm for it entirely
 > (`rules/backend-machine-only.md`: a backend may hold zero structural or
 > protocol knowledge about any Volt construct, not just avoid spelling a type
-> name), and the node counts below (27 core / 9 sugar) drop to 25 / 11. This
+> name), and the node counts above (26 core / 10 sugar) drop to 25 / 11. This
 > note stays until that migration lands; do not treat the "core, not sugar"
-> classification for these two as current design intent in the meantime — it
-> is a known, tracked debt.
+> classification for `HashLit` as current design intent in the meantime — it
+> is a known, tracked debt. (`ArrayLit`'s own version of this note is gone:
+> that migration already landed.)
 
-- `ArrayLit` / `HashLit` are **literals**, exactly like `StringLiteral` (itself
-  an aggregate `{ data, size }`). They are already fully typed — `[1,2,3]` is an
-  `Array<Int32>` and `arr.push` resolves on it. Lowering them to `Array.new` +
-  `push` needs the generic argument, which is only known *after* `TypeChecker`,
-  so it needs a pass that hand-annotates the types of what it creates — the one
-  thing §9's structural invariant forbids.
+- `HashLit` is a **literal**, exactly like `StringLiteral` (itself an
+  aggregate `{ data, size }`) and like `ArrayLit` was until it moved. It is
+  already fully typed — `{ "a" => 1 }` is a `Hash<String, Int32>` and
+  `hash[]=` resolves on it. Lowering it to `Hash.new` + `[]=` needs the
+  generic key/value arguments, which are only known *after* `TypeChecker` —
+  same wall `ArrayLit` hit, same fix applies, not yet done. `HashLit`'s own
+  rewrite additionally triggers a two-level generic instantiation
+  (`Array<HashEntry<K,V>>` inside `Hash<K,V>`, then `HashEntry<K,V>.new`
+  inside `Hash#[]=`) that needs verifying the `Monomorphizer` queue drains
+  correctly before relying on it — the reason it shipped after `ArrayLit`
+  rather than alongside it.
 - `CaseExpr` after `CaseLowering` (order 22) is already a flat list of
   `WhenClause{ Patterns: [expr Bool], Body }` + `ElseBody`: a control structure,
   no more sugary than `If` or `While`. Lowering it to an `If` chain would need

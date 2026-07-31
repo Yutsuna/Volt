@@ -8,7 +8,7 @@ is **declarative generation by pattern matching**:
 - **Zero uncertainty** — anything unclear was refused loudly upstream.
 
 > **Input contract: [`rules/core-ast.md`](rules/core-ast.md).** Exactly
-> **27 core nodes** (the 9 sugar nodes are gone, checked by `AstInvariant`),
+> **26 core nodes** (the 10 sugar nodes are gone, checked by `AstInvariant`),
 > every value expression typed — outright in concrete code, after
 > substitution inside a generic body. The contract is *materialised* for
 > backends as: `UnitTypes` (expression types), `UnitCallees`

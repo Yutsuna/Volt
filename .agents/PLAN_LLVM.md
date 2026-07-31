@@ -322,6 +322,9 @@ attendu, pas un signal.
 > littéral stabilisé — le reste de cette section (§5a-§5f) est conservé
 > ci-dessous pour mémoire historique mais ne doit plus être implémenté tel
 > quel.
+>
+> **`ArrayLit` : fait.** `HashLit` : pas commencé. Voir le statut détaillé en
+> tête de `.agents/PLAN_LITERAL_LOWERING.md`.
 
 `ExprEmitter.cpp:643-644` refuse **inconditionnellement** tout `ArrayLit`/`HashLit`
 (`FailAggregateLiteral`, `:776-788`). Vérifié : un simple `xs = [ 1, 2, 3 ]` suffit.

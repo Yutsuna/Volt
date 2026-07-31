@@ -15,8 +15,8 @@ The 14 break down as:
 
 | Count | Sample(s) | Cause |
 |---|---|---|
-| 6 | `BreakNext`, `WhileLoop`, `Composition` | Phase 5 — `ArrayLit` construction protocol |
-| 2 | `ForLoop` | Phase 7 — `Hash#each` undeclared (plus the Phase 5 blocker) |
+| 6 | `BreakNext`, `WhileLoop`, `Composition` | Phase 5 — `ArrayLit` construction protocol (**`ArrayLit` itself now shipped**, see below; re-verify these three before assuming green — `BreakNext.vl` still needs Phase 6, others may have separate gaps) |
+| 2 | `ForLoop` | Phase 7 — `Hash#each` undeclared (plus the Phase 5 `HashLit` blocker, still open) |
 | 2 | `Lambda` | `the callable invoked at expression 25 has no receiver expression` |
 | 2 | `PointFree` | `Call`/`Identifier in value position was never given a type` |
 | 1 | `Golden.lowered.samples/Sema/CompoundAssignReceiver.vl` | harness gap, see below |
@@ -155,24 +155,34 @@ one new `State::LoadConverged( Slot, Shape, Layout, Name )` next to
 
 ## Not started — remaining phases
 
-- **Phase 5**: **redesigned this session, before any of it was implemented —
-  see `.agents/PLAN_LITERAL_LOWERING.md`.** The original §5a-§5f design (backend-
-  side `EmitArrayLit`/`EmitHashLit`, `@[LiteralAppend]`, widened `UnitCallees`)
-  is superseded: `@[LiteralAppend]` would have been a 4th annotation beyond the
-  closed list (`@[Primitive]`/`@[External]`/`@[Literal]`), and more fundamentally
-  the backend may not dispatch on `ArrayLit`/`HashLit` *at all*, even read-only
-  (`rules/backend-machine-only.md`, new this session). A first attempt at a
+- **Phase 5**: **redesigned, then `ArrayLit` shipped — see
+  `.agents/PLAN_LITERAL_LOWERING.md`'s "Status" section for the current
+  state, which is the source of truth from here on rather than this entry.**
+  The original §5a-§5f design (backend-side `EmitArrayLit`/`EmitHashLit`,
+  `@[LiteralAppend]`, widened `UnitCallees`) was superseded before any of it
+  was implemented: `@[LiteralAppend]` would have been a 4th annotation beyond
+  the closed list (`@[Primitive]`/`@[External]`/`@[Literal]`), and more
+  fundamentally the backend may not dispatch on `ArrayLit`/`HashLit` *at all*,
+  even read-only (`rules/backend-machine-only.md`). A first attempt at a
   backend-side `EmitArrayLit` built the aggregate by hand via a raw C-ABI
   `malloc` + guessing which struct field was the buffer by LLVM type shape —
   rejected: it hardcodes Array's *structure* instead of its *name*, and
-  doesn't generalise to `Hash`'s own shape. The corrected design lowers both
-  literals into ordinary `Begin`/`Assign`/`Binary`/`Call` nodes **inside
-  `TypeChecker`**, once the literal's own type has stabilized — `Array` gains
-  one new `<<` operator (real Volt body), `Hash` reuses its existing `[]=`,
-  both resolved through the ordinary operator-resolution path (no hardcoded
-  member name, no annotation). Not started; `FailAggregateLiteral` still
-  guards both node kinds unchanged. Blocks: `WhileLoop.vl`, `BreakNext.vl`,
-  `Composition.vl`, and indirectly `ForLoop.vl`.
+  doesn't generalise to `Hash`'s own shape.
+  - **`ArrayLit`: done, a later session.** `Array` gained `<<` (real Volt
+    body, resolved through the ordinary operator-resolution path — no
+    hardcoded member name, no annotation), and the literal is rewritten into
+    ordinary `Begin`/`Assign`/`Binary`/`Call` nodes by a post-walk sweep
+    inside `TypeChecker` (not inline — an inline version shipped first and
+    broke on `sum_all( [4, 5, 6] )`-shaped code; see the plan doc for why).
+    `ExprEmitter.cpp`'s `ArrayLit` dispatch arm is gone; `AstInvariant`
+    confirms none survive. This clears the `ArrayLit` part of what blocked
+    `WhileLoop.vl`/`BreakNext.vl`/`Composition.vl`/`ForLoop.vl` below — it
+    does **not** mean those four are green now, only that Phase 5's
+    `ArrayLit` half of their blockage is gone; re-verify each against its
+    other listed gaps (Phase 6 for `BreakNext.vl`, Phase 7 for `ForLoop.vl`,
+    and whatever `WhileLoop.vl`/`Composition.vl` still need per the table
+    above) before crossing them off.
+  - **`HashLit`: not started.** `FailAggregateLiteral` still guards it alone.
   - Two `EmitResolvedCall`/`LlvmState.hpp` edits from an earlier abandoned
     attempt in this session (a `ReceiverValue` parameter for §5a) were made
     and then reverted before commit — no trace should remain in the working
