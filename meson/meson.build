@@ -78,3 +78,18 @@ export_template = files('export_template.hpp.inl')
 add_project_arguments('-MMD', language : 'cpp')
 common_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Pch.hpp'
 llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 'BackendLLVM' / 'PchLLVM.hpp'
+
+# ---------------------------------------------------------------------------
+
+clang_format = find_program('clang-format', required : false)
+if clang_format.found()
+  format_find = run_command(
+    find_prog, meson.project_source_root() / 'source' / 'Volt', '-type', 'f',
+    '(', '-name', '*.cpp', '-o', '-name', '*.hpp', '-o', '-name', '*.inl', ')',
+    check : true
+  )
+  format_files = format_find.stdout().strip().split('\n')
+  run_target('format',
+    command : [clang_format, '-i', '-style=file'] + format_files,
+  )
+endif
