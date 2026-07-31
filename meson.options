@@ -6,7 +6,7 @@
 option('enable_testing', type : 'boolean', value : false,
        description : 'Enable the CTest-equivalent test suite (not yet migrated)')
 
-option('enable_llvm', type : 'boolean', value : false,
+option('enable_llvm', type : 'boolean', value : true,
        description : 'Build BackendLLVM and link it into Driver/Volt')
 
 option('enable_asan', type : 'boolean', value : false,

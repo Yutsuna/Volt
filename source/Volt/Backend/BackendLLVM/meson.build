@@ -1,8 +1,4 @@
-# Prefers the monolithic imported target (nixpkgs' llvmPackages_latest
-# exposes exactly this). Meson's cmake dependency method has no equivalent
-# of llvm_map_components_to_libnames()'s friendly-name -> host-target
-# resolution, so a split-library LLVM install isn't supported here.
-llvm_dep = dependency('LLVM', method : 'cmake', modules : ['LLVM'], required : true)
+llvm_dep = dependency('llvm', method : 'config-tool', static : false, required : true)
 
 llvm_include_dirs = include_directories(
   llvm_dep.get_variable(cmake : 'LLVM_INCLUDE_DIRS', default_value : '').split(';'),
