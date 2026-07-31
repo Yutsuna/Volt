@@ -107,8 +107,8 @@ namespace Sema
         bool bAbstract = false;
         // `@[Unhandled]`: the hook a target calls when an exception reaches the
         // top of the program with nothing having rescued it. Declared on the
-        // `@[ExceptionRoot]` type and given the in-flight object as its
-        // receiver; what it *does* — the wording, the stream, whether it
+        // type claiming `@[Literal( RaiseExpr )]` and given the in-flight
+        // object as its receiver; what it *does* — the wording, the stream, whether it
         // reports at all — is Volt code in the stdlib, so no target ever names
         // a field or a message (rules/zero-hardcode.md). Recorded here for the
         // same reason ExternSymbol is: a backend must never re-scan an AST for
@@ -618,7 +618,6 @@ namespace Sema
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, NominalId> ByName;
         std::unordered_map<Symbol, NominalId> ByNodeKind;
-        NominalId ExceptionRoot;
         // Free functions: not owned by any NominalId, so a plain vector +
         // name index rather than the Members arrays. Never reallocated once
         // the serial TypeBinder seam ends, so the raw Member* handed out by

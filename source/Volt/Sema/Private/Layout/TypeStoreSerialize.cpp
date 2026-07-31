@@ -23,7 +23,6 @@ namespace Sema
         Meta::SerializeArena( W, Layouts );
         Meta::Serialize( W, ByName );
         Meta::Serialize( W, ByNodeKind );
-        Meta::Serialize( W, ExceptionRoot );
         Meta::Serialize( W, Functions );
         Meta::Serialize( W, FunctionByName );
 
@@ -58,10 +57,6 @@ namespace Sema
             return false;
         }
         if ( not Meta::Deserialize( R, ByNodeKind ) )
-        {
-            return false;
-        }
-        if ( not Meta::Deserialize( R, ExceptionRoot ) )
         {
             return false;
         }

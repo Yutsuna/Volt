@@ -241,7 +241,7 @@ namespace
     return Result;
 }
 
-// Builds `<ExceptionRoot>.new(MessageArg)` (MessageArg may be an invalid
+// Builds `<Root>.new(MessageArg)` (MessageArg may be an invalid
 // ExprId for a bare `.new()`), resolving the root type's name dynamically
 // through TypeStore rather than a hardcoded spelling. Shared by the two
 // places a `raise` needs to materialise an actual exception value: the
@@ -251,10 +251,10 @@ namespace
                                                                 Volt::Core::SourceRange Loc,
                                                                 Volt::Frontend::ExprId MessageArg )
 {
-    const auto Root = Context.Ctx.Types.GetExceptionRoot();
+    const auto Root = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
     if ( not Root )
     {
-        Context.Report( Loc, "no type is annotated @[ExceptionRoot]; the stdlib must declare one" );
+        Context.Report( Loc, "no type claims @[Literal( RaiseExpr )]; the stdlib must declare one" );
         return Volt::Frontend::ExprId{};
     }
     const std::string_view RootName      = Context.Ctx.Types.Text( Context.Ctx.Types.Type( *Root ).Name );
@@ -670,7 +670,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 {
                     // `raise "msg"` desugars to `Exception.new("msg")`, moved
                     // here from the parser so the constructed callee resolves
-                    // through TypeStore's @[ExceptionRoot] instead of a
+                    // through TypeStore's @[Literal( RaiseExpr )] instead of a
                     // hardcoded name.
                     Exception = MakeExceptionConstructor( Context, Loc, Exception );
                 }
@@ -678,7 +678,14 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 std::get<Frontend::RaiseExpr>( Context.Ctx.Ast.Expr( Id ) ).Exception = Exception;
                 if ( Exception.IsValid() )
                 {
-                    static_cast<void>( InferExpr( Context, Exception ) );
+                    const SemaTypeId ExceptionType = InferExpr( Context, Exception );
+                    const NominalId Nominal =
+                        Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
+                    if ( const auto Root = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
+                         Root.has_value() and Nominal.IsValid() and not IsSubclassOf( Context.Ctx.Types, Nominal, *Root ) )
+                    {
+                        Context.Report( Loc, "exception class/object expected" );
+                    }
                 }
                 return TypeCheckerContext::NoReturnType();
             },
@@ -701,7 +708,8 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
                         const NominalId Nominal =
                             Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
-                        if ( const auto ExcOpt = Context.Ctx.Types.GetExceptionRoot(); ExcOpt.has_value() and Nominal.IsValid() )
+                        if ( const auto ExcOpt = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
+                             ExcOpt.has_value() and Nominal.IsValid() )
                         {
                             if ( not IsSubclassOf( Context.Ctx.Types, Nominal, *ExcOpt ) )
                             {
@@ -710,7 +718,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                             }
                         }
                     }
-                    else if ( const auto ExcOpt = Context.Ctx.Types.GetExceptionRoot(); ExcOpt.has_value() )
+                    else if ( const auto ExcOpt = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" ); ExcOpt.has_value() )
                     {
                         ExceptionType = Context.MakeType( *ExcOpt, {} );
                     }
