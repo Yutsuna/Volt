@@ -20,7 +20,6 @@ pkgs.mkShell {
       gtest
       clang-tools
       cmake-lint
-      ruby-lsp
       graphify
     ]);
 
