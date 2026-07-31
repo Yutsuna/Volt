@@ -375,7 +375,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
             // A string/interp argument is sugar for `Exception.new(msg)`, but
             // the parser has no TypeStore to resolve the exception root
             // type's name — Sema's RaiseExpr handler performs that desugar
-            // once the root is known (see @[ExceptionRoot]).
+            // once the root is known (see @[Literal( RaiseExpr )]).
             Arg = ParseExpr( 0 );
         }
         RaiseExpr Node;
