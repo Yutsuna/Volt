@@ -25,8 +25,8 @@ pkgs.mkShell {
     ]);
 
   shellHook = ''
-    export CXX="$(command -v g++)"
-    export CC="$(command -v gcc)"
+    export CXX="ccache $(command -v g++)"
+    export CC="ccache $(command -v gcc)"
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
   '';
 }
