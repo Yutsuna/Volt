@@ -431,7 +431,6 @@ namespace Sema
             // but the enum's own identity.)
             void DeclareMembers ( NominalId Id, const Frontend::DeclList &Body )
             {
-                bool bUnhandled = false;
                 std::vector<PendingAnnotation> Pending;
 
                 for ( const Frontend::DeclId Child : Body )
@@ -445,7 +444,6 @@ namespace Sema
                     // they do at file scope.
                     if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Ast.Decl( Child ) ) )
                     {
-                        bUnhandled = bUnhandled or Ast.Text( Anno->Name ) == "Unhandled";
                         Pending.push_back( PendingAnnotation{ .Name = Anno->Name, .Args = Anno->Args, .Loc = Anno->Loc } );
                         continue;
                     }
@@ -464,13 +462,12 @@ namespace Sema
                             [&] ( const Frontend::Method &Entry )
                             {
                                 Member Slot;
-                                Slot.Name       = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind       = EMemberKind::Method;
-                                Slot.Unit       = Unit;
-                                Slot.Decl       = Child;
-                                Slot.bSelf      = Entry.bSelf;
-                                Slot.bUnhandled = bUnhandled;
-                                Slot.bAbstract  = Entry.bAbstract;
+                                Slot.Name      = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind      = EMemberKind::Method;
+                                Slot.Unit      = Unit;
+                                Slot.Decl      = Child;
+                                Slot.bSelf     = Entry.bSelf;
+                                Slot.bAbstract = Entry.bAbstract;
                                 ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), Slot );
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
@@ -488,7 +485,6 @@ namespace Sema
                         },
                         Ast.Decl( Child ) );
 
-                    bUnhandled = false;
                     Pending.clear();
                 }
             }

@@ -665,27 +665,35 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                         Exception = MakeExceptionConstructor( Context, Loc, Frontend::ExprId{} );
                     }
                 }
-                else if ( std::holds_alternative<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Exception ) ) or
-                          std::holds_alternative<Frontend::Interp>( Context.Ctx.Ast.Expr( Exception ) ) )
+
+                // `raise "msg"` desugars to `Exception.new("msg")`. Detected
+                // by *type*, not by the pre-lowering node kind: InterpLowering
+                // (order 26) runs before TypeChecker (order 30), so an
+                // interpolated message never survives to this point as an
+                // `Interp` node — it is already a `Binary`/`Call` chain typed
+                // `String`. The type claiming @[Literal( StringLiteral )] is
+                // the same node-kind lookup TypeCompat uses for `nil`.
+                const auto Root          = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
+                SemaTypeId ExceptionType = InferExpr( Context, Exception );
+                NominalId Nominal =
+                    Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
+
+                if ( Root.has_value() and Nominal.IsValid() and not IsSubclassOf( Context.Ctx.Types, Nominal, *Root ) )
                 {
-                    // `raise "msg"` desugars to `Exception.new("msg")`, moved
-                    // here from the parser so the constructed callee resolves
-                    // through TypeStore's @[Literal( RaiseExpr )] instead of a
-                    // hardcoded name.
-                    Exception = MakeExceptionConstructor( Context, Loc, Exception );
+                    if ( const auto StringKind = Context.Ctx.Types.LookupNodeKind( "StringLiteral" );
+                         StringKind.has_value() and Nominal == *StringKind )
+                    {
+                        Exception     = MakeExceptionConstructor( Context, Loc, Exception );
+                        ExceptionType = InferExpr( Context, Exception );
+                        Nominal =
+                            Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
+                    }
                 }
 
                 std::get<Frontend::RaiseExpr>( Context.Ctx.Ast.Expr( Id ) ).Exception = Exception;
-                if ( Exception.IsValid() )
+                if ( Root.has_value() and Nominal.IsValid() and not IsSubclassOf( Context.Ctx.Types, Nominal, *Root ) )
                 {
-                    const SemaTypeId ExceptionType = InferExpr( Context, Exception );
-                    const NominalId Nominal =
-                        Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
-                    if ( const auto Root = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
-                         Root.has_value() and Nominal.IsValid() and not IsSubclassOf( Context.Ctx.Types, Nominal, *Root ) )
-                    {
-                        Context.Report( Loc, "exception class/object expected" );
-                    }
+                    Context.Report( Loc, "exception class/object expected" );
                 }
                 return TypeCheckerContext::NoReturnType();
             },
