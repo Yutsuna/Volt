@@ -307,6 +307,22 @@ attendu, pas un signal.
 
 ## Phase 5 — Protocole de construction des littéraux agrégés
 
+> **Ce chantier a été entièrement repensé — voir `.agents/PLAN_LITERAL_LOWERING.md`
+> et `.agents/rules/backend-machine-only.md`.** §5c (`@[LiteralAppend]`) est
+> refusé : la liste fermée d'annotations est `@[Primitive]`/`@[External]`/
+> `@[Literal]`, point final (voir la section "refused example, kept on
+> purpose" de `rules/zero-hardcode.md`). Plus fondamentalement, §5a-§5f
+> gardaient `ArrayLit`/`HashLit` comme des nœuds que **le backend** dispatche
+> et construit — même « en lecture seule » via `EmitResolvedCall`, c'est
+> encore le backend qui connaît l'existence de ces nœuds, ce qui est refusé
+> sans exception (le backend ne connaît que `i8..i64`/`u8..u64`/`f32`/`f64`/
+> pointeurs/(dé)référencement — rien d'autre, jamais). Le design correct
+> lowered `ArrayLit`/`HashLit` en AST core ordinaire (`Begin`/`Assign`/
+> `Binary`/`Call`) **à l'intérieur de `TypeChecker`**, une fois le type du
+> littéral stabilisé — le reste de cette section (§5a-§5f) est conservé
+> ci-dessous pour mémoire historique mais ne doit plus être implémenté tel
+> quel.
+
 `ExprEmitter.cpp:643-644` refuse **inconditionnellement** tout `ArrayLit`/`HashLit`
 (`FailAggregateLiteral`, `:776-788`). Vérifié : un simple `xs = [ 1, 2, 3 ]` suffit.
 Bloque `Composition.vl`, `WhileLoop.vl`, `ForLoop.vl`, `BreakNext.vl`.

@@ -155,12 +155,29 @@ one new `State::LoadConverged( Slot, Shape, Layout, Name )` next to
 
 ## Not started — remaining phases
 
-- **Phase 5**: `ArrayLit`/`HashLit` construction protocol (`@[LiteralAppend]`,
-  `ECalleeSlot`, Sema resolves at snapshot time not inference time, backend
-  emits via `EmitResolvedCall`). Currently: any `[1, 2, 3]` fails with `llvm:
-  ArrayLit at expression N needs the claiming type's construction protocol,
-  which the middle-end does not record`. Blocks: `WhileLoop.vl`, `BreakNext.vl`,
+- **Phase 5**: **redesigned this session, before any of it was implemented —
+  see `.agents/PLAN_LITERAL_LOWERING.md`.** The original §5a-§5f design (backend-
+  side `EmitArrayLit`/`EmitHashLit`, `@[LiteralAppend]`, widened `UnitCallees`)
+  is superseded: `@[LiteralAppend]` would have been a 4th annotation beyond the
+  closed list (`@[Primitive]`/`@[External]`/`@[Literal]`), and more fundamentally
+  the backend may not dispatch on `ArrayLit`/`HashLit` *at all*, even read-only
+  (`rules/backend-machine-only.md`, new this session). A first attempt at a
+  backend-side `EmitArrayLit` built the aggregate by hand via a raw C-ABI
+  `malloc` + guessing which struct field was the buffer by LLVM type shape —
+  rejected: it hardcodes Array's *structure* instead of its *name*, and
+  doesn't generalise to `Hash`'s own shape. The corrected design lowers both
+  literals into ordinary `Begin`/`Assign`/`Binary`/`Call` nodes **inside
+  `TypeChecker`**, once the literal's own type has stabilized — `Array` gains
+  one new `<<` operator (real Volt body), `Hash` reuses its existing `[]=`,
+  both resolved through the ordinary operator-resolution path (no hardcoded
+  member name, no annotation). Not started; `FailAggregateLiteral` still
+  guards both node kinds unchanged. Blocks: `WhileLoop.vl`, `BreakNext.vl`,
   `Composition.vl`, and indirectly `ForLoop.vl`.
+  - Two `EmitResolvedCall`/`LlvmState.hpp` edits from an earlier abandoned
+    attempt in this session (a `ReceiverValue` parameter for §5a) were made
+    and then reverted before commit — no trace should remain in the working
+    tree; if `EmitResolvedCall`'s signature shows a 5th parameter, that's a
+    leftover to remove.
 - **Phase 6**: non-local `break` transport (shared unwind check with the
   exception machinery, `volt.brk.flag`, consumption at `EmitResolvedCall`).
 - **Phase 7**: `Hash#each` (~10 lines of Volt) and `Range<T>`/`..` operator

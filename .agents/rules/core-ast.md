@@ -38,6 +38,22 @@ forgetting to lower it is a build error, not a discovery made in the backend.
 They are not sugar being tolerated; lowering them would *cost* more than
 keeping them.
 
+> **Superseded for `ArrayLit`/`HashLit`** — see `.agents/PLAN_LITERAL_LOWERING.md`
+> and `rules/backend-machine-only.md`. The reasoning below (lowering needs a
+> pass that hand-annotates types, which the structural invariant forbids) was
+> wrong: the rewrite itself needs no type information (it is purely
+> structural, N elements → N calls), only the *result* needs the stabilized
+> type, and that can happen **inside** `TypeChecker`'s own handling of the
+> node rather than in a separate pass after it — nothing the invariant
+> forbids. Once that lands, `ArrayLit`/`HashLit` move to `VOLT_EXPR_SUGAR`,
+> the backend loses its dispatch arms for them entirely
+> (`rules/backend-machine-only.md`: a backend may hold zero structural or
+> protocol knowledge about any Volt construct, not just avoid spelling a type
+> name), and the node counts below (27 core / 9 sugar) drop to 25 / 11. This
+> note stays until that migration lands; do not treat the "core, not sugar"
+> classification for these two as current design intent in the meantime — it
+> is a known, tracked debt.
+
 - `ArrayLit` / `HashLit` are **literals**, exactly like `StringLiteral` (itself
   an aggregate `{ data, size }`). They are already fully typed — `[1,2,3]` is an
   `Array<Int32>` and `arr.push` resolves on it. Lowering them to `Array.new` +
