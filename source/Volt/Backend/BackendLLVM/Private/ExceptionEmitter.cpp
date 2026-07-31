@@ -125,36 +125,6 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionStorageS
     return ExcStorage;
 }
 
-const Volt::Sema::Member *Volt::Backend::Llvm::LlvmBackend::State::UnhandledHook ( Sema::NominalId &OutOwner ) const
-{
-    if ( Build == nullptr or Build->Types == nullptr )
-    {
-        return nullptr;
-    }
-    const Sema::TypeStore &Store = *Build->Types;
-
-    const auto Root = Store.LookupNodeKind( "RaiseExpr" );
-    if ( not Root.has_value() )
-    {
-        return nullptr;
-    }
-
-    // Looked up on the root only, and called statically. Volt dispatches
-    // methods statically everywhere else too (llvm.md, SuperExpr), so a
-    // subclass overriding the hook would not be picked up — routing by the tag
-    // would need a per-NominalId dispatch table, which is tier-2 work and
-    // buys nothing until Volt has virtual dispatch at all.
-    for ( const Sema::Member &Entry : Store.Type( *Root ).Members )
-    {
-        if ( Entry.Kind == Sema::EMemberKind::Method and Entry.bUnhandled )
-        {
-            OutOwner = *Root;
-            return &Entry;
-        }
-    }
-    return nullptr;
-}
-
 llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::AncestryTable ()
 {
     if ( Ancestry != nullptr )

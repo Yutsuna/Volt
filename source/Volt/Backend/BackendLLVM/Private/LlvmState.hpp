@@ -384,6 +384,13 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // and needs one. False when the slot could not be opened.
     [[nodiscard]] bool BindParameter ( const Sema::BindingSite &Site, llvm::Value *Arg, bool bByAddress, std::string_view Name );
 
+    // Gives `_V_init_all` (declared, never defined, by the stdlib prelude's
+    // `@[External( "volt", "_V_init_all" )]`) its body: every unit's
+    // `_V_init_N`, in order, stopping early once one leaves an exception in
+    // flight. Idempotent — a second call sees the function already defined
+    // and returns immediately.
+    [[nodiscard]] bool EmitInitAll ();
+
     // The C-linkage shim the runtime starts at, calling the Volt function
     // EmitOptions names as the entry. False only when it failed and Status
     // already says why.
@@ -570,11 +577,6 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // declares. One buffer, matching the one-slot tag/value pair: tier 1 has
     // exactly one exception in flight per thread.
     [[nodiscard]] llvm::GlobalVariable *ExceptionStorageSlot ();
-
-    // The member the `@[Literal( RaiseExpr )]` annotates `@[Unhandled]`, or null when
-    // the stdlib declares none — reporting is opt-in, and a build whose stdlib
-    // stays silent is a configuration, not a missing middle-end fact.
-    [[nodiscard]] const Sema::Member *UnhandledHook ( Sema::NominalId &OutOwner ) const;
 
     // `NominalId -> immediate Super`, one row per declared type, emitted once
     // as module-level constant data.

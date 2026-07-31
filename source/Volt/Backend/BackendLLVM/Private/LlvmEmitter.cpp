@@ -45,12 +45,6 @@ void InitialiseNativeTarget ()
                     } );
 }
 
-// The status the process exits with when an exception reaches the top with
-// nobody to catch it. One value, not the raised type's NominalId: an id is a
-// build-internal number with no meaning outside the process, and 8 bits of
-// exit status is no place to encode one.
-constexpr int UncaughtExceptionStatus = 1;
-
 } // namespace
 
 Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::State::Fail ( std::string InMessage )
@@ -496,6 +490,69 @@ void Volt::Backend::Llvm::LlvmBackend::State::BindInstanceVarParam ( Frontend::P
     EmitStore( Address, Value, LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Sema::BindingSite{ ParamRef } ) ) );
 }
 
+bool Volt::Backend::Llvm::LlvmBackend::State::EmitInitAll ()
+{
+    // `_V_init_all`: the one symbol the stdlib prelude's
+    // `@[External( "volt", "_V_init_all" )]` declaration names. DeclareAll
+    // has already created it as an external declaration — the same shape
+    // every other @[External] member gets, "declared, never defined" — this
+    // gives that declaration its one and only body, called exactly once, by
+    // the prelude's `__volt_entry`. A raise inside it is carried out through
+    // the ordinary post-call check every Volt call site already gets
+    // (EmitExceptionCheck, wired into EmitResolvedCall); this function's own
+    // job is only to stop running *further* unit inits once one has left the
+    // tag set, hand-rolled because it is synthesised, not emitted from a
+    // Volt body.
+    llvm::Function *InitAllFn = Mod->getFunction( "_V_init_all" );
+    if ( InitAllFn == nullptr )
+    {
+        llvm::FunctionType *FnTy = llvm::FunctionType::get( Builder->getVoidTy(), false );
+        InitAllFn                = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, "_V_init_all", Mod.get() );
+    }
+    if ( not InitAllFn->empty() )
+    {
+        return true;
+    }
+
+    llvm::Type *Int32Ty = llvm::Type::getInt32Ty( Context );
+    llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", InitAllFn ) };
+
+    if ( Build != nullptr )
+    {
+        for ( std::size_t Index = 0; Index < Build->Units.size(); ++Index )
+        {
+            const UnitView &Unit       = Build->Units[Index];
+            const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
+            llvm::Function *InitFn     = Mod->getFunction( InitName );
+            if ( InitFn == nullptr )
+            {
+                llvm::FunctionType *FnTy = llvm::FunctionType::get( Builder->getVoidTy(), false );
+                InitFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, InitName, Mod.get() );
+            }
+            static_cast<void>( Shell.CreateCall( InitFn ) );
+
+            if ( Index + 1 < Build->Units.size() )
+            {
+                llvm::Value *Tag = Shell.CreateLoad( Int32Ty, ExceptionTagSlot(), "exc.tag" );
+                llvm::Value *Pending =
+                    Shell.CreateICmpNE( Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
+
+                llvm::BasicBlock *Stop = llvm::BasicBlock::Create( Context, "init.stop", InitAllFn );
+                llvm::BasicBlock *Next = llvm::BasicBlock::Create( Context, "init.next", InitAllFn );
+                static_cast<void>( Shell.CreateCondBr( Pending, Stop, Next ) );
+
+                Shell.SetInsertPoint( Stop );
+                static_cast<void>( Shell.CreateRetVoid() );
+
+                Shell.SetInsertPoint( Next );
+            }
+        }
+    }
+
+    static_cast<void>( Shell.CreateRetVoid() );
+    return true;
+}
+
 bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
 {
     // The C entry symbol (e.g. `main`). If no entry symbol is requested or if
@@ -503,6 +560,33 @@ bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
     if ( Options.EntrySymbol.empty() or Mod->getFunction( Options.EntrySymbol ) != nullptr )
     {
         return true;
+    }
+
+    if ( not EmitInitAll() )
+    {
+        return false;
+    }
+
+    // The Volt free function the C runtime hands control to
+    // (source/Lib/Prelude.vl's `__volt_entry`, by default). DeclareAll has
+    // already emitted its `llvm::Function` by the time Finalize reaches this
+    // seam, exactly like any other free function — reporting an uncaught
+    // exception and choosing the exit status are that function's own
+    // `begin/rescue`, not this file's business (rules/zero-hardcode.md): no
+    // field name, no type name, no byte of message enters C++ here.
+    llvm::Function *EntryFn = nullptr;
+    if ( Build != nullptr and Build->Types != nullptr )
+    {
+        if ( const Sema::Member *Entry = Build->Types->LookupFunction( Options.EntryFunction ); Entry != nullptr )
+        {
+            EntryFn = FunctionFor( *Entry, Sema::NominalId{}, {} );
+        }
+    }
+    if ( EntryFn == nullptr )
+    {
+        static_cast<void>(
+            Fail( "llvm: entry function '" + Options.EntryFunction + "' not found — the stdlib prelude must declare it" ) );
+        return false;
     }
 
     llvm::Type *ExitCodeTy = llvm::Type::getInt32Ty( Context );
@@ -513,62 +597,8 @@ bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
     llvm::Function *MainFn = llvm::Function::Create( MainTy, llvm::Function::ExternalLinkage, Options.EntrySymbol, Mod.get() );
 
     llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", MainFn ) };
-
-    if ( Build != nullptr )
-    {
-        for ( const UnitView &Unit : Build->Units )
-        {
-            const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
-            llvm::Function *InitFn     = Mod->getFunction( InitName );
-            if ( InitFn == nullptr )
-            {
-                llvm::FunctionType *FnTy = llvm::FunctionType::get( Builder->getVoidTy(), false );
-                InitFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, InitName, Mod.get() );
-            }
-            static_cast<void>( Shell.CreateCall( InitFn ) );
-        }
-    }
-
-    // The last-resort handler. Tier 1's poisoned path bottoms out at "return
-    // early carrying no value" (ExceptionEmitter.cpp), so an exception nobody
-    // caught arrives here as a set tag behind an ordinary-looking return — for
-    // an `-> Int32` body, `ret i32 0`, byte for byte what success looks like.
-    // This is the one place that reads the tag back, and reading it is the
-    // whole of what makes `raise` observable from outside the process: without
-    // it a `raise` in `main` and a clean exit are the same status, which
-    // silently disarms `raise` as an assertion oracle.
-    //
-    // *Reporting* it is not this file's business. The stdlib annotates one
-    // member `@[Unhandled]` on its `@[Literal( RaiseExpr )]`, and all the emitter does
-    // is call it with the in-flight object as the receiver — the wording, the
-    // stream, the decision to say anything at all are Volt code. No field name,
-    // no type name, no byte of message enters C++ (rules/zero-hardcode.md).
-    llvm::Value *Tag = Shell.CreateLoad( ExitCodeTy, ExceptionTagSlot(), "exc.tag" );
-    llvm::Value *Pending =
-        Shell.CreateICmpNE( Tag, llvm::ConstantInt::get( ExitCodeTy, Sema::NominalId::InvalidValue ), "exc.pending" );
-
-    llvm::BasicBlock *Unhandled = llvm::BasicBlock::Create( Context, "exc.unhandled", MainFn );
-    llvm::BasicBlock *Clean     = llvm::BasicBlock::Create( Context, "exit.clean", MainFn );
-    static_cast<void>( Shell.CreateCondBr( Pending, Unhandled, Clean ) );
-
-    // The receiver is `volt.exc.storage`, not `volt.exc.value`'s pointee taken
-    // on faith: by here every Volt frame has returned, and the storage global
-    // is precisely what makes the object still readable (ExceptionEmitter.cpp).
-    // A stdlib that annotates no hook is simply silent — an opt-in that was
-    // not taken, not a fact the middle-end owes, so nothing is refused here.
-    Shell.SetInsertPoint( Unhandled );
-    Sema::NominalId HookOwner;
-    if ( const Sema::Member *Hook = UnhandledHook( HookOwner ); Hook != nullptr )
-    {
-        if ( llvm::Function *Report = FunctionFor( *Hook, HookOwner, {} ); Report != nullptr )
-        {
-            static_cast<void>( Shell.CreateCall( Report, { ExceptionStorageSlot() } ) );
-        }
-    }
-    static_cast<void>( Shell.CreateRet( llvm::ConstantInt::get( ExitCodeTy, UncaughtExceptionStatus ) ) );
-
-    Shell.SetInsertPoint( Clean );
-    static_cast<void>( Shell.CreateRet( llvm::ConstantInt::get( ExitCodeTy, 0 ) ) );
+    llvm::Value *ExitCode = Shell.CreateCall( EntryFn, {}, "exit.code" );
+    static_cast<void>( Shell.CreateRet( ExitCode ) );
     return true;
 }
 

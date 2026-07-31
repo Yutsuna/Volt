@@ -54,7 +54,7 @@ namespace Backend
             // *language* convention, not a code-generation one, so it is set
             // here by `volt build` rather than assumed by the emitter; empty
             // means "emit no entry point", which is what a library build is.
-            std::string EntryFunction = "main";
+            std::string EntryFunction = "__volt_entry";
             std::string EntrySymbol   = "main";
 
             // --- Issue #61: stdlib native-artifact cache -----------------
