@@ -29,22 +29,8 @@
         </option>
         <option name="profiles">
           <MesonProfile>
-            <option name="name" value="build-debug" />
             <option name="buildDir" value="build" />
             <option name="toolchainName" value="System" />
-            <option name="arguments" value="--buildtype=debug" />
-          </MesonProfile>
-          <MesonProfile>
-            <option name="name" value="build-release" />
-            <option name="buildDir" value="build-release" />
-            <option name="toolchainName" value="System" />
-            <option name="arguments" value="--buildtype=release -Denable_lto=true" />
-          </MesonProfile>
-          <MesonProfile>
-            <option name="name" value="build-testing" />
-            <option name="buildDir" value="build-testing" />
-            <option name="toolchainName" value="System" />
-            <option name="arguments" value="--buildtype=debugoptimized -Denable_asan=true -Denable_ubsan=true" />
           </MesonProfile>
         </option>
       </MesonProjectSettings>
