@@ -289,6 +289,14 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
         return;
     }
 
+    // Copied out, not visited by reference: a LocalDecl/Return/default
+    // handler below reads several fields interleaved with InferExpr calls,
+    // and — since LowerArrayLit — one of those calls can Add() onto the Stmt
+    // arena, reallocating out from under a reference bound straight into the
+    // live slot (rules/ast-rewrite.md). ComputeExpr takes the same copy for
+    // the Expr arena for the identical reason.
+    const Frontend::StmtNode StmtCopy = Context.Ctx.Ast.Stmt( Id );
+
     std::visit(
         Meta::Overloaded{
             [&] ( const Frontend::LocalDecl &Node )
@@ -349,5 +357,5 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
             },
             [&] ( const auto &Node ) { WalkChildren( Context, Node ); },
         },
-        Context.Ctx.Ast.Stmt( Id ) );
+        StmtCopy );
 }

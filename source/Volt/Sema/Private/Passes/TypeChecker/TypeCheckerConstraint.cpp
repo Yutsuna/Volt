@@ -2,6 +2,7 @@
 #include "TypeCheckerContext.hpp"
 
 #include "ExprInferencer.hpp"
+#include "LiteralLowering.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 
 /**

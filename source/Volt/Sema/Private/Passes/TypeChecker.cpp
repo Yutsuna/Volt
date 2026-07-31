@@ -3,6 +3,7 @@
 
 #include "TypeChecker/DeclStmtWalker.hpp"
 #include "TypeChecker/LiteralInferencer.hpp"
+#include "TypeChecker/LiteralLowering.hpp"
 #include "TypeChecker/TypeCheckerContext.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -51,6 +52,14 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
         TypeCheckerPass::WalkStmt( State, Id );
     }
     TypeCheckerPass::WalkDecls( State, Context.Ast.TopDecls );
+
+    // Only after every ConstrainExprType in the file has had its say: a
+    // literal passed as a call argument is naturally inferred before its
+    // parameter's type ever reaches it (CallType's own comment — "arguments
+    // are bound before being checked"), so rewriting inline the moment either
+    // path first settles a type bakes in whichever ran first. See
+    // LiteralLowering.hpp.
+    TypeCheckerPass::LowerArrayLits( State );
 
     // Snapshot the settled resolutions into the unit before the pass-local
     // state dies — inference refines entries in place, so only the final map

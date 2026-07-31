@@ -641,7 +641,10 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
                 }
                 return llvm::ConstantInt::get( Shape, Node.Name.Value );
             },
-            [this, Id] ( const Frontend::ArrayLit & ) -> llvm::Value * { return FailAggregateLiteral( Id, "ArrayLit" ); },
+            // No Frontend::ArrayLit arm: LowerArrayLit (TypeChecker) rewrites
+            // every one into ordinary Assign/Binary/Call nodes before this
+            // backend ever walks the tree — see
+            // .agents/PLAN_LITERAL_LOWERING.md. HashLit ships next.
             [this, Id] ( const Frontend::HashLit & ) -> llvm::Value * { return FailAggregateLiteral( Id, "HashLit" ); },
 
             // --- Access ----------------------------------------------------
