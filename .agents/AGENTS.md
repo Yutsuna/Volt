@@ -1,4 +1,4 @@
-********# `.agents/` — How to Contribute to Volt (Human or AI)
+# `.agents/` — How to Contribute to Volt (Human or AI)
 
 This directory is the **portable, versioned source of truth** for the agents, rules, and skills that frame every contribution to the Volt compiler. Claude Code reads subagents from `.claude/agents/` and skills from `.claude/skills/`; those are symlinks back here, so editing a file under `.agents/` updates the harness harness.
 

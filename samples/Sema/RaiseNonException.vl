@@ -1,0 +1,11 @@
+# VOLT_CHECK_EXPECT_FAIL — Ruby-strict `raise`: the raised expression's type
+# must descend from the type claiming @[Literal( RaiseExpr )] (Exception),
+# exactly as `Kernel#raise` refuses anything that fails `is_a?(Exception)` at
+# runtime — Volt does the equivalent check at compile time instead.
+#
+# Expected: error: exception class/object expected
+
+def probe -> Int32
+  raise 42
+  0
+end
