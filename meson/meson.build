@@ -25,6 +25,7 @@ common_cpp_args += [
   '-Wdouble-promotion', '-Wformat=2', '-Wimplicit-fallthrough',
   '-Wno-missing-braces', '-Werror',
   '-fvisibility=hidden', '-fvisibility-inlines-hidden',
+  '-MMD',
 ]
 common_cpp_args += cxx.get_supported_arguments(
   uninit_warn_flag.get(cxx.get_id(), ['-Wno-uninitialized']),
@@ -75,7 +76,6 @@ compile_options_dep = declare_dependency(
 
 export_template = files('export_template.hpp.inl')
 
-add_project_arguments('-MMD', language : 'cpp')
 common_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Pch.hpp'
 llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 'BackendLLVM' / 'PchLLVM.hpp'
 
