@@ -42,6 +42,16 @@ struct Array<T>
     @size += 1
   end
 
+  # The append operator an `[ a, b, c ]` literal lowers to (LowerArrayLit,
+  # TypeChecker) — resolved through ordinary member resolution like any
+  # other `<<`, not a builtin: a type claiming `@[Literal( ArrayLit )]`
+  # without this declared would fail the lowering exactly as `Int32 + Int32`
+  # fails without `Arithmetic`.
+  def <<( value : T ) -> self
+    push( value )
+    self
+  end
+
   def pop -> T
     if @size > 0
       @size -= 1
