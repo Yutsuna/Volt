@@ -166,7 +166,9 @@ namespace
 // which only hashes stdlib source + the running binary's own identity).
 // Bumped to 02 when `@[Apply]` was deleted: `Member` lost `bApply` and
 // `CalleeEntry` gained `bIndirect`, so both cached records changed shape.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453032ULL; // "VOLTFE02"
+// Bumped to 03 when `@[ExceptionRoot]` was deleted: `TypeStore` lost its
+// serialised `ExceptionRoot` field.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453033ULL; // "VOLTFE03"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
