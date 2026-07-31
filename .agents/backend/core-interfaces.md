@@ -11,7 +11,7 @@ concrete read side:
 
 | Promise | Where a backend reads it |
 |---|---|
-| 26 core nodes, no sugar | `Frontend::AstContext` (checked by `AstInvariant`) |
+| 25 core nodes, no sugar | `Frontend::AstContext` (checked by `AstInvariant`) |
 | every value expression typed | `Sema::UnitTypes` (`Values.ExprType( Id )`) |
 | method vs. machine instruction | `Sema::UnitCallees` (`Layout/CalleeMap.hpp`) |
 | closure size/alignment/escape | `Sema::SynthesizeClosureFrame( Scopes, Types, ScopeId )` |

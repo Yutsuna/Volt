@@ -35,20 +35,19 @@ Volt-level member resolution) is exactly as wrong as it hardcoding the
 allocation size and field layout by hand — both are the backend acquiring
 protocol knowledge that belongs upstream.
 
-## Consequence: `ArrayLit`/`HashLit` must be gone before codegen
+## Consequence: `ArrayLit`/`HashLit` must be gone before codegen — done
 
-As of this writing, `rules/core-ast.md` lists `ArrayLit`/`HashLit` among the
-**27 core nodes** — reasoned as "cannot be lowered, the generic element type
-is only known after `TypeChecker`". That reasoning is superseded: see
+`rules/core-ast.md` used to list `ArrayLit`/`HashLit` among the core nodes —
+reasoned as "cannot be lowered, the generic element type is only known after
+`TypeChecker`". That reasoning was superseded: see
 `.agents/PLAN_LITERAL_LOWERING.md` for the corrected design (the middle-end
 rewrites the literal into ordinary `Begin`/`Assign`/`Binary`/`Call` nodes once
 its own type has stabilized, using the *same* deferred-typing convention any
 other generic-body expression already uses — no new mechanism, no backend
-involvement). Once that lands, `core-ast.md`'s node table, the "why core not
-sugar" section, and every "27 core / 9 sugar" count across `BACKEND.md` /
-`MIDDLEEND.md` / `AGENTS.md` must be updated in the same change — do not leave
-the count stale the way the `If`-to-`VOLT_EXPR` move already had to correct it
-once (`PLAN_LLVM.md` Phase 8).
+involvement). Both nodes have shipped this way (`LowerArrayLits` /
+`LowerHashLits`, `LiteralLowering.cpp`); `core-ast.md`'s node table, its "why
+core not sugar" section, and every node-count mention across `BACKEND.md` /
+`MIDDLEEND.md` / `AGENTS.md` are updated to 25 core / 11 sugar.
 
 ## A synthesized operator is not a built-in either
 

@@ -60,7 +60,12 @@ agree with `LayoutEngine` (`abi.md`); `DataLayout` is configured so natural
 alignment matches, and a `static_assert`-style startup check compares the two
 on every aggregate it emits (debug builds).
 
-## The 27 nodes → IR
+## The 25 nodes → IR
+
+`ArrayLit`/`HashLit` are not in this table: `LowerArrayLits`/`LowerHashLits`
+(`TypeChecker`) rewrite every one into ordinary `Assign`/`Binary`/`Call`/
+`BeginExpr` before this backend ever walks the tree — see
+`.agents/PLAN_LITERAL_LOWERING.md`.
 
 | Node | Emission |
 |---|---|
@@ -68,7 +73,6 @@ on every aggregate it emits (debug builds).
 | `NilLiteral` | null of the claiming type's layout (`ptr` today) |
 | `StringLiteral` | private constant bytes + the claiming type's aggregate `{ data, size }` |
 | `SymbolLiteral` | interned u32 constant (interner table is a runtime concern, refused loudly for `to_string` — core-ast.md) |
-| `ArrayLit` / `HashLit` | **refused** — see "middle-end gaps found" below |
 | `Identifier` | local slot load (`alloca` + mem2reg) or free-function reference via `CalleeEntry` |
 | `InstanceVar` | GEP on `self` at `LayoutEngine::FieldOffset` |
 | `SelfExpr` / `SuperExpr` | first parameter of the method function / same, statically dispatched to the parent's method |
@@ -205,11 +209,12 @@ lines. Four things are deliberately *not* rows, because none is a table lookup:
 Each is refused by a message naming the hole rather than guessed at, per
 `core-interfaces.md`. None is a regression; all are genuine missing facts.
 
-- **`ArrayLit` / `HashLit` have no recorded construction protocol.** They are
-  fully typed, so they stayed core — but filling `{ data, size }` means
-  allocating a backing buffer and knowing which field holds what, and neither
-  is written down anywhere a backend may read. Inventing a field-order
-  convention would silently corrupt any other shape, so it is reported instead.
+- ~~**`ArrayLit` / `HashLit` have no recorded construction protocol.**~~
+  **Closed.** Both are lowered before this backend ever sees them
+  (`LowerArrayLits` / `LowerHashLits`, `TypeChecker` — see
+  `.agents/PLAN_LITERAL_LOWERING.md`), so the emitter needs no construction
+  protocol at all: `Array<T>#<<` and `Hash#[]=` are ordinary stdlib methods,
+  resolved and called like any other.
 - ~~**`SizeOf` records no nominal for its operand.**~~ **Closed.** The node is
   inert by contract ("read the layout size and never descend"), and the missing
   half was the link from the operand to a type. `TypeChecker` now resolves the

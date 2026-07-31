@@ -323,7 +323,7 @@ attendu, pas un signal.
 > ci-dessous pour mémoire historique mais ne doit plus être implémenté tel
 > quel.
 >
-> **`ArrayLit` : fait.** `HashLit` : pas commencé. Voir le statut détaillé en
+> **`ArrayLit` et `HashLit` : les deux faits.** Voir le statut détaillé en
 > tête de `.agents/PLAN_LITERAL_LOWERING.md`.
 
 `ExprEmitter.cpp:643-644` refuse **inconditionnellement** tout `ArrayLit`/`HashLit`

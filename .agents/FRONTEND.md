@@ -38,6 +38,6 @@ These passes rewrite syntactic sugar into canonical AST forms **before** any typ
 
 ## Frontend Output Artifact
 At the exit of the Frontend (`volt parse --lowered`), the AST is:
-- **Fully Desugared**: None of the **10 sugar nodes** (`Interp`, `Index`, `DotCall`, `Section`, `Composition`, `Pipeline`, `JsxElement/Fragment/Text`, `ArrayLit`, marked `VOLT_EXPR_SUGAR` in `Nodes.inl`) survive `TypeChecker` — `ArrayLit` is the one exception lowered by `TypeChecker` itself (a post-walk sweep) rather than an `EPassKind::Lowering` pass; see [`rules/core-ast.md`](rules/core-ast.md). The `AstInvariant` pass (Order 40) validates the census **mechanically** on every build. See [`rules/meta-first.md`](rules/meta-first.md).
+- **Fully Desugared**: None of the **11 sugar nodes** (`Interp`, `Index`, `DotCall`, `Section`, `Composition`, `Pipeline`, `JsxElement/Fragment/Text`, `ArrayLit`, `HashLit`, marked `VOLT_EXPR_SUGAR` in `Nodes.inl`) survive `TypeChecker` — `ArrayLit`/`HashLit` are the two exceptions, each lowered by `TypeChecker` itself (a post-walk sweep) rather than an `EPassKind::Lowering` pass; see [`rules/core-ast.md`](rules/core-ast.md). The `AstInvariant` pass (Order 40) validates the census **mechanically** on every build. See [`rules/meta-first.md`](rules/meta-first.md).
 - **Strictly Un-typed**: Literals such as `10` remain raw and unconstrained.
 - **MiddleEnd Ready**: No early type assumptions are locked in prematurely.
