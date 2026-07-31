@@ -75,5 +75,6 @@ compile_options_dep = declare_dependency(
 
 export_template = files('export_template.hpp.inl')
 
+add_project_arguments('-MMD', language : 'cpp')
 common_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Pch.hpp'
 llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 'BackendLLVM' / 'PchLLVM.hpp'

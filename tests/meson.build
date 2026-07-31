@@ -1,10 +1,12 @@
 #{
 # tests/meson.build
-# Dynamic, declarative, script-free test definitions for Volt.
+# Clean, modular, parallel test definitions for Volt.
 #}
 
-sh = find_program('sh')
 fs = import('fs')
+sh = find_program('sh')
+bash = find_program('bash')
+update_script = files('golden-update.bash')
 
 samples_root = meson.project_source_root() / 'samples'
 golden_root  = meson.project_source_root() / 'tests' / 'golden' / 'samples'
@@ -16,6 +18,8 @@ samples_find = run_command(
   check : true
 )
 sample_files = samples_find.stdout().strip().split('\n')
+
+golden_update_targets = []
 
 foreach sample_path : sample_files
   if sample_path == ''
@@ -49,10 +53,18 @@ foreach sample_path : sample_files
       suite : 'golden-lowered'
     )
   endif
+
+  golden_update_targets += custom_target('up_' + rel_sample.underscorify(),
+    output : rel_sample.underscorify() + '.stamp',
+    command : [bash, update_script, volt_exe.full_path(), sample_path, golden_path, lowered_golden_path, '@OUTPUT@'],
+    depends : volt_exe
+  )
 endforeach
 
-# -----------------------------------------------------------------------------
-# 2. Sample Execution Tests (@samples/Tests)
+if golden_update_targets.length() > 0
+  alias_target('golden-update', golden_update_targets)
+endif
+
 # -----------------------------------------------------------------------------
 
 tests_samples_root = samples_root / 'Tests'
@@ -81,35 +93,3 @@ foreach test_path : exec_test_files
     )
   endif
 endforeach
-
-# -----------------------------------------------------------------------------
-# 3. Golden Update Target (ninja -C build golden-update)
-# -----------------------------------------------------------------------------
-
-run_target('golden-update',
-  command : [
-    sh, '-c', '''
-      VOLT_BIN="$1"
-      ROOT_DIR="$2"
-      cd "$ROOT_DIR"
-      find samples -type f \( -name "*.vl" -o -name "*.vlx" \) | while read -r sample; do
-        golden="tests/golden/${sample}.golden"
-        lowered_golden="tests/golden/${sample}.lowered.golden"
-        mkdir -p "$(dirname "$golden")"
-        out="$("$VOLT_BIN" parse --no-color -i "$sample" 2>&1)"
-        code=$?
-        if echo "$out" | grep -q "error: "; then
-          echo "SKIPPING $sample due to parse error"
-          continue
-        fi
-        printf "%s\n--- exit %d ---\n" "$out" "$code" > "$golden"
-
-        lowered_out="$("$VOLT_BIN" parse --no-color --lowered -i "$sample" 2>&1)"
-        lowered_code=$?
-        printf "%s\n--- exit %d ---\n" "$lowered_out" "$lowered_code" > "$lowered_golden"
-        echo "UPDATED $sample (+ lowered)"
-      done
-    ''', 'sh', volt_exe.full_path(), meson.project_source_root()
-  ],
-  depends : volt_exe
-)
