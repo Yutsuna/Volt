@@ -1,5 +1,16 @@
 # Plan — `ArrayLit`/`HashLit` fully lowered before codegen (replaces `PLAN_LLVM.md` §5)
 
+## Status
+
+- **`ArrayLit`: done.** `Array<T>#<<` (§1), the lowering (§2 — corrected
+  below, it runs as a post-walk sweep, not inline), the backend arm deleted
+  (§4), `VOLT_EXPR_SUGAR` (§5). Verified: a real build, `check` across
+  `samples/`, an ASan build clean across the same corpus, and the two bugs
+  §2's original "inline" design had (below) reproduced and fixed.
+- **`HashLit`: not started.** Still a core node, still `FailAggregateLiteral`
+  in the backend. Ships per §6, after §7's doc pass for `ArrayLit` alone —
+  which is this update.
+
 ## Why §5 of `PLAN_LLVM.md` is wrong
 
 The original Phase 5 design (§5a–§5f) kept `ArrayLit`/`HashLit` as **core**
@@ -58,34 +69,89 @@ the right shape — see below.
   rewrite gets no shortcut past member resolution, per
   `rules/backend-machine-only.md`.
 
-### 2. The rewrite: done inside `TypeChecker`, once the literal's own type is known
+### 2. The rewrite: a post-walk sweep inside `TypeChecker`, once every constraint in the file has settled
 
-**The key unlock**: the rewrite itself needs *no* type information — it is
-purely structural (`N` elements → `N` calls). It only needs the concrete
-element type to build the initializer call and to let the synthesized `<<`
-calls resolve, and it needs that fully-stabilized type only *after*
-`TypeChecker` has already computed it, same as today
-(`TypeCheckerConstraint.cpp:110`'s `ConstrainNode( ArrayLit )` already
-re-types the literal once, after unification, exactly at this point). So the
-rewrite runs **inside `TypeChecker`'s existing handling of `ArrayLit`**, right
-after that constraint step, not as a separate pass and not as a new
-`PassList.inl` entry — the "no node-creating pass runs after `TypeChecker`"
-invariant (`MIDDLEEND.md`) is about passes *after* `TypeChecker` finishes; this
-runs *as part of* it, the same way default-argument expressions are already
-typed inline, in the unit that declares them, during the same pass.
+**Corrected from the original design below** (kept for the record — it was
+implemented, and broke on real code): the rewrite does not run inline, inside
+`ConstrainNode( ArrayLit )` or `ComputeExpr`'s `ArrayLit` branch, the moment
+either first computes a type for the literal. It runs **once**, in a single
+post-walk arena sweep (`LowerArrayLits`, `LiteralLowering.cpp`), called from
+`TypeChecker.cpp` right after `WalkDecls` finishes and before the
+`CalleeResolution` snapshot — the same shape `RejectNilableTypes` already uses
+in that file, over the same `PassContext`.
 
-Concretely, for `[ e0, e1, e2 ]` once its `SemaType` is `Array<T>` for a
-concrete, resolved `T`:
+**Why inline doesn't work**: a literal's *own* type can be settled by two
+different call sites that do not run in the order you'd expect. `CallType`
+(`ExprInferencer.cpp`) infers every argument's natural, bottom-up type
+*before* `CheckCallArgs` ever gets to push the parameter's declared type down
+through `ConstrainExprType` — its own comment says so: "arguments are bound
+before being checked". So `sum_all( [ 4, 5, 6 ] )` against a declared
+`sum_all( values : Array<UInt64> )` naturally infers `[4, 5, 6]` as
+`Array<Int32>` first; only afterward does `CheckCallArgs` try to narrow it to
+`Array<UInt64>`. Rewriting inline the instant *either* call site first
+computes a type means the rewrite fires on the *first* one — the wrong one,
+here — and permanently bakes `Int32` elements into the synthesized `<<` calls
+before the real target type ever arrives. `samples/Sema/UnconstrainedLiterals.vl`'s
+`sum_all( [ 4, 5, 6 ] )` is exactly this case and is what caught it: it
+type-checked with a wrong-generic-argument error ("argument 1 to sum_all has
+type Array, expected Array" — `NameOfValue` prints only the base nominal, so
+the message doesn't even show the mismatched argument) once the inline design
+was actually run against the corpus, not just reasoned about.
 
-1. Synthesize a fresh local slot `tmp` (an ordinary `LocalDecl`-shaped
-   binding, scoped to a new `BeginExpr` wrapping the whole rewrite — see
-   below for why `BeginExpr`, not a new node).
-2. Synthesize `Assign{ Target: tmp, Value: Call{ … } }` where the `Call`'s
-   resolution is set directly via `LookupOn( Context, LiteralSemaType,
-   ConstructorCall )` (`MemberResolver.cpp:89` — **this already exists**,
-   unconditionally, for any `T.new(...)`; nothing new here, matching
-   `PLAN_LLVM.md` §5d's original observation that `@[LiteralInit]` was never
-   needed).
+**The fix**: never rewrite until every `ConstrainExprType` call in the file
+has already had its say. `ConstrainNode( ArrayLit )` and the literal's
+ordinary bottom-up inference (`LiteralType`, unchanged, no special case)
+still only *type* the literal — same code as before this plan — and the AST
+node is left as an ordinary `ArrayLit` throughout the whole per-file walk.
+Only the final sweep, reading each surviving `ArrayLit`'s *settled*
+`Values.ExprType( Id )`, performs the actual rewrite. This also fixes a
+correctness question the original design didn't have an answer for at all:
+what if a literal is narrowed a *second* time after an initial inline
+rewrite already ran? With the sweep, there is no "second time" — there is
+exactly one rewrite, after everything else is done.
+
+**A second bug the sweep incidentally exposed and also fixed**: once *any*
+node inside `TypeChecker` can `Add()` — which was never true before this
+plan — every existing reference bound straight into a live arena slot during
+the walk becomes a latent use-after-free, not just the ArrayLit-specific
+code this plan added. ASan caught one: `WalkStmt`'s `LocalDecl`/`Return`
+handlers (`DeclStmtWalker.cpp`) visit `Context.Ctx.Ast.Stmt( Id )` *by
+reference*, then read several of that node's fields interleaved with
+`InferExpr` calls — one of which, for a `LocalDecl` whose `Init` is an
+`ArrayLit`s, can indirectly reach the sweep's own `Add()` calls nowhere near
+by textual position but very much within the same call stack once nested
+constraint propagation is considered. Fixed by copying the `StmtNode` out by
+value before dispatch (`DeclStmtWalker.cpp`, matching the copy `ComputeExpr`
+already took for the identical reason on the Expr side), and by making
+`TrailingType` (`ClosureInferencer.hpp/.cpp`) take its `StmtList` by value
+rather than by reference, since a `RescueClause`'s `Body` is itself read
+through a live reference into the Stmt arena. Both fixes are general — they
+protect every future `Add()`-performing rewrite inside `TypeChecker`, not
+only this one.
+
+The rewrite itself is still purely structural and still needs no type
+information beyond the one already-settled `SemaTypeId` it's handed — only
+*when* it runs changed, not *what* it does. Concretely, for `[ e0, e1, e2 ]`
+once its final `SemaType` is `Array<T>` for a concrete, resolved `T`:
+
+1. Synthesize a fresh local `tmp` (`Ast.MakeUniqueSymbol( "__array_lit" )` —
+   already exists for exactly this, nothing new). Its declaration is an
+   ordinary `Assign{ Target: Identifier( tmp ), Value: Call{ … } }`, the same
+   shape a hand-written `tmp = Array.new()` parses to: `WriteLocal`'s
+   name-keyed `Locals` map fallback ("a node minted after Order 10",
+   `TypeCheckerContext.cpp`) is what makes an Identifier ScopeResolver never
+   bound resolve correctly on every later reference.
+2. The `Call`'s receiver is a synthesized `Identifier` whose `SemaTypeId` is
+   stamped *directly* to the literal's own (already fully-instantiated, with
+   concrete generic args) type, rather than rebuilt from a source-level
+   `GenericInst` — `Array<T>.new()` written by hand needs the surface syntax
+   to re-derive `T`; here `T` is already known, so re-deriving it would be
+   pure ceremony. Marked into `NakedTypeExprs` too, so `MemberType`'s naked-
+   type checks behave identically to a real `T.new()`. Ordinary `InferExpr`
+   (via `WalkStmt`) then resolves `new`/`initialize` on that receiver exactly
+   as any hand-written `T.new(...)` would (`MemberResolver.cpp`'s existing
+   `ConstructorCall` fallback — nothing new, matching `PLAN_LLVM.md` §5d's
+   original observation that `@[LiteralInit]` was never needed).
 3. For each element `e_i`, synthesize `Binary{ Op: TokenKind::Shl, Lhs: tmp,
    Rhs: e_i }` as an `ExprStmt`. Resolve it through the **same** path any
    hand-written `tmp << element` would take — `MemberType`'s ordinary
@@ -99,11 +165,12 @@ concrete, resolved `T`:
    (now-ordinary) `Binary` node is indistinguishable, from every downstream
    consumer's point of view, from one a user actually wrote.
 4. The tail expression is `tmp`.
-5. `Context.Expr( Id ) = BeginExpr{ Body: [ the Assign, the N Binary
-   ExprStmts, tmp as trailing value ] }` — the standard copy-out/write-back
-   rewrite (`rules/ast-rewrite.md`): the source `ArrayLit` is read by value
-   before any `Context.Add()`, and the assignment sequences the `Add()` calls
-   before the destination write.
+5. Every synthesized statement is typed (`WalkStmt`) off a *local* copy of
+   the `Body` list being built, never off a re-read of `Id`'s own arena slot
+   — then, only once every `Add()` this rewrite performs is done,
+   `Ast.Expr( Id ) = BeginExpr{ Body, ... }` writes the slot
+   (`LiteralLowering.cpp`'s `LowerArrayLit`). Copy-out / compute / write-back,
+   `rules/ast-rewrite.md`'s canonical shape.
 
 **Why `BeginExpr` and not a new node**: it is already a *core*, non-sugar node
 every backend already emits (`EmitBegin`/`EmitCase`/`EmitIf` all converge by
@@ -145,10 +212,13 @@ already checks the 9 existing sugar kinds now checks 11, with no code change
 to `AstInvariant.cpp` itself.
 
 **Consequence for the node count**: `core-ast.md`'s "36 `VOLT_EXPR` — 27 core,
-9 sugar" becomes **25 core, 11 sugar**. Update in the same change:
-`core-ast.md`'s node table and its "why `ArrayLit`/`HashLit`/`CaseExpr` are
-core" section (only `CaseExpr` keeps that reasoning now), `BACKEND.md`,
-`MIDDLEEND.md`, and `AGENTS.md`'s "27-Node Core AST Contract" bullet.
+9 sugar" is now **26 core, 10 sugar** with `ArrayLit` alone moved (done, this
+change) — it becomes 25 core / 11 sugar once `HashLit` moves too. Update in
+the same change as each: `core-ast.md`'s node table and its "why
+`ArrayLit`/`HashLit`/`CaseExpr` are core" section (`ArrayLit`'s own reasoning
+there is now marked superseded, `HashLit`'s is not — yet), `BACKEND.md`,
+`MIDDLEEND.md`, and `AGENTS.md`'s "27-Node Core AST Contract" bullet — the
+latter three are still pending, see the execution-order checklist below.
 
 ### 6. `HashLit` — same idea, shipped second
 
@@ -164,9 +234,10 @@ before relying on it. Ship `ArrayLit` first, confirm green, then `HashLit`
 
 ## Decisions (settled)
 
-1. **Rewrite site**: inside `TypeCheckerConstraint.cpp`'s
-   `ConstrainNode( ArrayLit )`, immediately after it stabilizes the element
-   type.
+1. **Rewrite site**: originally decided as inline, inside
+   `ConstrainNode( ArrayLit )` — **superseded by §2's correction above**: a
+   post-walk sweep (`LowerArrayLits`), called once from `TypeChecker.cpp`
+   after `WalkDecls`.
 2. **Diagnostic**: none of its own. `<<`/`[]=` are ordinary methods resolved
    through the ordinary path (`MemberType`); an unresolved call fails with
    whatever generic diagnostic that path already produces for any method call.
@@ -177,34 +248,42 @@ before relying on it. Ship `ArrayLit` first, confirm green, then `HashLit`
 
 ## Execution order
 
-1. `Array<T>#<<` in `source/Lib/Primitives/Array.vl` (§1).
-2. The `TypeChecker`-internal rewrite for `ArrayLit` only (§2, §3).
-3. Delete the backend's `ArrayLit` dispatch arm + verify `FailAggregateLiteral`
-   still exists for `HashLit` alone in the interim (§4).
-4. Mark `ArrayLit` as `VOLT_EXPR_SUGAR`; update `AstInvariant`'s corpus census
-   and the doc counts (§5) — for `ArrayLit` only at this point.
-5. Verify: `samples/Tests/Functional/Composition.vl`,
-   `ControlFlow/WhileLoop.vl`, `ControlFlow/BreakNext.vl` (the three Phase-5
-   blockers named in `PROGRESS-LLVM.md`) all construct arrays with zero
-   backend involvement — an ASan build, plus the `^Llvm` CTest filter.
-6. Repeat 2–5 for `HashLit` (§6), including `ControlFlow/ForLoop.vl` once
-   Phase 7 (`Hash#each`) also lands.
-7. Doc pass: `core-ast.md`, `BACKEND.md`, `MIDDLEEND.md`, `AGENTS.md` node
-   counts (§5); `PLAN_LLVM.md` §5 marked superseded, pointing here.
+1. ~~`Array<T>#<<` in `source/Lib/Primitives/Array.vl` (§1).~~ Done.
+2. ~~The `TypeChecker`-internal rewrite for `ArrayLit` only (§2, §3).~~ Done,
+   as the post-walk sweep, not the originally-planned inline call.
+3. ~~Delete the backend's `ArrayLit` dispatch arm; `FailAggregateLiteral`
+   still exists for `HashLit` alone in the interim (§4).~~ Done.
+4. ~~Mark `ArrayLit` as `VOLT_EXPR_SUGAR`; doc counts (§5) — for `ArrayLit`
+   only at this point.~~ Done (see below for the current count).
+5. ~~Verify: a real build, `check` across `samples/`, an ASan build clean
+   across the same corpus.~~ Done. (The originally-planned
+   `parse --lowered` / `^Llvm` CTest verification below does not apply here:
+   `--lowered` runs only `EPassKind::Lowering` passes, and `TypeChecker` is
+   `EPassKind::Analysis` — the rewrite is invisible to that flag by
+   construction. `check` is what exercises it.)
+6. **Not started.** Repeat 1–5 for `HashLit` (§6), including
+   `samples/Tests/ControlFlow/ForLoop.vl` once `Hash#each` also lands
+   (`core-ast.md`'s own documented gap).
+7. Doc pass: this file (done, this edit); `core-ast.md` (done, this edit —
+   node table, node counts, the "why core not sugar" section); `AGENTS.md`,
+   `BACKEND.md`, `MIDDLEEND.md` node-count mentions — **still pending**,
+   grep for `27 core`/`27-Node`/`9 sugar`/`36 \`VOLT_EXPR\`` across `.agents/`
+   before calling `HashLit` done, since the count moves a second time then.
 
-## Verification
+## Verification (as actually run — `ArrayLit` only)
 
-- Zero survivors of `ArrayLit` (then `HashLit`) past `TypeChecker`, on two
-  files differing only by padding (`rules/ast-rewrite.md`'s census
-  discipline):
-  ```sh
-  ./build/bin/volt_d parse --lowered --no-color --no-location F | grep -cE '─ ArrayLit\b'
-  ```
-- An ASan build (Debug, `VOLT_ENABLE_ASAN=ON`) on the synthesized-node rewrite
-  path specifically — it performs `Context.Add()` while holding onto `Id`,
-  which is exactly the hazard `rules/ast-rewrite.md` exists to catch.
-- `AstInvariant`, `ZeroHardcode`, `Corpus.*`, `Golden.*` and the three
-  `*SerializeTest` stay green; `golden-update` after step 4/6 (the dump
-  changes shape — an `ArrayLit` leaf becomes a `BeginExpr` subtree — same
-  "mechanical churn, not a signal" note `PLAN_LLVM.md` Phase 8 already makes
-  for the `If` move).
+- `check` across `samples/`, and against a version of the sample with
+  `Array<T>#<<` deleted (confirms the rewrite resolves through the ordinary
+  member-resolution path, no shortcut — "type Array has no member '<<'",
+  same wording any unresolved method call gets).
+- A meson build with `enable_asan=true`, `checked_ids=true`, run against the
+  same corpus: exercises exactly the `Context.Add()`-while-a-reference-is-
+  live hazard `rules/ast-rewrite.md` exists to catch — this is what caught
+  the `WalkStmt`/`TrailingType` bug described in §2.
+- `samples/Sema/UnconstrainedLiterals.vl` is the regression fixture for §2's
+  ordering bug (`sum_all( [ 4, 5, 6 ] )` against a declared
+  `Array<UInt64>` parameter) — green.
+- **Not run this pass**: `AstInvariant`/`ZeroHardcode`/`Corpus.*`/`Golden.*`
+  as CTest targets, or `golden-update` — this repo's test suite has not yet
+  been migrated to the current Meson build (`enable_testing` option exists,
+  marked "not yet migrated"). Re-run once that lands.
