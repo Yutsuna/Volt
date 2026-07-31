@@ -13,9 +13,12 @@ project('volt', 'cpp', 'c',
     'warning_level=0',
     'unity=on',
     'unity_size=4',
+    'cpp_ccache=enabled',
+    'c_ccache=enabled',
   ],
   meson_version : '>=1.10',
 )
 
 subdir('meson')
 subdir('source/Volt')
+subdir('tests')

@@ -63,12 +63,17 @@ if get_option('enable_lto') and buildtype == 'release'
   add_project_link_arguments('-flto=auto', language : 'cpp')
 endif
 
+# ---------------------------------------------------------------------------
+
+volt_inc = include_directories('../source/Volt')
+
 compile_options_dep = declare_dependency(
   compile_args : common_cpp_args,
   link_args : common_link_args,
+  include_directories : volt_inc,
 )
 
-export_template = files('export_template.hpp.in')
+export_template = files('export_template.hpp.inl')
 
 common_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Pch.hpp'
 llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 'BackendLLVM' / 'PchLLVM.hpp'
