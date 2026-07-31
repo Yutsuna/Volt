@@ -99,14 +99,45 @@ That last point is the shape to copy: when a decision genuinely needs taking,
 take it in the resolver and record it on the *resolution*, not as a flag on
 the *declaration* driven by an annotation.
 
-### Remaining debt: `@[ExceptionRoot]` and `@[Unhandled]`
+### Removed: `@[ExceptionRoot]` and `@[Unhandled]`
 
-Both still exist (`source/Lib/Primitives/Exception.vl`, 3 sites) and both
-violate this rule: `@[Unhandled]` is purely "call this member", and
-`@[ExceptionRoot]` makes one type structurally special. They are listed here
-so nobody mistakes them for precedent. Removing them is an exception-model
-redesign — the C++ model (a type-indexed unwind table, no privileged root) is
-the reference — not a deletion, so it is its own piece of work.
+Both were flags of exactly the shape this rule forbids: `@[ExceptionRoot]`
+made one type structurally special outside the layout system, and
+`@[Unhandled]` was purely "call this member" (`.agents/FIX_EXCEPTION_HARDCODE.md`
+has the full design record). Removing them split into two independent fixes,
+one per mechanism this file already documents:
+
+- **The root is now a node-kind claim, not an annotation.** `Exception`
+  carries `@[Literal( RaiseExpr )]` — the same mechanism that identifies `nil`
+  (`NilLiteral`), a pointee (`PointerType`) and the callable type (`FuncType`).
+  All five sites that used to call `TypeStore::GetExceptionRoot()` (EH buffer
+  sizing, the rescue-filter check, the bare-`rescue` default filter, the
+  `raise "msg"` desugar, and — until it was deleted below — the `@[Unhandled]`
+  hook) now call `LookupNodeKind( "RaiseExpr" )`. A node kind is the
+  compiler's own vocabulary, not a Volt name, so this is not a swap of one
+  hardcode for another. It also **added** a language rule that the annotation
+  never enforced: `raise <expr>` is refused at compile time unless `<expr>`'s
+  nominal descends from the type claiming `RaiseExpr` (Ruby-strict — the
+  static equivalent of Ruby's runtime `is_a?( Exception )` check inside
+  `Kernel#raise`), checked in `ExprInferencer`'s `RaiseExpr` arm with the same
+  `IsSubclassOf` predicate the rescue-filter check already used.
+- **The top-of-program handler moved into Volt.** `@[Unhandled]` used to mark
+  the member the C entry shell called by name after the last unit init ran.
+  There is no such member now: `source/Lib/Prelude.vl` declares
+  `__volt_entry`, an ordinary `def` wrapping the unit-init call
+  (`__volt_run_units`, `@[External( "volt", "_V_init_all" )]`) in a
+  `begin/rescue e : Exception`, and `report_unhandled` is called from that
+  `rescue` body like any other method — the compiler never learns it exists.
+  `EmitEntryPoint` (`BackendLLVM/.../LlvmEmitter.cpp`) shrank to: emit
+  `_V_init_all` (`EmitInitAll`, a hand-rolled loop over unit inits because it
+  is synthesised rather than parsed from a Volt body), look up whichever free
+  function `EmitOptions::EntryFunction` names, call it, return its `i32`. No
+  field is read off `Member`, no type name or message byte enters C++.
+
+Both fixes follow the same shape as `@[Apply]`: a decision that genuinely
+needs taking (which type is the root; what runs when nothing catches) still
+gets taken, but through a lookup or an ordinary call, never a flag a
+downstream site has to know to ask for.
 
 ## Guardrails
 

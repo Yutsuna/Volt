@@ -9,6 +9,7 @@
     </sourceRoots>
     <excludeRoots>
       <file path="$PROJECT_DIR$/.cache" />
+      <file path="$PROJECT_DIR$/.claude" />
       <file path="$PROJECT_DIR$/.direnv" />
       <file path="$PROJECT_DIR$/build" />
       <file path="$PROJECT_DIR$/build-release" />

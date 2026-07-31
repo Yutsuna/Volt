@@ -3,8 +3,13 @@
 The two annotations `rules/zero-hardcode.md` lists as *remaining debt*. This
 file records the measured state, the design decision, and the phased plan.
 
-Status: **decided, not yet implemented.** Nothing in this file is committed
-behaviour until the phases below are done.
+Status: **implemented.** Phases A, B and C are all done and committed
+(`906d101`, `53fc4dc`, `994cd14`, `4f8ca82`, plus the doc closeout below). The
+guardrail in `rules/zero-hardcode.md` prints exactly `@[External  @[Literal
+@[Primitive`; neither `ExceptionRoot` nor `bUnhandled` exist anywhere in
+`source/Volt/` any more. This file is kept as the design record — see
+`rules/zero-hardcode.md`'s "Removed: `@[ExceptionRoot]` and `@[Unhandled]`"
+for the summary a future reader should start from.
 
 ## 1. What the two annotations actually do today
 
@@ -212,122 +217,16 @@ unchanged on the existing samples.
   reading the tag but call an ordinary (un-annotated) method found through the
   root's node-kind claim.
 
-## 7. LIVE STATUS — mid-Phase-A checkpoint (context ran low, resume here)
+## 7. Closed out
 
-Session context is about to be compacted/lost. This section is the
-resume-from-here record for Phase A. Update it as you go; delete this section
-only once Phase A's gate (step 7 below, plus tests) is fully green.
+Phases A and B (§5) landed as `906d101` (`Prelude.vl` + `__volt_entry`),
+`53fc4dc` (`bUnhandled` removed from Sema), `994cd14` (`FrontendCacheMagic`
+bumped), `4f8ca82` (`EmitInitAll` / uncaught-exception handling simplified in
+`BackendLLVM`). Phase C's guardrail already prints exactly `@[External
+@[Literal  @[Primitive`; the remaining Phase C doc work — rewriting
+`rules/zero-hardcode.md`'s debt section and `backend/llvm.md`'s exception
+section, `format`, `graphify update .`, one end-of-epic `tidy` — was done in
+the session that closed this file out.
 
-### Done so far (verified edits, not yet built/tested)
-
-1. `source/Lib/Primitives/Exception.vl`: `@[ExceptionRoot]` → `@[Literal( RaiseExpr )]`
-   on `class Exception`. DONE.
-2. `source/Volt/Sema/Private/Layout/TypeBinder.cpp`: deleted the
-   `else if ( AnnoName == "ExceptionRoot" )` branch (was ~line 598-608, right
-   after the `Literal` branch closes). DONE. The `Literal` branch above it
-   already handles `RaiseExpr` via `Store.BindNodeKind` — no other change
-   needed there.
-
-   NOTE: after this edit, the IDE reported clangd diagnostics on
-   `TypeBinder.cpp` lines 48-71 ("unknown type name 'Symbol'", "undeclared
-   identifier 'Frontend'/'Core'", a `std::is_same` template error on
-   `PendingAnnotation`). These line numbers are **before** the edited region
-   (~598) and the errors look like a stale/desynced clangd index (undeclared
-   `Frontend`/`Core` namespaces make no sense for a file that obviously
-   compiled before this three-line deletion) rather than a real regression —
-   but this was **not confirmed**. First step on resume: re-open
-   `TypeBinder.cpp` in the IDE / re-run clangd, or just do the full build
-   (step below) and see if it's a real compile error or just stale
-   diagnostics. Do not assume either way.
-
-### Not yet done (Phase A remaining)
-
-3. `source/Volt/Sema/Public/Volt/Sema/Layout/TypeStore.hpp` — delete:
-   - `SetExceptionRoot` method (~line 507-515)
-   - `GetExceptionRoot` method (~line 517-520)
-   - the `// --- Exception root ---` comment block above them (~502-506)
-   - the `ExceptionRoot = NominalId{};` line inside `Clear()` (~line 611)
-   - the `NominalId ExceptionRoot;` private field (~line 642)
-   - the mention of "ExceptionRoot" in the `SerializeCache` comment (~line 581)
-   - also check the comment at line ~108-115 on `Member::bUnhandled` which
-     says "Declared on the `@[ExceptionRoot]` type" — update wording to
-     "the type claiming `@[Literal( RaiseExpr )]`" (cosmetic, but keep it
-     accurate; this member itself (`bUnhandled`) stays for Phase A, only
-     removed in Phase B).
-4. `source/Volt/Sema/Private/Layout/TypeStoreSerialize.cpp` — delete:
-   - `Meta::Serialize( W, ExceptionRoot );` (line 26)
-   - the `if ( not Meta::Deserialize( R, ExceptionRoot ) )` block (line 64)
-   - `ByNodeKind` is already serialised elsewhere in this file, so the
-     `RaiseExpr` claim survives the cache with no new field — verify this by
-     reading the file before editing (it was not opened yet this session).
-5. Replace the 5 `GetExceptionRoot()` call sites with
-   `Types.LookupNodeKind( "RaiseExpr" )` (returns the same
-   `std::optional<NominalId>` shape, so call sites should need no other
-   change):
-   - `source/Volt/Backend/BackendLLVM/Private/ExceptionEmitter.cpp:103`
-     (`ExceptionStorageSlot`, `Store.GetExceptionRoot()`)
-   - `source/Volt/Backend/BackendLLVM/Private/ExceptionEmitter.cpp:136`
-     (`UnhandledHook`, `Store.GetExceptionRoot()`)
-   - `source/Volt/Sema/Private/Passes/TypeChecker/ExprInferencer.cpp:254`
-     (`MakeExceptionConstructor`, `Context.Ctx.Types.GetExceptionRoot()`) —
-     also update the error message at line 257 from
-     `"no type is annotated @[ExceptionRoot]; ..."` to something like
-     `"no type claims @[Literal( RaiseExpr )]; the stdlib must declare one"`.
-   - `source/Volt/Sema/Private/Passes/TypeChecker/ExprInferencer.cpp:704`
-     (rescue-clause filter check, `Context.Ctx.Types.GetExceptionRoot()`)
-   - `source/Volt/Sema/Private/Passes/TypeChecker/ExprInferencer.cpp:713`
-     (bare-rescue default filter, same)
-   - Also sweep comments mentioning `@[ExceptionRoot]` for accuracy (not
-     load-bearing, but `rules/zero-hardcode.md`-adjacent files like this one
-     expect comments to match reality): `ExceptionEmitter.cpp:97,328`,
-     `ExprInferencer.cpp:244,673`, `LlvmState.hpp:204,569,574`,
-     `LlvmEmitter.cpp:542`, `ParseExpr.cpp:378`, `TypeStore.hpp:110`. Do this
-     sweep last, after the functional edits, in one pass.
-6. **New behaviour (Ruby-strict), in
-   `ExprInferencer.cpp`'s `RaiseExpr` arm** (currently lines ~642-684 in the
-   pre-edit file — re-check line numbers after edits above shift them):
-   after `InferExpr( Context, Exception )` is called (line ~681) and the
-   `Exception` expr's type is known, refuse it unless its nominal descends
-   from the root type found via `LookupNodeKind( "RaiseExpr" )`, using the
-   existing predicate `IsSubclassOf( Context.Ctx.Types, Nominal, *Root )`
-   (declared `source/Volt/Sema/Public/Volt/Sema/Layout/TypeResolve.hpp:246`,
-   defined `TypeResolve.cpp:141` — same predicate the rescue-filter check at
-   the old line 706 already uses). Get `Nominal` the same way line 702-703
-   does: `Context.Ctx.Values.Has( Type ) ? Context.Ctx.Values.Get( Type ).Base
-   : NominalId{}`. Diagnostic wording to mirror Ruby's `is_a?(Exception)`
-   refusal — something like: `"exception class/object expected"` at `Loc`.
-   Skip the check when `Root` has no value (nothing declared a root — the
-   `MakeExceptionConstructor` fallback already reports that case) or when
-   `Nominal` is invalid (some other error already fired for this expression).
-7. Bump `FrontendCacheMagic` — **not yet located this session**. Grep for it
-   (`grep -rn "FrontendCacheMagic" source/Volt`) — likely near
-   `TypeStoreSerialize.cpp` / the frontend cache header
-   (`rules` mention "Issue #61" stdlib cache, see memory
-   `volt-issue-61-stdlib-cache` / `.agents/PROGRESS-issue-61.md`). TypeStore
-   loses a serialised field (`ExceptionRoot`), so the magic must change or a
-   stale on-disk cache silently deserialises garbage.
-8. Add a new negative sample exercising `raise 42` (Ruby-strict refusal) —
-   place it near existing exception samples (search `samples/` for existing
-   `Exception`/`raise`/`rescue` fixtures to match convention and location).
-9. Gate: clean `-Werror` build through the IDE (never a bare module run —
-   see `.claude/CLAUDE.md` / memory `feedback-no-run-module-config`), then
-   **All CTest** IDE configuration (memory `feedback-tests-via-clion`), no
-   worse than the 320/334 baseline mentioned in the plan, plus the new
-   `raise 42` negative sample passing.
-
-### Explicitly NOT started yet
-Phase B (`@[Unhandled]` → prelude wrapper) and Phase C (close-out: guardrail
-grep, docs, format, graphify update, tidy) — see sections 4/5 above in this
-same file. Do not start those until Phase A's gate is green.
-
-### Tool/workflow reminders for whoever resumes
-- Use CLion MCP tools (`mcp__clion__*`) and Graphify
-  (`graphify-out/GRAPH_REPORT.md`, `graphify query`) per user instruction —
-  this task was explicitly asked to use IDE context + Graphify.
-- Build/format/tidy only through IDE run configurations, per
-  `.agents/rules/cpp-style.md` and `.claude/CLAUDE.md`'s "Two Reflexes".
-- Do not commit — memory `no-autonomous-commits` — leave the working tree for
-  the user to review and commit.
-- TaskCreate/TaskUpdate task IDs from this session (may or may not survive
-  compaction): #1 Phase A (in_progress), #2 Build & test Phase A (pending),
-  #3 Phase B (pending), #4 Phase C (pending).
+Nothing here should need touching again unless the EH model itself changes
+(tier 2 / Itanium, §5's "once hot" note).

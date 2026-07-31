@@ -448,58 +448,75 @@ custom personality; the clause matching logic (the ancestry walk above) is
 unchanged, only the transport differs. The choice is an emitter flag, not an
 AST concern.
 
-### The last-resort handler — `EmitEntryPoint`, and why it has to exist
+### The last-resort handler — `EmitEntryPoint`/`EmitInitAll`, and why they exist
 
 The poisoned path bottoms out at "return early carrying no value", and for a
-body returning an integer that value is `0`. Run it out to the top and `main`
-raising is `ret i32 0`, byte for byte what returning success looks like. So
-**the entry shell reads `volt.exc.tag` back**, once, after the last
-`_V_init_<n>` call, and returns `1` instead of `0` when one is still in
-flight. That single load is the whole of what makes `raise` observable from
-outside the process, and without it the obvious way to write a test asserts
-nothing at all:
+body returning an integer that value is `0`. Run it out to the top and a unit
+init raising is a silent, successful-looking return — so something has to read
+`volt.exc.tag` back after the last one runs, or the obvious way to write a test
+asserts nothing at all:
 
 ```volt
 def assert!( condition : Bool ) -> Void
   if not condition
-    raise "..."            # used to exit 0 — indistinguishable from success
+    raise "..."            # would exit 0 — indistinguishable from success
   end
 end
 ```
 
-Note the reach: a top-level `libc_exit( main() )` never gets to call `exit`
-when `main` raises, because the post-call `EmitExceptionCheck` returns out of
-the unit initialiser first — so the shell's check is what reports it, not a
-value `main` handed back.
+That something is **`_V_init_all`** (`EmitInitAll`, `LlvmEmitter.cpp`): a
+function the backend hand-rolls, one `call` per unit's `_V_init_<n>` in order,
+checking the tag between each and returning early once one is pending rather
+than running the rest. It exists to give the *declaration* every stdlib
+`@[External( "volt", "_V_init_all" )]` site names (`Prelude.vl`, below) a
+body — `DeclareAll` already emits it as an external declaration, the same
+shape every other `@[External]` member gets, and this is its one and only
+definition. Hand-rolled rather than compiled from a Volt body because there is
+no Volt body: no source file's `def` corresponds to "run every unit's
+top-level statements in order".
 
-The status is one constant rather than the raised type's `NominalId` — an id is
-a build-internal number with no meaning outside the process, and 8 bits of exit
-status is no place to encode one. Regression sample:
-`samples/Codegen/UncaughtRaise.vl`, whose *passing* result is `exit=1`.
-
-**Reporting is `@[Unhandled]`, and none of it is C++.** The shell also *calls*
-something, and which something is a stdlib decision: the type annotated
-`@[ExceptionRoot]` annotates one of its methods `@[Unhandled]`, and that member
-is invoked with the in-flight object as its receiver just before the shell
-returns. `Exception#report_unhandled` is that member today —
+**`EmitEntryPoint` calls `_V_init_all`, then the Volt entry function, and
+returns its `i32`.** The entry function's name is a build option
+(`EmitOptions::EntryFunction`, default `"__volt_entry"`), not a hardcoded
+symbol — the same category `EntrySymbol = "main"` (the *C* entry point) already
+is. `DeclareAll` has emitted it as an ordinary free function by the time
+`Finalize` reaches this seam; `EmitEntryPoint` looks it up by name through
+`TypeStore::LookupFunction` exactly like any other call, and the emitted shell
+is nothing but `call i32 @__volt_entry()` followed by `ret`. Reporting an
+uncaught exception and choosing the exit status are **that function's own
+`begin/rescue`, entirely in Volt** (`source/Lib/Prelude.vl`):
 
 ```volt
-@[Unhandled]
-def report_unhandled -> Void
-  text = "Unhandled exception: " + @message + "\n"
-  libc_write( 2, text.data, text.size )
+def __volt_entry -> Int32
+  begin
+    __volt_run_units()   # = _V_init_all, declared @[External( "volt", "_V_init_all" )]
+    0
+  rescue e : Exception
+    e.report_unhandled()
+    1
+  end
 end
 ```
 
-— so the wording, the stream (`libc_write` on fd 2, an `@[External]` like any
-other), and the decision to say anything at all are Volt. The emitter reads no
-field, names no type, and formats no byte; `Member::bUnhandled` is recorded at
-the same seam `ExternSymbol` is, because a backend must never re-scan an AST
-for annotations. A stdlib that annotates nothing is silent, and that is an
-opt-in not taken rather than a fact the middle-end owes — so nothing is
-refused. Dispatch is static, on the root's member: Volt dispatches statically
-everywhere else too, and routing by the tag would need a per-`NominalId` table
-that buys nothing until Volt has virtual dispatch at all.
+No field is read off `Member`, no type name or message byte enters C++: the
+`rescue e : Exception` clause is ordinary `BeginExpr` codegen (matched against
+`Exception` — the type claiming `@[Literal( RaiseExpr )]`, see
+`rules/zero-hardcode.md`), and `report_unhandled` is called on `e` like any
+other method, found through ordinary member resolution. A stdlib that wrote a
+different prelude, or a different `rescue` body, would change what "uncaught"
+means with zero backend changes.
+
+Note the reach: a top-level `libc_exit( main() )` never gets to call `exit`
+when a unit init raises, because the post-call `EmitExceptionCheck` inside
+`_V_init_all` stops the loop before any later init (or `main`, which is itself
+just another top-level statement) runs — so `__volt_entry`'s `rescue` is what
+reports it.
+
+The status is one constant (`0`/`1`) rather than the raised type's `NominalId`
+— an id is a build-internal number with no meaning outside the process, and 8
+bits of exit status is no place to encode one; that choice is Volt's, made in
+`__volt_entry`; the C++ side never sees the alternative. Regression sample:
+`samples/Codegen/UncaughtRaise.vl`, whose *passing* result is `exit=1`.
 
 `samples/Tests/*.vl` still calls the stdlib's `@[External]` `exit` directly
 rather than raising — an explicit code per failing subject is more useful than
@@ -515,9 +532,9 @@ object into **`volt.exc.storage`** and publishes *that* address in
 `volt.exc.value`.
 
 The buffer is one thread-local `[N x i8]`, sized and aligned by `LayoutEngine`
-for the widest type that descends from the `@[ExceptionRoot]` — measured over
-the store, never a fixed constant, and a raise of something wider is refused by
-a message naming both numbers. One buffer matches the one-slot tag/value pair:
+for the widest type that descends from the type claiming
+`@[Literal( RaiseExpr )]` — measured over the store, never a fixed constant,
+and a raise of something wider is refused by a message naming both numbers. One buffer matches the one-slot tag/value pair:
 tier 1 has exactly one exception in flight per thread. Regression sample:
 `samples/Codegen/ExceptionMessage.vl`, which reads `e.message.size` two frames
 above the raise, where a dangling read returns whatever the stack held.
