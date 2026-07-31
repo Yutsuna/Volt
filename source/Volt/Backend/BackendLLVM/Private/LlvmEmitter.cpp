@@ -539,7 +539,7 @@ bool Volt::Backend::Llvm::LlvmBackend::State::EmitEntryPoint ()
     // silently disarms `raise` as an assertion oracle.
     //
     // *Reporting* it is not this file's business. The stdlib annotates one
-    // member `@[Unhandled]` on its `@[ExceptionRoot]`, and all the emitter does
+    // member `@[Unhandled]` on its `@[Literal( RaiseExpr )]`, and all the emitter does
     // is call it with the in-flight object as the receiver — the wording, the
     // stream, the decision to say anything at all are Volt code. No field name,
     // no type name, no byte of message enters C++ (rules/zero-hardcode.md).

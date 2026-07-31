@@ -201,7 +201,7 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // with every Volt frame already gone — that alloca is dead storage. So
     // `raise` copies the object here first and publishes *this* address, and
     // the buffer is sized once for the widest type that can reach it (every
-    // descendant of the `@[ExceptionRoot]`), measured by LayoutEngine.
+    // descendant of the `@[Literal( RaiseExpr )]`), measured by LayoutEngine.
     llvm::GlobalVariable *ExcStorage = nullptr;
     std::size_t ExcStorageSize       = 0;
     // `NominalId -> its immediate Super's NominalId, or InvalidValue`, one row
@@ -566,12 +566,12 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::GlobalVariable *ExceptionTagSlot ();
 
     // The thread-local buffer the raised object is copied into, sized and
-    // aligned for the widest descendant of the `@[ExceptionRoot]` this build
+    // aligned for the widest descendant of the `@[Literal( RaiseExpr )]` this build
     // declares. One buffer, matching the one-slot tag/value pair: tier 1 has
     // exactly one exception in flight per thread.
     [[nodiscard]] llvm::GlobalVariable *ExceptionStorageSlot ();
 
-    // The member the `@[ExceptionRoot]` annotates `@[Unhandled]`, or null when
+    // The member the `@[Literal( RaiseExpr )]` annotates `@[Unhandled]`, or null when
     // the stdlib declares none — reporting is opt-in, and a build whose stdlib
     // stays silent is a configuration, not a missing middle-end fact.
     [[nodiscard]] const Sema::Member *UnhandledHook ( Sema::NominalId &OutOwner ) const;

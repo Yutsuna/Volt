@@ -94,13 +94,13 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionStorageS
 
     // The widest thing that can ever be in flight, measured rather than
     // guessed: every type that descends from the one annotated
-    // `@[ExceptionRoot]`, sized by LayoutEngine — the single ABI authority
+    // `@[Literal( RaiseExpr )]`, sized by LayoutEngine — the single ABI authority
     // (abi.md). No type name enters, and an empty answer (no root declared, so
     // nothing can be raised at all) still yields a valid one-byte buffer
     // rather than a zero-length global.
     std::size_t Size      = 1;
     std::size_t Alignment = 1;
-    if ( const auto Root = Store.GetExceptionRoot(); Root.has_value() and Layouts.has_value() )
+    if ( const auto Root = Store.LookupNodeKind( "RaiseExpr" ); Root.has_value() and Layouts.has_value() )
     {
         for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
         {
@@ -133,7 +133,7 @@ const Volt::Sema::Member *Volt::Backend::Llvm::LlvmBackend::State::UnhandledHook
     }
     const Sema::TypeStore &Store = *Build->Types;
 
-    const auto Root = Store.GetExceptionRoot();
+    const auto Root = Store.LookupNodeKind( "RaiseExpr" );
     if ( not Root.has_value() )
     {
         return nullptr;
@@ -325,7 +325,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitRaise ( Frontend::Expr
     {
         static_cast<void>( Fail( "llvm: the raised object needs " + std::to_string( Layouts->Of( Shape ).Size ) +
                                  " bytes but volt.exc.storage holds " + std::to_string( ExcStorageSize ) +
-                                 " — the buffer is sized for every descendant of the @[ExceptionRoot], so this type is "
+                                 " — the buffer is sized for every descendant of the @[Literal( RaiseExpr )], so this type is "
                                  "not one of them" ) );
         return nullptr;
     }
