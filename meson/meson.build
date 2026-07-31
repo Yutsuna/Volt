@@ -1,7 +1,7 @@
-# Shared compiler/link flags, PCH paths and the export-header template —
-# every source/Volt/**/meson.build consumes these as plain variables (Meson
-# flattens subdir() scope into one namespace, so nothing here needs exporting
-# through a dependency object beyond compile_options_dep itself).
+#{
+# meson/meson.build
+# Declare flags & options
+#}
 
 cxx = meson.get_compiler('cpp')
 is_gnu = cxx.get_id() == 'gcc'
@@ -12,9 +12,7 @@ debug_full = get_option('debug_full')
 
 find_prog = find_program('find')
 
-# ---------------------------------------------------------------------------
-# Compiler-id -> flag tables (dict lookups instead of if/elif chains).
-# ---------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 reflection_flag = {'gcc' : ['-freflection']}
 uninit_warn_flag = {'gcc' : ['-Wno-maybe-uninitialized']}
@@ -34,8 +32,6 @@ common_cpp_args += cxx.get_supported_arguments(
 
 common_link_args = []
 
-# -Og (not Meson's default -O0 for buildtype=debug) keeps the Nix stdenv's
-# _FORTIFY_SOURCE from turning into a hard #warning-error.
 debug_gflag = debug_full ? '-g3' : '-g1'
 debug_opt_flags = ['-Og', debug_gflag, '-fno-omit-frame-pointer']
 common_cpp_args += buildtype == 'debug' ? debug_opt_flags : []
@@ -45,8 +41,6 @@ common_link_args += (is_gnu and is_debuglike) ? ['-Wl,--gdb-index'] : []
 
 common_cpp_args += get_option('checked_ids') ? ['-DVOLT_CHECKED_IDS=1'] : []
 
-# ---------------------------------------------------------------------------
-# Sanitizers: one dict entry per option -> -fsanitize= spelling.
 # ---------------------------------------------------------------------------
 
 sanitizers = {
