@@ -19,7 +19,11 @@ function update_golden_samples()
   local -r target_file="$2"
   local out exit_code=0
 
-  out="$( "$VOLT_BIN" parse --no-color "${volt_flag}" -i "$SAMPLE" 2>&1 )" || exit_code=$?
+  if [[ -n "$volt_flag" ]]; then
+    out="$( "$VOLT_BIN" parse --no-color "${volt_flag}" -i "$SAMPLE" 2>&1 )" || exit_code=$?
+  else
+    out="$( "$VOLT_BIN" parse --no-color -i "$SAMPLE" 2>&1 )" || exit_code=$?
+  fi
 
   if [[ "$out" == *"error: "* ]]; then
     echo "SKIPPING $SAMPLE due to parse error" >&2
