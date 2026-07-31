@@ -67,6 +67,14 @@ endif
 
 # -----------------------------------------------------------------------------
 
+meson_prog = find_program('meson')
+run_target('tests',
+  command : [meson_prog, 'test', '-C', meson.project_build_root(), '--print-errorlogs'],
+  depends : volt_exe,
+)
+
+# -----------------------------------------------------------------------------
+
 tests_samples_root = samples_root / 'Tests'
 tests_find = run_command(
   find_prog, tests_samples_root, '-type', 'f', '-name', '*.vl',
