@@ -13,6 +13,6 @@ result
 
 .vscode/
 .zed/
-.idea/
+.idea/*
 
 !.idea/misc.xml
