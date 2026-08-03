@@ -562,6 +562,21 @@ struct Volt::Backend::Llvm::LlvmBackend::State
                                                   Frontend::ExprId Receiver,
                                                   std::span<const Frontend::ExprId> Args );
 
+    // The same shape as `Instructions.inl`'s `+`/`-` exemption — an `abstract`
+    // member with a `Primitive`/`Pointer` receiver has no body because the
+    // backend supplies one — generalised from an operator token to a member's
+    // own spelling, since `to_address`/`from_address` are ordinary named
+    // methods (`Pointer<T>#to_address`, `Pointer<T>.from_address`), not
+    // operators, so `EmitBinary`/`EmitUnary`'s token-keyed bypass does not
+    // reach them: an ordinary dot-call always goes through `EmitResolvedCall`.
+    // A pointer's bit pattern needs no conversion under opaque pointers — this
+    // is `ptrtoint`/`inttoptr`, a machine op on the closed vocabulary, not a
+    // Volt concept.
+    [[nodiscard]] llvm::Value *EmitNamedConversion ( Frontend::ExprId Id,
+                                                     const Sema::CalleeEntry &Entry,
+                                                     Frontend::ExprId Receiver,
+                                                     std::span<const Frontend::ExprId> Args );
+
     // --- Exceptions, Tier 1 (ExceptionEmitter.cpp) ------------------------
     //
     // "setjmp/sigsetjmp-free personality-less unwinding" (llvm.md): `raise`
