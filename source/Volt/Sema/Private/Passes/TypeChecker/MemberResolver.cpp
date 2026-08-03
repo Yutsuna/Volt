@@ -28,6 +28,17 @@ namespace
     return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
 }
 
+// `..`/`...` are spelled like operators (neither opens with a letter or
+// `_`) but no instruction table row backs either of them — a range is an
+// ordinary aggregate (`Range<T>`), resolved through `Comparable#..` like any
+// other non-primitive operator. Excluding them here is what lets `1..3` fall
+// through to real member lookup instead of being silently waved through as
+// "the backend supplies this".
+[[nodiscard]] bool IsRangeOperator ( std::string_view Name )
+{
+    return Name == ".." or Name == "...";
+}
+
 // Is `Name` an operator the machine itself provides on this receiver — that
 // is, does the receiver collapse to a Primitive or a Pointer? Deliberately
 // narrower than IsBuiltinOpOn, which also widens `===` to an enum: an enum is
@@ -38,7 +49,7 @@ namespace
 {
     using namespace Volt::Sema;
 
-    if ( not Base.IsValid() or not IsOperatorName( Name ) )
+    if ( not Base.IsValid() or not IsOperatorName( Name ) or IsRangeOperator( Name ) )
     {
         return false;
     }
@@ -354,7 +365,7 @@ bool Volt::Sema::TypeCheckerPass::HasEnumCases ( const TypeStore &Store, Nominal
 
 bool Volt::Sema::TypeCheckerPass::IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name )
 {
-    if ( not Base.IsValid() or not IsOperatorName( Name ) )
+    if ( not Base.IsValid() or not IsOperatorName( Name ) or IsRangeOperator( Name ) )
     {
         return false;
     }
