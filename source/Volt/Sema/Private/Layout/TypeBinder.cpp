@@ -371,6 +371,7 @@ namespace Sema
                 }
             }
 
+            bool bFullyResolved = true;
             for ( const Frontend::DeclId Child : *Body )
             {
                 const auto *Field = std::get_if<Frontend::Field>( &Ast.Decl( Child ) );
@@ -383,7 +384,27 @@ namespace Sema
                 {
                     FieldType = EnsureStructLayout( Units, Store, *Named, Depth + 1 );
                 }
+                if ( not FieldType.IsValid() )
+                {
+                    bFullyResolved = false;
+                }
                 Agg.Fields.PushBack( FieldLayout{ .Name = Store.Intern( Ast.Text( Field->Name ) ), .Type = FieldType } );
+            }
+
+            // A field typed as a bare generic parameter (`key : K` on
+            // `HashEntry<K, V>`, `first : T` on `Range<T>`) resolves no
+            // FieldTypeNominal at all — by design, per NominalType::Layout's
+            // own contract above: "never [attached] for a generic whose shape
+            // depends on its arguments". Attaching this broken template
+            // anyway would make InstanceLayouts::Of's `Attached.IsValid()`
+            // fast path (BackendCore/InstanceLayout.cpp) return it verbatim,
+            // permanently short-circuiting the substitution that turns
+            // ParamIndex-encoded field signatures into `T`'s concrete
+            // argument. Leaving Layout unattached instead defers every such
+            // type to that substitution, exactly as the comment promises.
+            if ( not bFullyResolved )
+            {
+                return LayoutId{};
             }
 
             const LayoutId Built = Store.AddAggregate( std::move( Agg ) );
