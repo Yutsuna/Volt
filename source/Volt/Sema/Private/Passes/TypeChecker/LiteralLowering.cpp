@@ -1,6 +1,7 @@
 #include "LiteralLowering.hpp"
 
 #include "DeclStmtWalker.hpp"
+#include "MemberResolver.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
@@ -46,23 +47,38 @@ void Volt::Sema::TypeCheckerPass::LowerArrayLit ( TypeCheckerContext &Context,
     const Frontend::ExprId AssignId =
         Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = {}, .Target = TmpTarget, .Value = CtorId } } );
 
+    ScopeId CurrentScope = Context.Ctx.Scopes.ScopeOfExpr( Id );
+    if ( not CurrentScope.IsValid() )
+    {
+        CurrentScope = ScopeId{ 0 };
+    }
+    Context.Ctx.Scopes.Declare( CurrentScope, TmpName, TmpTarget );
+    const Sema::Binding *Bound = Context.Ctx.Scopes.Resolve( CurrentScope, TmpName );
+    if ( Bound != nullptr )
+    {
+        Context.Ctx.Scopes.BindUse( TmpTarget, *Bound, false );
+    }
+
     Frontend::StmtList Body;
     Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = AssignId } } ) );
 
-    // One `tmp << element` per element, resolved through the same operator
-    // path (MemberType) any hand-written `tmp << element` would take — no
-    // shortcut past member resolution (rules/backend-machine-only.md). A
-    // type claiming ArrayLit but declaring no `<<` fails this exactly as an
-    // unresolved method call always does; no diagnostic of its own.
     for ( const Frontend::ExprId Elem : Elements )
     {
-        const Frontend::ExprId TmpUse   = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+        const Frontend::ExprId TmpUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+        if ( Bound != nullptr )
+        {
+            Context.Ctx.Scopes.BindUse( TmpUse, *Bound, true );
+        }
         const Frontend::ExprId AppendId = Ast.Add(
             Frontend::ExprNode{ Frontend::Binary{ .Loc = {}, .Op = Frontend::TokenKind::Shl, .Lhs = TmpUse, .Rhs = Elem } } );
         Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = AppendId } } ) );
     }
 
     const Frontend::ExprId TrailingUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+    if ( Bound != nullptr )
+    {
+        Context.Ctx.Scopes.BindUse( TrailingUse, *Bound, true );
+    }
     Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = TrailingUse } } ) );
 
     // Type every synthesized statement off the local `Body` copy — never off
@@ -145,6 +161,18 @@ void Volt::Sema::TypeCheckerPass::LowerHashLit (
     const Frontend::ExprId AssignId =
         Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = {}, .Target = TmpTarget, .Value = CtorId } } );
 
+    ScopeId CurrentScope = Context.Ctx.Scopes.ScopeOfExpr( Id );
+    if ( not CurrentScope.IsValid() )
+    {
+        CurrentScope = ScopeId{ 0 };
+    }
+    Context.Ctx.Scopes.Declare( CurrentScope, TmpName, TmpTarget );
+    const Sema::Binding *Bound = Context.Ctx.Scopes.Resolve( CurrentScope, TmpName );
+    if ( Bound != nullptr )
+    {
+        Context.Ctx.Scopes.BindUse( TmpTarget, *Bound, false );
+    }
+
     Frontend::StmtList Body;
     Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = AssignId } } ) );
 
@@ -154,6 +182,10 @@ void Volt::Sema::TypeCheckerPass::LowerHashLit (
     for ( std::size_t Index = 0; Index < PairCount; ++Index )
     {
         const Frontend::ExprId TmpUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+        if ( Bound != nullptr )
+        {
+            Context.Ctx.Scopes.BindUse( TmpUse, *Bound, true );
+        }
         const Frontend::ExprId SetMemberId =
             Ast.Add( Frontend::ExprNode{ Frontend::Member{ .Loc = {}, .Object = TmpUse, .Name = SetOpSym } } );
 
@@ -172,6 +204,10 @@ void Volt::Sema::TypeCheckerPass::LowerHashLit (
     }
 
     const Frontend::ExprId TrailingUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+    if ( Bound != nullptr )
+    {
+        Context.Ctx.Scopes.BindUse( TrailingUse, *Bound, true );
+    }
     Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = TrailingUse } } ) );
 
     for ( const Frontend::StmtId StmtId : Body )
@@ -204,5 +240,146 @@ void Volt::Sema::TypeCheckerPass::LowerHashLits ( TypeCheckerContext &Context )
         const Frontend::ExprList Values     = HashLitNode.Values;
 
         LowerHashLit( Context, Id, Keys, Values, Context.Ctx.Values.ExprType( Id ) );
+    }
+}
+
+static std::string DecodeStringText ( std::string_view Text )
+{
+    std::string Out;
+    Out.reserve( Text.size() );
+    for ( std::size_t Index = 0; Index < Text.size(); ++Index )
+    {
+        if ( Text[Index] == '\\' and Index + 1 < Text.size() )
+        {
+            const char Escaped = Text[Index + 1];
+            switch ( Escaped )
+            {
+            case 'n':
+                Out.push_back( '\n' );
+                ++Index;
+                continue;
+            case 'r':
+                Out.push_back( '\r' );
+                ++Index;
+                continue;
+            case 't':
+                Out.push_back( '\t' );
+                ++Index;
+                continue;
+            case '0':
+                Out.push_back( '\0' );
+                ++Index;
+                continue;
+            case '\\':
+                Out.push_back( '\\' );
+                ++Index;
+                continue;
+            case '"':
+                Out.push_back( '"' );
+                ++Index;
+                continue;
+            case '\'':
+                Out.push_back( '\'' );
+                ++Index;
+                continue;
+            default:
+                break;
+            }
+        }
+        Out.push_back( Text[Index] );
+    }
+    return Out;
+}
+
+void Volt::Sema::TypeCheckerPass::LowerStringLit ( TypeCheckerContext &Context,
+                                                   Frontend::ExprId Id,
+                                                   Frontend::Symbol ValueSym,
+                                                   SemaTypeId LiteralType )
+{
+    if ( not LiteralType.IsValid() or not Context.Ctx.Values.Has( LiteralType ) )
+    {
+        return;
+    }
+
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    const NominalId Base            = Context.Ctx.Values.Get( LiteralType ).Base;
+    const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( Base ).Name );
+    const Frontend::Symbol NameSym  = Ast.Strings().Intern( NameText );
+
+    const Resolution InitRes = LookupOn( Context, LiteralType, "initialize" );
+    SemaTypeId DataParamType;
+    SemaTypeId SizeParamType;
+    if ( InitRes.Decl != nullptr and InitRes.Params.Size() >= 2 )
+    {
+        DataParamType = InitRes.Params[0];
+        SizeParamType = InitRes.Params[1];
+    }
+
+    const Frontend::ExprId ObjectId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = NameSym } } );
+    Context.Ctx.Values.SetExprType( ObjectId, LiteralType );
+    Context.NakedTypeExprs.insert( ObjectId.Value );
+
+    const Frontend::ExprId NewMemberId =
+        Ast.Add( Frontend::ExprNode{ Frontend::Member{ .Loc = {}, .Object = ObjectId, .Name = Ast.Strings().Intern( "new" ) } } );
+
+    const Frontend::ExprId RawBytesId = Ast.Add( Frontend::ExprNode{ Frontend::StringLiteral{ .Loc = {}, .Value = ValueSym } } );
+    if ( DataParamType.IsValid() )
+    {
+        Context.Ctx.Values.SetExprType( RawBytesId, DataParamType );
+    }
+
+    const std::string DecodedText = DecodeStringText( Ast.Text( ValueSym ) );
+    const std::string LenStr      = std::to_string( DecodedText.size() );
+    const Frontend::Symbol LenSym = Ast.Strings().Intern( LenStr );
+    const Frontend::ExprId LenId  = Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = {}, .Raw = LenSym } } );
+    if ( SizeParamType.IsValid() )
+    {
+        Context.Ctx.Values.SetExprType( LenId, SizeParamType );
+    }
+
+    Frontend::ExprList Args;
+    Args.PushBack( RawBytesId );
+    Args.PushBack( LenId );
+
+    Frontend::SymbolList ArgNames;
+    ArgNames.PushBack( Core::Symbol{} );
+    ArgNames.PushBack( Core::Symbol{} );
+
+    const Frontend::ExprId CtorCallId = Ast.Add( Frontend::ExprNode{
+        Frontend::Call{ .Loc = {}, .Callee = NewMemberId, .Args = Args, .ArgNames = ArgNames, .BlockArg = {} } } );
+
+    InferExpr( Context, CtorCallId );
+
+    if ( const auto Entry = Context.CalleeResolution.find( CtorCallId.Value ); Entry != Context.CalleeResolution.end() )
+    {
+        Context.CalleeResolution[Id.Value] = Entry->second;
+    }
+    if ( const SemaTypeId CallTypeRes = Context.Ctx.Values.ExprType( CtorCallId ); CallTypeRes.IsValid() )
+    {
+        Context.Ctx.Values.SetExprType( Id, CallTypeRes );
+    }
+
+    Ast.Expr( Id ) = Ast.Expr( CtorCallId );
+}
+
+void Volt::Sema::TypeCheckerPass::LowerStringLits ( TypeCheckerContext &Context )
+{
+    const std::size_t OriginalCount = Context.Ctx.Ast.ExprCount();
+    for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+
+        if ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] )
+        {
+            continue;
+        }
+        if ( not std::holds_alternative<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Id ) ) )
+        {
+            continue;
+        }
+
+        const Frontend::Symbol ValueSym = std::get<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Id ) ).Value;
+        LowerStringLit( Context, Id, ValueSym, Context.Ctx.Values.ExprType( Id ) );
     }
 }

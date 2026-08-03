@@ -36,4 +36,8 @@ void LowerHashLit ( TypeCheckerContext &Context,
 
 void LowerHashLits ( TypeCheckerContext &Context );
 
+void LowerStringLit ( TypeCheckerContext &Context, Frontend::ExprId Id, Frontend::Symbol ValueSym, SemaTypeId LiteralType );
+
+void LowerStringLits ( TypeCheckerContext &Context );
+
 } // namespace Volt::Sema::TypeCheckerPass

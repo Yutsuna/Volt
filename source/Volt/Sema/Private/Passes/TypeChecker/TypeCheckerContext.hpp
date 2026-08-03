@@ -174,7 +174,9 @@ struct TypeCheckerContext
             return B;
         if ( not B.IsValid() )
             return A;
-        return A;
+        if ( A == B )
+            return A;
+        return SemaTypeId{};
     }
 
     [[nodiscard]] SemaTypeId MakeType ( NominalId Base, Core::SmallVec<SemaTypeId, 2> Args );
