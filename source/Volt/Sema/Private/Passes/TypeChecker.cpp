@@ -1,6 +1,7 @@
 // TypeChecker.cpp — Order 30 pass: gives every expression a type, and
 // resolves the members that types make available.
 
+#include "TypeChecker/ClosureLifting.hpp"
 #include "TypeChecker/DeclStmtWalker.hpp"
 #include "TypeChecker/LiteralInferencer.hpp"
 #include "TypeChecker/LiteralLowering.hpp"
@@ -62,6 +63,12 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     TypeCheckerPass::LowerArrayLits( State );
     TypeCheckerPass::LowerHashLits( State );
     TypeCheckerPass::LowerStringLits( State );
+
+    // No-capture only (Phase 3a, .agents/PLAN_CLOSURE_LOWERING.md): a
+    // capturing closure is left as a Lambda/Block until Phase 3b's env
+    // rewrite lands, so this must run after the literal lowerings above but
+    // still under the same "final type only" discipline.
+    TypeCheckerPass::LowerClosureLits( State );
 
     // Snapshot the settled resolutions into the unit before the pass-local
     // state dies — inference refines entries in place, so only the final map
