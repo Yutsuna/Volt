@@ -490,7 +490,6 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // that declares it. Null when the parameter has none — which is the
     // caller's error to report, with the call site in hand.
     [[nodiscard]] llvm::Value *EmitDefaultArgument ( const Sema::Member &Decl, std::size_t Index );
-    [[nodiscard]] llvm::Value *FailAggregateLiteral ( Frontend::ExprId Id, std::string_view Kind );
 
     // The one call site every resolved callee goes through — an explicit
     // `Call`, and a `Binary`/`Unary` whose operator resolved to a method

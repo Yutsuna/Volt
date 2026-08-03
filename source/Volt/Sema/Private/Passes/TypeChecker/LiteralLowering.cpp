@@ -116,3 +116,93 @@ void Volt::Sema::TypeCheckerPass::LowerArrayLits ( TypeCheckerContext &Context )
         LowerArrayLit( Context, Id, Elements, Context.Ctx.Values.ExprType( Id ) );
     }
 }
+
+void Volt::Sema::TypeCheckerPass::LowerHashLit (
+    TypeCheckerContext &Context, Frontend::ExprId Id, Frontend::ExprList Keys, Frontend::ExprList Values, SemaTypeId LiteralType )
+{
+    if ( not LiteralType.IsValid() or not Context.Ctx.Values.Has( LiteralType ) )
+    {
+        return;
+    }
+
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    const NominalId Base            = Context.Ctx.Values.Get( LiteralType ).Base;
+    const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( Base ).Name );
+    const Frontend::Symbol NameSym  = Ast.Strings().Intern( NameText );
+
+    const Frontend::ExprId ObjectId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = NameSym } } );
+    Context.Ctx.Values.SetExprType( ObjectId, LiteralType );
+    Context.NakedTypeExprs.insert( ObjectId.Value );
+
+    const Frontend::ExprId NewMemberId =
+        Ast.Add( Frontend::ExprNode{ Frontend::Member{ .Loc = {}, .Object = ObjectId, .Name = Ast.Strings().Intern( "new" ) } } );
+    const Frontend::ExprId CtorId = Ast.Add(
+        Frontend::ExprNode{ Frontend::Call{ .Loc = {}, .Callee = NewMemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
+
+    const Frontend::Symbol TmpName   = Ast.MakeUniqueSymbol( "__hash_lit" );
+    const Frontend::ExprId TmpTarget = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+    const Frontend::ExprId AssignId =
+        Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = {}, .Target = TmpTarget, .Value = CtorId } } );
+
+    Frontend::StmtList Body;
+    Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = AssignId } } ) );
+
+    const Frontend::Symbol SetOpSym = Ast.Strings().Intern( "[]=" );
+    const std::size_t PairCount     = std::min( Keys.Size(), Values.Size() );
+
+    for ( std::size_t Index = 0; Index < PairCount; ++Index )
+    {
+        const Frontend::ExprId TmpUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+        const Frontend::ExprId SetMemberId =
+            Ast.Add( Frontend::ExprNode{ Frontend::Member{ .Loc = {}, .Object = TmpUse, .Name = SetOpSym } } );
+
+        Frontend::ExprList Args;
+        Args.PushBack( Keys[Index] );
+        Args.PushBack( Values[Index] );
+
+        Frontend::SymbolList ArgNames;
+        ArgNames.PushBack( Core::Symbol{} );
+        ArgNames.PushBack( Core::Symbol{} );
+
+        const Frontend::ExprId IndexSetCallId = Ast.Add( Frontend::ExprNode{
+            Frontend::Call{ .Loc = {}, .Callee = SetMemberId, .Args = Args, .ArgNames = ArgNames, .BlockArg = {} } } );
+
+        Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = IndexSetCallId } } ) );
+    }
+
+    const Frontend::ExprId TrailingUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = TmpName } } );
+    Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = {}, .Expr = TrailingUse } } ) );
+
+    for ( const Frontend::StmtId StmtId : Body )
+    {
+        WalkStmt( Context, StmtId );
+    }
+
+    Ast.Expr( Id ) =
+        Frontend::ExprNode{ Frontend::BeginExpr{ .Loc = {}, .Body = std::move( Body ), .RescueClauses = {}, .EnsureBody = {} } };
+}
+
+void Volt::Sema::TypeCheckerPass::LowerHashLits ( TypeCheckerContext &Context )
+{
+    const std::size_t OriginalCount = Context.Ctx.Ast.ExprCount();
+    for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+
+        if ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] )
+        {
+            continue;
+        }
+        if ( not std::holds_alternative<Frontend::HashLit>( Context.Ctx.Ast.Expr( Id ) ) )
+        {
+            continue;
+        }
+
+        const Frontend::HashLit HashLitNode = std::get<Frontend::HashLit>( Context.Ctx.Ast.Expr( Id ) );
+        const Frontend::ExprList Keys       = HashLitNode.Keys;
+        const Frontend::ExprList Values     = HashLitNode.Values;
+
+        LowerHashLit( Context, Id, Keys, Values, Context.Ctx.Values.ExprType( Id ) );
+    }
+}

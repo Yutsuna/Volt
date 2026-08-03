@@ -641,11 +641,9 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
                 }
                 return llvm::ConstantInt::get( Shape, Node.Name.Value );
             },
-            // No Frontend::ArrayLit arm: LowerArrayLit (TypeChecker) rewrites
-            // every one into ordinary Assign/Binary/Call nodes before this
-            // backend ever walks the tree — see
-            // .agents/PLAN_LITERAL_LOWERING.md. HashLit ships next.
-            [this, Id] ( const Frontend::HashLit & ) -> llvm::Value * { return FailAggregateLiteral( Id, "HashLit" ); },
+            // No Frontend::ArrayLit / HashLit arms: LowerArrayLit & LowerHashLit
+            // (TypeChecker) rewrite every aggregate literal into ordinary
+            // Assign/Binary/Call nodes before this backend ever walks the tree.
 
             // --- Access ----------------------------------------------------
             [this, Id] ( const Frontend::Identifier & ) -> llvm::Value *
@@ -776,19 +774,6 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::LoadPlace ( Frontend::Expr
         return nullptr;
     }
     return Builder->CreateLoad( Loaded, Address );
-}
-
-llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::FailAggregateLiteral ( Frontend::ExprId Id, std::string_view Kind )
-{
-    // The claiming type's aggregate is `{ data, size }` or similar: filling it
-    // means allocating a backing buffer and knowing which field holds what.
-    // Both are the *stdlib's* business (abi.md: the compiler has no object
-    // model), and neither is recorded anywhere a backend may read — so this is
-    // a genuine middle-end gap, reported by name rather than papered over with
-    // a field-order convention that would silently corrupt any other shape.
-    static_cast<void>( Fail( "llvm: " + std::string( Kind ) + " at expression " + std::to_string( Id.Value ) +
-                             " needs the claiming type's construction protocol, which the middle-end does not record" ) );
-    return nullptr;
 }
 
 // ---------------------------------------------------------------------------

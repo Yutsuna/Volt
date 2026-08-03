@@ -28,4 +28,12 @@ void LowerArrayLit ( TypeCheckerContext &Context, Frontend::ExprId Id, Frontend:
 // for every other arena sweep (see RejectNilableTypes, TypeChecker.cpp).
 void LowerArrayLits ( TypeCheckerContext &Context );
 
+void LowerHashLit ( TypeCheckerContext &Context,
+                    Frontend::ExprId Id,
+                    Frontend::ExprList Keys,
+                    Frontend::ExprList Values,
+                    SemaTypeId LiteralType );
+
+void LowerHashLits ( TypeCheckerContext &Context );
+
 } // namespace Volt::Sema::TypeCheckerPass

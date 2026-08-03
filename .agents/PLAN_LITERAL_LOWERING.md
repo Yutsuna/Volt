@@ -7,9 +7,7 @@
   (§4), `VOLT_EXPR_SUGAR` (§5). Verified: a real build, `check` across
   `samples/`, an ASan build clean across the same corpus, and the two bugs
   §2's original "inline" design had (below) reproduced and fixed.
-- **`HashLit`: not started.** Still a core node, still `FailAggregateLiteral`
-  in the backend. Ships per §6, after §7's doc pass for `ArrayLit` alone —
-  which is this update.
+- **`HashLit`: done.** Lowering via `LowerHashLits` post-walk sweep in `TypeChecker`, `[]=` resolved via ordinary `MemberType`, backend arm deleted, `FailAggregateLiteral` deleted, `VOLT_EXPR_SUGAR`.
 
 ## Why §5 of `PLAN_LLVM.md` is wrong
 

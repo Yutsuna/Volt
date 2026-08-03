@@ -60,6 +60,7 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     // path first settles a type bakes in whichever ran first. See
     // LiteralLowering.hpp.
     TypeCheckerPass::LowerArrayLits( State );
+    TypeCheckerPass::LowerHashLits( State );
 
     // Snapshot the settled resolutions into the unit before the pass-local
     // state dies — inference refines entries in place, so only the final map
