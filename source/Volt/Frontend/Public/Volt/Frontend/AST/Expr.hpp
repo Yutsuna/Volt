@@ -206,6 +206,18 @@ namespace Frontend
         TypeId Type;
     };
 
+    // The address of a resolved Method, as a value — never written by the
+    // parser; only a lowering pass (ClosureLifting) synthesizes this, to name
+    // a function it has just lifted without going through ordinary member/
+    // free-function name lookup. Inert like SizeOf/GenericInst: nothing to
+    // descend into, the Decl is already resolved by construction.
+    struct FuncAddr
+    {
+
+        Core::SourceRange Loc;
+        DeclId Target;
+    };
+
     // `( Value : Type )` — an explicit type ascription, not a cast: it
     // constrains an otherwise-unconstrained value (chiefly an int/float
     // literal) to `Type` instead of the default the literal would infer.
