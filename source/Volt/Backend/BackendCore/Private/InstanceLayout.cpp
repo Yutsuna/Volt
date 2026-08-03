@@ -226,6 +226,23 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
         return It->second;
     }
 
+    // A callable's shape is the one thing the stdlib cannot write down: the
+    // type claiming FuncType/Lambda/Block declares no field, because `{ code,
+    // env }` is an ABI decision, fixed once for the three targets in
+    // .agents/backend/abi.md. Checked *before* the attached-layout fast path
+    // below: `Proc<R>` has no fields of its own, so TypeBinder still attaches
+    // it a valid (vacuous, zero-size) aggregate — that fast path would win
+    // and hand every closure value a `{}` layout, which is how `f = (x) => ...`
+    // used to silently zero-size the closure's global slot. Materialising the
+    // pair here — rather than in one emitter — is what keeps a closure written
+    // by native codegen readable by the VM's and wasm's rules.
+    if ( IsCallable( Store, Base ) )
+    {
+        const Sema::LayoutId Shape = ClosurePair( Store );
+        Cache.emplace( std::move( Key ), Shape );
+        return Shape;
+    }
+
     // An already-attached layout wins over any substitution: `@[Primitive]`
     // fixes a shape regardless of arguments — `Pointer<T>` is `ptr` for every
     // T — and a non-generic aggregate was already computed by TypeBinder.
@@ -233,19 +250,6 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     {
         Cache.emplace( std::move( Key ), Attached );
         return Attached;
-    }
-
-    // A callable's shape is the one thing the stdlib cannot write down: the
-    // type claiming FuncType/Lambda/Block declares no field, because `{ code,
-    // env }` is an ABI decision, fixed once for the three targets in
-    // .agents/backend/abi.md. Materialising it here — rather than in one
-    // emitter — is what keeps a closure written by native codegen readable by
-    // the VM's and wasm's rules.
-    if ( IsCallable( Store, Base ) )
-    {
-        const Sema::LayoutId Shape = ClosurePair( Store );
-        Cache.emplace( std::move( Key ), Shape );
-        return Shape;
     }
 
     // Claim the key before descending: a generic that reaches itself through a

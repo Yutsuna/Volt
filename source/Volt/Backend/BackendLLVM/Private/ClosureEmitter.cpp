@@ -380,7 +380,18 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIndirectCall ( Fronten
         return nullptr;
     }
 
-    llvm::Value *Pair = EmitExpr( Receiver );
+    // The receiver may be the very node carrying this call's own `bIndirect`
+    // CalleeEntry — `f( x )` on a closure-typed local resolves with
+    // `Receiver == Node.Callee`, the `f` Identifier itself. `EmitExpr`'s
+    // `Identifier`/`Member` visitors also consult `Frame.Callees->Get(Id)`
+    // (to support a paren-less bare call, e.g. `test_int8`), so routing
+    // through them here would re-discover this same entry and reinterpret
+    // "read the value of `f`" as "invoke `f` again", recursing into this
+    // function with an invalid receiver. `LoadPlace` reads the place
+    // directly — the only reading that cannot rediscover a call.
+    const bool bAmbiguousReceiver = std::holds_alternative<Frontend::Identifier>( Frame.Unit->Ast->Expr( Receiver ) ) or
+                                    std::holds_alternative<Frontend::Member>( Frame.Unit->Ast->Expr( Receiver ) );
+    llvm::Value *Pair = bAmbiguousReceiver ? LoadPlace( Receiver ) : EmitExpr( Receiver );
     if ( Pair == nullptr )
     {
         return nullptr;
