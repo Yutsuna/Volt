@@ -62,15 +62,21 @@ namespace Backend
 
         // The layout a *declared signature* resolves to — a parameter, a
         // result, a field — with `FlatArgs` answering whatever generic
-        // parameters it mentions.
+        // parameters it mentions, and `SelfArgs` — the MonoRequest encoding
+        // of the receiver itself, from `SelfSubtree` below — answering any
+        // nested `self` the signature mentions (`Comparable#..`'s `->
+        // Range<self>`, not just a bare `-> self`). Empty when the signature
+        // cannot mention `self` at all.
         //
         // An attached layout short-circuits the substitution entirely, by the
         // same rule Of() states: `@[Primitive]` fixes a shape whatever the
         // arguments are. That is not an optimisation but the only correct
         // reading of `Pointer<Void>` — the argument names a type the stdlib
         // never declares, yet the pointer's shape does not depend on it.
-        [[nodiscard]] Sema::LayoutId
-        OfSignature ( Sema::TypeStore &Store, Sema::SigTypeId Id, std::span<const std::uint32_t> FlatArgs );
+        [[nodiscard]] Sema::LayoutId OfSignature ( Sema::TypeStore &Store,
+                                                   Sema::SigTypeId Id,
+                                                   std::span<const std::uint32_t> FlatArgs,
+                                                   std::span<const std::uint32_t> SelfArgs = {} );
 
         [[nodiscard]] std::size_t InstantiationCount () const
         {
@@ -80,8 +86,11 @@ namespace Backend
     private:
 
         // OfSignature's recursive half, carrying the depth bound.
-        [[nodiscard]] Sema::LayoutId
-        OfSig ( Sema::TypeStore &Store, Sema::SigTypeId Id, std::span<const std::uint32_t> FlatArgs, std::uint32_t Depth );
+        [[nodiscard]] Sema::LayoutId OfSig ( Sema::TypeStore &Store,
+                                             Sema::SigTypeId Id,
+                                             std::span<const std::uint32_t> FlatArgs,
+                                             std::span<const std::uint32_t> SelfArgs,
+                                             std::uint32_t Depth );
 
         // Is this the type a written signature, a lambda and a trailing block
         // all denote? Asked of the store through `@[Literal]`, the same
@@ -106,6 +115,14 @@ namespace Backend
     // monomorphising emitter needs when it substitutes into a nested generic.
     [[nodiscard]] BACKENDCORE_EXPORT std::span<const std::uint32_t> ArgSubtree ( std::span<const std::uint32_t> FlatArgs,
                                                                                  std::size_t Index );
+
+    // The MonoRequest encoding of `Base` instantiated with `FlatArgs` — i.e.
+    // the receiver itself, as one subtree: `[Base.Value, ArgCount,
+    // FlatArgs...]`. This is what a nested `self` inside a declared signature
+    // resolves to (`OfSignature`'s `SelfArgs`), since `self` inside a body
+    // always means "the receiver, whatever it was instantiated with".
+    [[nodiscard]] BACKENDCORE_EXPORT std::vector<std::uint32_t>
+    SelfSubtree ( const Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs );
 
 } // namespace Backend
 
