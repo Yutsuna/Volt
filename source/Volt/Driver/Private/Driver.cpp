@@ -303,7 +303,8 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
                                .Stats   = Unit.Stats,
                                .Globals = &Registry,
                                .Sources = &Sources,
-                               .Callees = &Unit.Callees };
+                               .Callees = &Unit.Callees,
+                               .Synth   = Unit.Synth };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
@@ -316,7 +317,8 @@ void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
                                .Scopes  = Unit.Scopes,
                                .Diags   = Bag,
                                .Stats   = Unit.Stats,
-                               .Sources = &Sources };
+                               .Sources = &Sources,
+                               .Synth   = Unit.Synth };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
@@ -875,7 +877,8 @@ std::vector<Volt::Backend::UnitView> Volt::Driver::Driver::MakeBackendViews () c
                                             .Ast     = &Source.Ast,
                                             .Values  = &Source.Types,
                                             .Callees = &Source.Callees,
-                                            .Scopes  = &Source.Scopes } );
+                                            .Scopes  = &Source.Scopes,
+                                            .Synth   = &Source.Synth } );
         bEmitted[Index] = true;
     };
 

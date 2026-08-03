@@ -74,6 +74,10 @@ namespace Driver
         // (see Scope/ScopeTable.hpp).
         Sema::ScopeTable Scopes;
         Sema::PassStats Stats;
+        // Functions a lowering pass synthesized for this unit alone — see
+        // Sema/Layout/SynthesizedFunctions.hpp for why this is not just
+        // another entry in Types (the cross-unit TypeStore).
+        Sema::SynthesizedFunctions Synth;
     };
 
     struct CompileResult
