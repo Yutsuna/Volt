@@ -81,6 +81,10 @@ namespace
 // library that spells itself, e.g. "SDL2") passes through as `-lSDL2`.
 [[nodiscard]] std::string LibraryFlag ( const std::string &Library )
 {
+    if ( Library == "volt" )
+    {
+        return std::string{};
+    }
     constexpr std::string_view Prefix = "lib";
     const std::string_view Spelling =
         Library.starts_with( Prefix ) ? std::string_view( Library ).substr( Prefix.size() ) : std::string_view( Library );

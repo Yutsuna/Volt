@@ -97,8 +97,9 @@ void Volt::Backend::Llvm::LlvmBackend::State::StoreTailValue ( llvm::Value *Valu
         llvm::raw_string_ostream SlotStream( SlotText );
         ( Fitted != nullptr ? Fitted->getType() : Value->getType() )->print( ValueStream );
         Shape->print( SlotStream );
-        static_cast<void>( Fail( "llvm: a `begin`/`case` arm yields " + ValueStream.str() + " but the result slot is " +
-                                 SlotStream.str() + " — the arms of one expression were typed inconsistently" ) );
+        static_cast<void>(
+            Fail( "llvm: a `begin`/`case` arm yields " + ValueStream.str() + " but the result slot is " + SlotStream.str() +
+                  " — the arms of one expression were typed inconsistently (fn: " + Frame.Fn->getName().str() + ")" ) );
         return;
     }
     static_cast<void>( Builder->CreateStore( Fitted, Slot ) );

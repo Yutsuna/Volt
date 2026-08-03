@@ -852,58 +852,14 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitCharLiteral ( Frontend
     return llvm::ConstantInt::get( Shape, Value );
 }
 
-llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitStringLiteral ( Frontend::ExprId Id,
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitStringLiteral ( Frontend::ExprId /* Id */,
                                                                           const Frontend::StringLiteral &Node )
 {
-    // Escapes are resolved here, not in the lexer: the interned lexeme is the
-    // source spelling, which is what `volt parse` and the golden fixtures show.
-    // The decoded length is what the aggregate's size field must carry — `"a\n"`
-    // is two bytes, not three.
-    const std::string Text     = DecodeText( Frame.Unit->Ast->Text( Node.Value ) );
-    const Sema::LayoutId Shape = LayoutOfExpr( Id );
-    llvm::Type *Struct         = TypeOfLayout( Shape );
-    if ( Struct == nullptr or not Struct->isStructTy() )
-    {
-        static_cast<void>( Fail( "llvm: the type claiming StringLiteral has no aggregate layout" ) );
-        return nullptr;
-    }
-
-    // The bytes themselves: a private constant, deduplicated by the module.
-    llvm::Constant *Bytes = Builder->CreateGlobalString( Text, ".str", 0, Mod.get() );
-
-    // The aggregate is the stdlib's, and the emitter reads its *shape*, not its
-    // field names: a pointer slot takes the bytes, an integer slot takes the
-    // length. Anything else is a shape this emitter has no way to fill, and it
-    // says so instead of writing into whichever field happened to be first.
-    auto *Layout = llvm::cast<llvm::StructType>( Struct );
-    std::vector<llvm::Constant *> Slots;
-    Slots.reserve( Layout->getNumElements() );
-    for ( unsigned Index = 0; Index < Layout->getNumElements(); ++Index )
-    {
-        llvm::Type *Slot = Layout->getElementType( Index );
-        if ( Slot->isPointerTy() )
-        {
-            Slots.push_back( Bytes );
-        }
-        else if ( Slot->isIntegerTy() )
-        {
-            Slots.push_back( llvm::ConstantInt::get( Slot, Text.size() ) );
-        }
-        else
-        {
-            static_cast<void>( Fail( "llvm: the type claiming StringLiteral has a field this emitter cannot fill — "
-                                     "a string literal is a pointer to bytes plus a length" ) );
-            return nullptr;
-        }
-    }
-
-    // The literal is a constant, so it lives in a private global rather than an
-    // alloca: an aggregate is addressed (abi.md), and this address is valid for
-    // the whole program.
-    auto *Storage = new llvm::GlobalVariable( *Mod, Layout, true, llvm::GlobalValue::PrivateLinkage,
-                                              llvm::ConstantStruct::get( Layout, Slots ), ".strlit" );
-    Storage->setUnnamedAddr( llvm::GlobalValue::UnnamedAddr::Global );
-    return Storage;
+    // StringLiteral evaluated in codegen is a raw byte buffer constant (Pointer<UInt8>).
+    // The aggregate String struct construction String.new( bytes, size ) was already
+    // lowered upstream by LowerStringLits in TypeChecker.
+    const std::string Text = DecodeText( Frame.Unit->Ast->Text( Node.Value ) );
+    return Builder->CreateGlobalString( Text, ".str", 0, Mod.get() );
 }
 
 llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitSizeOf ( Frontend::ExprId Id )
