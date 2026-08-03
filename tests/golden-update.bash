@@ -46,7 +46,9 @@ function update_golden_samples()
 
 
 if update_golden_samples "" "$GOLDEN"; then
-  update_golden_samples "--lowered" "$LOWERED"
+  if [[ -f "$LOWERED" ]]; then
+    update_golden_samples "--lowered" "$LOWERED" || true
+  fi
 fi
 
 
