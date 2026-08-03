@@ -430,6 +430,126 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineMember ( const Sema::Member 
     Frame = FunctionFrame{};
 }
 
+void Volt::Backend::Llvm::LlvmBackend::State::DeclareSynthesized ( const UnitView &Unit )
+{
+    if ( Unit.Synth == nullptr )
+    {
+        return;
+    }
+    for ( const Sema::SynthesizedFunction &Fn : Unit.Synth->All() )
+    {
+        // No self, no mangling, no cross-unit symbol: this function is
+        // reached only through a FuncAddr naming Fn.Decl directly, so its
+        // LLVM name only has to be distinct within the module, never
+        // resolvable.
+        std::vector<llvm::Type *> Params;
+        Params.reserve( Fn.Params.Size() );
+        bool bOk = true;
+        for ( const Sema::SemaTypeId Param : Fn.Params )
+        {
+            llvm::Type *Slot = ParamTypeOfLayout( LayoutOfValue( *Unit.Values, Param ) );
+            if ( Slot == nullptr )
+            {
+                static_cast<void>( Fail( "llvm: a synthesized function's parameter in " + std::string( Unit.Path ) +
+                                         " has no resolved layout" ) );
+                bOk = false;
+                break;
+            }
+            Params.push_back( Slot );
+        }
+        if ( not bOk )
+        {
+            continue;
+        }
+
+        llvm::Type *Result = Fn.Result.IsValid() ? TypeOfLayout( LayoutOfValue( *Unit.Values, Fn.Result ) ) : nullptr;
+        if ( Result == nullptr )
+        {
+            Result = llvm::Type::getVoidTy( Context );
+        }
+
+        llvm::FunctionType *Signature = llvm::FunctionType::get( Result, Params, false );
+        const std::string Name        = "__synth." + std::to_string( Unit.Ordinal ) + "." + std::to_string( Fn.Decl.Value );
+        llvm::Function *LlvmFn        = llvm::Function::Create( Signature, llvm::Function::PrivateLinkage, Name, Mod.get() );
+        SynthesizedFns.emplace( UnitDeclKey{ .Ordinal = Unit.Ordinal, .Decl = Fn.Decl }, LlvmFn );
+    }
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::DefineSynthesized ( const UnitView &Unit )
+{
+    if ( Unit.Synth == nullptr )
+    {
+        return;
+    }
+    for ( const Sema::SynthesizedFunction &Fn : Unit.Synth->All() )
+    {
+        DefineSynthesizedFn( Fn, Unit );
+    }
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::DefineSynthesizedFn ( const Sema::SynthesizedFunction &Fn, const UnitView &Unit )
+{
+    const auto *Node = std::get_if<Frontend::Method>( &Unit.Ast->Decl( Fn.Decl ) );
+    if ( Node == nullptr )
+    {
+        static_cast<void>(
+            Fail( "llvm: a synthesized function in " + std::string( Unit.Path ) + " has no Method declaration behind it" ) );
+        return;
+    }
+
+    const auto It = SynthesizedFns.find( UnitDeclKey{ .Ordinal = Unit.Ordinal, .Decl = Fn.Decl } );
+    if ( It == SynthesizedFns.end() )
+    {
+        // DeclareSynthesized already reported why this entry has no
+        // llvm::Function.
+        return;
+    }
+    llvm::Function *LlvmFn = It->second;
+    llvm::Type *Result     = LlvmFn->getReturnType();
+
+    Frame               = FunctionFrame{};
+    Frame.Fn            = LlvmFn;
+    Frame.Unit          = &Unit;
+    Frame.Values        = Unit.Values;
+    Frame.Callees       = Unit.Callees;
+    Frame.Entry         = llvm::BasicBlock::Create( Context, "entry", LlvmFn );
+    Frame.bReturnsValue = not Result->isVoidTy();
+    Builder->SetInsertPoint( Frame.Entry );
+
+    unsigned Index = 0;
+    for ( const Frontend::ParamId ParamRef : Node->Params )
+    {
+        llvm::Value *Arg                = LlvmFn->getArg( Index++ );
+        const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
+        Arg->setName( Unit.Ast->Text( Declared.Name ) );
+
+        const Sema::BindingSite Site{ ParamRef };
+        const bool bByAddress = IsAggregate( LayoutOfValue( *Unit.Values, Unit.Values->SiteType( Site ) ) );
+        if ( not BindParameter( Site, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
+        {
+            static_cast<void>( Fail( "llvm: a synthesized function's parameter '" +
+                                     std::string( Unit.Ast->Text( Declared.Name ) ) + "' has no storage" ) );
+            return;
+        }
+    }
+
+    EmitStmts( Node->Body, Frame.bReturnsValue );
+
+    if ( not Terminated() )
+    {
+        if ( Frame.bReturnsValue )
+        {
+            static_cast<void>( Builder->CreateRet( llvm::Constant::getNullValue( Result ) ) );
+        }
+        else
+        {
+            static_cast<void>( Builder->CreateRetVoid() );
+        }
+    }
+
+    Frame = FunctionFrame{};
+}
+
 bool Volt::Backend::Llvm::LlvmBackend::State::BindParameter ( const Sema::BindingSite &Site,
                                                               llvm::Value *Arg,
                                                               bool bByAddress,
@@ -651,6 +771,11 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
 
     Sema::TypeStore &Store = *Build->Types;
 
+    // Declared first, for the same reason DeclareAll runs before any body:
+    // a FuncAddr inside an ordinary member's own body (an original closure
+    // literal's call site) must find its target already registered.
+    DeclareSynthesized( Unit );
+
     // Symmetric with DeclareAll, and for the same reason: the store is the
     // resolved interface of the whole build, so the sweep asks "which of these
     // members does *this* unit hold a body for" rather than walking a Decl
@@ -682,6 +807,8 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineAll ( const UnitView &Unit )
             DefineMember( Entry, Sema::NominalId{}, Unit );
         }
     }
+
+    DefineSynthesized( Unit );
 
     EmitUnitInit( Unit );
 }

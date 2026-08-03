@@ -731,6 +731,7 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             // value position — the Call wrapping it is what emits anything.
             [] ( const Frontend::GenericInst & ) -> llvm::Value * { return nullptr; },
             [this, Id] ( const Frontend::SizeOf & ) -> llvm::Value * { return EmitSizeOf( Id ); },
+            [this] ( const Frontend::FuncAddr &Node ) -> llvm::Value * { return EmitFuncAddr( Node ); },
 
             // `( Value : Type )` — TypeChecker already constrained `Value` to
             // `Type` and stamped both with the same SemaTypeId (core-ast.md),
@@ -891,6 +892,33 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitSizeOf ( Frontend::Exp
         return nullptr;
     }
     return llvm::ConstantInt::get( Width, Layouts->Of( Shape ).Size );
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitFuncAddr ( const Frontend::FuncAddr &Node )
+{
+    // Target names an already-resolved Method Decl (core-ast.md's "Inert"
+    // category — nothing to descend into). Opaque pointers mean a
+    // llvm::Function* used as a value already has type `ptr`, so once found
+    // it is returned directly, no cast.
+    //
+    // Two sources, tried in order: an ordinary top-level `def`, registered in
+    // the cross-unit TypeStore like any other free function; failing that, a
+    // function ClosureLifting synthesized for this unit alone (Sema::
+    // SynthesizedFunctions — never a TypeStore member, see
+    // Sema/Layout/SynthesizedFunctions.hpp), keyed the same way DefineSynthesizedFn
+    // registered it.
+    if ( const Sema::Member *Entry = Build->Types->FunctionByDecl( Frame.Unit->Ordinal, Node.Target ); Entry != nullptr )
+    {
+        return FunctionFor( *Entry, Sema::NominalId{}, {} );
+    }
+
+    const auto It = SynthesizedFns.find( UnitDeclKey{ .Ordinal = Frame.Unit->Ordinal, .Decl = Node.Target } );
+    if ( It == SynthesizedFns.end() )
+    {
+        static_cast<void>( Fail( "llvm: FuncAddr targets a Decl with no resolved free-function entry" ) );
+        return nullptr;
+    }
+    return It->second;
 }
 
 // ---------------------------------------------------------------------------

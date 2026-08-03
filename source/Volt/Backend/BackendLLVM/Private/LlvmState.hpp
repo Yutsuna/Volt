@@ -68,6 +68,34 @@ namespace Backend
             }
         };
 
+        // Same shape as UnitGlobalKey, for a DeclId instead of a BindingSite:
+        // a synthesized function (ClosureLifting) has no mangled symbol —
+        // it is never looked up by name — so it is keyed by where it lives
+        // instead, the same reason a global needs the unit's ordinal folded
+        // in.
+        struct UnitDeclKey
+        {
+
+            std::uint32_t Ordinal = 0;
+            Frontend::DeclId Decl;
+
+            bool operator==( const UnitDeclKey &Other ) const
+            {
+                return Ordinal == Other.Ordinal and Decl == Other.Decl;
+            }
+        };
+
+        struct UnitDeclKeyHash
+        {
+
+            [[nodiscard]] std::size_t operator()( const UnitDeclKey &Key ) const
+            {
+                const std::size_t H1 = std::hash<std::uint32_t>{}( Key.Ordinal );
+                const std::size_t H2 = std::hash<std::uint32_t>{}( Key.Decl.Value );
+                return H1 ^ ( H2 << 1U );
+            }
+        };
+
         // A loop's two exits, so `break` and `next` are a branch to a block
         // this stack already knows rather than a search back up the AST.
         struct LoopFrame
@@ -184,6 +212,10 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // so variables declared at top-level retain their storage across statements
     // and functions without key collisions across units.
     std::unordered_map<UnitGlobalKey, llvm::GlobalVariable *, UnitGlobalKeyHash> ModuleGlobals;
+    // A unit's own UnitView::Synth entries, once declared — keyed by
+    // UnitDeclKey since these carry no mangled symbol (SynthesizedFunctions.hpp:
+    // nothing outside the unit ever names one). FuncAddr's emitter reads this.
+    std::unordered_map<UnitDeclKey, llvm::Function *, UnitDeclKeyHash> SynthesizedFns;
 
     // --- Exceptions (ExceptionEmitter.cpp), lazily created ----------------
 
@@ -367,6 +399,24 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // store says it is, is a contract violation and reported.
     void DefineMember ( const Sema::Member &Entry, Sema::NominalId Owner, const UnitView &Unit );
 
+    // Creates (but does not define) the llvm::Function for every entry in
+    // Unit.Synth, up front — before any body in this unit is emitted, so a
+    // FuncAddr in an ordinary member's own body (the original closure
+    // literal's call site) always finds its target already registered in
+    // SynthesizedFns, regardless of which body happens to be emitted first.
+    void DeclareSynthesized ( const UnitView &Unit );
+
+    // Defines every entry's body. Split from DeclareSynthesized for the
+    // reason above; unlike an ordinary member, nothing outside this unit
+    // ever calls one, so there is no cross-unit ordering to keep beyond that.
+    void DefineSynthesized ( const UnitView &Unit );
+
+    // One synthesized function's body — same shape as DefineMember, but the
+    // signature comes straight from already-resolved SemaTypeIds (the
+    // lowering pass that created the entry only ever runs once those have
+    // settled) instead of a Sema::Member's SigTypeId/FlatArgs substitution.
+    void DefineSynthesizedFn ( const Sema::SynthesizedFunction &Fn, const UnitView &Unit );
+
     // The linker symbol a resolved callee is reached by: the C spelling
     // verbatim for an `@[External]` member — the whole point of that boundary
     // — and the mangled scheme otherwise.
@@ -484,6 +534,7 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::Value *EmitCharLiteral ( Frontend::ExprId Id, const Frontend::CharLiteral &Node );
     [[nodiscard]] llvm::Value *EmitStringLiteral ( Frontend::ExprId Id, const Frontend::StringLiteral &Node );
     [[nodiscard]] llvm::Value *EmitSizeOf ( Frontend::ExprId Id );
+    [[nodiscard]] llvm::Value *EmitFuncAddr ( const Frontend::FuncAddr &Node );
     [[nodiscard]] llvm::Value *EmitBinary ( Frontend::ExprId Id, const Frontend::Binary &Node );
     [[nodiscard]] llvm::Value *EmitUnary ( Frontend::ExprId Id, const Frontend::Unary &Node );
     [[nodiscard]] llvm::Value *EmitPointerArith ( const Frontend::Binary &Node );
