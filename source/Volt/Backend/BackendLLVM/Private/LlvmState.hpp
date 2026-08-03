@@ -195,6 +195,13 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // reused rather than inventing a second one.
     llvm::GlobalVariable *ExcValue = nullptr;
     llvm::GlobalVariable *ExcTag   = nullptr;
+    // A non-local `break` out of a closure with no loop of its own (backend
+    // phase 6) is a second, distinct unwind signal — a sentinel folded into
+    // `ExcTag` would make `EmitEntryPoint`'s unhandled-exception path
+    // misreport a runaway `break` as an exception, and would corrupt
+    // `AncestryTable`'s lookup by a NominalId that was never one. `i1`,
+    // thread-local like the exception pair, default `false`.
+    llvm::GlobalVariable *BrkFlag = nullptr;
     // Where the in-flight object itself lives. It cannot stay in the raising
     // frame: tier 1 propagates by *returning*, so by the time a `rescue`
     // several frames up copies it out — or the last-resort hook reports it,
@@ -571,6 +578,12 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     [[nodiscard]] llvm::GlobalVariable *ExceptionValueSlot ();
     [[nodiscard]] llvm::GlobalVariable *ExceptionTagSlot ();
 
+    // The thread-local `i1` a non-local `break` sets before taking the
+    // poisoned path, and the one thing that distinguishes "unwinding because
+    // of a break" from "unwinding because of an exception" once both have
+    // collapsed onto the same branch-to-Rescues protocol.
+    [[nodiscard]] llvm::GlobalVariable *BreakFlagSlot ();
+
     // The thread-local buffer the raised object is copied into, sized and
     // aligned for the widest descendant of the `@[Literal( RaiseExpr )]` this build
     // declares. One buffer, matching the one-slot tag/value pair: tier 1 has
@@ -599,7 +612,19 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // when ExceptionTagSlot is no longer NominalId::InvalidValue, otherwise
     // falls through. Splits the current block; the caller's Builder insertion
     // point is left in the fallthrough half.
+    //
+    // Exception-only, deliberately: `EmitResolvedCall` reads this alone for a
+    // call it bound a trailing block to, because *that* call site is where a
+    // `break` inside the block is consumed, not propagated further — see
+    // EmitUnwindCheck for the call sites that must propagate both signals.
     void EmitExceptionCheck ();
+
+    // `EmitExceptionCheck`'s superset: also propagates a `break` in flight
+    // (`BreakFlagSlot`), for every call site that is not the one specific
+    // block-consumer above — an ordinary call, and `EmitIndirectCall`'s
+    // `block.call(...)`, which must let a `break` the block contains keep
+    // unwinding through it rather than swallowing it.
+    void EmitUnwindCheck ();
 
     [[nodiscard]] llvm::Value *EmitRaise ( Frontend::ExprId Id, const Frontend::RaiseExpr &Node );
     [[nodiscard]] llvm::Value *EmitBegin ( Frontend::ExprId Id, const Frontend::BeginExpr &Node );

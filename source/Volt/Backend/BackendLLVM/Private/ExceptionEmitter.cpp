@@ -61,6 +61,20 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionTagSlot 
     return ExcTag;
 }
 
+llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::BreakFlagSlot ()
+{
+    if ( BrkFlag != nullptr )
+    {
+        return BrkFlag;
+    }
+
+    llvm::Type *BoolTy = llvm::Type::getInt1Ty( Context );
+    BrkFlag            = new llvm::GlobalVariable( *Mod, BoolTy, false, llvm::GlobalValue::InternalLinkage,
+                                                   llvm::ConstantInt::getFalse( BoolTy ), "volt.brk.flag" );
+    BrkFlag->setThreadLocal( true );
+    return BrkFlag;
+}
+
 namespace
 {
 
@@ -246,6 +260,30 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitExceptionCheck ()
 
     llvm::BasicBlock *Propagate = llvm::BasicBlock::Create( Context, "exc.propagate", Frame.Fn );
     llvm::BasicBlock *Continue  = llvm::BasicBlock::Create( Context, "exc.cont", Frame.Fn );
+    static_cast<void>( Builder->CreateCondBr( Pending, Propagate, Continue ) );
+
+    Builder->SetInsertPoint( Propagate );
+    EmitPoisonedPath();
+
+    Builder->SetInsertPoint( Continue );
+}
+
+void Volt::Backend::Llvm::LlvmBackend::State::EmitUnwindCheck ()
+{
+    if ( Failed() or Terminated() )
+    {
+        return;
+    }
+
+    llvm::Type *Int32Ty = llvm::Type::getInt32Ty( Context );
+    llvm::Value *Tag    = Builder->CreateLoad( Int32Ty, ExceptionTagSlot(), "exc.tag" );
+    llvm::Value *ExcPending =
+        Builder->CreateICmpNE( Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
+    llvm::Value *Brk     = Builder->CreateLoad( Builder->getInt1Ty(), BreakFlagSlot(), "brk.pending" );
+    llvm::Value *Pending = Builder->CreateOr( ExcPending, Brk, "unwind.pending" );
+
+    llvm::BasicBlock *Propagate = llvm::BasicBlock::Create( Context, "unwind.propagate", Frame.Fn );
+    llvm::BasicBlock *Continue  = llvm::BasicBlock::Create( Context, "unwind.cont", Frame.Fn );
     static_cast<void>( Builder->CreateCondBr( Pending, Propagate, Continue ) );
 
     Builder->SetInsertPoint( Propagate );
@@ -471,10 +509,20 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitBegin ( Frontend::Expr
     EmitStmts( Node.EnsureBody, false );
     if ( not Terminated() )
     {
-        llvm::Value *StillTag     = Builder->CreateLoad( llvm::Type::getInt32Ty( Context ), ExceptionTagSlot(), "exc.tag" );
-        llvm::Value *StillPending = Builder->CreateICmpNE(
+        // A `break` in flight through this `begin` is exactly as "still
+        // pending" as an unhandled exception — dispatch above only ever
+        // matches exception ancestry, so a break sails through every clause
+        // untouched (EmitAncestorTest is false whenever the dynamic tag is
+        // still NominalId::InvalidValue) and lands here needing the same
+        // re-propagation an unhandled exception gets, or it would be silently
+        // absorbed by this `begin`/`ensure` and execution would resume
+        // normally past it.
+        llvm::Value *StillTag        = Builder->CreateLoad( llvm::Type::getInt32Ty( Context ), ExceptionTagSlot(), "exc.tag" );
+        llvm::Value *StillExcPending = Builder->CreateICmpNE(
             StillTag, llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ),
             "exc.still_pending" );
+        llvm::Value *StillBrk     = Builder->CreateLoad( Builder->getInt1Ty(), BreakFlagSlot(), "brk.still_pending" );
+        llvm::Value *StillPending = Builder->CreateOr( StillExcPending, StillBrk, "unwind.still_pending" );
 
         llvm::BasicBlock *Repropagate = llvm::BasicBlock::Create( Context, "begin.repropagate", Frame.Fn );
         static_cast<void>( Builder->CreateCondBr( StillPending, Repropagate, Merge ) );

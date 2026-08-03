@@ -274,14 +274,26 @@ void Volt::Backend::Llvm::LlvmBackend::State::EmitStmt ( Frontend::StmtId Id, bo
             {
                 if ( Frame.Loops.empty() )
                 {
+                    if ( not Frame.bClosure )
+                    {
+                        static_cast<void>( Fail( "llvm: `break` outside a loop reached codegen" ) );
+                        return;
+                    }
                     // Inside a closure with no loop of its own, `break` leaves
                     // the *iterating* method — a non-local exit out of a frame
-                    // this one does not own. That needs an unwinding transport,
-                    // which is the exception emitter's, not a branch.
-                    static_cast<void>( Fail( Frame.bClosure
-                                                 ? "llvm: `break` inside a closure body is a non-local exit from the method "
-                                                   "that invoked it, which needs the exception transport (backend phase 6)"
-                                                 : "llvm: `break` outside a loop reached codegen" ) );
+                    // this one does not own. `break <value>` stays refused
+                    // (backend phase 6d): there is no result slot anywhere on
+                    // this transport to carry it in, the same wall a `while`
+                    // hits below, just one call frame further out.
+                    if ( Node.Value.IsValid() )
+                    {
+                        static_cast<void>(
+                            Fail( "llvm: `break` with a value at statement " + std::to_string( Id.Value ) +
+                                  " leaves a closure body — there is no result slot on the unwind transport to carry it in" ) );
+                        return;
+                    }
+                    static_cast<void>( Builder->CreateStore( Builder->getTrue(), BreakFlagSlot() ) );
+                    EmitPoisonedPath();
                     return;
                 }
                 // `break v` yields a value out of a loop, and a `while` has no

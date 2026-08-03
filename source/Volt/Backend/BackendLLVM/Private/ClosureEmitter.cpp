@@ -412,7 +412,10 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIndirectCall ( Fronten
     llvm::Value *Call = Builder->CreateCall( Signature, Code, Actuals );
 
     // Always Volt code behind a callable — never external — so the
-    // post-call check always runs, same as an ordinary resolved call.
-    EmitExceptionCheck();
+    // post-call check always runs, same as an ordinary resolved call. This is
+    // `block.call(...)` itself: it must let a `break` inside the block keep
+    // unwinding through it, never consume it — EmitUnwindCheck, not the
+    // exception-only check.
+    EmitUnwindCheck();
     return Call;
 }

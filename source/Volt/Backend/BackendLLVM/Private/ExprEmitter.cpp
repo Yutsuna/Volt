@@ -1463,7 +1463,22 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
     // never its own, so the post-call check only runs for Volt code.
     if ( not bExternal )
     {
-        EmitExceptionCheck();
+        if ( bBlockBound )
+        {
+            // This call is the one the trailing `do...end` was bound to — the
+            // exact scope a `break` inside it terminates (backend phase 6c).
+            // Consumed here, not propagated: an exception is a different
+            // signal and still takes the ordinary poisoned path.
+            EmitExceptionCheck();
+            if ( not Terminated() )
+            {
+                static_cast<void>( Builder->CreateStore( Builder->getFalse(), BreakFlagSlot() ) );
+            }
+        }
+        else
+        {
+            EmitUnwindCheck();
+        }
     }
     return Constructed != nullptr ? Constructed : Result;
 }

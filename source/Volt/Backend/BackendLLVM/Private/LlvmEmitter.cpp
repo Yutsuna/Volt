@@ -124,7 +124,10 @@ Volt::Sema::LayoutId Volt::Backend::Llvm::LlvmBackend::State::SignatureLayoutOf 
     {
         return Instances.Of( Store, Owner, FlatArgs );
     }
-    return Instances.OfSignature( Store, Id, FlatArgs );
+    // A nested `self` (`Comparable#..`'s `-> Range<self>`, not a bare `->
+    // self`) needs the receiver's own MonoRequest encoding to substitute
+    // into — the same one `Owner`/`FlatArgs` already describe.
+    return Instances.OfSignature( Store, Id, FlatArgs, Backend::SelfSubtree( Store, Owner, FlatArgs ) );
 }
 
 llvm::FunctionType *Volt::Backend::Llvm::LlvmBackend::State::FunctionTypeOf ( const Sema::Member &Entry,
