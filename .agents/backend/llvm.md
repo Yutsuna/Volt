@@ -383,15 +383,46 @@ positional one: `Member::ParamIsBlock` marks it, positional matching skips it
 parameters and the argument list together rather than assuming they are the
 same sequence.
 
-### `next` in a block is a `ret`
+### `next` in a block is a `ret`; `break` is a non-local unwind (backend phase 6)
 
 Inside a closure body with no loop of its own, `next [value]` ends *this
 invocation* and hands the value back — so it emits `ret`, not a branch. The
 same keyword means "continue" only when there is a loop in this frame to
 continue, and `Frame.bClosure` is what tells the two apart. `break` in the same
-position is a non-local exit from the method that invoked the block; that needs
-an unwinding transport, so it is refused and named as the exception emitter's
-(tier 1, below).
+position is a non-local exit from the method that invoked the block
+(`for x in c … break … end` desugars to `c.each do |x| … end`, and `break`
+must leave `each`'s frame, not just this closure's) — **implemented** by
+reusing the exception emitter's transport rather than inventing a second one:
+
+- `volt.brk.flag` (`i1`, thread-local, default `false`) is a second signal
+  alongside `volt.exc.tag`/`.value` — **not** a sentinel folded into the
+  exception tag, since that would make `EmitInitAll`'s unhandled-exception
+  path misreport a runaway `break` as an exception, and would send
+  `EmitAncestorTest` walking `volt.exc.ancestry` with a NominalId that was
+  never one.
+- `break` (with no enclosing loop in this frame, `Frame.bClosure`): sets the
+  flag, then calls `EmitPoisonedPath()` — the exact routing `raise` already
+  uses, so a `break` in flight through an enclosing `begin`/`ensure` still
+  runs the `ensure` and re-propagates past it (`EmitBegin`'s post-`ensure`
+  re-test ORs the flag in alongside the tag). `break <value>` here stays
+  refused: there is no result slot on this transport to carry it in.
+- `EmitBegin`'s `rescue` dispatch needs **no change** for this to work: a
+  `break` in flight leaves `volt.exc.tag == InvalidValue`, so
+  `EmitAncestorTest` never matches any clause and the ladder falls straight
+  through to `ensure`, exactly as an unhandled exception would.
+- Two post-call checks exist, not one, and the split is the whole design:
+  **`EmitUnwindCheck`** (tag *or* flag → propagate) runs after `block.call(…)`
+  (`EmitIndirectCall`) and after any ordinary call — a `break` inside a block
+  must keep unwinding through whatever called it. **`EmitExceptionCheck`**
+  (tag only) runs, instead, at the one call site that received the trailing
+  `do … end` directly (`EmitResolvedCall`, `bBlockBound`) — that call (`each`,
+  `any?`, …) is exactly what `break` terminates, so its flag is *consumed*
+  there (cleared) rather than propagated, while a genuine exception from
+  inside the block still unwinds normally.
+- `EmitInitAll`'s inter-unit check stays tag-only: a `break` cannot reach top
+  level (no loop, no block owns it there), so nothing to widen.
+
+Samples: `samples/Tests/ControlFlow/BreakNext.vl`.
 
 ## Exceptions — `RaiseExpr` / `BeginExpr`, two tiers
 

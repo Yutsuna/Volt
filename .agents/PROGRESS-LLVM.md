@@ -1,5 +1,83 @@
 # Progress — LLVM Tier 1 finalisation (`.agents/PLAN_LLVM.md`)
 
+Checkpoint updated 2026-08-03 after a third session covering **Phase 7a, 7b and
+Phase 6**. Phase 7a/7b are committed (`42169c7`, `85408db`, `33f0dca`,
+`f2ab017`); Phase 6 and the two bugs it exposed are working tree only, per
+project convention.
+
+## Session 3 (2026-08-03) — Phase 7a, 7b, Phase 6
+
+`ninja -C build tests` (235 samples): only the pre-existing, out-of-scope
+failures remain — `Lambda`, `Composition`, `PointFree`, `Enum`,
+`UncaughtRaise`. `ForLoop.vl` and `BreakNext.vl` both pass now.
+
+**Phase 7a** — `Hash#each` (`source/Lib/Primitives/Hash.vl`), the same
+used-flag scan `[]`/`contains?` already use, `block.call(entry.key,
+entry.value)`. Pure Volt, no C++.
+
+**Phase 7b** — `Range<T>` + `..`/`...`:
+- `MemberResolver.cpp` — `IsRangeOperator` excludes `".."`/`"..."` from the
+  primitive-op exemption (`IsMachineOperatorOn`, `IsBuiltinOpOn`), so `1..3`
+  falls through to ordinary member lookup instead of silently typing to
+  nothing.
+- `ParseDecl.cpp`'s `IsOperatorMethodStart` gained `DotDot`/`Ellipsis` (both
+  already lexed and had Pratt rows, just couldn't be *declared*).
+- `Comparable.vl` — `def ..( other : self ) -> Range<self>`.
+- `Range.vl` (new) — `struct Range<T>`, `include Enumerable<T>`, `each`
+  **exclusive** of `last` (`while i < @last`) — confirmed against
+  `ForLoop.vl`'s `for_range` assertion (`1..3` sums to `3`, i.e. visits `1, 2`
+  only; `<=` would sum to `6` and fail the existing sample).
+- **Parser gap found and fixed**: `Range<self>.new(...)` in *expression*
+  position didn't parse — `AtGenericArgs()` required the token after `<` to be
+  `Constant`, rejecting `self` (`KwSelf`) even though `ParseTypePrimary`
+  already treats `self` as a valid type start. Fixed in `ParseType.cpp`:
+  `AtGenericArgs` now also accepts `KwSelf` as the opening token, and the
+  ambiguity-resolving scan-for-`>` loop accepts `KwSelf` as a body token too.
+- **Two codegen bugs found and fixed, exposed by Hash#each/Range but
+  pre-existing and general**:
+  1. `TypeBinder::EnsureStructLayout` (Phase A) always called
+     `Store.AttachLayout` on the aggregate it built, even when a field's type
+     was a bare generic parameter (`key : K` on `HashEntry<K,V>`, `first : T`
+     on `Range<T>`) and therefore unresolved. That broken template layout then
+     won `InstanceLayouts::Of`'s "already attached" fast path
+     (`BackendCore/InstanceLayout.cpp`), permanently short-circuiting the real
+     per-instantiation substitution — surfaced as `llvm: aggregate field 'key'
+     has no resolved layout`. Fixed: `EnsureStructLayout` now leaves `Layout`
+     unattached (returns invalid) when any field failed to resolve, exactly as
+     `NominalType::Layout`'s own doc comment already promised ("never [attached]
+     for a generic whose shape depends on its arguments").
+  2. `InstanceLayouts`/`FlattenSig` had no way to substitute a **nested**
+     `self` inside a declared signature — only a signature that *was* `self`
+     outright (`SignatureLayoutOf`'s top-level special case). `Comparable#..`'s
+     `-> Range<self>` nests `self` one level inside a generic argument, so it
+     fell through `FlattenSig`'s `Sig.Base.IsValid()` refusal and the
+     function's return type silently became `void`, producing a module
+     verifier failure (`call void @_V5Int322..(...)` feeding a `ptr` call).
+     Fixed by threading a `SelfArgs` parameter (the MonoRequest encoding of
+     the receiver itself, via a new `SelfSubtree` helper) through
+     `OfSignature`/`OfSig`/`FlattenSig`, alongside the existing `FlatArgs`.
+
+**Phase 6** — non-local `break`, `.agents/backend/llvm.md`'s "`next` in a
+block is a `ret`; `break` is a non-local unwind" section has the full design.
+Summary: `volt.brk.flag` (distinct from `volt.exc.tag`, not a sentinel folded
+into it), `EmitUnwindCheck` (tag-or-flag, propagates) at every ordinary
+post-call check and in `EmitIndirectCall`, the original tag-only
+`EmitExceptionCheck` kept for the one consuming site (`EmitResolvedCall` when
+`bBlockBound`) which clears the flag instead of propagating it,
+`EmitBegin`'s `ensure` re-test ORs the flag in. `EmitBegin`'s `rescue`
+dispatch needed **no change** — a break in flight never matches any clause
+(tag stays `InvalidValue`), so it already falls through to `ensure` correctly.
+`break <value>` leaving a closure stays refused (no result slot on this
+transport), same as `break <value>` in a `while` of the same frame.
+
+**Not done**: `EmitBlockNext`'s pre-existing latent gap (a `next` inside a
+`begin`/`ensure` *within the same closure body* skips the `ensure`, since it
+still emits a raw `ret`) — noted in `PLAN_LLVM.md` §6b as "the same latent
+defect", not fixed this session: it needs a different transport than
+`EmitPoisonedPath` (which routes to an exception *handler*, not "run every
+enclosing `ensure` then still leave with this value"), and `BreakNext.vl`
+does not exercise it. Left as a known gap, not attempted under time pressure.
+
 Checkpoint updated 2026-07-30 after a second session covering **all of Phase 4**
 (4a/4b/4c/4d). The Phase 2/3a/3b work described below was committed in between
 (`39ebc97` and its six predecessors); everything from Phase 4 is working tree
@@ -159,12 +237,11 @@ one new `State::LoadConverged( Slot, Shape, Layout, Name )` next to
   - **`ArrayLit`, `HashLit` & `StringLit` : faits.** Implémentés dans `Sema/Private/Passes/TypeChecker/LiteralLowering.cpp` (`LowerArrayLits`, `LowerHashLits`, `LowerStringLits`).
   - Le lowering s'effectue par balayage post-walk dans `TypeChecker` pour réécrire les littéraux en nœuds AST Core (`BeginExpr` avec `new`, `[]=`, `<<`, `initialize`).
   - Le backend ne contient plus **aucun** dispatch sur `ArrayLit`/`HashLit` (suppression totale de toute mention dans `BackendLLVM` conformément à `rules/backend-machine-only.md`).
-- **Phase 6**: non-local `break` transport (shared unwind check with the
-  exception machinery, `volt.brk.flag`, consumption at `EmitResolvedCall`).
-- **Phase 7**: `Hash#each` (~10 lines of Volt) and `Range<T>`/`..` operator
-  (exclude `..`/`...` from the primitive-op exemption, declare on
-  `Comparable`, `Range.vl` stdlib type). Blocks: `ForLoop.vl` (`Hash has no
-  member 'each'`), and indirectly anything using `1..5`.
+- **Phase 6 (Done, session 3)**: non-local `break` transport — see the
+  "Session 3" section at the top of this file and
+  `.agents/backend/llvm.md`'s `break`/`next` section for the design.
+- **Phase 7 (Done, session 3)**: `Hash#each` and `Range<T>`/`..` operator —
+  see "Session 3" above. `ForLoop.vl` passes.
 - `Functional/Lambda.vl` currently fails with a **new, not-yet-diagnosed**
   error: `the callable invoked at expression 25 has no receiver expression` —
   worth checking whether Phase 0's rewrite (point-free → typed lambda) is
@@ -175,6 +252,10 @@ one new `State::LoadConverged( Slot, Shape, Layout, Name )` next to
   bidirectional-inference non-goal noted in `rules/core-ast.md`, needs
   confirming the sample matches the Phase 0 rewrite before assuming it's a new
   bug.
+- `OOP/Enum.vl` — **separate sprint**. The sample exercises ADT-style enums
+  (`enum Color`, backing types, methods on variants, generic `Optional<T>`
+  with `case`/`when .Some(val)`). Not a regression from this epic; tracked
+  independently.
 
 ## Not yet done before closing the epic
 

@@ -462,6 +462,16 @@ sample déclenche le refus : un claim **global** calqué sur `@[ExceptionRoot]` 
 
 ## Phase 6 — `break` non-local hors d'un bloc, sur le transport Tier 1
 
+> **Fait (session 3, 2026-08-03).** Voir `.agents/PROGRESS-LLVM.md` §"Session 3"
+> et `.agents/backend/llvm.md`'s "`next` in a block is a `ret`; `break` is a
+> non-local unwind" pour le design final — conforme à §6a-6d ci-dessous, avec
+> une correction : la dispatch `rescue` d'`EmitBegin` n'a nécessité **aucun**
+> changement (un `break` en vol ne matche jamais une clause, le tag restant
+> `InvalidValue`, donc il retombe déjà sur `ensure`). §6b (le défaut latent
+> d'`EmitBlockNext` sur un `next` imbriqué dans un `begin/ensure` du même
+> corps de closure) reste non traité — noté comme dette connue, `BreakNext.vl`
+> ne l'exerce pas.
+
 `for x in c … break … end` désucre (parser) en `c.each do |x| … end`. `break` dans une
 closure est refusé aujourd'hui (`StmtEmitter.cpp:264-286`) ; `next` fonctionne déjà
 (émet `ret`).
@@ -553,6 +563,16 @@ appels d'init.
 ---
 
 ## Phase 7 — stdlib : `Hash#each` et `Range`
+
+> **Fait (session 3, 2026-08-03).** Voir `.agents/PROGRESS-LLVM.md` §"Session 3".
+> Deux bugs de layout codegen pré-existants, révélés (pas causés) par ce
+> chantier, corrigés dans le même geste : `TypeBinder::EnsureStructLayout`
+> attachait un layout cassé pour tout champ générique nu (`HashEntry<K,V>`,
+> `Range<T>`), et `InstanceLayouts` ne savait pas substituer un `self` imbriqué
+> (`Comparable#..`'s `-> Range<self>`) — voir `.agents/backend/llvm.md`. Un
+> gap parser trouvé au passage : `Range<self>.new(...)` en position
+> d'expression, corrigé dans `ParseType.cpp` (`AtGenericArgs` acceptait
+> seulement `Constant` après `<`, pas `KwSelf`).
 
 ### 7a. `Hash#each`
 `for k, v in h` désucre (`ParseStmt.cpp:249-256`) en `h.each do | k, v | … end`. `Hash` ne
@@ -674,5 +694,5 @@ Contrôles spécifiques :
   `*SerializeTest` doivent rester verts ; la phase 5b touche la sérialisation du cache
   (issue #61), donc `SemaSerializeTest` est le garde-fou de cette phase.
 
-**Critère de sortie : 68/68 sur la configuration `All CTest` filtrée `^Llvm`, et un
+**Critère de sortie : 100 % vert sur `All CTest` (toutes configurations, pas de filtre),
 build + tests verts en entier à travers l'IDE, formatage inclus.**
