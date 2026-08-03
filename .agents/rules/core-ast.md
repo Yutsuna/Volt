@@ -34,7 +34,7 @@ TypeChecker" design the `VOLT_EXPR_SUGAR` machinery would suggest).
 
 | Category | Nodes | What a backend does with it |
 |---|---|---|
-| Terminals (7) | `IntLiteral` `FloatLiteral` `StringLiteral` `CharLiteral` `BoolLiteral` `NilLiteral` `SymbolLiteral` | materialise a constant from the `MemoryLayout` of the type that claimed the node kind via `@[Literal]` (`NominalType::LiteralSlots`) |
+| Terminals (7) | `IntLiteral` `FloatLiteral` `StringLiteral` `CharLiteral` `BoolLiteral` `NilLiteral` `SymbolLiteral` | materialise a constant (`StringLiteral` produces a raw byte buffer pointer `Pointer<UInt8>` / `u8*`, while the aggregate `String` construction `String.new( bytes, size )` is lowered upstream in `TypeChecker` by `LowerStringLits`) |
 | Access (6) | `Identifier` `InstanceVar` `SelfExpr` `SuperExpr` `Member` `Deref` | load / GEP |
 | Operations (3) | `Call` `Assign` `Ternary` | call through `CalleeResolution`, store, select/branch |
 | Operators (2) | `Binary` `Unary` | see below |
