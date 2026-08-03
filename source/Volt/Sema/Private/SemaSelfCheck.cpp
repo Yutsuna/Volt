@@ -82,7 +82,9 @@ namespace Sema
             PassStats Stats;
             UnitTypes Values;
             ScopeTable Scopes;
-            PassContext Context{ .Ast = Ast, .Types = Store, .Values = Values, .Scopes = Scopes, .Diags = Bag, .Stats = Stats };
+            SynthesizedFunctions Synth;
+            PassContext Context{
+                .Ast = Ast, .Types = Store, .Values = Values, .Scopes = Scopes, .Diags = Bag, .Stats = Stats, .Synth = Synth };
             const std::size_t Ran = RunPasses( Context );
 
             return Ran == Registry.size() and Bag.Errors() == 0;
