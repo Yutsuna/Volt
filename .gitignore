@@ -11,9 +11,10 @@ build/
 graphify-out
 result
 
-
 .vscode/
 .zed/
 .idea/*
 
 !.idea/misc.xml
+!.idea/Volt.iml
+!.idea/vcs.xml
