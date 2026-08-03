@@ -7,6 +7,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/CalleeMap.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
+#include "Volt/Sema/Layout/SynthesizedFunctions.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
@@ -101,6 +102,11 @@ namespace Sema
         // Layout/CalleeMap.hpp). Null in tools that stop before codegen —
         // the snapshot is then simply skipped.
         UnitCallees *Callees = nullptr;
+        // Functions a lowering pass synthesizes for this unit alone
+        // (ClosureLifting) — never registered in the cross-unit TypeStore,
+        // for the thread-safety reason SynthesizedFunctions.hpp documents.
+        // Per-file mutable state, same contract as Values.
+        SynthesizedFunctions &Synth;
     };
 
     // A pass is a pure function over a PassContext. New pass = one line in
