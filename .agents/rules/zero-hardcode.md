@@ -5,7 +5,7 @@
 Volt's C++ side understands exactly one vocabulary, and it is a *machine*
 vocabulary:
 
-- integers `i8 … i64`, `u8 … u64`
+- integers `u1`, `i8 … i64`, `u8 … u64` (where `u1` / `i1` represents boolean truth values)
 - floats `f32`, `f64`
 - pointers and references
 

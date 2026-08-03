@@ -641,8 +641,6 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
                 }
                 return llvm::ConstantInt::get( Shape, Node.Name.Value );
             },
-            // No Frontend::ArrayLit / HashLit arms: LowerArrayLit & LowerHashLit
-            // (TypeChecker) rewrite every aggregate literal into ordinary
             // Assign/Binary/Call nodes before this backend ever walks the tree.
 
             // --- Access ----------------------------------------------------
