@@ -38,12 +38,15 @@ constexpr std::uint32_t MaxDepth = 16;
 }
 
 // Append the MonoRequest encoding of one *concrete* type: the signature `Id`
-// with `FlatArgs` answering its generic parameter references. False when the
-// signature names something the bindings cannot answer — a hole the caller
-// reports rather than papers over.
+// with `FlatArgs` answering its generic parameter references and `SelfArgs`
+// (`SelfSubtree`'s encoding of the receiver) answering any nested `self`
+// (`Comparable#..`'s `-> Range<self>`, not just a bare `-> self`). False when
+// the signature names something the bindings cannot answer — a hole the
+// caller reports rather than papers over.
 [[nodiscard]] bool FlattenSig ( const Volt::Sema::TypeStore &Store,
                                 Volt::Sema::SigTypeId Id,
                                 std::span<const std::uint32_t> FlatArgs,
+                                std::span<const std::uint32_t> SelfArgs,
                                 std::uint32_t Depth,
                                 std::vector<std::uint32_t> &Out )
 {
@@ -68,8 +71,20 @@ constexpr std::uint32_t MaxDepth = 16;
         return true;
     }
 
-    // `self` in a field signature would need the enclosing instance, which is
-    // a shape no aggregate can hold by value anyway. Refused, not guessed.
+    // `self`, wherever it is nested, means the receiver itself — answered by
+    // `SelfArgs` exactly as a generic parameter is answered by `FlatArgs`.
+    // Refused, not guessed, when the caller had no receiver to offer one
+    // (a bare field signature can never mention `self` to begin with).
+    if ( Sig.ParamIndex == Volt::Sema::SigType::SelfParam )
+    {
+        if ( SelfArgs.empty() )
+        {
+            return false;
+        }
+        Out.insert( Out.end(), SelfArgs.begin(), SelfArgs.end() );
+        return true;
+    }
+
     if ( not Sig.Base.IsValid() )
     {
         return false;
@@ -79,7 +94,7 @@ constexpr std::uint32_t MaxDepth = 16;
     Out.push_back( static_cast<std::uint32_t>( Sig.Args.Size() ) );
     for ( const Volt::Sema::SigTypeId Arg : Sig.Args )
     {
-        if ( not FlattenSig( Store, Arg, FlatArgs, Depth + 1, Out ) )
+        if ( not FlattenSig( Store, Arg, FlatArgs, SelfArgs, Depth + 1, Out ) )
         {
             return false;
         }
@@ -108,9 +123,24 @@ std::span<const std::uint32_t> Volt::Backend::ArgSubtree ( std::span<const std::
     return {};
 }
 
+std::vector<std::uint32_t>
+Volt::Backend::SelfSubtree ( const Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs )
+{
+    std::vector<std::uint32_t> Out;
+    if ( not Base.IsValid() )
+    {
+        return Out;
+    }
+    Out.push_back( Base.Value );
+    Out.push_back( static_cast<std::uint32_t>( Store.Type( Base ).Params.Size() ) );
+    Out.insert( Out.end(), FlatArgs.begin(), FlatArgs.end() );
+    return Out;
+}
+
 Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSignature ( Sema::TypeStore &Store,
                                                                    Sema::SigTypeId Id,
-                                                                   std::span<const std::uint32_t> FlatArgs )
+                                                                   std::span<const std::uint32_t> FlatArgs,
+                                                                   std::span<const std::uint32_t> SelfArgs )
 {
     if ( not Id.IsValid() )
     {
@@ -124,16 +154,17 @@ Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSignature ( Sema::TypeSto
             return Attached;
         }
     }
-    return OfSig( Store, Id, FlatArgs, 1 );
+    return OfSig( Store, Id, FlatArgs, SelfArgs, 1 );
 }
 
 Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSig ( Sema::TypeStore &Store,
                                                              Sema::SigTypeId Id,
                                                              std::span<const std::uint32_t> FlatArgs,
+                                                             std::span<const std::uint32_t> SelfArgs,
                                                              std::uint32_t Depth )
 {
     std::vector<std::uint32_t> Tree;
-    if ( Depth > MaxDepth or not FlattenSig( Store, Id, FlatArgs, Depth, Tree ) or Tree.size() < 2 )
+    if ( Depth > MaxDepth or not FlattenSig( Store, Id, FlatArgs, SelfArgs, Depth, Tree ) or Tree.size() < 2 )
     {
         return Sema::LayoutId{};
     }
@@ -228,13 +259,18 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
 
     Sema::Aggregate Shape;
 
+    // `self` inside any of Base's own field/parent signatures means this
+    // very instance — `Base` instantiated with `FlatArgs` — the same subtree
+    // `Of()` is already building for the cache key.
+    const std::vector<std::uint32_t> SelfArgs = SelfSubtree( Store, Base, FlatArgs );
+
     // The base's fields lead, flattened — the same shape TypeBinder gives a
     // non-generic class, and for the same reason: a method the base declares
     // GEPs its own fields at its own offsets through this very pointer, and an
     // inherited `@x` is looked up by name in the subclass's layout. Here the
     // parent link is a *signature*, so it goes through OfSig and its arguments
     // are substituted out of FlatArgs exactly like a field's would be.
-    if ( const Sema::LayoutId Inherited = OfSig( Store, Store.Type( Base ).Super, FlatArgs, 1 ); Inherited.IsValid() )
+    if ( const Sema::LayoutId Inherited = OfSig( Store, Store.Type( Base ).Super, FlatArgs, SelfArgs, 1 ); Inherited.IsValid() )
     {
         if ( const auto *Parent = std::get_if<Sema::Aggregate>( &Store.Get( Inherited ) ); Parent != nullptr )
         {
@@ -251,7 +287,8 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
         {
             continue;
         }
-        Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Entry.Name, .Type = OfSig( Store, Entry.Result, FlatArgs, 1 ) } );
+        Shape.Fields.PushBack(
+            Sema::FieldLayout{ .Name = Entry.Name, .Type = OfSig( Store, Entry.Result, FlatArgs, SelfArgs, 1 ) } );
     }
 
     if ( Shape.Fields.Size() == 0 )
