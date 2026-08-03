@@ -565,6 +565,25 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 Context.UnconstrainedLiterals.insert( Id.Value );
                 return Context.MakeType( *Base, {} );
             },
+            [&] ( const Frontend::FuncAddr & ) -> SemaTypeId
+            {
+                // Inert like SizeOf/GenericInst: Target names an
+                // already-resolved Method Decl, not a value expression, so
+                // there is nothing to descend into. Always types as
+                // Pointer<u8> (an opaque code address) — built the same way
+                // DerefType reads one: PointerType's node-kind claim gives
+                // the pointer nominal, and CharLiteral's gives a u8-family
+                // nominal for its one generic argument, never spelling
+                // "UInt8" (`rules/zero-hardcode.md`).
+                const auto PointerBase = Context.Ctx.Types.LookupNodeKind( "PointerType" );
+                const auto ByteBase    = Context.Ctx.Types.LookupNodeKind( "CharLiteral" );
+                if ( not PointerBase or not ByteBase )
+                {
+                    return SemaTypeId{};
+                }
+                const SemaTypeId ByteType = Context.MakeType( *ByteBase, {} );
+                return Context.MakeType( *PointerBase, { ByteType } );
+            },
             [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
             {
                 const Volt::Sema::SemaTypeId Value = InferExpr( Context, Expr.Value );

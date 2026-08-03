@@ -120,6 +120,14 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     // when it reads a UnitView's Ast/Scopes to emit a concrete body.
     Core::DiagEngine::Bag ScratchDiags;
     PassStats ScratchStats;
+    // Scratch, thrown away with everything else here: a closure literal
+    // inside a generic body being re-instantiated would populate this, but
+    // nothing downstream of a monomorphised InstantiatedBody reads a Synth
+    // table today (ClosureLifting's per-unit table only wires into the
+    // per-UnitView codegen path DeclareAll/DefineAll walk) — a known gap for
+    // closures inside generics, out of Phase 3a's scope
+    // (.agents/PLAN_CLOSURE_LOWERING.md).
+    SynthesizedFunctions ScratchSynth;
     PassContext ScratchCtx{
         // NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast) — PassContext's
         // Ast/Scopes are mutable references for the sake of a Lowering pass;
@@ -135,6 +143,7 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
         .Globals = nullptr,
         .Sources = nullptr,
         .Callees = &Result.Callees,
+        .Synth   = ScratchSynth,
     };
 
     TypeCheckerPass::TypeCheckerContext Context{ ScratchCtx, TypeCheckerPass::MetadataExprs( Ast ) };
