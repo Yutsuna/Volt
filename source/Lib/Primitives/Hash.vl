@@ -50,4 +50,15 @@ struct Hash<K, V>
     end
     false
   end
+
+  def each( &block : ( K, V ) -> Void ) -> Void
+    i = 0_u64
+    while i < @entries.size
+      entry = @entries[ i ]
+      if entry.used
+        block.call( entry.key, entry.value )
+      end
+      i += 1
+    end
+  end
 end
