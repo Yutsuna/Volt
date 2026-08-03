@@ -6,7 +6,6 @@ let
 in
 {
   nativeBuildInputs = with pkgs; [
-    cmake
     meson
     ninja
     pkg-config
