@@ -62,22 +62,58 @@ the exact ordering problem that forced `ArrayLit`/`HashLit` to lower from
 
 ## Phases
 
-**Phase 0 — Spike (gate, do first).** Prove, on a throwaway no-capture case
-(`() => 42`), that a new pre-seam Driver phase (between `ParseOne` and the
-`PublishUnitInterface`/`BindUnitTypes` seam) can synthesize a `Method` `Decl`,
-append it to `Ast.TopDecls`, and have it resolve, type-check and codegen
-exactly like a hand-written `def` — no other phase depends on this working the
-way it's currently imagined; if it doesn't, Phase 3 gets redesigned around
-whatever `TypeBinder` surgery turns out to be needed instead.
+**Phase 0 — Spike (gate, do first). DONE, answer is YES.** Proved by injecting
+a synthesized `Method` Decl (`def __spike_answer -> UInt64; 42; end`, built by
+hand via `Ast.Add(DeclNode{...})`/`Ast.TopDecls.push_back(...)`) into a unit's
+`AstContext` right after `ParseOne`, before the `PublishUnitInterface`/
+`BindUnitTypes` seam in `Driver::CompileRefs`. A call site in an ordinary
+sample (`__spike_answer() == 42`) resolved, type-checked and codegen'd with
+*zero* special-casing anywhere downstream — `PublishUnitInterface`,
+`BindUnitTypes`, `ResolveUnitSignatures`, `TypeChecker`, `DeclareAll`/
+`DefineAll` all walk `TopDecls` purely by content, never by parse-provenance.
+Full suite stayed at 231/235 (same 4 pre-existing gaps) with the spike hook
+active. The spike code itself was reverted after landing the proof (throwaway,
+as planned) — the real mechanism is built properly in Phase 3.
 
-**Phase 1 — `Pointer<T>#to_address`/`to_pointer`/`reinterpret`.** Independent,
-can land any time. New op family in the primitive-instruction manifest, three
-new `Pointer<T>` stdlib declarations, one new sample proving the round-trip.
+**Phase 1 — DONE, shape changed from the original design.** Landed
+`Pointer<T>#to_address() -> UInt64` / `Pointer<T>.from_address(addr) -> Pointer<T>`,
+both `abstract` (bodyless — the backend supplies `ptrtoint`/`inttoptr`).
+**Discovery**: `EmitBinary`/`EmitUnary`'s "abstract + Primitive/Pointer layout
+⇒ backend supplies it" bypass (`Entry->Decl->bAbstract`, checked in those two
+functions only) is wired specifically into the *operator* dispatch path — an
+ordinary named-method dot-call (`p.to_address()`) goes through `EmitCall` →
+`EmitResolvedCall`, which has no such bypass and would try to call a body that
+doesn't exist. Added a sibling mechanism, `EmitNamedConversion`
+(`ExprEmitter.cpp`, declared in `LlvmState.hpp`), invoked from
+`EmitResolvedCall` when `Entry.Decl->bAbstract` and the receiver's layout is
+`Pointer`/`Primitive` — same shape as the operator exemption, generalised from
+an operator token to a member's own spelling (two names recognized:
+`to_address`, `from_address`; anything else abstract-and-unimplemented now
+fails loudly instead of silently miscompiling). **Dropped `reinterpret<U>`**
+from the original design: Volt has no explicit-generic-argument call syntax on
+an *instance* method (`p.reinterpret<U>()` parses `<U>` as a stray positional
+argument, not a method generic — confirmed via `volt parse`, a real, separate,
+pre-existing parser gap, out of this epic's scope). Reinterpretation is
+instead spelled `Pointer<U>.from_address( p.to_address() )`, using only the
+already-proven type-generic-instantiation call path (`Pointer<T>.malloc`'s
+own shape). Verified round-trip (`malloc` → `to_address` → `from_address` →
+dereference) end-to-end; full suite unchanged (231/235, same 4 pre-existing
+gaps).
 
-**Phase 2 — Function-address-as-value mechanism.** Fixes the diagnosed
-`Lambda.vl` bug **standalone**, shippable on its own before any closure-body
-lifting exists. New `CalleeEntry` state; `ExprEmitter.cpp`'s `Identifier`/
-`Member` visitors read it instead of assuming `bIndirect` implies "call".
+**Phase 2 — DONE, but smaller than planned.** Fixed the diagnosed `Lambda.vl`
+bug standalone with **no new `CalleeEntry` state** — the narrower backend-only
+fix sufficed: `ClosureEmitter.cpp`'s `EmitIndirectCall` now calls `LoadPlace`
+instead of `EmitExpr` when the receiver is the same Identifier/Member node
+carrying the call's own `bIndirect` entry (avoids the self-referential
+recursion into the paren-less-bare-call heuristic). A second, independent,
+pre-existing bug surfaced once the first was fixed: `InstanceLayouts::Of`
+(`BackendCore/InstanceLayout.cpp`) checked "already-attached layout wins"
+*before* `IsCallable`, so `Proc<R>` (declares no fields) got its vacuous
+zero-field TypeBinder layout instead of the `{code,env}` ABI pair — every
+closure value was silently zero-sized. Reordered: `IsCallable` now checked
+first. Both fixes verified, zero regressions (231/235, same 4 pre-existing
+gaps as before: `Composition`, `PointFree`, `Enum`, `UncaughtRaise`).
+`Lambda.vl` now passes.
 
 **Phase 3 — Full `ClosureLifting` pre-seam phase.** Depends on 0 (design), 1
 (reinterpret), 2 (function address). Synthesizes the env `struct` + lifted
