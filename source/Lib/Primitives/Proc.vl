@@ -9,6 +9,20 @@
 @[Literal( FuncType ), Literal( Lambda ), Literal( Block )]
 struct Proc<R>
 
+  # The callable value itself: an address to enter, and the environment to
+  # enter it with. Declared as ordinary fields — not a backend-synthesized
+  # shape — so `InstanceLayouts::Of` needs no `IsCallable` special case: the
+  # same field-flattening every other struct gets already produces the
+  # `{ ptr, ptr }` layout .agents/backend/abi.md fixes. An empty environment
+  # is a null `Pointer<UInt8>`, never a missing field.
+  code : Pointer<UInt8>
+  env : Pointer<UInt8>
+
+  def initialize( code : Pointer<UInt8>, env : Pointer<UInt8> )
+    @code = code
+    @env = env
+  end
+
   # The one contract of a callable. It is `abstract` for the same reason
   # `Int32#+` is: the target supplies the operation. `+` on a primitive layout
   # is a machine instruction; `call` on the type claiming FuncType is an
