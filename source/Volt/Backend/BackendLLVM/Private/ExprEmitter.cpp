@@ -1224,6 +1224,26 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
 
     const Sema::UnitTypes &Values = *Frame.Values;
 
+    // `to_address`/`from_address` (and any future named machine conversion):
+    // an `abstract` member with no `bIndirect`, resolved on a receiver whose
+    // layout is `Pointer` (or `Primitive`, mirroring `IsBuiltinOpOn`'s guard),
+    // has no body to call because none exists — the backend supplies it, the
+    // same shape `EmitBinary`/`EmitUnary` already use for `+`/`-`/etc., just
+    // keyed on the member's own spelling instead of an operator token.
+    if ( Entry.Decl->bAbstract )
+    {
+        const Sema::LayoutId ReceiverShape = LayoutOfValue( Values, Entry.Receiver );
+        const Sema::LayoutKind ReceiverKind =
+            ReceiverShape.IsValid() ? Sema::KindOf( Build->Types->Get( ReceiverShape ) ) : Sema::LayoutKind::Aggregate;
+        if ( ReceiverKind == Sema::LayoutKind::Pointer or ReceiverKind == Sema::LayoutKind::Primitive )
+        {
+            return EmitNamedConversion( Id, Entry, Receiver, Args );
+        }
+        static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
+                                 " resolves to an abstract member with no body, and its receiver's layout supplies none" ) );
+        return nullptr;
+    }
+
     // The owner and the instantiation both come out of the entry Sema recorded:
     // NominalIds are the cross-unit currency, and the flattened bindings are
     // the same encoding the mangler and the layout cache key on.
@@ -1481,6 +1501,43 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         }
     }
     return Constructed != nullptr ? Constructed : Result;
+}
+
+llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitNamedConversion ( Frontend::ExprId Id,
+                                                                            const Sema::CalleeEntry &Entry,
+                                                                            Frontend::ExprId Receiver,
+                                                                            std::span<const Frontend::ExprId> Args )
+{
+    const std::string_view Name = Build->Types->Text( Entry.Decl->Name );
+
+    // `Pointer<T>#to_address` — an instance method, the pointer itself is
+    // `self`. Opaque pointers need no real conversion; this is the
+    // architecture's own bit pattern reinterpreted as an integer.
+    if ( Name == "to_address" )
+    {
+        llvm::Value *Self = EmitExpr( Receiver );
+        if ( Self == nullptr )
+        {
+            return nullptr;
+        }
+        return Builder->CreatePtrToInt( Self, Builder->getInt64Ty() );
+    }
+
+    // `Pointer<T>.from_address` — a static method (`bSelf`), so there is no
+    // receiver value: the address is the sole ordinary argument.
+    if ( Name == "from_address" and Args.size() == 1 )
+    {
+        llvm::Value *Addr = EmitExpr( Args[0] );
+        if ( Addr == nullptr )
+        {
+            return nullptr;
+        }
+        return Builder->CreateIntToPtr( Addr, llvm::PointerType::get( Context, 0 ) );
+    }
+
+    static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) + " resolves to an abstract member '" +
+                             std::string( Name ) + "' with no body, and no machine conversion is registered for that name" ) );
+    return nullptr;
 }
 
 // ---------------------------------------------------------------------------
