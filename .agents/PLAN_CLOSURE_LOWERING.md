@@ -305,29 +305,30 @@ end-to-end outside the corpus (`60` for `factor = 10` over `[1,2,3]`), as did
 a single-level capturing lambda (`(y) => base + y`) assigned to a local and
 called.
 
-**A known, separate, narrower gap surfaced (not this phase's to fix):**
-assigning a closure-typed *call result* whose own environment is non-nil to a
-local — i.e. currying: `f = (x) => (y) => x + y; g = f(20)` — fails LLVM
-module verification (`llvm.memcpy` called with a `{ptr,ptr}` *value* where the
-intrinsic expects a pointer operand). Reproduces identically with a bare
-no-capture-from-outer-scope curry (`(x) => (y) => x + y`, no free variables at
-all beyond `x`), so it is orthogonal to this phase's env/capture rewrite —
-before 3b, this same program failed differently (3a's capture bail-out left
-both lambdas unlowered, and the backend refused with "closure escapes and
-captures N binding(s)... environment must be heap-allocated" — never a
-working path either). Whatever writes a closure-typed value into a local
-(`ExprEmitter`/`StmtEmitter`'s `Assign` codegen for an aggregate-shaped RHS
-that arrives as an SSA value rather than a pointer) needs its own
-investigation; out of scope here.
+**The curry-into-local gap — found and fixed (post-Phase-5, same investigation
+thread).** Root cause was not `Assign`/`EmitStore`: `EmitResolvedCall`
+(`ExprEmitter.cpp`) already spills a struct-typed `CreateCall` result into a
+temp alloca before returning it, so every aggregate consumer downstream can
+treat the return value as an address, per the "aggregate is only ever an
+address" convention `StoreTailValue`/`LoadConverged` also document. But
+`EmitIndirectCall` (`ClosureEmitter.cpp`, the path a closure *value* call like
+`f(20)` goes through) never had that spill — it returned the raw SSA struct
+straight out of `CreateCall`. Invisible until a closure's own result is
+itself a closure (curry), because that is the only case where an indirect
+call's result is an aggregate. Fixed by adding the identical spill-to-temp
+idiom to `EmitIndirectCall`. Verified: `ninja -C build tests` → 233/237, same
+4 pre-existing gaps, zero regressions; a new regression sample,
+`samples/Tests/Functional/Curry.vl` (`f = (x) => (y) => x + y; g = f(20);
+assert!(g(5) == 25); assert!(f(1)(2) == 3)`), passes.
 
-**`Lambda`/`Block` still do NOT move to `VOLT_EXPR_SUGAR`.** Flipping the flag
-was tried directly (to check Checkpoint D empirically, not just assumed) and
-regressed the suite from 232/236 to 192/236 — both open gaps above
-(`break`/`next`, and everything downstream of the curry-into-local bug) leave
-real `Lambda`/`Block` nodes surviving `TypeChecker` on purpose, and
-`AstInvariant` correctly refuses to let that pass silently once the sugar
-flag is set. The flip is deferred until Phase 5 closes the `break`/`next`
-gap and the curry-assignment bug above is understood and fixed.
+**`Lambda`/`Block` still do NOT move to `VOLT_EXPR_SUGAR` — but both gaps
+that blocked the flip are now closed.** The flip was tried directly once
+before (to check Checkpoint D empirically) and regressed the suite from
+232/236 to 192/236, because both the `break`/`next` gap and the curry-into-
+local bug left real `Lambda`/`Block` nodes surviving `TypeChecker` on
+purpose, and `AstInvariant` correctly refuses to let that pass silently once
+the sugar flag is set. With both now fixed, the flip should be re-attempted
+next — it has not been retried since these fixes landed.
 
 **Phase 4 — Delete `ClosureEmitter.cpp`'s closure-specific machinery.**
 Depends on Phase 3 landing completely (no partial state — two systems doing
