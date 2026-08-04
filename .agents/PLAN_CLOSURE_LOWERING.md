@@ -246,13 +246,88 @@ a node-kind claim nothing declares as `UInt8` specifically. Verified: full
 suite back to 232/236 (same 4 pre-existing gaps), `Lambda.vl` passing through
 the real `Proc.new`/`FuncAddr`/synthesized-function path end to end.
 
-**`Lambda`/`Block` do NOT move to `VOLT_EXPR_SUGAR` yet.** The corpus has
-live capturing closures today (`samples/Sema/ClosureCaptures.vl`,
-`Enumerable.vl`'s block-taking methods, `Composition.vl`, `PointFree.vl`,
-…) — 3a deliberately skips them, so flipping the sugar flag now would make
-`AstInvariant` fail on every one of those files. That flip is Phase 3b's to
-make, once the capture/env rewrite lands and nothing depends on `Lambda`/
-`Block` surviving `TypeChecker` anymore.
+**Phase 3b — capturing/escaping closures, mechanism done, sugar flip NOT
+taken.** `ClosureLifting.cpp` now handles a closure with a non-empty
+`ScopeTable::CapturesOf` too: `SynthesizeClosureFrame` gives the offset/size
+layout, the lifted `Method` always ends its `Params` with a trailing
+`__env : Pointer<UInt8>` (present even on a no-capture lift now — matches
+`ClosureEmitter::EmitIndirectCall`'s calling convention, which already always
+appends a trailing env argument, so no second ABI is needed), the env buffer
+is heap-allocated (`Pointer<UInt8>.malloc( Frame.TotalSize )`, matching
+`ClosureEnvFrame::bEscapes`'s conservative default), each capture is stored by
+an ordinary `Deref`/`Assign` through `Pointer<CapType>.from_address( addr +
+offset )`, and every *use* of a captured variable inside the lifted body is
+rewritten in place, by a small hand-rolled `Meta::ForEachField`-based
+recursive walker (`RewriteCaptureUses`/`RewriteCaptureUsesStmt`), into the
+same load shape. No backend code changed — every one of these is an ordinary
+`Deref`/`Call`/`Assign` node a backend already knows how to emit
+(`rules/backend-machine-only.md`).
+
+Two bugs found and fixed while getting this to reproduce the 3a-established
+232/236 baseline with zero regressions:
+
+- **`WriteLocal`'s site resolution needs the `Declare`/`BindUse` to happen
+  *before* the `Assign` is inferred, not after.** The heap-env's own implicit
+  local (`__env = Pointer<UInt8>.malloc(...)`) initially called
+  `InferExpr` on the `Assign` first and only then `Scopes.Declare` +
+  `BindUse`d the target — `TypeCheckerContext::SiteOf` resolves through
+  `ScopeTable::BindingOf(Use)` at the moment `WriteLocal` runs, found nothing,
+  and silently fell back to the name-only `Locals` map with no
+  `Ctx.Values.SetSiteType` ever called. Codegen then reported `local
+  '__env_N' has no resolved layout`. Fixed by reordering to match
+  `LiteralLowering.cpp`'s own `tmp = T.new()` sequence exactly: `Declare` +
+  `Resolve` + `BindUse(..., false)` on the target *before* building/inferring
+  the `Assign`.
+- **A lifted closure whose body contains `break`/`next` must not be lifted at
+  all — yet.** `ClosureEmitter.cpp`'s `EmitClosureBody` (still the only thing
+  compiling `Lambda`/`Block` literals) carries the translation of a bare
+  `break`/`next` into the non-local-exit-as-unwind-sentinel protocol that
+  `EmitUnwindCheck` (run after every indirect call) consumes. A synthesized
+  top-level `Method` compiles through the *ordinary* function-body emitter
+  instead, which has no such translation — `break` reached codegen expecting
+  a real enclosing loop and none exists, failing with `break outside a loop
+  reached codegen`. This is not a backend gap (`EmitUnwindCheck` is already
+  call-site-generic, exactly as Phase 5 below assumed) — it is
+  `ClosureLifting` routing the body through the wrong emission path. Fixed
+  conservatively, in scope for 3b only: a shallow scan
+  (`StmtHasBreakOrNext`/`ExprHasBreakOrNext`, stopping at a nested
+  Lambda/Block's own boundary) bails out of lifting — leaving the node as an
+  unlowered `Lambda`/`Block`, exactly 3a's existing capture bail-out shape —
+  whenever the body contains one. Regressed `samples/Tests/ControlFlow/
+  BreakNext.vl` (a `for...in` desugars to `.each do |x| ... break if ... end`,
+  which captures) until this landed; true support is Phase 5's job.
+
+Verified: full suite back to 232/236 (same 4 pre-existing gaps —
+`Composition.vl`, `PointFree.vl`, `Enum.vl`, `UncaughtRaise.vl`), zero
+regressions. `samples/Sema/ClosureCaptures.vl`'s block-capture case
+(`items.each do |item| acc = acc + item * factor end`) built and ran
+end-to-end outside the corpus (`60` for `factor = 10` over `[1,2,3]`), as did
+a single-level capturing lambda (`(y) => base + y`) assigned to a local and
+called.
+
+**A known, separate, narrower gap surfaced (not this phase's to fix):**
+assigning a closure-typed *call result* whose own environment is non-nil to a
+local — i.e. currying: `f = (x) => (y) => x + y; g = f(20)` — fails LLVM
+module verification (`llvm.memcpy` called with a `{ptr,ptr}` *value* where the
+intrinsic expects a pointer operand). Reproduces identically with a bare
+no-capture-from-outer-scope curry (`(x) => (y) => x + y`, no free variables at
+all beyond `x`), so it is orthogonal to this phase's env/capture rewrite —
+before 3b, this same program failed differently (3a's capture bail-out left
+both lambdas unlowered, and the backend refused with "closure escapes and
+captures N binding(s)... environment must be heap-allocated" — never a
+working path either). Whatever writes a closure-typed value into a local
+(`ExprEmitter`/`StmtEmitter`'s `Assign` codegen for an aggregate-shaped RHS
+that arrives as an SSA value rather than a pointer) needs its own
+investigation; out of scope here.
+
+**`Lambda`/`Block` still do NOT move to `VOLT_EXPR_SUGAR`.** Flipping the flag
+was tried directly (to check Checkpoint D empirically, not just assumed) and
+regressed the suite from 232/236 to 192/236 — both open gaps above
+(`break`/`next`, and everything downstream of the curry-into-local bug) leave
+real `Lambda`/`Block` nodes surviving `TypeChecker` on purpose, and
+`AstInvariant` correctly refuses to let that pass silently once the sugar
+flag is set. The flip is deferred until Phase 5 closes the `break`/`next`
+gap and the curry-assignment bug above is understood and fixed.
 
 **Phase 4 — Delete `ClosureEmitter.cpp`'s closure-specific machinery.**
 Depends on Phase 3 landing completely (no partial state — two systems doing
