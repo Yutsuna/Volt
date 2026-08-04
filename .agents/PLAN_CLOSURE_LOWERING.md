@@ -115,10 +115,10 @@ first. Both fixes verified, zero regressions (231/235, same 4 pre-existing
 gaps as before: `Composition`, `PointFree`, `Enum`, `UncaughtRaise`).
 `Lambda.vl` now passes.
 
-**Phase 3 — `ClosureLifting`, redesigned. Mechanism changed from the plan's
-original pre-seam Driver phase — see below.** Depends on 0 (design; the *spike
-technique* is reused, not its pre-seam timing), 1 (reinterpret), 2 (function
-address).
+**Phase 3 — `ClosureLifting`, redesigned. DONE (3a, 3b, and the sugar flip all
+landed).** Mechanism changed from the plan's original pre-seam Driver phase —
+see below. Depended on 0 (design; the *spike technique* is reused, not its
+pre-seam timing), 1 (reinterpret), 2 (function address).
 
 ### Why the original pre-seam design doesn't fit this problem (found before writing code)
 
@@ -321,14 +321,15 @@ idiom to `EmitIndirectCall`. Verified: `ninja -C build tests` → 233/237, same
 `samples/Tests/Functional/Curry.vl` (`f = (x) => (y) => x + y; g = f(20);
 assert!(g(5) == 25); assert!(f(1)(2) == 3)`), passes.
 
-**`Lambda`/`Block` still do NOT move to `VOLT_EXPR_SUGAR` — but both gaps
-that blocked the flip are now closed.** The flip was tried directly once
-before (to check Checkpoint D empirically) and regressed the suite from
-232/236 to 192/236, because both the `break`/`next` gap and the curry-into-
-local bug left real `Lambda`/`Block` nodes surviving `TypeChecker` on
-purpose, and `AstInvariant` correctly refuses to let that pass silently once
-the sugar flag is set. With both now fixed, the flip should be re-attempted
-next — it has not been retried since these fixes landed.
+**`Lambda`/`Block` now moved to `VOLT_EXPR_SUGAR` — Checkpoint D reached,
+Phase 3 fully complete.** `Nodes.inl`: `VOLT_EXPR( Block )` →
+`VOLT_EXPR_SUGAR( Block )`, `VOLT_EXPR( Lambda )` → `VOLT_EXPR_SUGAR( Lambda )`
+(24 core / 13 sugar). `AstInvariant.cpp`'s `SugarKinds` and
+`tests/AstInvariant.cmake`'s census both derive from the manifest
+automatically — no second edit needed. Verified (`ninja -C build tests`):
+233/237, same 4 pre-existing gaps, zero regressions — every `Lambda`/`Block`
+in the corpus is now gone from the arena by the time `TypeChecker` finishes,
+with `AstInvariant` (order 40) enforcing it on every build from here on.
 
 **Phase 4 — Delete `ClosureEmitter.cpp`'s closure-specific machinery.**
 Depends on Phase 3 landing completely (no partial state — two systems doing
@@ -380,7 +381,8 @@ landing, per the same convention `PLAN_LITERAL_LOWERING.md` followed.
 
 ## Checkpoints
 
-A (Phase 0 answered), B (Phases 1+2 shipped, diagnosed bug fixed standalone),
-C (Phase 3, no-capture closures only), D (Phase 3 complete), E (Phase 4, backend
-actually smaller — track `ClosureEmitter.cpp`'s line count as the concrete
-metric).
+A (Phase 0 answered) — DONE. B (Phases 1+2 shipped, diagnosed bug fixed
+standalone) — DONE. C (Phase 3, no-capture closures only) — DONE. D (Phase 3
+complete: 3a+3b+`VOLT_EXPR_SUGAR` flip, 233/237, zero regressions) — DONE. E
+(Phase 4, backend actually smaller — track `ClosureEmitter.cpp`'s line count
+as the concrete metric) — NOT STARTED, now unblocked.
