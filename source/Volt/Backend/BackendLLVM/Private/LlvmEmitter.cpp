@@ -514,6 +514,13 @@ void Volt::Backend::Llvm::LlvmBackend::State::DefineSynthesizedFn ( const Sema::
     Frame.Callees       = Unit.Callees;
     Frame.Entry         = llvm::BasicBlock::Create( Context, "entry", LlvmFn );
     Frame.bReturnsValue = not Result->isVoidTy();
+    // Every SynthesizedFunction is a lifted Lambda/Block (ClosureLifting is
+    // its only producer), so a bare `break`/`next` in its body is the same
+    // non-local exit ClosureEmitter's EmitClosureBody used to translate
+    // directly — bClosure routes StmtEmitter's Break/Next arms onto the
+    // unwind-sentinel transport (BreakFlagSlot/EmitBlockNext) instead of
+    // failing with "outside a loop reached codegen".
+    Frame.bClosure = true;
     Builder->SetInsertPoint( Frame.Entry );
 
     unsigned Index = 0;

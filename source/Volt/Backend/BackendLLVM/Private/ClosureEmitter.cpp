@@ -422,6 +422,27 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitIndirectCall ( Fronten
     // declaration to build it from.
     llvm::Value *Call = Builder->CreateCall( Signature, Code, Actuals );
 
+    // The mirror of EmitResolvedCall's own aggregate case (ExprEmitter.cpp):
+    // a struct comes back by value, and every consumer downstream expects an
+    // aggregate to *be* an address — a curried closure returning another
+    // closure (`f = (x) => (y) => x + y; g = f(20)`) is the case that made
+    // this visible, since Entry.Result is itself the `{code,env}` aggregate.
+    // Without this spill the raw SSA struct reached `Assign`'s `EmitStore`,
+    // which memcpys from an address — an ill-formed `llvm.memcpy` operand,
+    // rejected by the module verifier.
+    if ( Call->getType()->isStructTy() )
+    {
+        llvm::Value *Slot = MakeTemp( Call->getType(), "call.result" );
+        if ( Slot == nullptr )
+        {
+            static_cast<void>( Fail( "llvm: no frame to hold the aggregate result of the indirect call at expression " +
+                                     std::to_string( Id.Value ) ) );
+            return nullptr;
+        }
+        static_cast<void>( Builder->CreateStore( Call, Slot ) );
+        Call = Slot;
+    }
+
     // Always Volt code behind a callable — never external — so the
     // post-call check always runs, same as an ordinary resolved call. This is
     // `block.call(...)` itself: it must let a `break` inside the block keep
