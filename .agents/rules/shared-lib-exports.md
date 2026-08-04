@@ -1,10 +1,8 @@
 # Rule: shared-lib exports — annotate what crosses a `.so` boundary
 
 Every Volt module (`Core`, `Frontend`, `Sema`, `Driver`, …) compiles with
-`-fvisibility=hidden` / `-fvisibility-inlines-hidden` (`cmake/VoltCompiler.cmake`,
-`Volt::CompileOptions`). When `VOLT_BUILD_SHARED=ON`, `VoltModule.cmake` builds
-each module as a `.so` and calls `generate_export_header()` for it, producing
-`<Module>_export.hpp` (e.g. `Core_export.hpp`) with a `<MODULE>_EXPORT` macro
+`-fvisibility=hidden` / `-fvisibility-inlines-hidden` (`meson/meson.build`).
+When `default_library=shared`, Meson builds each module as a `.so` and generates `<Module>_export.hpp` (e.g. `Core_export.hpp`) with a `<MODULE>_EXPORT` macro
 (e.g. `CORE_EXPORT`). That generated header's directory is on the module's
 `PUBLIC` include path, so any downstream module can `#include` it directly by
 filename — no subdirectory prefix.
@@ -49,7 +47,7 @@ methods — only annotate them if the linker actually asks for one.
 ## How to find what's missing
 
 Don't guess from a static read of the headers — the linker is the ground
-truth. Configure with `VOLT_BUILD_SHARED=ON` and rebuild through the IDE, then
+truth. Configure with `default_library=shared` and rebuild through the IDE, then
 fix the exact symbols mold reports, module by module, rebuilding between
 passes. This finds the precise minimal set faster and more reliably than
 annotating every public declaration up front.

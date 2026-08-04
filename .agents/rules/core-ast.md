@@ -227,7 +227,7 @@ refusal is not debt, a silence would be:
   declare. Those are stdlib gaps; they are parse fixtures, covered by `Golden`
   tests only. `AstInvariant`'s typing half is enforced on `source/Lib/**` and
   `samples/Sema/**`; its residual-sugar half on everything
-  (`tests/AstInvariant.cmake`).
+  (`tests/meson.build`).
 - **The JSX runtime is not declared.** `JsxLowering` is complete — zero Jsx
   nodes survive — but it emits `Volt.JSX.create_element( tag, props, children )`
   and no stdlib type declares it, so `.vlx` files lower correctly and then type

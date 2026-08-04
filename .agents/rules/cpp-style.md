@@ -8,9 +8,8 @@
 - **`Public/Private` split** per module: headers under `Public/Volt/<Module>/…`,
   translation units under `Private/…`. A module's public include root is its
   `Public/` directory (`target_include_directories(... PUBLIC Public)`).
-- **Modules** are declared with `VoltModule(NAME .. TYPE .. SOURCES "Private/*.cpp"
-  PUBLIC_INCLUDES "Public/" DEPS ..)` and registered in
-  `cmake/VoltBuild.cmake`'s `VoltAddModules(...)`. Libraries are shared and
+- **Modules** are declared via `library(...)` in `source/Volt/<Module>/meson.build`
+  and registered in `source/Volt/meson.build` (`subdir('<Module>')`). Libraries are shared and
   cascade their `DEPS` (`Frontend → Core`, `Sema → Frontend`, `Driver → Sema`).
 - **Formatting is mechanical**: run the `format` IDE configuration (Allman braces,
   `SpacesInParens`, `ColumnLimit: 170` — parallel, per-file cached). Do not

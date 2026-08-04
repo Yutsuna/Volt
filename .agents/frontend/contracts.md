@@ -39,7 +39,7 @@ The frontend never hardcodes built-in compiler type names (`Int`, `String`, `Arr
 The `AstInvariant` pass (`source/Volt/Sema/Private/Passes/AstInvariant.cpp`, Pass Order 40) is automatically executed:
 1. At the end of every frontend pipeline invocation (`volt parse --lowered`).
 2. Before `ScopeResolver` (Order 30) and `TypeChecker` (Order 35) in full compilation runs (`volt build`, `volt check`).
-3. Across the entire test suite via `tests/AstInvariant.cmake`.
+3. Across the entire test suite via `tests/meson.build`.
 
 ### `AstInvariant` Validation Logic
 `AstInvariant` sweeps all `AstContext` arenas by index. If it detects any AST node variant tagged with `VOLT_EXPR_SUGAR` or invalid tree structural links, it fails loudly with an error trace:
@@ -69,7 +69,7 @@ void InvariantChecker::CheckExpr(ExprId Id)
 
 To verify frontend correctness and build compliance during development, build
 and test through the IDE — never "run" a module configuration (a library
-target); run a test configuration (e.g. `All CTest`) instead, which builds
+target); run a test configuration (e.g. `meson test`) instead, which builds
 its dependencies first.
 
 ```bash

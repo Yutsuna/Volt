@@ -657,7 +657,7 @@ overlay) are indistinguishable to `ExprEmitter`/`StmtEmitter`/
 - `TargetMachine` from the host triple (cross later; the seam is one string).
 - Emit ELF/Mach-O/COFF object via `addPassesToEmitFile`, then drive the
   system linker — mold when available, LLD fallback — exactly like the build
-  system already prefers mold (`VoltOptions.cmake`).
+  system already prefers mold (`meson/meson.build`).
 
 ## CLI
 

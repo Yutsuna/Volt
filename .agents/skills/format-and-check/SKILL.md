@@ -10,11 +10,11 @@ Build and test through the IDE (CLion). Never "run" a module configuration —
 a module (`Core`, `Frontend`, `Sema`, `Driver`, `BackendLLVM`, …) is a library
 target (`.so`/`.a`), not an executable, and the IDE will refuse to launch it.
 Run an executable or test configuration instead (a `*Test` target, or
-`All CTest`) — the IDE builds every dependency first. The tooling targets
+`meson test`) — the IDE builds every dependency first. The tooling targets
 (`format`, `tidy`) are parallel and per-file cached, so re-runs only touch
 what changed.
 
-1. **Build & test.** Run a test configuration (e.g. `All CTest`, or a single
+1. **Build & test.** Run a test configuration (e.g. `meson test`, or a single
    `*Test` target while iterating on one area). This builds the project under
    `-Werror` — warnings are treated as failures — then runs the suite.
 2. **Format.** Run the `format` configuration (Allman, `SpacesInParens`,
@@ -23,10 +23,10 @@ what changed.
    only wastes time.
 3. **Regenerating goldens** (if AST output changes intentionally):
    ```sh
-   cmake -DUPDATE=1 -P tests/GoldenTest.cmake   # or the `golden-update` target
+   ninja -C build golden-update   # or meson compile -C build golden-update
    ```
 4. **Parallel safety** (only if you touched the Driver or a pass's shared state):
-   a TSAN build (Debug, `-DVOLT_ENABLE_ASAN=OFF`), through the IDE, over a multi-file circuit
+   a TSAN build (Debug, `-Denable_asan=false -Denable_tsan=true`), through the IDE, over a multi-file circuit
    (`volt check samples/Circuits/DiamandDeps`) — expect no TSAN reports.
 5. **Refresh the graph**:
    ```sh

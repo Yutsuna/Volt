@@ -140,9 +140,9 @@ diagnostics about Volt source.
 ## Module wiring & meta-first
 
 - New backend = one directory under `source/Volt/Backend/` + one line in
-  `cmake/VoltBuild.cmake`'s `VoltAddModules`. `VoltModule()` generates
+  `source/Volt/meson.build` (`subdir('Backend/...')`). `meson.build` configures
   `<MODULE>_EXPORT` (`rules/shared-lib-exports.md`); optional toolchains gate
-  themselves with an early `return()` (`BackendLLVM` ↔ `VOLT_ENABLE_LLVM`).
+  themselves with an option check (`BackendLLVM` ↔ `enable_llvm`).
 - Per-target instruction tables are **manifests**, not switches:
   `BackendVM/Bytecode.inl` (one `VOLT_OP` line per opcode → enum, name LUT,
   operand widths) is the template. A future LLVM spelling→instruction table

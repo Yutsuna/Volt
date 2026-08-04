@@ -2,10 +2,10 @@
 
 ## Context
 
-La suite de tests LLVM (configuration `All CTest`, filtrée sur `^Llvm`, lancée depuis
+La suite de tests LLVM (configuration `meson test`, filtrée sur suite LLVM, lancée depuis
 l'IDE) est aujourd'hui à **43/68** (25 échecs sur 68 tests, soit 13 samples
 sur 34 dans `samples/Tests/**`). Chaque sample est enregistré deux fois par
-`cmake/VoltTests.cmake:88-110` : `LlvmIr.*` (émission + `verifyModule`) et `LlvmRun.*`
+`tests/meson.build` : `LlvmIr.*` (émission + `verifyModule`) et `LlvmRun.*`
 (binaire lié, exécuté, comparé à `.expected`).
 
 Mesuré sur `build/debug-testing-llvm` (binaire à jour, commit `fccf910`) :
@@ -20,7 +20,7 @@ l'émetteur LLVM. Deux d'entre eux sont des défauts silencieux graves — **un 
 compilateur** (`Composition.vl`, exit 139) et **une boucle `until` post-test compilée en
 pré-test** (`UntilLoop.vl`, code faux sans aucun diagnostic).
 
-Objectif : la suite de tests LLVM verte (configuration `All CTest`, filtre `^Llvm`), sans
+Objectif : la suite de tests LLVM verte (configuration `meson test`), sans
 hardcode de type Volt, sans lowering dans le
 backend, sans code non modulaire — et avec la dette restante **écrite** plutôt que
 contournée.
@@ -608,7 +608,7 @@ item de travail, pas le type lui-même.
 
 - Configuration `format` (formatage parallèle et caché par fichier), à lancer une seule
   fois en fin de phase, puis un build et les tests à travers l'IDE (`-Werror`).
-- Régénérer les goldens : configuration `golden-update` (target CMake, lancée depuis
+- Régénérer les goldens : configuration `golden-update` (target Meson / Ninja, lancée depuis
   l'IDE). Obligatoire après la phase 4d, et après la phase 2 si `Scrutinee` s'imprime.
 - Configuration `tidy` **une seule fois, à la toute fin de l'epic** (toutes les phases
   terminées) — jamais deux en parallèle, jamais en cours de phase : c'est coûteux, et
@@ -656,7 +656,7 @@ L'ordre n'est pas cosmétique : plusieurs phases s'invalident mutuellement.
 
 Un build et les tests à travers l'IDE (jamais un « run » sur une cible module —
 `Core`/`Frontend`/`Sema`/… sont des bibliothèques, pas des exécutables ; lancer une
-configuration de test comme `All CTest`, qui construit ses dépendances). La
+configuration de test comme `meson test`, qui construit ses dépendances). La
 configuration `format` ne se lance qu'en fin de phase, pas à chaque itération.
 
 Ciblage pendant l'itération (le binaire est `build/bin/volt_d`) :
@@ -667,7 +667,7 @@ Ciblage pendant l'itération (le binaire est `build/bin/volt_d`) :
 ./build/bin/volt_d build samples/Tests/<Dir>/<Sample>.vl -o /tmp/x && /tmp/x ; echo "exit=$?"
 
 # la suite LLVM seule
-cd build/debug-testing-llvm && ctest -R '^Llvm' --output-on-failure -j8
+meson test -C build --suite golden
 ```
 
 Contrôles spécifiques :
@@ -694,5 +694,5 @@ Contrôles spécifiques :
   `*SerializeTest` doivent rester verts ; la phase 5b touche la sérialisation du cache
   (issue #61), donc `SemaSerializeTest` est le garde-fou de cette phase.
 
-**Critère de sortie : 100 % vert sur `All CTest` (toutes configurations, pas de filtre),
+**Critère de sortie : 100 % vert sur `meson test` (toutes configurations, pas de filtre),
 build + tests verts en entier à travers l'IDE, formatage inclus.**

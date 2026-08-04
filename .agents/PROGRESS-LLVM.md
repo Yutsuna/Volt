@@ -85,7 +85,7 @@ only, per project convention (the user commits).
 
 ## Suite state
 
-Full `All CTest` (no filter): **320 passing, 14 failed out of 334.**
+Full `meson test` (no filter): **320 passing, 14 failed out of 334.**
 Session start was 294/334 (40 failed); after the stale goldens were refreshed,
 23; after Phase 4, 14.
 
@@ -102,7 +102,7 @@ The 14 break down as:
 
 **Two failures that are not compiler bugs and were not introduced here:**
 
-- `Golden.lowered.samples/Sema/CompoundAssignReceiver.vl` — `GoldenTest.cmake:69`
+- `Golden.lowered.samples/Sema/CompoundAssignReceiver.vl` — `tests/meson.build`
   refuses to write any golden whose output contains `error: `. That file is a
   *negative* Sema fixture whose expected output **is** the diagnostic
   `'+=' needs a target that can be read twice`, so the test is registered but
@@ -175,7 +175,7 @@ globals invisible inside a `def`) — both implemented per the plan's design:
 `samples/Sema/BranchLocals.vl`, `ShadowNestedIf.vl` (explicit `x : T = v`,
 untouched by the Phase 3a change) and `RedeclareSameScope.vl` (still reports
 its diagnostic) all still behave correctly — checked directly against
-`build/build-debug/bin/volt_d`, not yet re-run through `Check.*` CTest.
+`build/bin/volt_d`, not yet re-run through `meson test`.
 
 ## Phase 4 — done (second session)
 
@@ -265,13 +265,13 @@ one new `State::LoadConverged( Slot, Shape, Layout, Name )` next to
   is not specified"*, and `get_run_configurations` shows `golden-update` with
   no environment at all while every working configuration carries the full Nix
   dev-shell env. They have lost their target binding. Worked around this
-  session with `cmake --build build/build-debug --target format` /
-  `--target golden-update`, which both work fine — so this is an IDE config
+  session with `ninja -C build format` /
+  `ninja -C build golden-update`, which both work fine — so this is an IDE config
   problem, not a build one. Worth repairing since `format` is a per-phase
   obligation.
 
 Done at the end of this session: `format` (12 files), `graphify update .`
-(978 nodes / 2139 edges / 83 communities), full `All CTest`, and
+(978 nodes / 2139 edges / 83 communities), full `meson test`, and
 `golden-update` (75 golden files changed — the `If` category move indents every
 conditional one level under a new `ExprStmt`, exactly the mechanical churn the
 plan predicted).
