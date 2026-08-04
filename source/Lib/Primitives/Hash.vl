@@ -23,7 +23,7 @@ struct Hash<K, V>
   end
 
   def []=( key : K, value : V ) -> Void
-    idx = key.hash % @entries.capacity
+    _ = key.hash % @entries.capacity
     @entries.push( HashEntry<K, V>.new( key, value, true ) )
     @size += 1
   end
