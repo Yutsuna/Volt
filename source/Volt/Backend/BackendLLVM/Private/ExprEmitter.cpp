@@ -721,10 +721,6 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitExpr ( Frontend::ExprI
             [this, Id] ( const Frontend::BeginExpr &Node ) -> llvm::Value * { return EmitBegin( Id, Node ); },
             [this, Id] ( const Frontend::RaiseExpr &Node ) -> llvm::Value * { return EmitRaise( Id, Node ); },
 
-            // --- Closures --------------------------------------------------
-            [this, Id] ( const Frontend::Lambda &Node ) -> llvm::Value * { return EmitLambda( Id, Node ); },
-            [this, Id] ( const Frontend::Block &Node ) -> llvm::Value * { return EmitBlock( Id, Node ); },
-
             // --- Inert -----------------------------------------------------
             // Neither carries a runtime value, and neither is descended into
             // (rules/core-ast.md). GenericInst is a *spelling* of a type in
