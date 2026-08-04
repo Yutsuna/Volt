@@ -1,0 +1,12 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+f = ( x : Int32 ) => ( y : Int32 ) => x + y
+g = f( 20 )
+
+assert!( g( 5 ) == 25 )
+assert!( f( 1 )( 2 ) == 3 )

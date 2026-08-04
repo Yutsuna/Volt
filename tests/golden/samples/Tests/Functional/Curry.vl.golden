@@ -1,0 +1,100 @@
+Program 'samples/Tests/Functional/Curry.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'FAIL ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:19
+│                                   ├─ StringLiteral ':\tCalled by ' @3:11
+│                                   ├─ Identifier '__FUNCTION__' @3:43
+│                                   ├─ StringLiteral ' at ' @3:11
+│                                   ├─ Identifier '__LINE__' @3:62
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:3
+│        ├─ target
+│        │  └─ Identifier 'f' @8:1
+│        └─ value
+│           └─ Lambda @8:5
+│              ├─ params
+│              │  └─ Param 'x' @8:7
+│              │     └─ decl_type
+│              │        └─ TypeRef 'Int32' @8:11
+│              └─ body
+│                 └─ Lambda @8:22
+│                    ├─ params
+│                    │  └─ Param 'y' @8:24
+│                    │     └─ decl_type
+│                    │        └─ TypeRef 'Int32' @8:28
+│                    └─ body
+│                       └─ Binary '+' @8:41
+│                          ├─ lhs
+│                          │  └─ Identifier 'x' @8:39
+│                          └─ rhs
+│                             └─ Identifier 'y' @8:43
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Assign '=' @9:3
+│        ├─ target
+│        │  └─ Identifier 'g' @9:1
+│        └─ value
+│           └─ Call @9:6
+│              ├─ callee
+│              │  └─ Identifier 'f' @9:5
+│              └─ args
+│                 └─ IntLiteral '20' @9:8
+├─ ExprStmt @11:1
+│  └─ expr
+│     └─ Call @11:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @11:1
+│        └─ args
+│           └─ Binary '==' @11:17
+│              ├─ lhs
+│              │  └─ Call @11:11
+│              │     ├─ callee
+│              │     │  └─ Identifier 'g' @11:10
+│              │     └─ args
+│              │        └─ IntLiteral '5' @11:13
+│              └─ rhs
+│                 └─ IntLiteral '25' @11:20
+└─ ExprStmt @12:1
+   └─ expr
+      └─ Call @12:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @12:1
+         └─ args
+            └─ Binary '==' @12:22
+               ├─ lhs
+               │  └─ Call @12:16
+               │     ├─ callee
+               │     │  └─ Call @12:11
+               │     │     ├─ callee
+               │     │     │  └─ Identifier 'f' @12:10
+               │     │     └─ args
+               │     │        └─ IntLiteral '1' @12:13
+               │     └─ args
+               │        └─ IntLiteral '2' @12:18
+               └─ rhs
+                  └─ IntLiteral '3' @12:25
+--- exit 0 ---
