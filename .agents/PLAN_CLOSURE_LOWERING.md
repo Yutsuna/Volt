@@ -336,10 +336,37 @@ the same job is worse than one). `EmitIndirectCall` may survive (merged into
 value," true for any callable-typed value, not closure-specific). `bClosure`
 on `FunctionFrame` likely deletable.
 
-**Phase 5 — `break`/`next` re-verification.** No code expected to change (the
-non-local-exit transport already looks call-site-generic, not closure-body-
-specific — `EmitUnwindCheck` runs after any call) but must be empirically
-re-confirmed on a real lifted closure, not assumed.
+**Phase 5 — `break`/`next` support for lifted closures. DONE, verified.**
+Two changes, both small, matching what Phase 3b predicted would be needed:
+
+- `ClosureLifting.cpp`: removed the `StmtHasBreakOrNext`/`ExprHasBreakOrNext`
+  bail-out (and the two now-dead helper functions) from `LowerClosureLit` — a
+  closure whose body contains `break`/`next` is no longer left as an
+  unlowered `Lambda`/`Block`; it lifts exactly like any other.
+- `LlvmEmitter.cpp`'s `DefineSynthesizedFn`: now sets `Frame.bClosure = true`.
+  This was the missing wire — `Sema::SynthesizedFunctions` has exactly one
+  producer (`ClosureLifting`), so every entry *is* a lifted closure body, but
+  `DefineSynthesizedFn` was constructing a plain `FunctionFrame{}` with
+  `bClosure` defaulted `false`. `StmtEmitter.cpp`'s `Break`/`Next` arms and
+  `ExprEmitter.cpp`'s `MissingSelf` all key off `Frame.bClosure`, not off
+  where the function came from, so the non-local-exit-as-unwind-sentinel
+  transport (`BreakFlagSlot`/`EmitPoisonedPath`/`EmitBlockNext`,
+  `EmitUnwindCheck` on the call side) was confirmed to be call-site-generic —
+  the fix was purely "tell the frame what it is," no new machinery.
+
+**Verified** (`ninja -C build tests`): 232/236, same 4 pre-existing gaps as
+every prior phase (`Enum.vl`, `UncaughtRaise.vl`, `Composition.vl`,
+`PointFree.vl`) — zero regressions. `samples/Tests/ControlFlow/BreakNext.vl`
+now passes through the real lifted path (previously left as an unlowered
+`Lambda`/`Block`, per 3b's conservative bail-out).
+
+**Still blocking the `VOLT_EXPR_SUGAR` flip**: only the curry-into-local bug
+noted under Phase 3b (`f = (x) => (y) => x + y; g = f(20)` fails LLVM module
+verification on an `llvm.memcpy` called with a `{ptr,ptr}` value instead of a
+pointer operand) — break/next is no longer a blocker. That bug is still
+unfixed and out of this phase's scope; whoever picks up the sugar flip next
+should investigate it first (`ExprEmitter`/`StmtEmitter`'s `Assign` codegen
+for an aggregate-shaped RHS arriving as an SSA value).
 
 **Phase 6 — Docs.** `core-ast.md` (24/13 node count), `backend/llvm.md`,
 `backend/abi.md`, `middleend/scope.md` updated; this file likely deleted after
