@@ -7,6 +7,7 @@ build/
 
 .direnv/
 .cache/
+.ccache/
 
 graphify-out
 result
