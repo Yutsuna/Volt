@@ -14,7 +14,6 @@
 #include "Volt/BackendCore/Mangler.hpp"
 #include "Volt/BackendCore/Monomorphizer.hpp"
 #include "Volt/BackendLLVM/LlvmEmitter.hpp"
-#include "Volt/Sema/Layout/ClosureFrame.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/GlobalVariable.h>
@@ -199,10 +198,6 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     // LayoutId -> llvm::Type*. One entry per distinct memory shape, so an
     // aggregate is structurally created once no matter how many types share it.
     std::unordered_map<std::uint32_t, llvm::Type *> TypeCache;
-    // A closure body has no mangled symbol — it is private to the module and
-    // reached only through the `{ code, env }` pair — so its name is only ever
-    // read by a human. This counter is what keeps those names distinct.
-    std::uint32_t ClosureCount = 0;
     // Mangled symbol -> the declaration created by the declare sweep. Keyed by
     // the symbol rather than by DeclId because a DeclId is only meaningful
     // inside the arena that minted it, while a symbol is the cross-unit
@@ -565,38 +560,12 @@ struct Volt::Backend::Llvm::LlvmBackend::State
 
     // The closure *value*, uniform across the three backends (abi.md): the
     // two-slot `{ ptr code, ptr env }` aggregate — hence, like every
-    // aggregate, an address.
+    // aggregate, an address. `Lambda`/`Block` are sugar (Nodes.inl):
+    // ClosureLifting rewrites every literal into a synthesized function plus
+    // `Proc.new(FuncAddr, env)` before TypeChecker finishes, so this type is
+    // the only thing left here that is closure-*literal* shaped — everything
+    // else in this section operates on an already-resolved callable value.
     [[nodiscard]] llvm::StructType *ClosurePairType ();
-
-    // A `( x ) => expr` and a `do | x | ... end` differ only in what their
-    // body is, so both land in EmitClosure with one of the two filled.
-    [[nodiscard]] llvm::Value *EmitLambda ( Frontend::ExprId Id, const Frontend::Lambda &Node );
-    [[nodiscard]] llvm::Value *EmitBlock ( Frontend::ExprId Id, const Frontend::Block &Node );
-    [[nodiscard]] llvm::Value *EmitClosure ( Frontend::ExprId Id,
-                                             const Frontend::ParamList &Params,
-                                             Frontend::ExprId Body,
-                                             const Frontend::StmtList *Stmts );
-
-    // The private function a closure body compiles to: declared parameters in
-    // order, then `ptr %env` trailing (abi.md fixes that order for all three
-    // targets). Emitted under a nested FunctionFrame, so the enclosing body's
-    // slots and insert point are restored on the way out.
-    [[nodiscard]] llvm::Function *EmitClosureBody ( Frontend::ExprId Id,
-                                                    const Sema::ClosureEnvFrame &Env,
-                                                    const Frontend::ParamList &Params,
-                                                    Frontend::ExprId Body,
-                                                    const Frontend::StmtList *Stmts );
-
-    // Bind every capture to a slot inside the closure body: an env field holds
-    // the *address* of the captured binding, so loading one yields exactly what
-    // FunctionFrame::Slots holds for a local — a place.
-    void BindCaptures ( const Sema::ClosureEnvFrame &Env, llvm::Value *Environment );
-
-    // The environment, allocated in the *enclosing* function: SynthesizeClosureFrame
-    // already fixed its size, alignment and every field offset, and this only
-    // fills it. Null when the closure captures nothing, which is a valid env
-    // no field is ever read out of.
-    [[nodiscard]] llvm::Value *EmitClosureEnv ( Frontend::ExprId Id, const Sema::ClosureEnvFrame &Env );
 
     // `next [value]` inside a closure body with no loop of its own: the block
     // ends this invocation and hands `value` back, so it is a `ret`. Kept here
