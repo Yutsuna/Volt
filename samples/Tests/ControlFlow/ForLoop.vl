@@ -22,7 +22,7 @@ end
 def for_dictionary -> Int32
   dictionary = { "a" => 1, "b" => 2, "c" => 3 }
   total = 0
-  for key, value in dictionary
+  for _key, value in dictionary
     total += value
   end
   total

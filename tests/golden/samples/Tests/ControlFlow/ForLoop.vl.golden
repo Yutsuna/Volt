@@ -101,12 +101,12 @@ Program 'samples/Tests/ControlFlow/ForLoop.vl'
 │     │        ├─ callee
 │     │        │  └─ Member 'each' @25:3
 │     │        │     └─ object
-│     │        │        └─ Identifier 'dictionary' @25:21
+│     │        │        └─ Identifier 'dictionary' @25:22
 │     │        └─ block_arg
 │     │           └─ Block @25:3
 │     │              ├─ params
-│     │              │  ├─ Param 'key' @25:7
-│     │              │  └─ Param 'value' @25:12
+│     │              │  ├─ Param '_key' @25:7
+│     │              │  └─ Param 'value' @25:13
 │     │              └─ body
 │     │                 └─ ExprStmt @26:5
 │     │                    └─ expr
