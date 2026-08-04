@@ -12,7 +12,6 @@
 
 #include "Volt/Frontend/AST/AstContext.hpp"
 
-#include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/DerivedTypes.h>
 
 #include <cstddef>
