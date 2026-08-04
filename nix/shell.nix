@@ -6,8 +6,9 @@
 
 let
   deps = import ./deps.nix { inherit pkgs; };
+  ccacheStdenv = pkgs.overrideCC pkgs.stdenv pkgs.ccacheWrapper;
 in
-pkgs.mkShell {
+pkgs.mkShell.override { stdenv = ccacheStdenv; } {
 
   nativeBuildInputs =
     deps.nativeBuildInputs
@@ -23,8 +24,10 @@ pkgs.mkShell {
     ]);
 
   shellHook = ''
-    export CC="gcc"
-    export CXX="g++"
+    export CCACHE_DIR="$PWD/.ccache"
+    export CCACHE_SLOPPINESS="pch_defines,time_macros"
+    export CC="ccache gcc"
+    export CXX="ccache g++"
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
 
     if [ ! -d ".venv" ]; then
