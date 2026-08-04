@@ -95,11 +95,20 @@ struct return.
 
 ## Closure environments
 
-`SynthesizeClosureFrame` (Sema) already fixed the env aggregate: field
-offsets, `TotalSize`, `Alignment`, `bEscapes`. Backends allocate it
-(stack when `bEscapes == false`, stdlib heap otherwise) and address captures
-by the frame's precomputed offsets. A closure **value** is uniformly the
-two-slot aggregate `{ code, env }` — function pointer / `FunctionTable`
+`SynthesizeClosureFrame` (Sema) fixes the env aggregate: field offsets,
+`TotalSize`, `Alignment`, `bEscapes`. Unlike the rest of this file, closure
+environments are **not a per-target backend concern** any more: `Lambda`/
+`Block` are sugar (`rules/core-ast.md`), and `ClosureLifting`
+(`Sema/.../TypeChecker/ClosureLifting.cpp`) allocates and addresses the env
+itself, upstream, before any backend runs — heap-allocated via an ordinary
+`Pointer<UInt8>.malloc( Frame.TotalSize )` call (the stack-when-non-escaping
+optimisation is a deferred reclaim, not a blocker; every env is heap today),
+with each capture stored and every capturing use rewritten in place into
+ordinary `Deref`/`Call( Pointer<T>.from_address, [env-offset expr] )` nodes.
+A backend therefore never sees a capture as such — only the `Deref`/`Call`
+nodes it already knows how to emit — and needs no closure-specific logic of
+its own to reproduce this for VM or wasm. A closure **value** is uniformly
+the two-slot aggregate `{ code, env }` — function pointer / `FunctionTable`
 index / `call_indirect` table index respectively.
 
 An env field holds the **address** of the captured binding, not a copy of its

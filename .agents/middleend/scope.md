@@ -77,3 +77,18 @@ struct ClosureFrame
     bool bEscapes = false; // Controls stack vs heap allocation
 };
 ```
+
+## What consumes this table
+
+`ScopeResolver`'s output here is purely lexical (no `TypeStore`/cross-file
+lookup), which is what makes it safe to reuse well after this pass runs.
+`ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`, inside
+`TypeChecker`, after every constraint in the unit has settled) is the actual
+consumer: it rewrites every `Lambda`/`Block` literal into a synthesized
+top-level function plus an ordinary `Proc.new( FuncAddr, env )` construction
+at the literal's own site, using this table's `Fields`/`TotalSize` to lay out
+a heap-allocated `Pointer<UInt8>` buffer and rewrite each captured-variable
+use into an ordinary `Deref`/`Call` load. `Lambda`/`Block` are sugar
+(`rules/core-ast.md`) precisely because of this — neither node survives past
+`TypeChecker`, so no backend ever sees a `ClosureFrame` or binds a capture
+itself.

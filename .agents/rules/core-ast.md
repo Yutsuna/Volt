@@ -2,35 +2,51 @@
 
 A backend is written by declarative pattern-matching over a **core AST**. This
 file is that contract: what a backend may be handed, and what it may assume.
-`Nodes.inl` declares **36 `VOLT_EXPR`** — **25 core, 11 sugar** (was 27/9;
-`ArrayLit` and `HashLit` both moved to sugar per
-`.agents/PLAN_LITERAL_LOWERING.md`).
+Counting only the nodes this file tracks (it does not yet cover `TypedExpr`/
+`If`, added by unrelated work — see below), `Nodes.inl` declares **24 core,
+13 sugar** (was 25/11; `Lambda` and `Block` both moved to sugar once their
+construction protocol was fully lowered into ordinary AST, and `FuncAddr` was
+added as a new core node in the same effort — see "Closures are gone" below).
 
 Two invariants make the contract mechanical rather than aspirational, and
 `AstInvariant` (order 40) checks both on every build:
 
-1. **No sugar survives `Lowering`.** The 11 nodes below are gone from the
+1. **No sugar survives `Lowering`.** The 13 nodes below are gone from the
    arena by the time `TypeChecker` runs.
 2. **Every expression in value position has a type.** `Values.Has( Id )` holds
    for it.
 
-## The 11 sugar nodes
+**Known doc gap, pre-existing and unrelated to this section:** `Nodes.inl`
+also declares `TypedExpr` (an explicit-type expression, `( 10 : Int32 )`) and
+`If` as expression forms; neither is documented in this file yet — both
+predate the closure-lowering epic and are a separate piece of doc debt.
+
+## The 13 sugar nodes
 
 `Interp` · `Index` · `DotCall` · `Section` · `Composition` · `Pipeline` ·
-`JsxElement` · `JsxFragment` · `JsxText` · `ArrayLit` · `HashLit`
+`JsxElement` · `JsxFragment` · `JsxText` · `ArrayLit` · `HashLit` · `Lambda` ·
+`Block`
 
 They are marked `VOLT_EXPR_SUGAR` in `Frontend/AST/Nodes.inl` — one line each,
 and that mark is what `AstInvariant` reads. Adding a sugar node is one line;
 forgetting to lower it is a build error, not a discovery made in the backend.
 
-`ArrayLit`/`HashLit` are not lowered by a `Lowering`-kind pass like the other
-nine — `LowerArrayLits`/`LowerHashLits` each run as a post-walk sweep *inside*
-`TypeChecker` itself (`EPassKind::Analysis`), once every constraint in the
-file has settled. See `.agents/PLAN_LITERAL_LOWERING.md` §2/§6 for why (a real
-ordering bug forced this away from the simpler "rewrite it inline the moment
-TypeChecker" design the `VOLT_EXPR_SUGAR` machinery would suggest).
+`ArrayLit`/`HashLit` are not lowered by a `Lowering`-kind pass like most of the
+others — `LowerArrayLits`/`LowerHashLits` each run as a post-walk sweep
+*inside* `TypeChecker` itself (`EPassKind::Analysis`), once every constraint
+in the file has settled. See `.agents/PLAN_LITERAL_LOWERING.md` §2/§6 for why
+(a real ordering bug forced this away from the simpler "rewrite it inline the
+moment TypeChecker" design the `VOLT_EXPR_SUGAR` machinery would suggest).
+`Lambda`/`Block` follow the identical shape for the identical reason —
+`ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`) runs inside
+`TypeChecker` too, once a closure literal's own `ClosureType` has settled, for
+a two-part reason: registering the lifted function anywhere before the
+pre-`TypeChecker` seam would race across units' parallel `TypeChecker` runs
+(every other `Lowering` pass runs there safely only because it creates no new
+top-level declaration), and an unannotated closure parameter
+(`arr.each do |i| … end`) has no type before `TypeChecker` assigns one either.
 
-## The 25 core nodes
+## The 24 core nodes
 
 | Category | Nodes | What a backend does with it |
 |---|---|---|
@@ -39,8 +55,34 @@ TypeChecker" design the `VOLT_EXPR_SUGAR` machinery would suggest).
 | Operations (3) | `Call` `Assign` `Ternary` | call through `CalleeResolution`, store, select/branch |
 | Operators (2) | `Binary` `Unary` | see below |
 | Control (3) | `CaseExpr` `BeginExpr` `RaiseExpr` | test chain / jump table; EH |
-| Closures (2) | `Lambda` `Block` | function + `ClosureEnvFrame` (size, alignment, `bEscapes` already computed) |
-| Inert (2) | `GenericInst` `SizeOf` | carry no runtime value: read `Values.Get( Id )` (resp. the layout size) and **never descend into them** |
+| Inert (3) | `GenericInst` `SizeOf` `FuncAddr` | carry no runtime value beyond an address: read `Values.Get( Id )` (resp. the layout size, resp. the resolved callable's address) and **never descend into them** |
+
+`Lambda`/`Block` are gone from this table — see "Closures are gone" below.
+`FuncAddr` is new here: it denotes a resolved callable's address as a value,
+distinct from calling it — the third meaning an `Identifier`/`Member`
+occurrence can carry, alongside "read a place" and "paren-less call."
+
+## Closures are gone — `Lambda`/`Block` are lowered, not emitted
+
+Unlike `CaseExpr` below, closures were **not** kept core because lowering them
+would cost more — the opposite held. `ClosureLifting` rewrites every
+`Lambda`/`Block` literal, no-capture or capturing, into a synthesized
+top-level function (registered in a per-unit `Sema::SynthesizedFunctions`
+table, never in the cross-unit `TypeStore` — nothing outside the unit ever
+needs to name a lifted closure by symbol, since it is only ever reached
+through its own `{code,env}` pair) plus an ordinary `Proc.new( FuncAddr, env )`
+construction at the literal's own site.
+A capturing closure's env is `Pointer<UInt8>` arithmetic
+(`to_address`/`from_address`, machine primitives in the closed vocabulary),
+and every captured-variable use inside the lifted body is rewritten in place
+into an ordinary `Deref`/`Call` load. The result: a backend sees a `Call` to
+a synthesized function and an ordinary `Proc` value — no closure-literal
+node, no nested-frame emission, no capture-binding logic of its own.
+`BackendLLVM/.../ClosureEmitter.cpp` shrank from 454 to 175 lines; the
+survivors (`EmitIndirectCall`, `EmitBlockNext`) are not closure-literal
+machinery — they operate on an already-resolved `{code,env}` *value*, exactly
+as `IsCallableType`/`bIndirect` already did before this epic (see
+`backend/llvm.md`'s "Invoking one" section).
 
 ### Why `CaseExpr` is core, not sugar
 

@@ -60,12 +60,15 @@ agree with `LayoutEngine` (`abi.md`); `DataLayout` is configured so natural
 alignment matches, and a `static_assert`-style startup check compares the two
 on every aggregate it emits (debug builds).
 
-## The 25 nodes → IR
+## The 24 nodes → IR
 
 `ArrayLit`/`HashLit` are not in this table: `LowerArrayLits`/`LowerHashLits`
 (`TypeChecker`) rewrite every one into ordinary `Assign`/`Binary`/`Call`/
-`BeginExpr` before this backend ever walks the tree — see
-`.agents/PLAN_LITERAL_LOWERING.md`.
+`BeginExpr` before this backend ever walks the tree. `Lambda`/`Block` are gone the same way:
+`ClosureLifting` (`TypeChecker`) rewrites every closure literal into a
+synthesized top-level function plus an ordinary `Proc.new( FuncAddr, env )`
+construction see and `rules/core-ast.md`'s
+"Closures are gone" section. `FuncAddr` (below) is new, added by that epic.
 
 | Node | Emission |
 |---|---|
@@ -84,8 +87,8 @@ on every aggregate it emits (debug builds).
 | `Binary` / `Unary` | protocol of `core-interfaces.md`: resolved → call; primitive → instruction table below |
 | `CaseExpr` | flat `WhenClause{ Patterns: [i1], Body }` chain → conditional-branch ladder; all-constant integer patterns → `switch` (this is why CaseExpr stayed core) |
 | `BeginExpr` / `RaiseExpr` | EH tiers below |
-| `Lambda` / `Block` | closure emission below |
 | `GenericInst` / `SizeOf` | inert: read `Values.Get( Id )` / the layout size as a constant; **never descend** |
+| `FuncAddr` | inert: read the resolved callable's address (`Values.Get( Id )`) as a value — `Proc.new`'s first argument in a lifted closure's rewrite, below |
 
 Statements: `If`/`While` → basic blocks with the usual cond/body/merge shape;
 `Return` → `ret`; `Break`/`Next` → branch to the loop's merge/latch;
@@ -211,8 +214,7 @@ Each is refused by a message naming the hole rather than guessed at, per
 
 - ~~**`ArrayLit` / `HashLit` have no recorded construction protocol.**~~
   **Closed.** Both are lowered before this backend ever sees them
-  (`LowerArrayLits` / `LowerHashLits`, `TypeChecker` — see
-  `.agents/PLAN_LITERAL_LOWERING.md`), so the emitter needs no construction
+  (`LowerArrayLits` / `LowerHashLits`, `TypeChecker`), so the emitter needs no construction
   protocol at all: `Array<T>#<<` and `Hash#[]=` are ordinary stdlib methods,
   resolved and called like any other.
 - ~~**`SizeOf` records no nominal for its operand.**~~ **Closed.** The node is
@@ -233,22 +235,20 @@ Each is refused by a message naming the hole rather than guessed at, per
   is reachable from valid source and cannot be a hard failure. It lowers to
   `unreachable`, which is the honest reading of "the middle-end promised
   control never gets here".
-- **No allocation entry point is marked, so an escaping environment cannot be
-  allocated.** `bEscapes == true` with at least one capture needs a heap env,
-  and `abi.md` is explicit that "heap" means a call to the stdlib's annotated
-  allocator — a linked symbol, not compiler behaviour. `@[External]` records a
-  C symbol *per member*, but nothing marks one member as *the* allocator, so
-  the emitter would have to name `malloc` itself, which
-  `rules/zero-hardcode.md` forbids. Refused by a message naming the hole. An
-  escaping closure that captures **nothing** is unaffected: its env is null.
-  The fix is upstream and small — one annotation (`@[Allocator]`, say) read in
-  the same `PendingAnnotation` loop that already handles `@[External]`.
-- **A closure body cannot reach `self`.** `ClosureEnvFrame` captures
-  *bindings*, and a receiver is not one, so a `do … end` inside a method that
-  touches `self` or `@x` has nothing to reach it through. Reported as that,
-  not as "outside a method" — `Frame.bClosure` is what distinguishes the two
-  messages. The fix is upstream: record the receiver as a capture, or add a
-  `bCapturesSelf` to the frame.
+- ~~**No allocation entry point is marked, so an escaping environment cannot
+  be allocated.**~~ **Closed.** `ClosureLifting` decides this upstream, in
+  Sema, before the backend ever sees a capturing closure: it synthesizes an
+  ordinary `Pointer<UInt8>.malloc( Frame.TotalSize )` call at the literal's
+  own site — the same already-`@[External]`-annotated allocator every other
+  heap-allocating stdlib type calls — so the backend never names an allocator
+  itself. A closure that captures **nothing** still gets a null env, no call
+  emitted at all.
+- **A closure body cannot reach `self`.** A capturing `do … end` inside a
+  method that touches `self` or `@x` has nothing to reach it through:
+  `ClosureLifting`'s rewrite is purely lexical (`ScopeResolver`'s own
+  capture detection), and a receiver is not a lexical binding. Still an open
+  gap, now upstream rather than in this backend: the fix is recording the
+  receiver as a synthetic capture in `ClosureLifting` itself.
 - ~~**`abi.md` fixes how an aggregate travels *into* a call, not out of one.**~~
   **Decided: by value, spilled on arrival.** A returned aggregate keeps the
   struct type `FunctionTypeOf` already gave it, and the two conversion points
