@@ -4,20 +4,19 @@
 
 #ifndef DEBUG_NO_STATIC_ASSERT
 
-#include "Volt/Core/Support/StringInterner.hpp"
-#include "Volt/Frontend/AST/AstContext.hpp"
-#include "Volt/Sema/Layout/MemoryLayout.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
-#include "Volt/Sema/Pass.hpp"
+    #include "Volt/Core/Support/StringInterner.hpp"
+    #include "Volt/Frontend/AST/AstContext.hpp"
+    #include "Volt/Sema/Layout/MemoryLayout.hpp"
+    #include "Volt/Sema/Layout/TypeStore.hpp"
+    #include "Volt/Sema/Pass.hpp"
 
-#include <cstddef>
+    #include <cstddef>
 
 namespace Volt
 {
 
 namespace Sema
 {
-
 
     namespace
     {

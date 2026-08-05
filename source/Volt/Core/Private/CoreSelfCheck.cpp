@@ -8,18 +8,18 @@
 
 #ifndef DEBUG_NO_STATIC_ASSERT
 
-#include "Volt/Core/Meta/Overloaded.hpp"
-#include "Volt/Core/Meta/Reflect.hpp"
-#include "Volt/Core/Meta/TypeList.hpp"
-#include "Volt/Core/Support/Arena.hpp"
-#include "Volt/Core/Support/Id.hpp"
-#include "Volt/Core/Support/Result.hpp"
-#include "Volt/Core/Support/SmallVec.hpp"
-#include "Volt/Core/Support/Span.hpp"
-#include "Volt/Core/Support/StringInterner.hpp"
+    #include "Volt/Core/Meta/Overloaded.hpp"
+    #include "Volt/Core/Meta/Reflect.hpp"
+    #include "Volt/Core/Meta/TypeList.hpp"
+    #include "Volt/Core/Support/Arena.hpp"
+    #include "Volt/Core/Support/Id.hpp"
+    #include "Volt/Core/Support/Result.hpp"
+    #include "Volt/Core/Support/SmallVec.hpp"
+    #include "Volt/Core/Support/Span.hpp"
+    #include "Volt/Core/Support/StringInterner.hpp"
 
-#include <string>
-#include <variant>
+    #include <string>
+    #include <variant>
 
 namespace Volt
 {

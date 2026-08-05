@@ -1,0 +1,2 @@
+users = [ " alice ", "   " ]
+kept = users.filter( (&.empty?.!) )

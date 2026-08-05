@@ -194,8 +194,7 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     // `Context.Substitution` already carries (Member::OwnGenerics's comment),
     // so a positional name match against either still lands on the right slot.
     Frontend::SymbolList CombinedGenerics;
-    if ( const Frontend::SymbolList *TypeGenerics = GenericsOf( Ast, DeclaringTypeOf( Store, Entry ) );
-         TypeGenerics != nullptr )
+    if ( const Frontend::SymbolList *TypeGenerics = GenericsOf( Ast, DeclaringTypeOf( Store, Entry ) ); TypeGenerics != nullptr )
     {
         for ( const Frontend::Symbol Name : *TypeGenerics )
         {
@@ -206,7 +205,6 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     {
         CombinedGenerics.PushBack( Name );
     }
-
     TypeCheckerPass::TypeCheckerContext Context{ ScratchCtx, TypeCheckerPass::MetadataExprs( Ast ) };
     Context.SelfType     = Owner;
     Context.SelfValue    = Self;

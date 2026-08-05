@@ -1,0 +1,6 @@
+@[External("libc", "puts")]
+external def libc_puts( ptr : Pointer<UInt8> ) -> Int32
+
+users = [ " alice ", "   " ]
+kept = users.filter( (&.empty?.!) )
+tidy = users.map( (&.trim) >> (&.prefix("usr_")) )
