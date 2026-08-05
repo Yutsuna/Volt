@@ -70,6 +70,38 @@ CallMember ( TypeCheckerContext &Context, Frontend::ExprId Receiver, std::string
     return CallId;
 }
 
+// Replaces `Target`'s own content with `Replacement`'s — mutating the shared
+// slot in place — unless `Context.Redirects` is set (Sema::ReinstantiateBody),
+// in which case `Target` is left untouched and the substitution is recorded
+// in the map instead: the same literal is walked again by every other
+// instantiation of this generic body, and each needs its own answer
+// (TypeCheckerContext::Redirects's own comment).
+Frontend::ExprId RewriteSlot ( TypeCheckerContext &Context, Frontend::ExprId Target, Frontend::ExprId Replacement )
+{
+    if ( Context.Redirects != nullptr )
+    {
+        ( *Context.Redirects )[Target.Value] = Replacement;
+        return Replacement;
+    }
+    Context.Ctx.Ast.Expr( Target ) = Context.Ctx.Ast.Expr( Replacement );
+    return Target;
+}
+
+// Same, for a brand new node with no ExprId of its own yet: mutate mode
+// stamps `Content` straight into `Target`'s slot; redirect mode `Add()`s it
+// first (Target keeps its original content) and records the map entry.
+Frontend::ExprId RewriteSlot ( TypeCheckerContext &Context, Frontend::ExprId Target, Frontend::ExprNode Content )
+{
+    if ( Context.Redirects != nullptr )
+    {
+        const Frontend::ExprId NewId         = Context.Ctx.Ast.Add( std::move( Content ) );
+        ( *Context.Redirects )[Target.Value] = NewId;
+        return NewId;
+    }
+    Context.Ctx.Ast.Expr( Target ) = std::move( Content );
+    return Target;
+}
+
 // Rewrites every `Identifier` inside `Id`'s own subtree that resolves
 // (`ScopeTable::BindingOf`) to one of `Frame.Fields`' sites, in place, into
 // `*( Pointer<CapType>.from_address( EnvUse.to_address() + Offset ) )` — the
@@ -121,7 +153,7 @@ void RewriteOneCapture ( TypeCheckerContext &Context,
     const Frontend::ExprId DerefId    = Ast.Add( Frontend::ExprNode{ Frontend::Deref{ .Loc = {}, .Operand = FromAddrId } } );
     InferExpr( Context, DerefId );
 
-    Ast.Expr( Id ) = Ast.Expr( DerefId );
+    RewriteSlot( Context, Id, DerefId );
 }
 
 void RewriteCaptureUses ( TypeCheckerContext &Context,
@@ -276,7 +308,14 @@ void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
 void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
     const SemaTypeId LiteralType = Context.Ctx.Values.ExprType( Id );
-    if ( not LiteralType.IsValid() or not Context.Ctx.Values.Has( LiteralType ) )
+    // Under a generic definition (`Enumerable<T>`'s own body, T unresolved),
+    // Id was marked deferred the moment it was typed (UnitTypes::MarkDeferred,
+    // ExprInferencer's InferExpr) even though ComputeExpr still interned some
+    // SemaType for it — `Has()` alone cannot tell the two apart, only
+    // IsDeferred can (core-ast.md's "Generic definition bodies"). Left
+    // un-lowered here, Sema::ReinstantiateBody lowers it once per concrete
+    // instantiation instead, each with its own answer for T.
+    if ( not LiteralType.IsValid() or Context.Ctx.Values.IsDeferred( Id ) )
     {
         return;
     }
@@ -405,7 +444,7 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
             Context.Ctx.Values.SetExprType( Id, CallTypeRes );
         }
 
-        Ast.Expr( Id ) = Ast.Expr( CtorCallId );
+        RewriteSlot( Context, Id, CtorCallId );
         return;
     }
 
@@ -467,9 +506,9 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         const Frontend::ExprId DerefId    = Ast.Add( Frontend::ExprNode{ Frontend::Deref{ .Loc = Loc, .Operand = FromAddrId } } );
         InferExpr( Context, DerefId );
 
-        const Binding *CapBound       = Captures != nullptr and Index < Captures->Size()
-                                            ? Context.Ctx.Scopes.Resolve( ( *Captures )[Index].DeclaringScope, Field.Name )
-                                            : nullptr;
+        const Binding *CapBound        = Captures != nullptr and Index < Captures->Size()
+                                             ? Context.Ctx.Scopes.Resolve( ( *Captures )[Index].DeclaringScope, Field.Name )
+                                             : nullptr;
         const Frontend::ExprId WriteId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Field.Name } } );
         if ( CapBound != nullptr )
         {
@@ -570,19 +609,24 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
 
     if ( ParentCallId.IsValid() )
     {
-        Ast.Expr( Id ) = Ast.Expr( CtorCallId );
+        RewriteSlot( Context, Id, CtorCallId );
 
-        const auto &OrigCall = std::get<Frontend::Call>( Ast.Expr( ParentCallId ) );
-        const Frontend::ExprId NewCallId = Ast.Add( Frontend::ExprNode{
-            Frontend::Call{ .Loc = OrigCall.Loc, .Callee = OrigCall.Callee, .Args = OrigCall.Args, .ArgNames = OrigCall.ArgNames, .BlockArg = Id } } );
+        const auto &OrigCall             = std::get<Frontend::Call>( Ast.Expr( ParentCallId ) );
+        const Frontend::ExprId NewCallId = Ast.Add( Frontend::ExprNode{ Frontend::Call{ .Loc      = OrigCall.Loc,
+                                                                                        .Callee   = OrigCall.Callee,
+                                                                                        .Args     = OrigCall.Args,
+                                                                                        .ArgNames = OrigCall.ArgNames,
+                                                                                        .BlockArg = Id } } );
         InferExpr( Context, NewCallId );
 
         OuterBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = NewCallId } } ) );
 
         const SemaTypeId ParentCallType = Context.Ctx.Values.ExprType( ParentCallId );
 
-        Ast.Expr( ParentCallId ) = Frontend::ExprNode{
-            Frontend::BeginExpr{ .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } };
+        RewriteSlot(
+            Context, ParentCallId,
+            Frontend::ExprNode{ Frontend::BeginExpr{
+                .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } } );
 
         if ( ParentCallType.IsValid() )
         {
@@ -598,8 +642,10 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
             Context.Ctx.Values.SetExprType( Id, CallTypeRes );
         }
 
-        Ast.Expr( Id ) = Frontend::ExprNode{
-            Frontend::BeginExpr{ .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } };
+        RewriteSlot(
+            Context, Id,
+            Frontend::ExprNode{ Frontend::BeginExpr{
+                .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } } );
     }
 }
 
