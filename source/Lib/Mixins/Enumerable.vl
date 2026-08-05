@@ -34,9 +34,7 @@ mixin Enumerable<T>
 
   def count -> UInt64
     total = 0_u64
-    each do | item |
-      total += 1
-    end
+    each { | _ | total += 1 }
     total
   end
 
