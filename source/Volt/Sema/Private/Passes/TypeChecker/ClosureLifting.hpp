@@ -6,19 +6,25 @@
 namespace Volt::Sema::TypeCheckerPass
 {
 
-// Rewrites the `Lambda`/`Block` at `Id` in place into `Proc.new( FuncAddr,
-// nil )` — a `Call` — once `Id`'s own ClosureType has settled. The literal's
-// `Params`/`Body` are lifted verbatim into a synthesized top-level `Method`
-// Decl (`Ast.TopDecls`, the same injection Phase 0's spike proved), recorded
-// in `Context.Ctx.Synth` for the backend to declare/define — never in the
+// Rewrites the `Lambda`/`Block` at `Id` into `Proc.new( FuncAddr, env )` — a
+// `Call`, `env` heap-allocated whenever the literal captures anything — once
+// `Id`'s own ClosureType has settled (not deferred, TypeCheckerContext::
+// Redirects's own comment: under a generic definition it never settles here
+// at all, and this returns without touching Id). The literal's `Params`/
+// `Body` are lifted verbatim into a synthesized top-level `Method` Decl
+// (`Ast.TopDecls`, the same injection Phase 0's spike proved), recorded in
+// `Context.Ctx.Synth` for the backend to declare/define — never in the
 // cross-unit TypeStore (`Sema::SynthesizedFunctions`'s own doc comment: a
 // data race across `Driver::CompileRefs`'s parallel unit sweep otherwise).
 //
-// 3a scope only: a closure whose `ScopeTable::CapturesOf` is non-empty is
-// left untouched — its `env` would need the `Pointer<UInt8>`-arithmetic
-// rewrite `.agents/PLAN_CLOSURE_LOWERING.md`'s Phase 3b still owns. Until 3b
-// lands, `Lambda`/`Block` cannot move to `VOLT_EXPR_SUGAR`: a capturing
-// closure survives this sweep on purpose.
+// `Context.Redirects == nullptr` (an ordinary unit's own TypeChecker pass):
+// mutates Id's slot in place, same as any other Lowering rewrite. Non-null
+// (Sema::ReinstantiateBody, re-walking a generic body's shared literal once
+// per concrete instantiation): every new node still comes from `Ast.Add()`,
+// but Id's own slot — and any captured-variable use site inside the lifted
+// body — is left untouched and the substitution recorded in `*Context.
+// Redirects` instead, so a second instantiation finds the same unlowered
+// literal rather than the first instantiation's already-typed answer.
 void LowerClosureLit ( TypeCheckerContext &Context, Frontend::ExprId Id );
 
 // Sweeps the Expr arena, by index, for every `Lambda`/`Block` still standing
