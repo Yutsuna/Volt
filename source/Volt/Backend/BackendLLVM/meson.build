@@ -16,6 +16,11 @@ endforeach
 
 backendllvm_export = configure_file(input : export_template, output : 'BackendLLVM_export.hpp', configuration : {'MODULE' : 'BACKENDLLVM'})
 
+# unity=off, deliberately: this module is now ~90 small translation units whose
+# whole point is that touching one emitter rebuilds one file. A unity build
+# glues them back into the monolith this layout replaced — the old
+# `unity_size=8` made a one-line edit recompile eight TUs' worth of LLVM
+# headers. The PCH (PchLLVM.hpp) is what keeps the non-unity build cheap.
 backendllvm_lib = library('BackendLLVM', files(backendllvm_sources), backendllvm_export,
   cpp_pch : llvm_pch_header,
   include_directories : [include_directories('Public', 'Private'), llvm_include_dirs],
@@ -23,7 +28,7 @@ backendllvm_lib = library('BackendLLVM', files(backendllvm_sources), backendllvm
   cpp_args : backendllvm_rtti_args + (build_shared ? ['-DBACKENDLLVM_BUILD_SHARED'] : []),
   gnu_symbol_visibility : 'hidden',
   install : true,
-  override_options : ['unity_size=8'],
+  override_options : ['unity=off'],
 )
 
 backendllvm_dep = declare_dependency(
