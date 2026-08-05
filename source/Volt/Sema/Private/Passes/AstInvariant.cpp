@@ -85,6 +85,19 @@ private:
             return;
         }
 
+        // Written inside a generic definition: a Lowering pass that needs a
+        // settled type (LowerClosureLit's own guard is the current example)
+        // cannot rewrite it here, only Sema::ReinstantiateBody can, once per
+        // concrete instantiation (core-ast.md's "Generic definition bodies";
+        // CheckTyped grants the identical exemption below for the same
+        // reason). The corpus-wide census this check protects still holds:
+        // every *reachable* instantiation is lowered, just never the shared,
+        // unconcretized template.
+        if ( Context.Values.IsDeferred( Id ) )
+        {
+            return;
+        }
+
         ++Context.Stats.ResidualSugarNodes;
         Report( Id, "residual sugar node '" + std::string{ Frontend::NodeName( Context.Ast.Expr( Id ) ) } +
                         "' survived lowering; a Lowering pass must rewrite it before TypeChecker" );
