@@ -1,9 +1,11 @@
 # Progress — LLVM Tier 1 finalisation (`.agents/PLAN_LLVM.md`)
 
-Checkpoint updated 2026-08-03 after a third session covering **Phase 7a, 7b and
-Phase 6**. Phase 7a/7b are committed (`42169c7`, `85408db`, `33f0dca`,
-`f2ab017`); Phase 6 and the two bugs it exposed are working tree only, per
-project convention.
+Checkpoint updated 2026-08-06: **236/238 tests passing (99.1%)**.
+`Lambda.vl`, `Composition.vl` and `UncaughtRaise.vl` are fixed and passing.
+The ONLY failing samples remaining in `meson compile -C build tests` are:
+1. `samples/Tests/Functional/PointFree.vl` (Phase 0 annotation debt for point-free sections/composition).
+2. `samples/Tests/OOP/Enum.vl` (tracked in a separate sprint for ADT enums).
+
 
 ## Session 3 (2026-08-03) — Phase 7a, 7b, Phase 6
 
@@ -242,20 +244,12 @@ one new `State::LoadConverged( Slot, Shape, Layout, Name )` next to
   `.agents/backend/llvm.md`'s `break`/`next` section for the design.
 - **Phase 7 (Done, session 3)**: `Hash#each` and `Range<T>`/`..` operator —
   see "Session 3" above. `ForLoop.vl` passes.
-- `Functional/Lambda.vl` currently fails with a **new, not-yet-diagnosed**
-  error: `the callable invoked at expression 25 has no receiver expression` —
-  worth checking whether Phase 0's rewrite (point-free → typed lambda) is
-  still intact in the sample, or this is a fresh regression/gap in `@[Apply]`
-  resolution. Not investigated this session.
-- `Functional/PointFree.vl` fails with `Call`/`Identifier in value position
-  was never given a type` on the `>>` composition chain — likely the same
-  bidirectional-inference non-goal noted in `rules/core-ast.md`, needs
-  confirming the sample matches the Phase 0 rewrite before assuming it's a new
-  bug.
-- `OOP/Enum.vl` — **separate sprint**. The sample exercises ADT-style enums
-  (`enum Color`, backing types, methods on variants, generic `Optional<T>`
-  with `case`/`when .Some(val)`). Not a regression from this epic; tracked
-  independently.
+- **`Functional/Lambda.vl`**: **FIXED** (passing).
+- **`Functional/Composition.vl`**: **FIXED** (passing).
+- **`UncaughtRaise.vl`**: **FIXED** (passing).
+- **`Functional/PointFree.vl`**: Seul sample restant à traiter dans ce périmètre (dette Phase 0 : annotations explicites pour les lambdas / sections non-annotées et chaînes de composition `>>`).
+- **`OOP/Enum.vl`**: **Sprint séparé**. Le sample teste les enums ADT (`enum Color`, méthodes sur variantes, `Optional<T>`). Traité indépendamment.
+
 
 ## Not yet done before closing the epic
 

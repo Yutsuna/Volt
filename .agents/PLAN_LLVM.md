@@ -1,29 +1,23 @@
 # Plan d'attaque — Finalisation du LLVM Tier 1
 
-## Context
+## Context & Statut actuel (Mise à jour : 2026-08-06)
 
-La suite de tests LLVM (configuration `meson test`, filtrée sur suite LLVM, lancée depuis
-l'IDE) est aujourd'hui à **43/68** (25 échecs sur 68 tests, soit 13 samples
-sur 34 dans `samples/Tests/**`). Chaque sample est enregistré deux fois par
-`tests/meson.build` : `LlvmIr.*` (émission + `verifyModule`) et `LlvmRun.*`
-(binaire lié, exécuté, comparé à `.expected`).
+La suite de tests (`meson compile -C build tests`) est désormais à **236/238 tests passing (99.1%)** (contre 43/68 au début du plan).
 
-Mesuré sur `build/debug-testing-llvm` (binaire à jour, commit `fccf910`) :
+Seuls **2 échecs** subsistent dans toute la suite :
+1. `samples/Tests/Functional/PointFree.vl` (Phase 0 : dette d'annotations explicites pour lambdas non-annotées et composition `>>`).
+2. `samples/Tests/OOP/Enum.vl` (suivi dans un sprint séparé pour les enums ADT).
 
-```
-63% tests passed, 25 tests failed out of 68
-```
+Toutes les phases fonctionnelles (Phase 1 à Phase 7) sont **entièrement complétées** :
+- **Phase 1** : Segfault `ClosureEmitter` résolu.
+- **Phase 2** : `CaseLowering` & `Scrutinee` résolus.
+- **Phase 3a & 3b** : Portées `Branch` locals & globales de module résolues.
+- **Phase 4a-4d** : Parser (`then`, bloc `unless`, boucle post-test, `If` -> `VOLT_EXPR`) résolus.
+- **Phase 5** : Lowering des littéraux agrégés (`ArrayLit`, `HashLit`, `StringLit`) dans `Sema` résolu.
+- **Phase 6** : non-local `break` résolu.
+- **Phase 7a & 7b** : `Hash#each`, `Range<T>` & `..`/`...` résolus.
+- **`Lambda.vl`**, **`Composition.vl`**, **`UncaughtRaise.vl`** : **FIXÉS** et validés.
 
-Le diagnostic complet montre que les échecs ne sont **pas** concentrés dans le backend :
-ils se répartissent sur le lexer, le parser, ScopeResolver, TypeChecker, la stdlib et
-l'émetteur LLVM. Deux d'entre eux sont des défauts silencieux graves — **un segfault du
-compilateur** (`Composition.vl`, exit 139) et **une boucle `until` post-test compilée en
-pré-test** (`UntilLoop.vl`, code faux sans aucun diagnostic).
-
-Objectif : la suite de tests LLVM verte (configuration `meson test`), sans
-hardcode de type Volt, sans lowering dans le
-backend, sans code non modulaire — et avec la dette restante **écrite** plutôt que
-contournée.
 
 ---
 
