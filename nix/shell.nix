@@ -25,7 +25,7 @@ pkgs.mkShell.override { stdenv = ccacheStdenv; } {
 
   shellHook = ''
     export CCACHE_DIR="$PWD/.ccache"
-    export CCACHE_SLOPPINESS="pch_defines,time_macros"
+    export CCACHE_SLOPPINESS="pch_defines,time_macros,file_stat_matches,file_macro"
     export CC="ccache gcc"
     export CXX="ccache g++"
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
