@@ -1502,10 +1502,14 @@ llvm::Value *Volt::Backend::Llvm::LlvmBackend::State::EmitResolvedCall ( Fronten
         Result = Slot;
     }
 
-    // An `@[External]` symbol is C, and C cannot raise a Volt exception — the
-    // thread-local state it might happen to read was some *other* Volt call's,
-    // never its own, so the post-call check only runs for Volt code.
-    if ( not bExternal )
+    // An `@[External]` symbol in non-volt libraries is C, and C cannot raise a
+    // Volt exception — the thread-local state it might happen to read was some
+    // *other* Volt call's, never its own, so the post-call check only runs for
+    // Volt code (or external symbols marked with library "volt", such as _V_init_all).
+    const bool bVoltUnwindable =
+        not bExternal or ( Entry.Decl->ExternLib.IsValid() and Build != nullptr and Build->Types != nullptr and
+                           Build->Types->Text( Entry.Decl->ExternLib ) == "volt" );
+    if ( bVoltUnwindable )
     {
         if ( bBlockBound )
         {

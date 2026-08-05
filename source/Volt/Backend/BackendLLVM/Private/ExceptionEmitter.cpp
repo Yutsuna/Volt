@@ -41,7 +41,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionValueSlo
     }
 
     llvm::Type *Address = llvm::PointerType::get( Context, 0 );
-    ExcValue            = new llvm::GlobalVariable( *Mod, Address, false, llvm::GlobalValue::InternalLinkage,
+    ExcValue            = new llvm::GlobalVariable( *Mod, Address, false, llvm::GlobalValue::LinkOnceODRLinkage,
                                                     llvm::Constant::getNullValue( Address ), "volt.exc.value" );
     ExcValue->setThreadLocal( true );
     return ExcValue;
@@ -55,7 +55,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionTagSlot 
     }
 
     llvm::Type *Int32Ty = llvm::Type::getInt32Ty( Context );
-    ExcTag              = new llvm::GlobalVariable( *Mod, Int32Ty, false, llvm::GlobalValue::InternalLinkage,
+    ExcTag              = new llvm::GlobalVariable( *Mod, Int32Ty, false, llvm::GlobalValue::LinkOnceODRLinkage,
                                                     llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "volt.exc.tag" );
     ExcTag->setThreadLocal( true );
     return ExcTag;
@@ -69,7 +69,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::BreakFlagSlot ()
     }
 
     llvm::Type *BoolTy = llvm::Type::getInt1Ty( Context );
-    BrkFlag            = new llvm::GlobalVariable( *Mod, BoolTy, false, llvm::GlobalValue::InternalLinkage,
+    BrkFlag            = new llvm::GlobalVariable( *Mod, BoolTy, false, llvm::GlobalValue::LinkOnceODRLinkage,
                                                    llvm::ConstantInt::getFalse( BoolTy ), "volt.brk.flag" );
     BrkFlag->setThreadLocal( true );
     return BrkFlag;
@@ -130,8 +130,10 @@ llvm::GlobalVariable *Volt::Backend::Llvm::LlvmBackend::State::ExceptionStorageS
         }
     }
 
+    Size                   = std::max<std::size_t>( Size, 512 );
+    Alignment              = std::max<std::size_t>( Alignment, 8 );
     llvm::ArrayType *Bytes = llvm::ArrayType::get( llvm::Type::getInt8Ty( Context ), Size );
-    ExcStorage             = new llvm::GlobalVariable( *Mod, Bytes, false, llvm::GlobalValue::InternalLinkage,
+    ExcStorage             = new llvm::GlobalVariable( *Mod, Bytes, false, llvm::GlobalValue::LinkOnceODRLinkage,
                                                        llvm::Constant::getNullValue( Bytes ), "volt.exc.storage" );
     ExcStorage->setThreadLocal( true );
     ExcStorage->setAlignment( llvm::Align( Alignment ) );
