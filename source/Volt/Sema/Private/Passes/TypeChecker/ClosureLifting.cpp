@@ -81,27 +81,26 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
                           Frontend::ExprId Id,
                           const Sema::ClosureEnvFrame &Frame,
                           Sema::NominalId PointerBase,
-                          Frontend::ParamId EnvParamId,
+                          Core::Symbol EnvName,
                           const Sema::Binding &EnvBinding );
 
 void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
                               Frontend::StmtId Id,
                               const Sema::ClosureEnvFrame &Frame,
                               Sema::NominalId PointerBase,
-                              Frontend::ParamId EnvParamId,
+                              Core::Symbol EnvName,
                               const Sema::Binding &EnvBinding );
 
 void RewriteOneCapture ( TypeCheckerContext &Context,
                          Frontend::ExprId Id,
                          const Sema::ClosureEnvField &Field,
                          Sema::NominalId PointerBase,
-                         Frontend::ParamId EnvParamId,
+                         Core::Symbol EnvName,
                          const Sema::Binding &EnvBinding )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
-    const Frontend::ExprId EnvUseId =
-        Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = Ast.GetParam( EnvParamId ).Name } } );
+    const Frontend::ExprId EnvUseId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = EnvName } } );
     Context.Ctx.Scopes.BindUse( EnvUseId, EnvBinding, true );
     Context.Ctx.Values.SetExprType( EnvUseId, BytePointerType( Context ) );
 
@@ -129,7 +128,7 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
                           Frontend::ExprId Id,
                           const Sema::ClosureEnvFrame &Frame,
                           Sema::NominalId PointerBase,
-                          Frontend::ParamId EnvParamId,
+                          Core::Symbol EnvName,
                           const Sema::Binding &EnvBinding )
 {
     if ( not Id.IsValid() )
@@ -152,7 +151,7 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
         {
             if ( Field.Site == Bound->Site )
             {
-                RewriteOneCapture( Context, Id, Field, PointerBase, EnvParamId, EnvBinding );
+                RewriteOneCapture( Context, Id, Field, PointerBase, EnvName, EnvBinding );
                 return;
             }
         }
@@ -203,11 +202,11 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
 
     for ( const Frontend::ExprId Child : ChildExprs )
     {
-        RewriteCaptureUses( Context, Child, Frame, PointerBase, EnvParamId, EnvBinding );
+        RewriteCaptureUses( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
     }
     for ( const Frontend::StmtId Child : ChildStmts )
     {
-        RewriteCaptureUsesStmt( Context, Child, Frame, PointerBase, EnvParamId, EnvBinding );
+        RewriteCaptureUsesStmt( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
     }
 }
 
@@ -215,7 +214,7 @@ void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
                               Frontend::StmtId Id,
                               const Sema::ClosureEnvFrame &Frame,
                               Sema::NominalId PointerBase,
-                              Frontend::ParamId EnvParamId,
+                              Core::Symbol EnvName,
                               const Sema::Binding &EnvBinding )
 {
     if ( not Id.IsValid() )
@@ -264,11 +263,11 @@ void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
 
     for ( const Frontend::ExprId Child : ChildExprs )
     {
-        RewriteCaptureUses( Context, Child, Frame, PointerBase, EnvParamId, EnvBinding );
+        RewriteCaptureUses( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
     }
     for ( const Frontend::StmtId Child : ChildStmts )
     {
-        RewriteCaptureUsesStmt( Context, Child, Frame, PointerBase, EnvParamId, EnvBinding );
+        RewriteCaptureUsesStmt( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
     }
 }
 
@@ -347,7 +346,7 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         {
             for ( const Frontend::StmtId StmtId : Body )
             {
-                RewriteCaptureUsesStmt( Context, StmtId, Frame, PointerBase, EnvParamId, *EnvBound );
+                RewriteCaptureUsesStmt( Context, StmtId, Frame, PointerBase, EnvParam.Name, *EnvBound );
             }
         }
     }
@@ -442,6 +441,49 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         Context.Ctx.Scopes.BindUse( TmpTarget, *TmpBound, false );
     }
 
+    Frontend::StmtList EnsureBody;
+    for ( std::size_t Index = 0; Index < Frame.Fields.Size(); ++Index )
+    {
+        const ClosureEnvField &Field = Frame.Fields[Index];
+
+        const Frontend::ExprId TmpUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = TmpName } } );
+        if ( TmpBound != nullptr )
+        {
+            Context.Ctx.Scopes.BindUse( TmpUse, *TmpBound, true );
+        }
+        Context.Ctx.Values.SetExprType( TmpUse, BytePtr );
+        const Frontend::ExprId AddrId = CallMember( Context, TmpUse, "to_address", {} );
+
+        const Frontend::ExprId OffsetId = Ast.Add( Frontend::ExprNode{
+            Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( std::to_string( Field.Offset ) ) } } );
+        const Frontend::ExprId SumId    = Ast.Add( Frontend::ExprNode{
+            Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = OffsetId } } );
+        InferExpr( Context, SumId );
+
+        Frontend::ExprList FromAddrArgs;
+        FromAddrArgs.PushBack( SumId );
+        const Frontend::ExprId SlotPtrId = NakedTypeExpr( Context, PointerBase, Context.MakeType( PointerBase, { Field.Type } ) );
+        const Frontend::ExprId FromAddrId = CallMember( Context, SlotPtrId, "from_address", FromAddrArgs );
+        const Frontend::ExprId DerefId    = Ast.Add( Frontend::ExprNode{ Frontend::Deref{ .Loc = Loc, .Operand = FromAddrId } } );
+        InferExpr( Context, DerefId );
+
+        const Binding *CapBound       = Captures != nullptr and Index < Captures->Size()
+                                            ? Context.Ctx.Scopes.Resolve( ( *Captures )[Index].DeclaringScope, Field.Name )
+                                            : nullptr;
+        const Frontend::ExprId WriteId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Field.Name } } );
+        if ( CapBound != nullptr )
+        {
+            Context.Ctx.Scopes.BindUse( WriteId, *CapBound, false );
+        }
+        Context.Ctx.Values.SetExprType( WriteId, Field.Type );
+
+        const Frontend::ExprId WriteBackId =
+            Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = Loc, .Target = WriteId, .Value = DerefId } } );
+        InferExpr( Context, WriteBackId );
+
+        EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = WriteBackId } } ) );
+    }
+
     const Frontend::ExprId AssignId =
         Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = Loc, .Target = TmpTarget, .Value = MallocCallId } } );
     InferExpr( Context, AssignId );
@@ -508,15 +550,57 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         Frontend::Call{ .Loc = Loc, .Callee = NewMemberId, .Args = CtorArgs, .ArgNames = CtorArgNames, .BlockArg = {} } } );
     InferExpr( Context, CtorCallId );
 
-    OuterBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CtorCallId } } ) );
-
-    if ( const SemaTypeId CallTypeRes = Context.Ctx.Values.ExprType( CtorCallId ); CallTypeRes.IsValid() )
+    Frontend::ExprId ParentCallId;
+    for ( std::size_t Index = 0; Index < Context.Ctx.Ast.ExprCount(); ++Index )
     {
-        Context.Ctx.Values.SetExprType( Id, CallTypeRes );
+        const Frontend::ExprId CandidateId{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        if ( CandidateId == Id )
+        {
+            continue;
+        }
+        if ( const auto *CallNode = std::get_if<Frontend::Call>( &Ast.Expr( CandidateId ) ) )
+        {
+            if ( CallNode->BlockArg == Id )
+            {
+                ParentCallId = CandidateId;
+                break;
+            }
+        }
     }
 
-    Ast.Expr( Id ) = Frontend::ExprNode{
-        Frontend::BeginExpr{ .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = {} } };
+    if ( ParentCallId.IsValid() )
+    {
+        Ast.Expr( Id ) = Ast.Expr( CtorCallId );
+
+        const auto &OrigCall = std::get<Frontend::Call>( Ast.Expr( ParentCallId ) );
+        const Frontend::ExprId NewCallId = Ast.Add( Frontend::ExprNode{
+            Frontend::Call{ .Loc = OrigCall.Loc, .Callee = OrigCall.Callee, .Args = OrigCall.Args, .ArgNames = OrigCall.ArgNames, .BlockArg = Id } } );
+        InferExpr( Context, NewCallId );
+
+        OuterBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = NewCallId } } ) );
+
+        const SemaTypeId ParentCallType = Context.Ctx.Values.ExprType( ParentCallId );
+
+        Ast.Expr( ParentCallId ) = Frontend::ExprNode{
+            Frontend::BeginExpr{ .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } };
+
+        if ( ParentCallType.IsValid() )
+        {
+            Context.Ctx.Values.SetExprType( ParentCallId, ParentCallType );
+        }
+    }
+    else
+    {
+        OuterBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CtorCallId } } ) );
+
+        if ( const SemaTypeId CallTypeRes = Context.Ctx.Values.ExprType( CtorCallId ); CallTypeRes.IsValid() )
+        {
+            Context.Ctx.Values.SetExprType( Id, CallTypeRes );
+        }
+
+        Ast.Expr( Id ) = Frontend::ExprNode{
+            Frontend::BeginExpr{ .Loc = Loc, .Body = std::move( OuterBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } };
+    }
 }
 
 void Volt::Sema::TypeCheckerPass::LowerClosureLits ( TypeCheckerContext &Context )
