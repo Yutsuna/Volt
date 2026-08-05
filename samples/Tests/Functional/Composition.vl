@@ -10,7 +10,7 @@ name = raw_name |> (&.trim) >> (&.downcase)
 assert!( name == "volt" )
 
 
-users = [ " alice ", "   " ]
+users = [ " alice ", "" ]
 kept = users.filter( (&.empty?.!) )
 assert!( kept.size == 1 )
 

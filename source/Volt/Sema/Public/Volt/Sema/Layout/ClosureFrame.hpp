@@ -2,12 +2,8 @@
 
 #include "Sema_export.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
-#include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
-
-#include <cstddef>
-#include <cstdint>
 
 namespace Volt
 {
@@ -15,19 +11,24 @@ namespace Volt
 namespace Sema
 {
 
+    // Structural only — which variables are captured, in what order, and
+    // their Site/Type/Name. Byte sizing (offset within the env buffer, total
+    // allocation size) cannot be known here: under a generic definition a
+    // captured field's type is unresolved, and even once concrete, byte size
+    // is LayoutEngine's answer, resolved by the backend right before it is
+    // needed (rules/backend-machine-only.md). ClosureLifting.cpp builds
+    // `SizeOf`-based offset/size expressions from this list instead of a
+    // baked-in constant.
     struct ClosureEnvField
     {
         Symbol Name;
         BindingSite Site;
         SemaTypeId Type;
-        std::size_t Offset = 0;
     };
 
     struct ClosureEnvFrame
     {
         ScopeId Scope;
-        std::size_t TotalSize = 0;
-        std::size_t Alignment = 1;
         Core::SmallVec<ClosureEnvField, 4> Fields;
 
         // false only for a closure literal consumed directly at its call

@@ -9,7 +9,6 @@
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
-#include <string>
 #include <vector>
 
 namespace
@@ -70,6 +69,92 @@ CallMember ( TypeCheckerContext &Context, Frontend::ExprId Receiver, std::string
     return CallId;
 }
 
+// A synthesized `sizeof T` for a capture's own already-resolved SemaTypeId —
+// never written as source syntax, so `Expr.Type` is deliberately left
+// invalid. Calling InferExpr on it would route it through
+// ExprInferencer's own SizeOf arm, which calls ResolveTypeExpr on that
+// invalid TypeId and unconditionally overwrites the site type with the
+// result (SemaTypeId{}), clobbering the answer we already know — so this
+// hand-stamps exactly what that arm would have computed for an
+// already-resolved operand instead of calling it (rules/backend-machine-only.md:
+// the actual byte count is still left for LayoutEngine/EmitSizeOf to resolve,
+// only the *type being measured* is fixed here).
+Frontend::ExprId SizeOfType ( TypeCheckerContext &Context, Core::SourceRange Loc, Sema::SemaTypeId MeasuredType )
+{
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+    const Frontend::ExprId Id = Ast.Add( Frontend::ExprNode{ Frontend::SizeOf{ .Loc = Loc, .Type = {} } } );
+    const auto Base           = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
+    Context.Ctx.Values.SetExprType( Id, Base ? Context.MakeType( *Base, {} ) : Sema::SemaTypeId{} );
+    Context.UnconstrainedLiterals.insert( Id.Value );
+    Context.Ctx.Values.SetSiteType( Sema::BindingSite{ Id }, MeasuredType );
+    return Id;
+}
+
+// `((Size + 7) / 8) * 8` — round a byte size up to 8, the pointer/aggregate
+// natural alignment every capture in this codebase needs (every Volt
+// aggregate here is pointer/int-composed, so no per-type alignment query
+// exists or is needed).
+Frontend::ExprId RoundUpToEight ( TypeCheckerContext &Context, Core::SourceRange Loc, Frontend::ExprId SizeExpr )
+{
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+    const Frontend::ExprId SevenId =
+        Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( "7" ) } } );
+    const Frontend::ExprId EightDivId =
+        Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( "8" ) } } );
+    const Frontend::ExprId EightMulId =
+        Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( "8" ) } } );
+
+    const Frontend::ExprId SumId = Ast.Add(
+        Frontend::ExprNode{ Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = SizeExpr, .Rhs = SevenId } } );
+    InferExpr( Context, SumId );
+    const Frontend::ExprId DivId = Ast.Add(
+        Frontend::ExprNode{ Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Slash, .Lhs = SumId, .Rhs = EightDivId } } );
+    InferExpr( Context, DivId );
+    const Frontend::ExprId MulId = Ast.Add(
+        Frontend::ExprNode{ Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Star, .Lhs = DivId, .Rhs = EightMulId } } );
+    InferExpr( Context, MulId );
+    return MulId;
+}
+
+// Cumulative offsets + rounded sizes for `Frame.Fields`, in order —
+// `Offsets[i]` is the byte offset of field i within the env buffer,
+// `Offsets.back() + <field i's own rounded size>` (folded into TotalSize) is
+// the buffer's total size. Built once per closure and reused at every use
+// site (capture reads inside the lifted body, the pack/unpack loops around
+// the call) — all pure arithmetic over SizeOf/IntLiteral nodes, safe to
+// reference the same ExprId from multiple parents.
+struct ClosureFrameSizing
+{
+    std::vector<Frontend::ExprId> Offsets;
+    Frontend::ExprId TotalSize;
+};
+
+ClosureFrameSizing SizeClosureFrame ( TypeCheckerContext &Context, Core::SourceRange Loc, const Sema::ClosureEnvFrame &Frame )
+{
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    ClosureFrameSizing Sizing;
+    Frontend::ExprId RunningOffset =
+        Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( "0" ) } } );
+    InferExpr( Context, RunningOffset );
+
+    Frontend::ExprId LastFieldSize;
+    for ( const Sema::ClosureEnvField &Field : Frame.Fields )
+    {
+        Sizing.Offsets.push_back( RunningOffset );
+
+        LastFieldSize = RoundUpToEight( Context, Loc, SizeOfType( Context, Loc, Field.Type ) );
+
+        const Frontend::ExprId NextOffset = Ast.Add( Frontend::ExprNode{
+            Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = RunningOffset, .Rhs = LastFieldSize } } );
+        InferExpr( Context, NextOffset );
+        RunningOffset = NextOffset;
+    }
+
+    Sizing.TotalSize = RunningOffset;
+    return Sizing;
+}
+
 // Replaces `Target`'s own content with `Replacement`'s — mutating the shared
 // slot in place — unless `Context.Redirects` is set (Sema::ReinstantiateBody),
 // in which case `Target` is left untouched and the substitution is recorded
@@ -108,10 +193,13 @@ Frontend::ExprId RewriteSlot ( TypeCheckerContext &Context, Frontend::ExprId Tar
 // same copy-out/write-back discipline every other arena rewrite in this file
 // uses (rules/ast-rewrite.md), just scoped to a subtree by structural
 // descent (`Meta::ForEachField`, reading only, never held across an `Add()`)
-// rather than a flat index sweep.
+// rather than a flat index sweep. `FieldOffsets` is parallel to
+// `Frame.Fields` — a precomputed `SizeOf`-derived offset expression per
+// field (see LowerClosureLit), reused at every use site rather than rebuilt.
 void RewriteCaptureUses ( TypeCheckerContext &Context,
                           Frontend::ExprId Id,
                           const Sema::ClosureEnvFrame &Frame,
+                          const std::vector<Frontend::ExprId> &FieldOffsets,
                           Sema::NominalId PointerBase,
                           Core::Symbol EnvName,
                           const Sema::Binding &EnvBinding );
@@ -119,6 +207,7 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
 void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
                               Frontend::StmtId Id,
                               const Sema::ClosureEnvFrame &Frame,
+                              const std::vector<Frontend::ExprId> &FieldOffsets,
                               Sema::NominalId PointerBase,
                               Core::Symbol EnvName,
                               const Sema::Binding &EnvBinding );
@@ -126,6 +215,7 @@ void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
 void RewriteOneCapture ( TypeCheckerContext &Context,
                          Frontend::ExprId Id,
                          const Sema::ClosureEnvField &Field,
+                         Frontend::ExprId OffsetExpr,
                          Sema::NominalId PointerBase,
                          Core::Symbol EnvName,
                          const Sema::Binding &EnvBinding )
@@ -138,12 +228,8 @@ void RewriteOneCapture ( TypeCheckerContext &Context,
 
     const Frontend::ExprId AddrId = CallMember( Context, EnvUseId, "to_address", {} );
 
-    const std::string OffsetText = std::to_string( Field.Offset );
-    const Frontend::ExprId OffsetId =
-        Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = {}, .Raw = Ast.Strings().Intern( OffsetText ) } } );
-
     const Frontend::ExprId SumId = Ast.Add(
-        Frontend::ExprNode{ Frontend::Binary{ .Loc = {}, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = OffsetId } } );
+        Frontend::ExprNode{ Frontend::Binary{ .Loc = {}, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = OffsetExpr } } );
     InferExpr( Context, SumId );
 
     Frontend::ExprList FromAddrArgs;
@@ -159,6 +245,7 @@ void RewriteOneCapture ( TypeCheckerContext &Context,
 void RewriteCaptureUses ( TypeCheckerContext &Context,
                           Frontend::ExprId Id,
                           const Sema::ClosureEnvFrame &Frame,
+                          const std::vector<Frontend::ExprId> &FieldOffsets,
                           Sema::NominalId PointerBase,
                           Core::Symbol EnvName,
                           const Sema::Binding &EnvBinding )
@@ -179,11 +266,11 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
         {
             return;
         }
-        for ( const Sema::ClosureEnvField &Field : Frame.Fields )
+        for ( std::size_t Index = 0; Index < Frame.Fields.Size(); ++Index )
         {
-            if ( Field.Site == Bound->Site )
+            if ( Frame.Fields[Index].Site == Bound->Site )
             {
-                RewriteOneCapture( Context, Id, Field, PointerBase, EnvName, EnvBinding );
+                RewriteOneCapture( Context, Id, Frame.Fields[Index], FieldOffsets[Index], PointerBase, EnvName, EnvBinding );
                 return;
             }
         }
@@ -234,17 +321,18 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
 
     for ( const Frontend::ExprId Child : ChildExprs )
     {
-        RewriteCaptureUses( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
+        RewriteCaptureUses( Context, Child, Frame, FieldOffsets, PointerBase, EnvName, EnvBinding );
     }
     for ( const Frontend::StmtId Child : ChildStmts )
     {
-        RewriteCaptureUsesStmt( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
+        RewriteCaptureUsesStmt( Context, Child, Frame, FieldOffsets, PointerBase, EnvName, EnvBinding );
     }
 }
 
 void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
                               Frontend::StmtId Id,
                               const Sema::ClosureEnvFrame &Frame,
+                              const std::vector<Frontend::ExprId> &FieldOffsets,
                               Sema::NominalId PointerBase,
                               Core::Symbol EnvName,
                               const Sema::Binding &EnvBinding )
@@ -295,11 +383,11 @@ void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
 
     for ( const Frontend::ExprId Child : ChildExprs )
     {
-        RewriteCaptureUses( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
+        RewriteCaptureUses( Context, Child, Frame, FieldOffsets, PointerBase, EnvName, EnvBinding );
     }
     for ( const Frontend::StmtId Child : ChildStmts )
     {
-        RewriteCaptureUsesStmt( Context, Child, Frame, PointerBase, EnvName, EnvBinding );
+        RewriteCaptureUsesStmt( Context, Child, Frame, FieldOffsets, PointerBase, EnvName, EnvBinding );
     }
 }
 
@@ -327,7 +415,7 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
 
     // Positional: SynthesizeClosureFrame builds Frame.Fields by iterating
     // ScopeTable::CapturesOf in order, so index i of one is index i of the
-    // other — Frame.Fields carries Offset/Type, Captures carries the
+    // other — Frame.Fields carries Name/Site/Type, Captures carries the
     // DeclaringScope a fresh read of the captured variable needs.
     const Core::SmallVec<Capture, 4> *Captures = ClosureScope.IsValid() ? Context.Ctx.Scopes.CapturesOf( ClosureScope ) : nullptr;
 
@@ -371,6 +459,16 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
     Params.PushBack( EnvParamId );
 
     const bool bHasCaptures = not Frame.Fields.IsEmpty();
+
+    // Byte offset (within the env buffer) and rounded byte size per field,
+    // built from `sizeof <field's own type>` rather than a fixed constant —
+    // a capture's real width (an aggregate like Array<String> is 24 bytes,
+    // wider than the pointer/int fields this used to assume) is only known
+    // once the field's own SemaTypeId is concrete, exactly like any other
+    // generic-body value (rules/backend-machine-only.md). Computed once,
+    // reused at every use site below.
+    const ClosureFrameSizing Sizing = bHasCaptures ? SizeClosureFrame( Context, Loc, Frame ) : ClosureFrameSizing{};
+
     if ( bHasCaptures )
     {
         // Declared into a real scope so the Binding lives in ScopeTable's
@@ -385,7 +483,7 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         {
             for ( const Frontend::StmtId StmtId : Body )
             {
-                RewriteCaptureUsesStmt( Context, StmtId, Frame, PointerBase, EnvParam.Name, *EnvBound );
+                RewriteCaptureUsesStmt( Context, StmtId, Frame, Sizing.Offsets, PointerBase, EnvParam.Name, *EnvBound );
             }
         }
     }
@@ -458,8 +556,7 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
     // Deref/Call handling, no backend-side closure knowledge required
     // (rules/backend-machine-only.md).
     Frontend::ExprList MallocArgs;
-    MallocArgs.PushBack( Ast.Add( Frontend::ExprNode{
-        Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( std::to_string( Frame.TotalSize ) ) } } ) );
+    MallocArgs.PushBack( Sizing.TotalSize );
     const Frontend::ExprId MallocObjId  = NakedTypeExpr( Context, PointerBase, BytePtr );
     const Frontend::ExprId MallocCallId = CallMember( Context, MallocObjId, "malloc", MallocArgs );
 
@@ -493,10 +590,8 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         Context.Ctx.Values.SetExprType( TmpUse, BytePtr );
         const Frontend::ExprId AddrId = CallMember( Context, TmpUse, "to_address", {} );
 
-        const Frontend::ExprId OffsetId = Ast.Add( Frontend::ExprNode{
-            Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( std::to_string( Field.Offset ) ) } } );
-        const Frontend::ExprId SumId    = Ast.Add( Frontend::ExprNode{
-            Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = OffsetId } } );
+        const Frontend::ExprId SumId = Ast.Add( Frontend::ExprNode{
+            Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = Sizing.Offsets[Index] } } );
         InferExpr( Context, SumId );
 
         Frontend::ExprList FromAddrArgs;
@@ -542,10 +637,8 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         Context.Ctx.Values.SetExprType( TmpUse, BytePtr );
         const Frontend::ExprId AddrId = CallMember( Context, TmpUse, "to_address", {} );
 
-        const Frontend::ExprId OffsetId = Ast.Add( Frontend::ExprNode{
-            Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( std::to_string( Field.Offset ) ) } } );
-        const Frontend::ExprId SumId    = Ast.Add( Frontend::ExprNode{
-            Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = OffsetId } } );
+        const Frontend::ExprId SumId = Ast.Add( Frontend::ExprNode{
+            Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = AddrId, .Rhs = Sizing.Offsets[Index] } } );
         InferExpr( Context, SumId );
 
         Frontend::ExprList FromAddrArgs;

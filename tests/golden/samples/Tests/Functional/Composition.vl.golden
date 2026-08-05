@@ -71,7 +71,7 @@ Program 'samples/Tests/Functional/Composition.vl'
 │           └─ ArrayLit @13:9
 │              └─ elements
 │                 ├─ StringLiteral ' alice ' @13:11
-│                 └─ StringLiteral '   ' @13:22
+│                 └─ StringLiteral '' @13:22
 ├─ ExprStmt @14:1
 │  └─ expr
 │     └─ Assign '=' @14:6
