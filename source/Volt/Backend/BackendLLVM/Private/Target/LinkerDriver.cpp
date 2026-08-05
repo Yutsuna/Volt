@@ -107,7 +107,8 @@ void AppendPreferredLinker ( std::vector<std::string> &Args )
     }
 }
 
-[[nodiscard]] int RunDriver ( const std::string &Driver, const std::vector<std::string> &Args, std::string &OutError, bool &bFailed )
+[[nodiscard]] int
+RunDriver ( const std::string &Driver, const std::vector<std::string> &Args, std::string &OutError, bool &bFailed )
 {
     std::vector<llvm::StringRef> ArgRefs;
     ArgRefs.reserve( Args.size() );

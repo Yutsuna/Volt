@@ -66,9 +66,9 @@ bool Volt::Backend::Llvm::EmitInitAll ( EmitterServices &Services )
 
             if ( Index + 1 < Services.Build->Units.size() )
             {
-                llvm::Value *Tag     = Shell.CreateLoad( Int32Ty, Services.Exceptions->ExceptionTagSlot(), "exc.tag" );
-                llvm::Value *Pending = Shell.CreateICmpNE(
-                    Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
+                llvm::Value *Tag = Shell.CreateLoad( Int32Ty, Services.Exceptions->ExceptionTagSlot(), "exc.tag" );
+                llvm::Value *Pending =
+                    Shell.CreateICmpNE( Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
 
                 llvm::BasicBlock *Stop = llvm::BasicBlock::Create( Context, "init.stop", InitAllFn );
                 llvm::BasicBlock *Next = llvm::BasicBlock::Create( Context, "init.next", InitAllFn );

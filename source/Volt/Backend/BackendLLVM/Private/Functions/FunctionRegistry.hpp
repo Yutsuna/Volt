@@ -15,6 +15,7 @@
 
 #include "Core/EmitterServices.hpp"
 #include "Core/LlvmFwd.hpp"
+#include "Volt/Sema/Layout/Instantiate.hpp"
 
 #include <cstdint>
 #include <span>
@@ -99,13 +100,26 @@ namespace Backend
         // literal's call site) always finds its target already registered in
         // SynthesizedFns, regardless of which body happens to be emitted first.
         void DeclareSynthesized ( EmitterServices &Services, const UnitView &Unit );
-        void DeclareSynthesizedFn ( EmitterServices &Services, const Sema::SynthesizedFunction &Fn, const UnitView &Unit );
+        void DeclareSynthesizedFn ( EmitterServices &Services,
+                                    const Sema::SynthesizedFunction &Fn,
+                                    const UnitView &Unit,
+                                    const Sema::UnitTypes &Values );
 
         // Defines every entry's body. Split from DeclareSynthesized for the
         // reason above; unlike an ordinary member, nothing outside this unit
         // ever calls one, so there is no cross-unit ordering to keep beyond that.
         void DefineSynthesized ( EmitterServices &Services, const UnitView &Unit );
-        void DefineSynthesizedFn ( EmitterServices &Services, const Sema::SynthesizedFunction &Fn, const UnitView &Unit );
+        // `Redirects` is null for an ordinary unit's own (concrete) closure —
+        // ClosureLifting mutated its literal's slot in place, so there is
+        // nothing to redirect — and non-null only when `Fn` came out of a
+        // Sema::ReinstantiateBody overlay (MonoBodyEmitter), where it is that
+        // overlay's own ExprRedirectMap.
+        void DefineSynthesizedFn ( EmitterServices &Services,
+                                   const Sema::SynthesizedFunction &Fn,
+                                   const UnitView &Unit,
+                                   const Sema::UnitTypes &Values,
+                                   const Sema::UnitCallees &Callees,
+                                   const Sema::ExprRedirectMap *Redirects = nullptr );
 
         // Gives `_V_init_all` (declared, never defined, by the stdlib prelude's
         // `@[External( "volt", "_V_init_all" )]`) its body: every unit's

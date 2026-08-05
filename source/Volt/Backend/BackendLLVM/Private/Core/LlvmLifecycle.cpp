@@ -24,8 +24,8 @@
 
 void Volt::Backend::Llvm::LlvmBackend::Begin ( const BackendInput &Input )
 {
-    Impl->Build           = &Input;
-    Impl->Services.Build  = &Input;
+    Impl->Build          = &Input;
+    Impl->Services.Build = &Input;
 
     if ( Input.Types == nullptr )
     {

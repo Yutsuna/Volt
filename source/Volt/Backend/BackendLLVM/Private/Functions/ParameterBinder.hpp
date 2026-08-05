@@ -28,11 +28,8 @@ namespace Backend
         // `bByAddress`: an aggregate travels as a pointer to the caller's
         // storage and therefore already *is* its slot; everything else arrives as
         // a bare value and needs one. False when the slot could not be opened.
-        [[nodiscard]] bool BindParameter ( BodyEmitter &Emitter,
-                                           const Sema::BindingSite &Site,
-                                           llvm::Value *Arg,
-                                           bool bByAddress,
-                                           std::string_view Name );
+        [[nodiscard]] bool BindParameter (
+            BodyEmitter &Emitter, const Sema::BindingSite &Site, llvm::Value *Arg, bool bByAddress, std::string_view Name );
 
         // `def initialize( @x : T )`: bind the parameter *and* store it into the
         // field of that name. No-op for an ordinary parameter.

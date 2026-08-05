@@ -72,8 +72,8 @@ llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitte
     if ( Args.size() != Entry.Params.Size() )
     {
         static_cast<void>( Emitter.Fail( "llvm: the callable invoked at expression " + std::to_string( Id.Value ) +
-                                         " is passed " + std::to_string( Args.size() ) +
-                                         " arguments against a type carrying " + std::to_string( Entry.Params.Size() ) ) );
+                                         " is passed " + std::to_string( Args.size() ) + " arguments against a type carrying " +
+                                         std::to_string( Entry.Params.Size() ) ) );
         return nullptr;
     }
 
@@ -129,9 +129,8 @@ llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitte
         llvm::Value *Slot = Emitter.MakeTemp( Call->getType(), "call.result" );
         if ( Slot == nullptr )
         {
-            static_cast<void>( Emitter.Fail(
-                "llvm: no frame to hold the aggregate result of the indirect call at expression " +
-                std::to_string( Id.Value ) ) );
+            static_cast<void>( Emitter.Fail( "llvm: no frame to hold the aggregate result of the indirect call at expression " +
+                                             std::to_string( Id.Value ) ) );
             return nullptr;
         }
         static_cast<void>( Builder.CreateStore( Call, Slot ) );

@@ -67,14 +67,12 @@ llvm::Value *Volt::Backend::Llvm::EmitBinary ( BodyEmitter &Emitter, Frontend::E
     }
     if ( const CmpRow *Row = FindCmp( Family, Node.Op ); Row != nullptr )
     {
-        return Family == EOpFamily::Float
-                   ? Builder.CreateFCmp( Row->Predicate, Lhs, Rhs )
-                   : Builder.CreateICmp( Row->Predicate, Lhs, Emitter.CoerceWidth( Rhs, Lhs->getType() ) );
+        return Family == EOpFamily::Float ? Builder.CreateFCmp( Row->Predicate, Lhs, Rhs )
+                                          : Builder.CreateICmp( Row->Predicate, Lhs, Emitter.CoerceWidth( Rhs, Lhs->getType() ) );
     }
 
-    static_cast<void>( Emitter.Fail( "llvm: no machine instruction for '" +
-                                     std::string( Frontend::TokenSpelling( Node.Op ) ) + "' on a '" +
-                                     std::string( Spelling ) + "' receiver" ) );
+    static_cast<void>( Emitter.Fail( "llvm: no machine instruction for '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +
+                                     "' on a '" + std::string( Spelling ) + "' receiver" ) );
     return nullptr;
 }
 // NOLINTEND(clang-analyzer-security.ArrayBound)

@@ -31,6 +31,18 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitAddress ( Frontend::ExprId Id
         return nullptr;
     }
 
+    // Same substitution EmitExpr applies, and for the same reason (its own
+    // comment): a monomorphised body may read a captured variable's use site
+    // as a *place* too (`block.call( item )`'s receiver), and that site was
+    // redirected to a Deref chain, not mutated in place.
+    if ( Frame().Redirects != nullptr )
+    {
+        if ( const auto It = Frame().Redirects->find( Id.Value ); It != Frame().Redirects->end() )
+        {
+            Id = It->second;
+        }
+    }
+
     const Frontend::AstContext &Ast = *Frame().Unit->Ast;
 
     return std::visit(
@@ -62,8 +74,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitAddress ( Frontend::ExprId Id
                     llvm::Type *Slot = Types().TypeOfLayout( Shape );
                     if ( Slot == nullptr )
                     {
-                        static_cast<void>( Fail( "llvm: unit global '" +
-                                                 std::string( Frame().Unit->Ast->Text( Bound->Name ) ) +
+                        static_cast<void>( Fail( "llvm: unit global '" + std::string( Frame().Unit->Ast->Text( Bound->Name ) ) +
                                                  "' has no resolved layout" ) );
                         return nullptr;
                     }

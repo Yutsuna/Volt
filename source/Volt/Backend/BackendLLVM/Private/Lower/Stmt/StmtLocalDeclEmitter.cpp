@@ -26,8 +26,7 @@
 #include <string>
 #include <variant>
 
-llvm::Value *
-Volt::Backend::Llvm::BodyEmitter::SlotFor ( const Sema::BindingSite &Site, llvm::Type *Shape, std::string_view Name )
+llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const Sema::BindingSite &Site, llvm::Type *Shape, std::string_view Name )
 {
     FunctionFrame &Local = Frame();
 
@@ -84,8 +83,8 @@ void Volt::Backend::Llvm::EmitLocalDecl ( BodyEmitter &Emitter, Frontend::StmtId
     llvm::Type *Slot           = Emitter.Types().TypeOfLayout( Shape );
     if ( Slot == nullptr )
     {
-        static_cast<void>( Emitter.Fail( "llvm: local '" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) +
-                                         "' has no resolved layout" ) );
+        static_cast<void>(
+            Emitter.Fail( "llvm: local '" + std::string( Frame.Unit->Ast->Text( Node.Name ) ) + "' has no resolved layout" ) );
         return;
     }
 

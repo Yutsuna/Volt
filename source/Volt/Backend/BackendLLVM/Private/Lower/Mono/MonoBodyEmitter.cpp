@@ -71,16 +71,43 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         return;
     }
 
-    // Kept alive for the whole of this function — the frame's Values/Callees
-    // below point into it.
+    // Kept alive for the whole of this function — the frame's Values/Callees/
+    // Redirects below all point into it.
     const Sema::InstantiatedBody Overlay =
         Sema::ReinstantiateBody( Store, *DeclUnit->Ast, *DeclUnit->Scopes, *Entry, Request.Owner, Request.Args );
+
+    // Re-fetched, not reused: ReinstantiateBody may have Add()'d a synthesized
+    // closure Decl into this very Decl arena (a Lambda/Block literal it lowered
+    // fresh), and Core::Arena's vector storage may have reallocated under that
+    // Add() — MethodNode above is now a dangling pointer into freed memory
+    // (rules/ast-rewrite.md's exact hazard, just via a different arena than the
+    // rule's own example). std::get_if on the same Decl after the fact is cheap
+    // and always safe.
+    MethodNode = std::get_if<Frontend::Method>( &DeclUnit->Ast->Decl( Entry->Decl ) );
+    if ( MethodNode == nullptr )
+    {
+        static_cast<void>( Services->Diag->Fail( "llvm: the store calls '" + std::string( Store.Text( Entry->Name ) ) +
+                                                 "' a method, but its declaration in " + std::string( DeclUnit->Path ) +
+                                                 " is not one" ) );
+        return;
+    }
+
+    // Any Lambda/Block literal this instantiation's own re-walk reached is in
+    // Overlay.Synth, already concretely typed in Overlay.Values (Reinstantiate.cpp:
+    // the declaring unit's own generic-shaped pass never lowers one — nothing
+    // concrete to lower it with — so Overlay is the only source, not DeclUnit->Synth).
+    for ( const Sema::SynthesizedFunction &SynthFn : Overlay.Synth.All() )
+    {
+        DeclareSynthesizedFn( *Services, SynthFn, *DeclUnit, Overlay.Values );
+        DefineSynthesizedFn( *Services, SynthFn, *DeclUnit, Overlay.Values, Overlay.Callees, &Overlay.Redirects );
+    }
 
     FunctionFrame Frame;
     Frame.Fn            = Fn;
     Frame.Unit          = DeclUnit;
     Frame.Values        = &Overlay.Values;
     Frame.Callees       = &Overlay.Callees;
+    Frame.Redirects     = &Overlay.Redirects;
     Frame.Owner         = Request.Owner;
     Frame.OwnerArgs     = Request.Args;
     Frame.Entry         = llvm::BasicBlock::Create( Services->Ctx->Context(), "entry", Fn );
@@ -121,13 +148,11 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         // the binding.
         const bool bBlock = Ordinal < Entry->ParamIsBlock.Size() and Entry->ParamIsBlock[Ordinal];
         const bool bByAddress =
-            bBlock or ( Ordinal < Entry->Params.Size() and
-                        Services->Types->IsAggregate( Services->Signatures->SignatureLayoutOf(
-                            Store, Entry->Params[Ordinal], Request.Owner, Request.Args ) ) );
+            bBlock or ( Ordinal < Entry->Params.Size() and Services->Types->IsAggregate( Services->Signatures->SignatureLayoutOf(
+                                                               Store, Entry->Params[Ordinal], Request.Owner, Request.Args ) ) );
         ++Ordinal;
 
-        if ( not BindParameter( Emitter, Sema::BindingSite{ ParamRef }, Arg, bByAddress,
-                                DeclUnit->Ast->Text( Declared.Name ) ) )
+        if ( not BindParameter( Emitter, Sema::BindingSite{ ParamRef }, Arg, bByAddress, DeclUnit->Ast->Text( Declared.Name ) ) )
         {
             static_cast<void>( Emitter.Fail( "llvm: parameter '" + std::string( DeclUnit->Ast->Text( Declared.Name ) ) +
                                              "' of '" + std::string( Store.Text( Entry->Name ) ) + "' has no storage" ) );

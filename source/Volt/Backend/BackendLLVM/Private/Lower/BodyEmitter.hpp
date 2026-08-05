@@ -179,7 +179,7 @@ namespace Backend
         private:
 
             EmitterServices *ServicesPtr = nullptr;
-            FunctionFrame *FramePtr     = nullptr;
+            FunctionFrame *FramePtr      = nullptr;
         };
 
     } // namespace Llvm

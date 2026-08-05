@@ -204,8 +204,8 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         }
         else
         {
-            static_cast<void>( Fail( "llvm: instance call at expression " + std::to_string( Id.Value ) +
-                                     " has no receiver expression" ) );
+            static_cast<void>(
+                Fail( "llvm: instance call at expression " + std::to_string( Id.Value ) + " has no receiver expression" ) );
             return nullptr;
         }
 
@@ -263,8 +263,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     if ( Block.IsValid() and not bBlockBound )
     {
         static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
-                                 " carries a trailing block, and '" +
-                                 std::string( Svc.Build->Types->Text( Entry.Decl->Name ) ) +
+                                 " carries a trailing block, and '" + std::string( Svc.Build->Types->Text( Entry.Decl->Name ) ) +
                                  "' declares no `&block` parameter to bind it to" ) );
         return nullptr;
     }
@@ -294,8 +293,8 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         llvm::Value *Slot = MakeTemp( Result->getType(), "call.result" );
         if ( Slot == nullptr )
         {
-            static_cast<void>( Fail( "llvm: no frame to hold the aggregate result of the call at expression " +
-                                     std::to_string( Id.Value ) ) );
+            static_cast<void>(
+                Fail( "llvm: no frame to hold the aggregate result of the call at expression " + std::to_string( Id.Value ) ) );
             return nullptr;
         }
         static_cast<void>( Ctx().Builder().CreateStore( Result, Slot ) );
@@ -307,9 +306,9 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     // *other* Volt call's, never its own, so the post-call check only runs for
     // Volt code (or external symbols marked with library "volt", such as
     // _V_init_all).
-    const bool bVoltUnwindable = not bExternal or ( Entry.Decl->ExternLib.IsValid() and Svc.Build != nullptr and
-                                                    Svc.Build->Types != nullptr and
-                                                    Svc.Build->Types->Text( Entry.Decl->ExternLib ) == "volt" );
+    const bool bVoltUnwindable =
+        not bExternal or ( Entry.Decl->ExternLib.IsValid() and Svc.Build != nullptr and Svc.Build->Types != nullptr and
+                           Svc.Build->Types->Text( Entry.Decl->ExternLib ) == "volt" );
     if ( bVoltUnwindable )
     {
         if ( bBlockBound )
@@ -321,8 +320,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
             Svc.Exceptions->EmitExceptionCheck( *this );
             if ( not Terminated() )
             {
-                static_cast<void>(
-                    Ctx().Builder().CreateStore( Ctx().Builder().getFalse(), Svc.Exceptions->BreakFlagSlot() ) );
+                static_cast<void>( Ctx().Builder().CreateStore( Ctx().Builder().getFalse(), Svc.Exceptions->BreakFlagSlot() ) );
             }
         }
         else

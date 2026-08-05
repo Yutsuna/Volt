@@ -89,8 +89,7 @@ llvm::Value *Volt::Backend::Llvm::EmitFuncAddr ( BodyEmitter &Emitter, const Fro
     const FunctionFrame &Frame = Emitter.Frame();
     EmitterServices &Services  = Emitter.Services();
 
-    if ( const Sema::Member *Entry = Services.Build->Types->FunctionByDecl( Frame.Unit->Ordinal, Node.Target );
-         Entry != nullptr )
+    if ( const Sema::Member *Entry = Services.Build->Types->FunctionByDecl( Frame.Unit->Ordinal, Node.Target ); Entry != nullptr )
     {
         return Services.Functions->FunctionFor( *Entry, Sema::NominalId{}, {} );
     }

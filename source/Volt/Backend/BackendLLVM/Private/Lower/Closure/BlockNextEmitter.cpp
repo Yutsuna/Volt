@@ -23,8 +23,7 @@ void Volt::Backend::Llvm::ClosureLowering::EmitBlockNext ( BodyEmitter &Emitter,
     {
         if ( Value.IsValid() )
         {
-            static_cast<void>(
-                Emitter.Fail( "llvm: `next` carries a value out of a closure whose type declares no result" ) );
+            static_cast<void>( Emitter.Fail( "llvm: `next` carries a value out of a closure whose type declares no result" ) );
             return;
         }
         static_cast<void>( Builder.CreateRetVoid() );

@@ -32,8 +32,8 @@ bool Volt::Backend::Llvm::TargetPipeline::VerifyModule ()
         llvm::raw_string_ostream FunctionStream( FunctionReport );
         if ( llvm::verifyFunction( Fn, &FunctionStream ) )
         {
-            static_cast<void>( Services->Diag->Fail( "llvm: module verification failed in '" +
-                                                     std::string( Fn.getName() ) + "': " + FunctionStream.str() ) );
+            static_cast<void>( Services->Diag->Fail( "llvm: module verification failed in '" + std::string( Fn.getName() ) +
+                                                     "': " + FunctionStream.str() ) );
             return false;
         }
     }

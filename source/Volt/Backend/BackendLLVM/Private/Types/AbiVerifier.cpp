@@ -38,8 +38,8 @@ void Volt::Backend::Llvm::AbiVerifier::VerifyAggregateAbi ( [[maybe_unused]] Sem
         const std::size_t Mine   = ( *Services->Layouts )->FieldOffset( Id, Index );
         if ( Theirs != Mine )
         {
-            static_cast<void>( Services->Diag->Fail( "llvm: ABI divergence on layout " + std::to_string( Id.Value ) +
-                                                     " field " + std::to_string( Index ) + ": LayoutEngine says offset " +
+            static_cast<void>( Services->Diag->Fail( "llvm: ABI divergence on layout " + std::to_string( Id.Value ) + " field " +
+                                                     std::to_string( Index ) + ": LayoutEngine says offset " +
                                                      std::to_string( Mine ) + ", LLVM says " + std::to_string( Theirs ) ) );
             return;
         }

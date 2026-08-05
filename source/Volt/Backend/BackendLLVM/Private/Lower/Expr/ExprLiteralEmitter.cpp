@@ -215,14 +215,12 @@ namespace
 
 } // namespace
 
-llvm::Value *
-Volt::Backend::Llvm::EmitIntLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::IntLiteral &Node )
+llvm::Value *Volt::Backend::Llvm::EmitIntLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::IntLiteral &Node )
 {
     llvm::Type *Shape = Emitter.TypeOfExpr( Id );
     if ( Shape == nullptr or not( Shape->isIntegerTy() or Shape->isFloatingPointTy() ) )
     {
-        static_cast<void>( Emitter.Fail( "llvm: integer literal '" +
-                                         std::string( Emitter.Frame().Unit->Ast->Text( Node.Raw ) ) +
+        static_cast<void>( Emitter.Fail( "llvm: integer literal '" + std::string( Emitter.Frame().Unit->Ast->Text( Node.Raw ) ) +
                                          "' has no integer layout" ) );
         return nullptr;
     }
@@ -255,8 +253,7 @@ Volt::Backend::Llvm::EmitFloatLiteral ( BodyEmitter &Emitter, Frontend::ExprId I
     llvm::Type *Shape = Emitter.TypeOfExpr( Id );
     if ( Shape == nullptr or not Shape->isFloatingPointTy() )
     {
-        static_cast<void>( Emitter.Fail( "llvm: float literal '" +
-                                         std::string( Emitter.Frame().Unit->Ast->Text( Node.Raw ) ) +
+        static_cast<void>( Emitter.Fail( "llvm: float literal '" + std::string( Emitter.Frame().Unit->Ast->Text( Node.Raw ) ) +
                                          "' has no floating-point layout" ) );
         return nullptr;
     }
@@ -271,8 +268,7 @@ Volt::Backend::Llvm::EmitFloatLiteral ( BodyEmitter &Emitter, Frontend::ExprId I
     return llvm::ConstantFP::get( Shape, Value );
 }
 
-llvm::Value *
-Volt::Backend::Llvm::EmitCharLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::CharLiteral &Node )
+llvm::Value *Volt::Backend::Llvm::EmitCharLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::CharLiteral &Node )
 {
     llvm::Type *Shape = Emitter.TypeOfExpr( Id );
     if ( Shape == nullptr or not Shape->isIntegerTy() )
@@ -302,8 +298,7 @@ Volt::Backend::Llvm::EmitStringLiteral ( BodyEmitter &Emitter, Frontend::ExprId 
     return Emitter.Ctx().Builder().CreateGlobalString( Text, ".str", 0, Emitter.Ctx().ModPtr() );
 }
 
-llvm::Value *
-Volt::Backend::Llvm::EmitBoolLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::BoolLiteral &Node )
+llvm::Value *Volt::Backend::Llvm::EmitBoolLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::BoolLiteral &Node )
 {
     llvm::Type *Shape = Emitter.TypeOfExpr( Id );
     if ( Shape == nullptr or not Shape->isIntegerTy() )
@@ -365,8 +360,8 @@ llvm::Value *Volt::Backend::Llvm::EmitSizeOf ( BodyEmitter &Emitter, Frontend::E
     llvm::Type *Width = Emitter.TypeOfExpr( Id );
     if ( Width == nullptr or not Width->isIntegerTy() )
     {
-        static_cast<void>( Emitter.Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) +
-                                         " has no integer layout" ) );
+        static_cast<void>(
+            Emitter.Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) + " has no integer layout" ) );
         return nullptr;
     }
     if ( not Emitter.Services().Layouts->has_value() )

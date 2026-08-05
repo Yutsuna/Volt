@@ -37,11 +37,8 @@
 #include <string>
 #include <variant>
 
-void Volt::Backend::Llvm::ExceptionLowering::EmitBeginTail ( BodyEmitter &Emitter,
-                                                             const Frontend::StmtList &Body,
-                                                             llvm::AllocaInst *Slot,
-                                                             llvm::Type *Shape,
-                                                             Sema::LayoutId Layout )
+void Volt::Backend::Llvm::ExceptionLowering::EmitBeginTail (
+    BodyEmitter &Emitter, const Frontend::StmtList &Body, llvm::AllocaInst *Slot, llvm::Type *Shape, Sema::LayoutId Layout )
 {
     const Frontend::AstContext &Ast = *Emitter.Frame().Unit->Ast;
     for ( std::size_t Index = 0; Index < Body.Size() and not Emitter.Terminated() and not Emitter.Failed(); ++Index )
@@ -59,9 +56,8 @@ void Volt::Backend::Llvm::ExceptionLowering::EmitBeginTail ( BodyEmitter &Emitte
     }
 }
 
-llvm::Value *Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter,
-                                                                 Frontend::ExprId Id,
-                                                                 const Frontend::BeginExpr &Node )
+llvm::Value *
+Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::BeginExpr &Node )
 {
     FunctionFrame &Frame            = Emitter.Frame();
     const Frontend::AstContext &Ast = *Frame.Unit->Ast;
@@ -151,11 +147,9 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Em
         // call inside it is checked against whatever *it* raises, never the
         // exception it is currently handling.
         static_cast<void>( Builder.CreateStore(
-            llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ),
-            ExceptionTagSlot() ) );
+            llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ), ExceptionTagSlot() ) );
         static_cast<void>(
-            Builder.CreateStore( llvm::Constant::getNullValue( llvm::PointerType::get( Context, 0 ) ),
-                                 ExceptionValueSlot() ) );
+            Builder.CreateStore( llvm::Constant::getNullValue( llvm::PointerType::get( Context, 0 ) ), ExceptionValueSlot() ) );
 
         if ( Clause->VarName.IsValid() )
         {
@@ -215,7 +209,7 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Em
         // re-propagation an unhandled exception gets, or it would be silently
         // absorbed by this `begin`/`ensure` and execution would resume normally
         // past it.
-        llvm::Value *StillTag = Builder.CreateLoad( llvm::Type::getInt32Ty( Context ), ExceptionTagSlot(), "exc.tag" );
+        llvm::Value *StillTag        = Builder.CreateLoad( llvm::Type::getInt32Ty( Context ), ExceptionTagSlot(), "exc.tag" );
         llvm::Value *StillExcPending = Builder.CreateICmpNE(
             StillTag, llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ),
             "exc.still_pending" );

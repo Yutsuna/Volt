@@ -78,8 +78,8 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSl
     Size                   = std::max<std::size_t>( Size, 512 );
     Alignment              = std::max<std::size_t>( Alignment, 8 );
     llvm::ArrayType *Bytes = llvm::ArrayType::get( llvm::Type::getInt8Ty( Context ), Size );
-    ExcStorage = new llvm::GlobalVariable( Services->Ctx->Mod(), Bytes, false, llvm::GlobalValue::LinkOnceODRLinkage,
-                                           llvm::Constant::getNullValue( Bytes ), "volt.exc.storage" );
+    ExcStorage             = new llvm::GlobalVariable( Services->Ctx->Mod(), Bytes, false, llvm::GlobalValue::LinkOnceODRLinkage,
+                                                       llvm::Constant::getNullValue( Bytes ), "volt.exc.storage" );
     ExcStorage->setThreadLocal( true );
     ExcStorage->setAlignment( llvm::Align( Alignment ) );
     ExcStorageSize = Size;

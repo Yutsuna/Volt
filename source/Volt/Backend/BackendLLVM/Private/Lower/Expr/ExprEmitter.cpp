@@ -26,6 +26,19 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitExpr ( Frontend::ExprId Id )
         return nullptr;
     }
 
+    // A monomorphised body only: Sema::ReinstantiateBody lowered a Lambda/
+    // Block literal here into a freshly-Add()'d subtree rather than mutating
+    // Id's own slot — the same literal is shared by every other instantiation
+    // of this generic body (FunctionFrame::Redirects's own comment) — so the
+    // replacement is looked up before Ast.Expr( Id ) is read at all.
+    if ( Frame().Redirects != nullptr )
+    {
+        if ( const auto It = Frame().Redirects->find( Id.Value ); It != Frame().Redirects->end() )
+        {
+            Id = It->second;
+        }
+    }
+
     const Frontend::AstContext &Ast = *Frame().Unit->Ast;
 
     return std::visit(

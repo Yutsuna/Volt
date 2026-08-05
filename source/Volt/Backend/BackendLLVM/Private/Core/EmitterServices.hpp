@@ -113,25 +113,25 @@ namespace Backend
         {
 
             // --- The middle-end's output, read-only except for layouts -------
-            const BackendInput *Build = nullptr;
-            EmitOptions *Options      = nullptr;
+            const BackendInput *Build            = nullptr;
+            EmitOptions *Options                 = nullptr;
             std::optional<LayoutEngine> *Layouts = nullptr;
             InstanceLayouts *Instances           = nullptr;
 
             // --- Services ----------------------------------------------------
-            DiagnosticSink *Diag        = nullptr;
-            ModuleContext *Ctx          = nullptr;
-            TypeMapper *Types           = nullptr;
-            AbiVerifier *Abi            = nullptr;
-            SignatureBuilder *Signatures = nullptr;
-            FunctionRegistry *Functions = nullptr;
+            DiagnosticSink *Diag          = nullptr;
+            ModuleContext *Ctx            = nullptr;
+            TypeMapper *Types             = nullptr;
+            AbiVerifier *Abi              = nullptr;
+            SignatureBuilder *Signatures  = nullptr;
+            FunctionRegistry *Functions   = nullptr;
             ExceptionLowering *Exceptions = nullptr;
-            ClosureLowering *Closures   = nullptr;
-            MonoDriver *Mono            = nullptr;
-            LinkerDriver *Linker        = nullptr;
+            ClosureLowering *Closures     = nullptr;
+            MonoDriver *Mono              = nullptr;
+            LinkerDriver *Linker          = nullptr;
 
             // --- Build-wide caches that belong to no single service ----------
-            ModuleGlobalMap *ModuleGlobals = nullptr;
+            ModuleGlobalMap *ModuleGlobals   = nullptr;
             SynthesizedFnMap *SynthesizedFns = nullptr;
         };
 

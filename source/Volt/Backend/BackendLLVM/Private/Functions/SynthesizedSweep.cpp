@@ -35,7 +35,8 @@
 
 void Volt::Backend::Llvm::DeclareSynthesizedFn ( EmitterServices &Services,
                                                  const Sema::SynthesizedFunction &Fn,
-                                                 const UnitView &Unit )
+                                                 const UnitView &Unit,
+                                                 const Sema::UnitTypes &Values )
 {
     llvm::LLVMContext &Context = Services.Ctx->Context();
 
@@ -43,19 +44,18 @@ void Volt::Backend::Llvm::DeclareSynthesizedFn ( EmitterServices &Services,
     Params.reserve( Fn.Params.Size() );
     for ( const Sema::SemaTypeId Param : Fn.Params )
     {
-        llvm::Type *Slot = Services.Types->ParamTypeOfLayout( Services.Types->LayoutOfValue( *Unit.Values, Param ) );
+        llvm::Type *Slot = Services.Types->ParamTypeOfLayout( Services.Types->LayoutOfValue( Values, Param ) );
         if ( Slot == nullptr )
         {
-            static_cast<void>( Services.Diag->Fail( "llvm: a synthesized function's parameter in " +
-                                                    std::string( Unit.Path ) + " has no resolved layout" ) );
+            static_cast<void>( Services.Diag->Fail( "llvm: a synthesized function's parameter in " + std::string( Unit.Path ) +
+                                                    " has no resolved layout" ) );
             return;
         }
         Params.push_back( Slot );
     }
 
     llvm::Type *Result =
-        Fn.Result.IsValid() ? Services.Types->TypeOfLayout( Services.Types->LayoutOfValue( *Unit.Values, Fn.Result ) )
-                            : nullptr;
+        Fn.Result.IsValid() ? Services.Types->TypeOfLayout( Services.Types->LayoutOfValue( Values, Fn.Result ) ) : nullptr;
     if ( Result == nullptr )
     {
         Result = llvm::Type::getVoidTy( Context );
@@ -69,19 +69,22 @@ void Volt::Backend::Llvm::DeclareSynthesizedFn ( EmitterServices &Services,
 
 void Volt::Backend::Llvm::DeclareSynthesized ( EmitterServices &Services, const UnitView &Unit )
 {
-    if ( Unit.Synth == nullptr )
+    if ( Unit.Synth == nullptr or Unit.Values == nullptr )
     {
         return;
     }
     for ( const Sema::SynthesizedFunction &Fn : Unit.Synth->All() )
     {
-        DeclareSynthesizedFn( Services, Fn, Unit );
+        DeclareSynthesizedFn( Services, Fn, Unit, *Unit.Values );
     }
 }
 
 void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
                                                 const Sema::SynthesizedFunction &Fn,
-                                                const UnitView &Unit )
+                                                const UnitView &Unit,
+                                                const Sema::UnitTypes &Values,
+                                                const Sema::UnitCallees &Callees,
+                                                const Sema::ExprRedirectMap *Redirects )
 {
     const auto *Node = std::get_if<Frontend::Method>( &Unit.Ast->Decl( Fn.Decl ) );
     if ( Node == nullptr )
@@ -104,8 +107,9 @@ void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
     FunctionFrame Frame;
     Frame.Fn            = LlvmFn;
     Frame.Unit          = &Unit;
-    Frame.Values        = Unit.Values;
-    Frame.Callees       = Unit.Callees;
+    Frame.Values        = &Values;
+    Frame.Callees       = &Callees;
+    Frame.Redirects     = Redirects;
     Frame.Entry         = llvm::BasicBlock::Create( Services.Ctx->Context(), "entry", LlvmFn );
     Frame.bReturnsValue = not Result->isVoidTy();
     // Every SynthesizedFunction is a lifted Lambda/Block (ClosureLifting is its
@@ -123,12 +127,11 @@ void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
     for ( const Frontend::ParamId ParamRef : Node->Params )
     {
         llvm::Value *Arg                = LlvmFn->getArg( Index++ );
-        const Frontend::Param &Declared  = Unit.Ast->GetParam( ParamRef );
+        const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
 
         const Sema::BindingSite Site{ ParamRef };
-        const bool bByAddress =
-            Services.Types->IsAggregate( Services.Types->LayoutOfValue( *Unit.Values, Unit.Values->SiteType( Site ) ) );
+        const bool bByAddress = Services.Types->IsAggregate( Services.Types->LayoutOfValue( Values, Values.SiteType( Site ) ) );
         if ( not BindParameter( Emitter, Site, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
         {
             static_cast<void>( Emitter.Fail( "llvm: a synthesized function's parameter '" +
@@ -154,12 +157,12 @@ void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
 
 void Volt::Backend::Llvm::DefineSynthesized ( EmitterServices &Services, const UnitView &Unit )
 {
-    if ( Unit.Synth == nullptr )
+    if ( Unit.Synth == nullptr or Unit.Values == nullptr or Unit.Callees == nullptr )
     {
         return;
     }
     for ( const Sema::SynthesizedFunction &Fn : Unit.Synth->All() )
     {
-        DefineSynthesizedFn( Services, Fn, Unit );
+        DefineSynthesizedFn( Services, Fn, Unit, *Unit.Values, *Unit.Callees );
     }
 }

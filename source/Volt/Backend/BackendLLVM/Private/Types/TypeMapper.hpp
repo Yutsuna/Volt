@@ -50,8 +50,7 @@ namespace Backend
             // argument count. The one currency InstanceLayouts, Monomorphizer
             // and Mangler share, so a layout, a symbol and a queue entry can
             // never mean different instantiations.
-            void
-            FlattenValueType ( const Sema::UnitTypes &Values, Sema::SemaTypeId Id, std::vector<std::uint32_t> &Out ) const;
+            void FlattenValueType ( const Sema::UnitTypes &Values, Sema::SemaTypeId Id, std::vector<std::uint32_t> &Out ) const;
 
             // The memory shape of a value of this inferred type. Invalid when
             // the type is absent — which inside a generic body is normal

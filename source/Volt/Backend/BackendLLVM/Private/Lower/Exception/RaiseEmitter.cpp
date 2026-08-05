@@ -17,9 +17,8 @@
 
 #include <string>
 
-llvm::Value *Volt::Backend::Llvm::ExceptionLowering::EmitRaise ( BodyEmitter &Emitter,
-                                                                 Frontend::ExprId Id,
-                                                                 const Frontend::RaiseExpr &Node )
+llvm::Value *
+Volt::Backend::Llvm::ExceptionLowering::EmitRaise ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::RaiseExpr &Node )
 {
     if ( not Node.Exception.IsValid() )
     {
@@ -33,8 +32,8 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::EmitRaise ( BodyEmitter &Em
     const Sema::SemaTypeId Ty     = Values.ExprType( Node.Exception );
     if ( not Values.Has( Ty ) or not Values.Get( Ty ).Base.IsValid() )
     {
-        static_cast<void>( Emitter.Fail( "llvm: `raise` at expression " + std::to_string( Id.Value ) +
-                                         " has no resolved exception type" ) );
+        static_cast<void>(
+            Emitter.Fail( "llvm: `raise` at expression " + std::to_string( Id.Value ) + " has no resolved exception type" ) );
         return nullptr;
     }
     const Sema::NominalId Nominal = Values.Get( Ty ).Base;

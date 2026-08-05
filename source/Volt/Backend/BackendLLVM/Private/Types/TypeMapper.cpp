@@ -86,17 +86,16 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( Sema::LayoutId Id )
                     llvm::Type *Float = FloatTypeOf( Context, Node.Bits );
                     if ( Float == nullptr )
                     {
-                        static_cast<void>( Services->Diag->Fail( "llvm: no machine float type for '" +
-                                                                 std::string( Spelling ) + "' at " +
-                                                                 std::to_string( Node.Bits ) + " bits" ) );
+                        static_cast<void>( Services->Diag->Fail( "llvm: no machine float type for '" + std::string( Spelling ) +
+                                                                 "' at " + std::to_string( Node.Bits ) + " bits" ) );
                     }
                     return Float;
                 }
 
                 if ( Node.Bits == 0 )
                 {
-                    static_cast<void>( Services->Diag->Fail( "llvm: primitive '" + std::string( Spelling ) +
-                                                             "' declares a width of 0 bits" ) );
+                    static_cast<void>(
+                        Services->Diag->Fail( "llvm: primitive '" + std::string( Spelling ) + "' declares a width of 0 bits" ) );
                     return nullptr;
                 }
                 return llvm::Type::getIntNTy( Context, Node.Bits );
@@ -111,9 +110,9 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( Sema::LayoutId Id )
                     llvm::Type *Inner = TypeOfLayout( Field.Type );
                     if ( Inner == nullptr )
                     {
-                        static_cast<void>( Services->Diag->Fail(
-                            "llvm: aggregate field '" + std::string( Services->Build->Types->Text( Field.Name ) ) +
-                            "' has no resolved layout" ) );
+                        static_cast<void>( Services->Diag->Fail( "llvm: aggregate field '" +
+                                                                 std::string( Services->Build->Types->Text( Field.Name ) ) +
+                                                                 "' has no resolved layout" ) );
                         return nullptr;
                     }
                     Fields.push_back( Inner );

@@ -63,18 +63,16 @@ void Volt::Backend::Llvm::BodyEmitter::StoreTailValue ( llvm::Value *Value,
         llvm::raw_string_ostream SlotStream( SlotText );
         ( Fitted != nullptr ? Fitted->getType() : Value->getType() )->print( ValueStream );
         Shape->print( SlotStream );
-        static_cast<void>( Fail( "llvm: a `begin`/`case` arm yields " + ValueStream.str() + " but the result slot is " +
-                                 SlotStream.str() + " — the arms of one expression were typed inconsistently (fn: " +
-                                 Frame().Fn->getName().str() + ")" ) );
+        static_cast<void>(
+            Fail( "llvm: a `begin`/`case` arm yields " + ValueStream.str() + " but the result slot is " + SlotStream.str() +
+                  " — the arms of one expression were typed inconsistently (fn: " + Frame().Fn->getName().str() + ")" ) );
         return;
     }
     static_cast<void>( Ctx().Builder().CreateStore( Fitted, Slot ) );
 }
 
-llvm::Value *Volt::Backend::Llvm::BodyEmitter::LoadConverged ( llvm::Value *Slot,
-                                                               llvm::Type *Shape,
-                                                               Sema::LayoutId Layout,
-                                                               const char *Name )
+llvm::Value *
+Volt::Backend::Llvm::BodyEmitter::LoadConverged ( llvm::Value *Slot, llvm::Type *Shape, Sema::LayoutId Layout, const char *Name )
 {
     if ( Slot == nullptr or Shape == nullptr )
     {

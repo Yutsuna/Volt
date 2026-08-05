@@ -36,21 +36,21 @@ void Volt::Backend::Llvm::BodyEmitter::EmitStmt ( Frontend::StmtId Id, bool bTai
 
     const Frontend::AstContext &Ast = *Frame().Unit->Ast;
 
-    std::visit( Meta::Overloaded{
-                    [this, bTail] ( const Frontend::ExprStmt &Node ) { EmitExprStmt( *this, Node, bTail ); },
-                    [this] ( const Frontend::While &Node ) { EmitWhile( *this, Node ); },
-                    [this] ( const Frontend::Return &Node ) { EmitReturn( *this, Node ); },
-                    [this, Id] ( const Frontend::Break &Node ) { EmitBreak( *this, Id, Node ); },
-                    [this, Id] ( const Frontend::Next &Node ) { EmitNext( *this, Id, Node ); },
-                    [this, Id] ( const Frontend::LocalDecl &Node ) { EmitLocalDecl( *this, Id, Node ); },
-                    [this] ( const Frontend::RescueClause & )
-                    { static_cast<void>( Fail( "llvm: a `rescue` clause needs the exception emitter (backend phase 6)" ) ); },
-                    [this, Id] ( const auto & )
-                    {
-                        static_cast<void>( Fail( "llvm: " + std::string( Frontend::NodeName( Frame().Unit->Ast->Stmt( Id ) ) ) +
-                                                 " is not a statement this backend emits" ) );
-                    } },
-                Ast.Stmt( Id ) );
+    std::visit(
+        Meta::Overloaded{
+            [this, bTail] ( const Frontend::ExprStmt &Node ) { EmitExprStmt( *this, Node, bTail ); },
+            [this] ( const Frontend::While &Node ) { EmitWhile( *this, Node ); }, [this] ( const Frontend::Return &Node )
+            { EmitReturn( *this, Node ); }, [this, Id] ( const Frontend::Break &Node ) { EmitBreak( *this, Id, Node ); },
+            [this, Id] ( const Frontend::Next &Node ) { EmitNext( *this, Id, Node ); },
+            [this, Id] ( const Frontend::LocalDecl &Node ) { EmitLocalDecl( *this, Id, Node ); },
+            [this] ( const Frontend::RescueClause & )
+            { static_cast<void>( Fail( "llvm: a `rescue` clause needs the exception emitter (backend phase 6)" ) ); },
+            [this, Id] ( const auto & )
+            {
+                static_cast<void>( Fail( "llvm: " + std::string( Frontend::NodeName( Frame().Unit->Ast->Stmt( Id ) ) ) +
+                                         " is not a statement this backend emits" ) );
+            } },
+        Ast.Stmt( Id ) );
 }
 
 void Volt::Backend::Llvm::EmitExprStmt ( BodyEmitter &Emitter, const Frontend::ExprStmt &Node, bool bTail )
@@ -70,6 +70,5 @@ void Volt::Backend::Llvm::EmitExprStmt ( BodyEmitter &Emitter, const Frontend::E
     {
         return;
     }
-    static_cast<void>(
-        Emitter.Ctx().Builder().CreateRet( Emitter.CoerceWidth( Value, Frame.Fn->getReturnType() ) ) );
+    static_cast<void>( Emitter.Ctx().Builder().CreateRet( Emitter.CoerceWidth( Value, Frame.Fn->getReturnType() ) ) );
 }

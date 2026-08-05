@@ -44,10 +44,9 @@ void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
     const auto *Node = std::get_if<Frontend::Method>( &Unit.Ast->Decl( Entry.Decl ) );
     if ( Node == nullptr )
     {
-        static_cast<void>( Services.Diag->Fail( "llvm: the store calls '" +
-                                                std::string( Services.Build->Types->Text( Entry.Name ) ) +
-                                                "' a method, but its declaration in " + std::string( Unit.Path ) +
-                                                " is not one" ) );
+        static_cast<void>(
+            Services.Diag->Fail( "llvm: the store calls '" + std::string( Services.Build->Types->Text( Entry.Name ) ) +
+                                 "' a method, but its declaration in " + std::string( Unit.Path ) + " is not one" ) );
         return;
     }
 
@@ -90,22 +89,22 @@ void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
     for ( const Frontend::ParamId ParamRef : Node->Params )
     {
         llvm::Value *Arg                = Fn->getArg( Index++ );
-        const Frontend::Param &Declared  = Unit.Ast->GetParam( ParamRef );
+        const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
 
         // Read out of the *signature*'s own inputs, in the order FunctionTypeOf
         // consumed them, so "by address" cannot drift between the two.
         const bool bBlock = Ordinal < Entry.ParamIsBlock.Size() and Entry.ParamIsBlock[Ordinal];
         const bool bByAddress =
-            bBlock or ( Ordinal < Entry.Params.Size() and
-                        Services.Types->IsAggregate(
-                            Services.Signatures->SignatureLayoutOf( Store, Entry.Params[Ordinal], Owner, {} ) ) );
+            bBlock or
+            ( Ordinal < Entry.Params.Size() and
+              Services.Types->IsAggregate( Services.Signatures->SignatureLayoutOf( Store, Entry.Params[Ordinal], Owner, {} ) ) );
         ++Ordinal;
 
         if ( not BindParameter( Emitter, Sema::BindingSite{ ParamRef }, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
         {
-            static_cast<void>( Emitter.Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) +
-                                             "' of '" + std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
+            static_cast<void>( Emitter.Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
+                                             std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
             return;
         }
 

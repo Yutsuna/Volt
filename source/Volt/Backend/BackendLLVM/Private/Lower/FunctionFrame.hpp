@@ -11,6 +11,7 @@
 // than by remembering to clear it.
 
 #include "Volt/BackendCore/BackendInput.hpp"
+#include "Volt/Sema/Layout/Instantiate.hpp"
 
 #include "Core/LlvmFwd.hpp"
 
@@ -70,6 +71,13 @@ namespace Backend
             // every instantiation.
             const Sema::UnitTypes *Values    = nullptr;
             const Sema::UnitCallees *Callees = nullptr;
+            // Non-null only for a monomorphised body (MonoBodyEmitter):
+            // `original literal ExprId -> replacement subtree`, built by
+            // Sema::ReinstantiateBody for every Lambda/Block literal it found
+            // still un-lowered (Instantiate.hpp's ExprRedirectMap). EmitExpr
+            // consults this before reading Ast.Expr( Id ) at all, so the
+            // shared literal's own slot never has to be mutated.
+            const Sema::ExprRedirectMap *Redirects = nullptr;
             // Where every `alloca` goes, whatever block the walk is in when it
             // needs one. Keeping them all in the entry block is what lets
             // mem2reg promote them, which is why the emitter never builds SSA.

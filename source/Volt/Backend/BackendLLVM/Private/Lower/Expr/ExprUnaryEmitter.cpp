@@ -55,8 +55,8 @@ llvm::Value *Volt::Backend::Llvm::EmitUnary ( BodyEmitter &Emitter, Frontend::Ex
         // refused rather than reinterpreted.
         if ( not Operand->getType()->isIntegerTy( 1 ) )
         {
-            static_cast<void>( Emitter.Fail( "llvm: logical '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +
-                                             "' on a '" + std::string( Spelling ) + "' operand that is not one bit wide" ) );
+            static_cast<void>( Emitter.Fail( "llvm: logical '" + std::string( Frontend::TokenSpelling( Node.Op ) ) + "' on a '" +
+                                             std::string( Spelling ) + "' operand that is not one bit wide" ) );
             return nullptr;
         }
         return Builder.CreateXor( Operand, Builder.getTrue() );
