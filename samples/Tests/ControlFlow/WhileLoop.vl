@@ -70,6 +70,7 @@ def drain_event_queue( events : Array<Event> ) -> Int32
   while index < events.size
     event = events[index]
     event.mark_handled
+    events[index] = event
     handled_count += 1
     index += 1
   end
