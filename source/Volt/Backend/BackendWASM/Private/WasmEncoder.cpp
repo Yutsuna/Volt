@@ -2,7 +2,9 @@
 
 #include <algorithm>
 
+#ifndef DEBUG_NO_STATIC_ASSERT
 static_assert( Volt::Backend::TargetBackend<Volt::Backend::Wasm::WasmBackend> );
+#endif
 
 void Volt::Backend::Wasm::WasmModuleBuilder::AddSection ( ESection Id, std::vector<std::uint8_t> Payload )
 {

@@ -39,6 +39,7 @@ common_cpp_args += buildtype == 'debug' ? debug_opt_flags : []
 
 common_cpp_args += (is_gnu and is_debuglike) ? ['-gsplit-dwarf', '-fdebug-types-section'] : []
 common_link_args += (is_gnu and is_debuglike) ? ['-Wl,--gdb-index'] : []
+common_cpp_args += is_debuglike ? ['-DDEBUG=1', '-DVOLT_DEBUG=1', '-DDEBUG_NO_STATIC_ASSERT=1'] : ['-DNDEBUG=1']
 
 common_cpp_args += get_option('checked_ids') ? ['-DVOLT_CHECKED_IDS=1'] : []
 

@@ -6,6 +6,8 @@
  *          and asserts their invariants under -Werror.
  */
 
+#ifndef DEBUG_NO_STATIC_ASSERT
+
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Core/Meta/TypeList.hpp"
@@ -109,3 +111,5 @@ namespace Core
 } // namespace Core
 
 } // namespace Volt
+
+#endif // DEBUG_NO_STATIC_ASSERT

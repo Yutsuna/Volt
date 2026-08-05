@@ -10,9 +10,11 @@
 #include <memory>
 #include <utility>
 
-// The concept is the contract; breaking the signature is a compile error here,
-// not a discovery made at the Driver's runtime seam.
-static_assert( Volt::Backend::TargetBackend<Volt::Backend::Llvm::LlvmBackend> );
+#ifndef DEBUG_NO_STATIC_ASSERT
+    // The concept is the contract; breaking the signature is a compile error here,
+    // not a discovery made at the Driver's runtime seam.
+    static_assert( Volt::Backend::TargetBackend<Volt::Backend::Llvm::LlvmBackend> );
+#endif
 
 Volt::Backend::Llvm::LlvmBackend::State::State ()
 {

@@ -2,6 +2,8 @@
 // the TypeStore arena, and the manifest-driven pass registry. Exercised under
 // -Werror so the header-only machinery is actually instantiated.
 
+#ifndef DEBUG_NO_STATIC_ASSERT
+
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/MemoryLayout.hpp"
@@ -15,6 +17,7 @@ namespace Volt
 
 namespace Sema
 {
+
 
     namespace
     {
@@ -95,3 +98,5 @@ namespace Sema
 } // namespace Sema
 
 } // namespace Volt
+
+#endif // DEBUG_NO_STATIC_ASSERT

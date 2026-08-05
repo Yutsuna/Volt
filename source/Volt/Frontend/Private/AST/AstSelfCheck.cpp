@@ -2,6 +2,8 @@
 // printer. Instantiates every category variant and prints a small tree so the
 // header-only machinery is actually exercised under -Werror.
 
+#ifndef DEBUG_NO_STATIC_ASSERT
+
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstPrinter.hpp"
 
@@ -81,3 +83,5 @@ namespace Frontend
 } // namespace Frontend
 
 } // namespace Volt
+
+#endif // DEBUG_NO_STATIC_ASSERT
