@@ -43,6 +43,53 @@ rather than an index (see `core-interfaces.md`).
 One `llvm::Module` per build to start (simplest correct thing; per-unit
 modules + ThinLTO is a later optimisation with the same interface).
 
+## Internal architecture
+
+`LlvmBackend` is pimpl'd behind `LlvmBackend::State` (`LlvmBackendState.hpp`).
+The state used to be a ~734-line god object declaring ~90 emission methods
+and owning every cache. It is now an **orchestrator**: it constructs the
+services, wires them into one `EmitterServices` bundle, and does nothing
+else.
+
+### Services
+
+Each service is constructed once per build, owns the state it needs, and
+reaches siblings only through the `EmitterServices` bundle
+(`Private/Core/EmitterServices.hpp`). The bundle is a bag of non-owning
+pointers — `LlvmBackend::State` is the sole owner; passing the bundle costs
+nothing and no service outlives it.
+
+| Service | File(s) | Responsibility |
+|---|---|---|
+| `DiagnosticSink` | `Core/DiagnosticSink.hpp` | Error accumulation; `Failed()` / `Fail(msg)` — a failed build returns early from every subsequent lifecycle step. |
+| `ModuleContext` | `Core/ModuleContext.hpp/cpp` | Owns `llvm::LLVMContext` + `llvm::Module` + `llvm::TargetMachine`; `InitTarget()` selects the host triple. |
+| `TypeMapper` | `Types/TypeMapper.hpp/cpp` | `LayoutNode` → `llvm::Type*`; the `IsAggregate` predicate and the `DataLayout` agreement check. |
+| `AbiVerifier` | `Types/AbiVerifier.hpp/cpp` | Debug-mode size/alignment cross-check between `LayoutEngine` and LLVM's `DataLayout`. |
+| `SignatureBuilder` | `Functions/SignatureBuilder.hpp/cpp` | Builds `llvm::FunctionType*` from declared `Params`/`Result` and the closure `ptr %env` convention. |
+| `FunctionRegistry` | `Functions/FunctionRegistry.hpp/cpp` | Maps mangled symbols to `llvm::Function*`; the declare/define sweeps (`DeclareAll`/`DefineAll`); the synthesized-function sweep for `UnitView::Synth` entries. |
+| `ExceptionLowering` | `Lower/Exception/ExceptionLowering.hpp` and its `.cpp` files | Thread-local `volt.exc.*` globals, ancestry table, `EmitRaise`/`EmitBegin`/`EmitUnwindCheck`/`EmitExceptionCheck`. |
+| `ClosureLowering` | `Lower/Closure/ClosureLowering.hpp` and its `.cpp` files | Indirect calls (`bIndirect` resolution), block-next emission. Closures themselves are fully synthesized upstream by `ClosureLifting`; this service handles only the call-site mechanics. |
+| `MonoDriver` | `Lower/Mono/MonoDriver.hpp/cpp` | Queue management; `Drain()` to fixpoint; drives `MonoBodyEmitter` per request via `Sema::ReinstantiateBody`. |
+| `TargetPipeline` | `Target/TargetPipeline.hpp` and its `.cpp` files | `RunOptimizationPipeline`, `VerifyModule`, `EmitIrFile`, `EmitObjectFile`. |
+| `LinkerDriver` | `Target/LinkerDriver.hpp/cpp` | Drives the system linker (mold preferred, LLD fallback) for executables and shared libraries. |
+
+### `FunctionFrame` — a per-body local, not a service member
+
+`FunctionFrame` (`Lower/FunctionFrame.hpp`) carries per-body state: the
+current `llvm::Function*`, the local slot map (`BindingSite → llvm::Value*`),
+the loop stack, the rescue stack, the `bClosure` flag, and pointers to the
+unit's `Values`/`Callees` tables (redirected for monomorphized bodies).
+
+It is a **local variable** in `DefineMember` / `EmitMonomorphizedBody`, not a
+member of `LlvmBackend::State`. Per-function state being a member of a
+long-lived object was what made "clear it at both ends of every body" a rule
+someone had to remember; it is now enforced by scope.
+
+`BodyEmitter` receives a `FunctionFrame &` reference and owns the per-node
+`std::visit` dispatch. It delegates to the files under `Lower/Expr/`,
+`Lower/Stmt/`, `Lower/Closure/`, and `Lower/Exception/` through the same
+bundle.
+
 ## Types: `LayoutNode` → `llvm::Type`
 
 | Layout | LLVM type |
@@ -289,49 +336,37 @@ Each is refused by a message naming the hole rather than guessed at, per
   is no longer spoken, so the last one wins — and `EmitStore` now reports any
   survivor by naming both widths instead of storing it.
 
-## Closures — `ClosureEnvFrame` is already computed
+## Closures — fully synthesized upstream
 
-`SynthesizeClosureFrame` hands the emitter `{ Fields[offset], TotalSize,
-Alignment, bEscapes }`, and `ClosureEmitter.cpp` allocates that shape and fills
-it. Nothing here decides what is captured or where a field lives.
+`Lambda` and `Block` nodes are sugar (`rules/core-ast.md`) and do not reach
+this backend. `ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`)
+rewrites every closure literal into two things before any backend runs:
 
-- A `Lambda` and a `Block` differ only in what their body is — an expression
-  against a statement list — so both go through one `EmitClosure`. The body
-  compiles to a **private** `llvm::Function`: it is reached through its pair,
-  never by symbol, so it has no mangling and takes no part in the declare
-  sweep's symbol table.
-- Parameters are the declared ones **then `ptr %env`**, the trailing position
-  `abi.md` fixes for all three targets. The env parameter is present even when
-  nothing is captured, so a call site needs no second signature — an empty
-  environment is a null pointer, not a missing argument.
-- Parameter types come from `UnitTypes::SiteType( BindingSite{ ParamId } )`,
-  the only place `| i |` in `arr.each do | i |` has a type at all; the result
-  is `Args[0]` of the callable type Sema gave the closure itself.
-- `bEscapes == false` (ScopeResolver proved the literal is consumed at its
-  call site): the env is an `alloca` in the caller — zero heap, the common
-  `do … end` case.
-- The body is emitted under a **nested `FunctionFrame`**, with the enclosing
-  frame's slots, loop stack and insert point saved and restored around it.
-  The frame carries `bClosure`, which two things read (below).
+1. A **synthesized top-level function** that becomes an entry in
+   `UnitView::Synth`. Its signature is the declared parameters plus a trailing
+   `ptr %env` (the position `abi.md` fixes for all three targets), and it is
+   declared and defined by `FunctionRegistry` as a separate sweep, alongside
+   the ordinary member sweeps.
+2. A **construction expression** at the original literal's site:
+   `Proc.new( FuncAddr, env )` \u2014 an ordinary `Call` node with `FuncAddr`
+   naming the synthesized function and `env` pointing at the allocated
+   environment. The backend emits both through paths it already owns.
 
-### Captures are addresses, and that is what makes them ordinary
+The environment itself is allocated upstream by `ClosureLifting` via a plain
+`Pointer<UInt8>.malloc( Frame.TotalSize )` call (or a stack `alloca` for
+non-escaping closures, once that optimisation lands). Every capture is stored
+into the env by rewritten `Assign` nodes, and every capturing use is rewritten
+into an ordinary `Deref` / `Call( Pointer<T>.from_address, [env-offset expr] )`
+sequence. The backend therefore sees no capture as such: only `Deref` and
+`Call` nodes it already knows how to emit.
 
-An env field holds the **address** of the captured binding, never a copy of
-its value. Two consequences, both load-bearing:
-
-- inside the body a capture is bound by `load ptr` out of the env, which
-  yields exactly what `FunctionFrame::Slots` holds for every other binding —
-  a place. So `x` reads and writes identically whether it is local or
-  captured, and no node kind learns about closures;
-- it is the only reading the frame's uniform pointer-sized fields support:
-  `SynthesizeClosureFrame` gives every capture the same slot regardless of its
-  type, which no by-value copy of an arbitrary aggregate could use. The
-  emitter checks each offset still fits the target's pointer size rather than
-  assuming the two agree.
+`FunctionFrame::bClosure` is still set for synthesized closure bodies, so that
+`next [value]` ends the invocation (`ret`) rather than branching to an enclosing
+loop, and `break` takes the non-local unwind path (below).
 
 ### The closure value is a layout, not an emitter-local shape
 
-`{ code, env }` is `abi.md`'s, shared by the three targets — and the stdlib
+`{ code, env }` is `abi.md`'s, shared by the three targets \u2014 and the stdlib
 type claiming `FuncType` / `Lambda` / `Block` declares *no field*, because that
 shape is an ABI decision no Volt declaration could express. So it is
 materialised in **`BackendCore::InstanceLayouts`**, next to the generic
@@ -341,7 +376,7 @@ resolves to an aggregate of two `Pointer` fields (`Pointer`, not an
 size through `LayoutEngine`).
 
 Putting it there rather than in one emitter is what makes a local, a field, a
-parameter and an argument holding a callable all agree on the shape — and what
+parameter and an argument holding a callable all agree on the shape \u2014 and what
 will let the VM and wasm read a closure this backend wrote. The claim is asked
 of the store through `@[Literal]`, the same protocol that identifies the type
 behind `nil` or a string literal, so no Volt type name enters.
@@ -353,9 +388,9 @@ parameter are the *same* emission. `MemberResolver` resolves both the same
 way, and the recognition costs no annotation: the callable type is whichever
 type claims the `FuncType` node kind (`IsCallableType`, one
 `LookupNodeKind`), and the member invoked is that type's single `abstract`
-contract, found by walking its members — so the spelling `call` never enters
-C++. The signature is then read off the receiver's own type arguments —
-result first, then the parameters — because a callable's arity lives in its
+contract, found by walking its members \u2014 so the spelling `call` never enters
+C++. The signature is then read off the receiver's own type arguments \u2014
+result first, then the parameters \u2014 because a callable's arity lives in its
 type, not in that contract's declaration.
 
 All of that happens **once**, in Sema, and lands on the resolution as
@@ -396,6 +431,7 @@ reusing the exception emitter's transport rather than inventing a second one:
 
 - `volt.brk.flag` (`i1`, thread-local, default `false`) is a second signal
   alongside `volt.exc.tag`/`.value` — **not** a sentinel folded into the
+
   exception tag, since that would make `EmitInitAll`'s unhandled-exception
   path misreport a runaway `break` as an exception, and would send
   `EmitAncestorTest` walking `volt.exc.ancestry` with a NominalId that was
