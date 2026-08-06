@@ -52,4 +52,9 @@ struct Pointer<T>
       0
     end
   end
+
+  def to_string -> String
+    "Pointer<#{T}>[#{self.to_address()}]"
+  end
+
 end

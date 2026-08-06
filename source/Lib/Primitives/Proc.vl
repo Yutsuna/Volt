@@ -34,4 +34,8 @@ struct Proc<R>
   # signature off the receiver rather than off this declaration.
   abstract def call -> R
 
+  def to_string -> String
+    "Proc(#{@code}, #{@env})"
+  end
+
 end
