@@ -154,6 +154,39 @@ inline void ConstrainNode ( const Volt::Frontend::HashLit &Node,
     }
 }
 
+// A naked-type enum-case access with no payload to learn from
+// (`Optional::None`) never gets its receiver's placeholder generic
+// arguments (`PlaceholderTypeArgs`, `ExprInferencer.cpp`) filled by
+// `UnifyArgs`: there is no call, hence no argument to unify against. The
+// only remaining source of truth is the assignment's own declared type,
+// exactly as `ArrayLit`'s empty `[]` adopts its target's element type above.
+// Scoped to a resolution that is an `EnumCase` of the *same* nominal as
+// `TargetType`, so an ordinary member access with a genuinely different
+// type still gets a real mismatch diagnostic instead of a silent coercion.
+inline void ConstrainNode ( const Volt::Frontend::Member &,
+                            Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                            Volt::Frontend::ExprId Expr,
+                            Volt::Sema::SemaTypeId TargetType )
+{
+    const auto It = Self.CalleeResolution.find( Expr.Value );
+    if ( It == Self.CalleeResolution.end() or It->second.Decl == nullptr or
+         It->second.Decl->Kind != Volt::Sema::EMemberKind::EnumCase )
+    {
+        return;
+    }
+
+    const Volt::Sema::SemaTypeId Current = Self.Ctx.Values.ExprType( Expr );
+    if ( not Current.IsValid() or not Self.Ctx.Values.Has( Current ) or not Self.Ctx.Values.Has( TargetType ) )
+    {
+        return;
+    }
+    if ( Self.Ctx.Values.Get( Current ).Base != Self.Ctx.Values.Get( TargetType ).Base )
+    {
+        return;
+    }
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
+}
+
 inline void ConstrainNode ( const Volt::Frontend::Lambda &,
                             Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
                             Volt::Frontend::ExprId Expr,
