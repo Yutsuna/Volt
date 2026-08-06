@@ -28,16 +28,40 @@ Program 'samples/Tests/OOP/Enum.vl'
 ├─ Enum 'Color' @9:1
 │  └─ body
 │     ├─ EnumCase 'Red' @10:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @10:3
 │     ├─ EnumCase 'Green' @11:3
-│     └─ EnumCase 'Blue' @12:3
+│     │  └─ value
+│     │     └─ IntLiteral '1' @11:3
+│     ├─ EnumCase 'Blue' @12:3
+│     │  └─ value
+│     │     └─ IntLiteral '2' @12:3
+│     └─ Method 'to_value' @9:1
+│        └─ body
+│           └─ ExprStmt @9:1
+│              └─ expr
+│                 └─ SelfExpr @9:1
 ├─ Enum 'UserRole' @17:1
 │  ├─ underlying
 │  │  └─ TypeRef 'UInt8' @17:17
 │  └─ body
 │     ├─ EnumCase 'Guest' @18:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @18:3
 │     ├─ EnumCase 'Member' @19:3
+│     │  └─ value
+│     │     └─ IntLiteral '1' @19:3
 │     ├─ EnumCase 'Moderator' @20:3
-│     └─ EnumCase 'Admin' @21:3
+│     │  └─ value
+│     │     └─ IntLiteral '2' @20:3
+│     ├─ EnumCase 'Admin' @21:3
+│     │  └─ value
+│     │     └─ IntLiteral '3' @21:3
+│     └─ Method 'to_value' @17:1
+│        └─ body
+│           └─ ExprStmt @17:1
+│              └─ expr
+│                 └─ SelfExpr @17:1
 ├─ Enum 'HttpStatus' @26:1
 │  ├─ underlying
 │  │  └─ TypeRef 'Int32' @26:19
@@ -54,59 +78,79 @@ Program 'samples/Tests/OOP/Enum.vl'
 │     ├─ EnumCase 'NotFound' @30:3
 │     │  └─ value
 │     │     └─ IntLiteral '404' @30:17
-│     └─ EnumCase 'InternalErr' @31:3
-│        └─ value
-│           └─ IntLiteral '500' @31:17
+│     ├─ EnumCase 'InternalErr' @31:3
+│     │  └─ value
+│     │     └─ IntLiteral '500' @31:17
+│     └─ Method 'to_value' @26:1
+│        └─ body
+│           └─ ExprStmt @26:1
+│              └─ expr
+│                 └─ SelfExpr @26:1
 ├─ Enum 'TaskStatus' @36:1
 │  └─ body
 │     ├─ EnumCase 'Todo' @37:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @37:3
 │     ├─ EnumCase 'InProgress' @38:3
+│     │  └─ value
+│     │     └─ IntLiteral '1' @38:3
 │     ├─ EnumCase 'Done' @39:3
-│     └─ Method 'next_step' @41:3
-│        ├─ return_type
-│        │  └─ TypeRef 'self' @41:20
+│     │  └─ value
+│     │     └─ IntLiteral '2' @39:3
+│     ├─ Method 'next_step' @41:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'self' @41:20
+│     │  └─ body
+│     │     └─ ExprStmt @42:5
+│     │        └─ expr
+│     │           └─ CaseExpr @42:5
+│     │              ├─ target
+│     │              │  └─ SelfExpr @42:10
+│     │              └─ clauses
+│     │                 ├─ WhenClause @43:5
+│     │                 │  ├─ patterns
+│     │                 │  │  └─ DotCall 'Todo' @43:10
+│     │                 │  └─ body
+│     │                 │     └─ ExprStmt @43:27
+│     │                 │        └─ expr
+│     │                 │           └─ Member 'InProgress' @43:37
+│     │                 │              └─ object
+│     │                 │                 └─ Identifier 'TaskStatus' @43:27
+│     │                 ├─ WhenClause @44:5
+│     │                 │  ├─ patterns
+│     │                 │  │  └─ DotCall 'InProgress' @44:10
+│     │                 │  └─ body
+│     │                 │     └─ ExprStmt @44:27
+│     │                 │        └─ expr
+│     │                 │           └─ Member 'Done' @44:37
+│     │                 │              └─ object
+│     │                 │                 └─ Identifier 'TaskStatus' @44:27
+│     │                 └─ WhenClause @45:5
+│     │                    ├─ patterns
+│     │                    │  └─ DotCall 'Done' @45:10
+│     │                    └─ body
+│     │                       └─ ExprStmt @45:27
+│     │                          └─ expr
+│     │                             └─ Member 'Done' @45:37
+│     │                                └─ object
+│     │                                   └─ Identifier 'TaskStatus' @45:27
+│     └─ Method 'to_value' @36:1
 │        └─ body
-│           └─ ExprStmt @42:5
+│           └─ ExprStmt @36:1
 │              └─ expr
-│                 └─ CaseExpr @42:5
-│                    ├─ target
-│                    │  └─ SelfExpr @42:10
-│                    └─ clauses
-│                       ├─ WhenClause @43:5
-│                       │  ├─ patterns
-│                       │  │  └─ DotCall 'Todo' @43:10
-│                       │  └─ body
-│                       │     └─ ExprStmt @43:27
-│                       │        └─ expr
-│                       │           └─ Member 'InProgress' @43:37
-│                       │              └─ object
-│                       │                 └─ Identifier 'TaskStatus' @43:27
-│                       ├─ WhenClause @44:5
-│                       │  ├─ patterns
-│                       │  │  └─ DotCall 'InProgress' @44:10
-│                       │  └─ body
-│                       │     └─ ExprStmt @44:27
-│                       │        └─ expr
-│                       │           └─ Member 'Done' @44:37
-│                       │              └─ object
-│                       │                 └─ Identifier 'TaskStatus' @44:27
-│                       └─ WhenClause @45:5
-│                          ├─ patterns
-│                          │  └─ DotCall 'Done' @45:10
-│                          └─ body
-│                             └─ ExprStmt @45:27
-│                                └─ expr
-│                                   └─ Member 'Done' @45:37
-│                                      └─ object
-│                                         └─ Identifier 'TaskStatus' @45:27
+│                 └─ SelfExpr @36:1
 ├─ Enum 'Optional' [T] @52:1
 │  └─ body
 │     ├─ EnumCase 'None' @53:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @53:3
 │     ├─ EnumCase 'Some' @54:3
-│     │  └─ payload
-│     │     └─ Param 'value' @54:9
-│     │        └─ decl_type
-│     │           └─ TypeRef 'T' @54:17
+│     │  ├─ payload
+│     │  │  └─ Param 'value' @54:9
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'T' @54:17
+│     │  └─ value
+│     │     └─ IntLiteral '1' @54:3
 │     └─ Method 'value_or' @56:3
 │        ├─ params
 │        │  └─ Param 'default_val' @56:17
