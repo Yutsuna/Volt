@@ -3,6 +3,7 @@
 
 #include "TypeChecker/ClosureLifting.hpp"
 #include "TypeChecker/DeclStmtWalker.hpp"
+#include "TypeChecker/EnumCaseLowering.hpp"
 #include "TypeChecker/LiteralInferencer.hpp"
 #include "TypeChecker/LiteralLowering.hpp"
 #include "TypeChecker/TypeCheckerContext.hpp"
@@ -63,6 +64,18 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     TypeCheckerPass::LowerArrayLits( State );
     TypeCheckerPass::LowerHashLits( State );
     TypeCheckerPass::LowerStringLits( State );
+
+    // Before LowerEnumCases, not after: a `case self when .Some(val)`
+    // pattern is, post-CaseLowering, syntactically identical to a genuine
+    // `EnumCase` construction call and would otherwise be misidentified as
+    // one. Unlike the other Lower* sweeps this one does not skip deferred
+    // (generic-body) expressions — see EnumCaseLowering.hpp.
+    TypeCheckerPass::LowerEnumPatterns( State );
+
+    // Same "final type only" discipline, same reason: an `EnumCase`
+    // construction reached as a call argument settles its type before the
+    // parameter constrains it. See EnumCaseLowering.hpp.
+    TypeCheckerPass::LowerEnumCases( State );
 
     // No-capture only (Phase 3a, .agents/PLAN_CLOSURE_LOWERING.md): a
     // capturing closure is left as a Lambda/Block until Phase 3b's env
