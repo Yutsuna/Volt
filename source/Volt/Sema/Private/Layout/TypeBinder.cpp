@@ -556,8 +556,18 @@ namespace Sema
                     {
                         bFullyResolved = false;
                     }
-                    const std::string FieldName = Case->Payload.Size() > 1 ? std::string{ CaseName } + "_" + std::to_string( ParamIndex )
-                                                                            : std::string{ CaseName };
+                    // `$`-prefixed: an EnumCase member is *also* named
+                    // `CaseName` (`Some`) — `LookupMemberOn`/`OwnMember`
+                    // return the first name match, so a payload field
+                    // sharing the bare case name would silently resolve to
+                    // the wrong member (the case's own self-constructing
+                    // signature, not the field) the moment both exist in
+                    // the same Members vector. `$` cannot open a written
+                    // Volt identifier, so it can never collide with a real
+                    // field/case/method name.
+                    const std::string FieldName = Case->Payload.Size() > 1
+                                                      ? "$" + std::string{ CaseName } + "_" + std::to_string( ParamIndex )
+                                                      : "$" + std::string{ CaseName };
                     Agg.Fields.PushBack( FieldLayout{ .Name = Store.Intern( FieldName ), .Type = FieldType } );
                     ++ParamIndex;
                 }
@@ -937,8 +947,9 @@ namespace Sema
                                 // `LookupNodeKind("IntLiteral")` is
                                 // guaranteed populated.
                                 SigTypeId Result;
-                                const auto *EnumType =
-                                    not Entry.ReturnType.IsValid() ? std::get_if<Frontend::Enum>( &Ast.Decl( Decl.Id ) ) : nullptr;
+                                const auto *EnumType = not Entry.ReturnType.IsValid()
+                                                           ? std::get_if<Frontend::Enum>( &Ast.Decl( Decl.Id ) )
+                                                           : nullptr;
                                 if ( EnumType != nullptr and Ast.Text( Entry.Name ) == "to_value" )
                                 {
                                     if ( const std::optional<NominalId> TagNominal = EnumTagNominal( Ast, Store, *EnumType ) )
@@ -999,6 +1010,81 @@ namespace Sema
                             [] ( const auto & ) {},
                         },
                         Ast.Decl( Child ) );
+                }
+
+                // A payload-bearing enum's `tag` and per-case payload slots
+                // (`Optional<T>`'s `Some`) are real `Field`-kind Members,
+                // not just `Aggregate` layout entries (`EnsureEnumLayout`,
+                // `InstanceLayout::Of`) — a *generic* enum never gets its
+                // own attached Layout at all, so registering these only
+                // there would leave `tmp.tag`/`self.Some` unresolvable
+                // through the ordinary `MemberType`/`LookupOn` path, which
+                // is exactly the path `Sema::ReinstantiateBody` re-walks
+                // per instantiation over a *fresh* `UnitTypes` overlay — a
+                // node whose type was merely stamped once, by hand, on the
+                // file's own overlay (`Sema/Private/Passes/TypeChecker/
+                // EnumCaseLowering.cpp`) is untyped again there. Registered
+                // here, once per enum, they resolve exactly like any other
+                // struct field, under both the original walk and every
+                // re-instantiation.
+                if ( const auto *EnumType = std::get_if<Frontend::Enum>( &Ast.Decl( Decl.Id ) ) )
+                {
+                    bool bHasPayload = false;
+                    for ( const Member &Existing : Store.Type( Id ).Members )
+                    {
+                        if ( Existing.Kind == EMemberKind::EnumCase and Existing.Params.Size() > 0 )
+                        {
+                            bHasPayload = true;
+                            break;
+                        }
+                    }
+
+                    if ( bHasPayload )
+                    {
+                        if ( const std::optional<NominalId> TagNominal = EnumTagNominal( Ast, Store, *EnumType ) )
+                        {
+                            Member TagField;
+                            TagField.Kind   = EMemberKind::Field;
+                            TagField.Name   = Store.Intern( "tag" );
+                            TagField.Result = PlainSigOf( Store, *TagNominal );
+                            Store.AddMember( Id, std::move( TagField ) );
+                        }
+
+                        // Snapshotted before any further AddMember() below —
+                        // those grow the very vector Store.Type(Id).Members
+                        // is a live reference into.
+                        std::vector<std::pair<std::string, SigTypeId>> PayloadFields;
+                        for ( const Member &Existing : Store.Type( Id ).Members )
+                        {
+                            if ( Existing.Kind != EMemberKind::EnumCase )
+                            {
+                                continue;
+                            }
+                            for ( std::size_t Index = 0; Index < Existing.Params.Size(); ++Index )
+                            {
+                                // `$`-prefixed — see the identical naming
+                                // note in `EnsureEnumLayout` above: without
+                                // it this Field member's name collides with
+                                // the EnumCase member of the same name
+                                // already in this same Members vector, and
+                                // `OwnMember`'s first-match lookup silently
+                                // resolves `self.Some` to the wrong one.
+                                const std::string FieldName =
+                                    Existing.Params.Size() > 1
+                                        ? "$" + std::string{ Store.Text( Existing.Name ) } + "_" + std::to_string( Index )
+                                        : "$" + std::string{ Store.Text( Existing.Name ) };
+                                PayloadFields.emplace_back( FieldName, Existing.Params[Index] );
+                            }
+                        }
+                        for ( auto &[FieldName, ResultSig] : PayloadFields )
+                        {
+                            Member PayloadField;
+                            PayloadField.Kind   = EMemberKind::Field;
+                            PayloadField.Name   = Store.Intern( FieldName );
+                            PayloadField.Result = ResultSig;
+                            Store.AddMember( Id, std::move( PayloadField ) );
+                        }
+                    }
                 }
             }
 
