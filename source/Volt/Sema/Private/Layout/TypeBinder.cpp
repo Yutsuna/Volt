@@ -220,6 +220,24 @@ namespace Sema
             return Bits;
         }
 
+        // An `EnumCase::Value` (a materialized `IntLiteral`, always valid by
+        // now — `Frontend::MaterializeEnumOrdinals` runs before this file's
+        // Phase A ever does, see `EnumSynthesis.hpp`). Malformed or missing
+        // decodes to 0, the same permissive fallback `ReadBits` above uses.
+        [[nodiscard]] std::int64_t DecodeEnumOrdinal ( const Frontend::AstContext &Ast, Frontend::ExprId Id )
+        {
+            const auto *Literal = Id.IsValid() ? std::get_if<Frontend::IntLiteral>( &Ast.Expr( Id ) ) : nullptr;
+            if ( Literal == nullptr )
+            {
+                return 0;
+            }
+
+            const std::string_view Raw = Ast.Text( Literal->Raw );
+            std::int64_t Value         = 0;
+            std::from_chars( Raw.data(), Raw.data() + Raw.size(), Value );
+            return Value;
+        }
+
         // `@[External( "libc" [, "malloc"] )]` — the library to link and the C
         // symbol to link against. The symbol defaults to the declaration's own
         // spelling, which is the common case (`external def memcpy`); Volt
@@ -308,6 +326,55 @@ namespace Sema
         // rather than recursing forever.
         constexpr std::uint32_t MaxLayoutDepth = 32;
 
+        // Resolves the nominal an enum's tag/underlying value collapses to:
+        // the type its own `: Underlying` names, or — unwritten (`Color`,
+        // `TaskStatus`) — whichever nominal claims `IntLiteral`, the same
+        // default that gives a bare `10` its type. Zero-hardcode: no Volt
+        // type name is spelled here, only a node-kind claim already used
+        // for that exact purpose elsewhere (`TypeCompat`'s `nil`, `Pointer`'s
+        // pointee).
+        [[nodiscard]] std::optional<NominalId>
+        EnumTagNominal ( const Frontend::AstContext &Ast, const TypeStore &Store, const Frontend::Enum &Type )
+        {
+            if ( Type.Underlying.IsValid() )
+            {
+                return FieldTypeNominal( Ast, Store, Type.Underlying );
+            }
+            return Store.LookupNodeKind( "IntLiteral" );
+        }
+
+        // An enum's layout: `Primitive` (the tag alone) when no case carries
+        // a payload — `self` *is* the ordinal/explicit value, exactly like
+        // `Symbol`'s `@[Primitive("u64",64)]` — or `Aggregate{ tag,
+        // ...payload fields }` when at least one case does (`Optional<T>`'s
+        // `Some(value: T)`). Payload fields are flattened across every case
+        // rather than sharing storage: the one payload-bearing case in the
+        // corpus has a single variant, and a real union would need a new
+        // `LayoutKind` reaching every `Aggregate` consumer for no benefit
+        // yet — revisit only if a multi-payload ADT needs it.
+        //
+        // Declared forward of `EnsureStructLayout` isn't possible (it calls
+        // back into it for the tag/payload nominals), so this is defined
+        // just after it instead; see the call site inside `EnsureStructLayout`.
+        LayoutId EnsureEnumLayout ( std::span<const Frontend::AstContext *const> Units,
+                                    TypeStore &Store,
+                                    NominalId Id,
+                                    const Frontend::AstContext &Ast,
+                                    const Frontend::Enum &Type,
+                                    std::uint32_t Depth );
+
+        // A non-generic `SigType` wrapping a plain nominal — no ParamIndex,
+        // no Base's own generic arguments threaded through. Used for
+        // `to_value`'s synthesized Result (see `EnumSynthesis.hpp`), where
+        // the answer is simply "whatever nominal the enum's tag resolves
+        // to," never something depending on the enum's own generics.
+        [[nodiscard]] SigTypeId PlainSigOf ( TypeStore &Store, NominalId Id )
+        {
+            SigType Sig;
+            Sig.Base = Id;
+            return Store.AddSig( std::move( Sig ) );
+        }
+
         // The aggregate a struct/class/mixin/enum collapses to when it has no
         // `@[Primitive]` — memoised onto the store itself (`AttachLayout`),
         // so a type reached from two different fields is only ever built
@@ -345,6 +412,14 @@ namespace Sema
             if ( Body == nullptr )
             {
                 return LayoutId{};
+            }
+
+            // An `Enum` never has a `Field`/`Super` — its layout is either a
+            // bare tag or a tag-plus-payload aggregate, never the
+            // inheritance-splicing shape below.
+            if ( const auto *EnumType = std::get_if<Frontend::Enum>( &Ast.Decl( Type.Decl ) ) )
+            {
+                return EnsureEnumLayout( Units, Store, Id, Ast, *EnumType, Depth );
             }
 
             Aggregate Agg;
@@ -402,6 +477,96 @@ namespace Sema
             // ParamIndex-encoded field signatures into `T`'s concrete
             // argument. Leaving Layout unattached instead defers every such
             // type to that substitution, exactly as the comment promises.
+            if ( not bFullyResolved )
+            {
+                return LayoutId{};
+            }
+
+            const LayoutId Built = Store.AddAggregate( std::move( Agg ) );
+            Store.AttachLayout( Id, Built );
+            return Built;
+        }
+
+        LayoutId EnsureEnumLayout ( std::span<const Frontend::AstContext *const> Units,
+                                    TypeStore &Store,
+                                    NominalId Id,
+                                    const Frontend::AstContext &Ast,
+                                    const Frontend::Enum &Type,
+                                    std::uint32_t Depth )
+        {
+            const std::optional<NominalId> TagNominal = EnumTagNominal( Ast, Store, Type );
+            const LayoutId TagLayout = TagNominal ? EnsureStructLayout( Units, Store, *TagNominal, Depth + 1 ) : LayoutId{};
+
+            if ( not TagLayout.IsValid() )
+            {
+                // The underlying/default nominal hasn't resolved its own
+                // `@[Primitive]` yet (cross-unit ordering) — leave this
+                // enum's Layout invalid too, exactly like a struct field
+                // naming an unresolved aggregate; `ResolveStructLayouts`'s
+                // outer loop or a later recursive reach will retry it.
+                return LayoutId{};
+            }
+
+            bool bHasPayload = false;
+            for ( const Frontend::DeclId Child : Type.Body )
+            {
+                const auto *Case = Child.IsValid() ? std::get_if<Frontend::EnumCase>( &Ast.Decl( Child ) ) : nullptr;
+                if ( Case != nullptr and Case->Payload.Size() > 0 )
+                {
+                    bHasPayload = true;
+                    break;
+                }
+            }
+
+            if ( not bHasPayload )
+            {
+                Store.AttachLayout( Id, TagLayout );
+                return TagLayout;
+            }
+
+            Aggregate Agg;
+            Agg.Fields.PushBack( FieldLayout{ .Name = Store.Intern( "tag" ), .Type = TagLayout } );
+
+            // A payload field is named from its *case*, not its written
+            // parameter name (`value` in `Some( value : T )`) — deliberately,
+            // so a generic enum's per-instantiation layout
+            // (`InstanceLayout::Of`, which only ever sees a `TypeStore`, no
+            // AST) can derive the identical field name from `Member::Name`
+            // alone. One field → the case name itself (`Some`); more than one
+            // → `<CaseName>_<Index>`. Keep both sites of this rule in sync.
+            bool bFullyResolved = true;
+            for ( const Frontend::DeclId Child : Type.Body )
+            {
+                const auto *Case = Child.IsValid() ? std::get_if<Frontend::EnumCase>( &Ast.Decl( Child ) ) : nullptr;
+                if ( Case == nullptr )
+                {
+                    continue;
+                }
+                const std::string_view CaseName = Ast.Text( Case->Name );
+                std::uint32_t ParamIndex        = 0;
+                for ( const Frontend::ParamId ParamRef : Case->Payload )
+                {
+                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
+                    LayoutId FieldType;
+                    if ( const std::optional<NominalId> Named = FieldTypeNominal( Ast, Store, ParamNode.DeclType ) )
+                    {
+                        FieldType = EnsureStructLayout( Units, Store, *Named, Depth + 1 );
+                    }
+                    if ( not FieldType.IsValid() )
+                    {
+                        bFullyResolved = false;
+                    }
+                    const std::string FieldName = Case->Payload.Size() > 1 ? std::string{ CaseName } + "_" + std::to_string( ParamIndex )
+                                                                            : std::string{ CaseName };
+                    Agg.Fields.PushBack( FieldLayout{ .Name = Store.Intern( FieldName ), .Type = FieldType } );
+                    ++ParamIndex;
+                }
+            }
+
+            // A generic enum's payload naming a bare parameter (`Some(value:
+            // T)` on `Optional<T>`) never resolves here — same contract as a
+            // generic struct field (`EnsureStructLayout`'s own comment
+            // above): deferred to `InstanceLayouts` at instantiation time.
             if ( not bFullyResolved )
             {
                 return LayoutId{};
@@ -495,11 +660,12 @@ namespace Sema
                             [&] ( const Frontend::EnumCase &Entry )
                             {
                                 Member Slot;
-                                Slot.Name   = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind   = EMemberKind::EnumCase;
-                                Slot.Unit   = Unit;
-                                Slot.Decl   = Child;
-                                Slot.Result = SelfSigOf( Id );
+                                Slot.Name        = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind        = EMemberKind::EnumCase;
+                                Slot.Unit        = Unit;
+                                Slot.Decl        = Child;
+                                Slot.Result      = SelfSigOf( Id );
+                                Slot.EnumOrdinal = DecodeEnumOrdinal( Ast, Entry.Value );
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [] ( const auto & ) {},
@@ -759,7 +925,32 @@ namespace Sema
                                 CheckTrailingDefaults( Entry.Params );
 
                                 SigSink Sink{ Store };
-                                const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
+
+                                // `to_value` (`EnumSynthesis.cpp`) is
+                                // synthesized with no written return type —
+                                // there is no Volt type name to spell at
+                                // parse time for an enum with no `:
+                                // Underlying`. Resolve it here instead, the
+                                // same way the enum's own tag layout is
+                                // resolved (`EnumTagNominal`): by now every
+                                // unit's Phase A has run, so
+                                // `LookupNodeKind("IntLiteral")` is
+                                // guaranteed populated.
+                                SigTypeId Result;
+                                const auto *EnumType =
+                                    not Entry.ReturnType.IsValid() ? std::get_if<Frontend::Enum>( &Ast.Decl( Decl.Id ) ) : nullptr;
+                                if ( EnumType != nullptr and Ast.Text( Entry.Name ) == "to_value" )
+                                {
+                                    if ( const std::optional<NominalId> TagNominal = EnumTagNominal( Ast, Store, *EnumType ) )
+                                    {
+                                        Result = PlainSigOf( Store, *TagNominal );
+                                    }
+                                }
+                                else
+                                {
+                                    Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
+                                }
+
                                 Core::SmallVec<SigTypeId, 4> Params;
                                 Core::SmallVec<bool, 4> ParamIsBlock;
                                 std::uint32_t MinParams = 0;
