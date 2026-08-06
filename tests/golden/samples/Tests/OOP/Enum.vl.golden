@@ -151,36 +151,37 @@ Program 'samples/Tests/OOP/Enum.vl'
 │     │  │        └─ TypeRef 'T' @54:17
 │     │  └─ value
 │     │     └─ IntLiteral '1' @54:3
-│     └─ Method 'value_or' @56:3
-│        ├─ params
-│        │  └─ Param 'default_val' @56:17
-│        │     └─ decl_type
-│        │        └─ TypeRef 'T' @56:31
-│        ├─ return_type
-│        │  └─ TypeRef 'T' @56:38
-│        └─ body
-│           └─ ExprStmt @57:5
-│              └─ expr
-│                 └─ CaseExpr @57:5
-│                    ├─ target
-│                    │  └─ SelfExpr @57:10
-│                    └─ clauses
-│                       ├─ WhenClause @58:5
-│                       │  ├─ patterns
-│                       │  │  └─ DotCall 'Some' @58:10
-│                       │  │     └─ args
-│                       │  │        └─ Identifier 'val' @58:16
-│                       │  └─ body
-│                       │     └─ ExprStmt @58:26
-│                       │        └─ expr
-│                       │           └─ Identifier 'val' @58:26
-│                       └─ WhenClause @59:5
-│                          ├─ patterns
-│                          │  └─ DotCall 'None' @59:10
-│                          └─ body
-│                             └─ ExprStmt @59:26
-│                                └─ expr
-│                                   └─ Identifier 'default_val' @59:26
+│     ├─ Method 'value_or' @56:3
+│     │  ├─ params
+│     │  │  └─ Param 'default_val' @56:17
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'T' @56:31
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'T' @56:38
+│     │  └─ body
+│     │     └─ ExprStmt @57:5
+│     │        └─ expr
+│     │           └─ CaseExpr @57:5
+│     │              ├─ target
+│     │              │  └─ SelfExpr @57:10
+│     │              └─ clauses
+│     │                 ├─ WhenClause @58:5
+│     │                 │  ├─ patterns
+│     │                 │  │  └─ DotCall 'Some' @58:10
+│     │                 │  │     └─ args
+│     │                 │  │        └─ Identifier 'val' @58:16
+│     │                 │  └─ body
+│     │                 │     └─ ExprStmt @58:26
+│     │                 │        └─ expr
+│     │                 │           └─ Identifier 'val' @58:26
+│     │                 └─ WhenClause @59:5
+│     │                    ├─ patterns
+│     │                    │  └─ DotCall 'None' @59:10
+│     │                    └─ body
+│     │                       └─ ExprStmt @59:26
+│     │                          └─ expr
+│     │                             └─ Identifier 'default_val' @59:26
+│     └─ Method 'initialize' @52:1
 ├─ ExprStmt @66:1
 │  └─ expr
 │     └─ Assign '=' @66:11
