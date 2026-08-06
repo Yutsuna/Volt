@@ -188,8 +188,10 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
         else
         {
             // Operator section: &.+ 5 or &.* 2
-            Node.Kind   = ESectionKind::Operator;
-            Node.Target = InternText( Advance() );
+            Node.Kind          = ESectionKind::Operator;
+            const Token &OpTok = Advance();
+            Node.Target        = InternText( OpTok );
+            Node.Op            = OpTok.Kind;
             if ( CanStartCommandArgument() or Check( TokenKind::IntLiteral ) or Check( TokenKind::FloatLiteral ) or
                  Check( TokenKind::StringLiteral ) )
             {

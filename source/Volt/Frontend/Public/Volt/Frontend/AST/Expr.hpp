@@ -310,6 +310,13 @@ namespace Frontend
         ExprId TargetExpr;
         ExprList Args;
         bool bNegated;
+        // Set only for ESectionKind::Operator — the raw token behind
+        // `Target`'s spelling. A lowering needs this to build a `Binary`/
+        // `Unary` node (the two the operator's spelling could be), never a
+        // `Member`+`Call`: that shape is exempt from any resolution on a
+        // primitive receiver (rules/core-ast.md's operator contract), so it
+        // is unreachable outside a Binary/Unary node's own dispatch.
+        TokenKind Op = TokenKind::Eof;
     };
 
     struct Composition
