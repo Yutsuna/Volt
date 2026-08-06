@@ -1,6 +1,7 @@
 #include "Volt/CLI/Commands/ParseCommand.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
@@ -8,10 +9,6 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-
-/**
- * Public
- */
 
 std::string_view Volt::CLI::FParseCommand::GetName () const noexcept
 {
@@ -31,11 +28,7 @@ std::string_view Volt::CLI::FParseCommand::GetUsage () const noexcept
 std::vector<Volt::CLI::FOption> Volt::CLI::FParseCommand::GetOptions ()
 {
     // clang-format off
-    return {
-        {
-            "-i", "--input", "INPUT", "Source input module path",
-            [this] ( std::string_view Val ) { this->Input = Val; }
-        },
+    std::vector<FOption> Options = {
         {
             "-o", "--output", "OUTPUT", "Output target path structure",
             [this] ( std::string_view Val ) { this->Output = Val; }
@@ -62,6 +55,13 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FParseCommand::GetOptions ()
         }
     };
     // clang-format on
+
+    for ( FOption &Option : GetInputOptions( InputFlags, "Source input module path" ) )
+    {
+        Options.push_back( std::move( Option ) );
+    }
+
+    return Options;
 }
 
 std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_view> InArgs )
@@ -82,22 +82,13 @@ std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_vie
         return ExitSuccess;
     }
 
-    if ( Input.empty() and not Result->Positionals.empty() )
+    const auto InputRes = ResolveInput( InputFlags, *Result, { .bAllowManifestFallback = false, .CommandName = "parse" } );
+    if ( not InputRes.has_value() )
     {
-        Input = Result->Positionals.front();
-    }
-    else if ( not Input.empty() and not Result->Positionals.empty() )
-    {
-        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ) );
-        Core::FLogger::Flush();
-        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
         return ExitFailure;
     }
-    if ( Input.empty() )
-    {
-        Core::FLogger::Error( "Missing input file" );
-        return ExitFailure;
-    }
+
+    const std::string &Input = InputRes->InputPath;
 
     Driver::Driver TheDriver;
     static_cast<void>( TheDriver.ParseFiles( { Input }, bLowered ) );
@@ -126,17 +117,12 @@ std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_vie
         return ExitSuccess;
     }
 
-    // Whole dump built off-stream, so the async logger cannot interleave.
     std::ostringstream Buffer;
     TheDriver.DumpUnits( Buffer, DumpOptions );
     Core::FLogger::Flush();
     std::cout << Buffer.str() << std::flush;
     return ExitSuccess;
 }
-
-/**
- * Private
- */
 
 namespace
 {

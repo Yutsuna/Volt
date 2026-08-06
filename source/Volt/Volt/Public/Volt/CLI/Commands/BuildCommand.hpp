@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/GenericCommand.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 
@@ -55,7 +56,8 @@ namespace CLI
 
     private:
 
-        std::string Input;
+        FInputFlags InputFlags;
+
         std::string Output;
         std::string Target = "native";
         std::string OptLevel;
@@ -63,7 +65,6 @@ namespace CLI
 
         bool bLto     = false;
         bool bVerbose = false;
-        bool bStdin   = false; // <-- new
 
         FStdlibCacheFlags StdlibFlags;
     };
