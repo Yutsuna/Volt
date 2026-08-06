@@ -4,7 +4,7 @@
 }:
 let
   gccStdenv = pkgs.gcc16Stdenv;
-  llvmAttrs = pkgs.llvmPackages_latest;
+  deps = import ./deps.nix { inherit pkgs; };
   version = with builtins; head (split "\n" (readFile ../VERSION.md));
 in
 gccStdenv.mkDerivation {
@@ -12,33 +12,21 @@ gccStdenv.mkDerivation {
   inherit version;
   src = pkgs.lib.cleanSource ../.;
 
-  nativeBuildInputs = with pkgs; [
-    cmake
-    ninja
-    pkg-config
-    ccache
-    mold
-    autoPatchelfHook
-  ];
+  nativeBuildInputs = deps.nativeBuildInputs ++ [ pkgs.autoPatchelfHook ];
+  inherit (deps) buildInputs;
 
-  buildInputs = with llvmAttrs; [
-    llvm
-    libllvm
-  ];
-
-  cmakeFlags = [
-    "-DCMAKE_BUILD_TYPE=Release" # TODO: Add option to change build type
-    "-DVOLT_USE_CCACHE=ON" # TODO: Add option to disable ccache
-    "-DCMAKE_BUILD_WITH_INSTALL_RPATH=ON" # TODO: Add option to disable rpath
-    "-DVOLT_ENABLE_LLVM=ON" # TODO: Add option to change backend target
-    "-DCMAKE_INSTALL_RPATH=${placeholder "out"}/lib"
+  mesonBuildType = "release";
+  mesonFlags = [
+    "-Denable_llvm=true"
+    "-Ddefault_library=static"
   ];
 
   installPhase = ''
-    mkdir -p $out/bin $out/lib $out/share/volt/Lib
-    cp bin/volt $out/bin/
-    cp lib/*.so $out/lib 2>/dev/null || true
+    runHook preInstall
+    meson install --no-rebuild
+    mkdir -p $out/share/volt/Lib
     cp -r $src/source/Lib/. $out/share/volt/Lib/
+    runHook postInstall
   '';
 
   meta = with pkgs.lib; {

@@ -1,6 +1,6 @@
 ---
 name: volt-ast-architect
-description: Designs and extends Volt AST nodes and the manifests that drive them (Nodes.inl, Reflect fields). Use when adding or reshaping an Expr/Stmt/Decl/Type/Jsx node, or a category-wide traversal. Applies volt-build format and refreshes graphify.
+description: Designs and extends Volt AST nodes and the manifests that drive them (Nodes.inl, Reflect fields). Use when adding or reshaping an Expr/Stmt/Decl/Type/Jsx node, or a category-wide traversal. Runs the `format` configuration and refreshes graphify.
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
@@ -20,5 +20,5 @@ Workflow for a new node:
    already handle it. Confirm with `AstSelfCheck.cpp`.
 
 Follow `rules/ast-value.md`, `rules/meta-first.md`, `rules/cpp-style.md`. Finish
-with `volt-build format`, a clean `volt-build build`, and
-`graphify update source/Volt`.
+with the `format` configuration (end of phase), a clean `-Werror` build
+through the IDE, and `graphify update source/Volt`.

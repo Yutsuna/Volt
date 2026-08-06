@@ -1,0 +1,624 @@
+Program 'samples/Tests/ControlFlow/WhileLoop.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/ControlFlow/WhileLoop.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
+├─ Class 'Event' @9:1
+│  └─ body
+│     ├─ Field 'name' getter @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @10:21
+│     ├─ Field 'handled' getter @11:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Bool' @11:21
+│     ├─ Method 'initialize' @13:3
+│     │  └─ params
+│     │     ├─ Param 'name' instance_var @13:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'String' @13:27
+│     │     └─ Param 'handled' instance_var @13:35
+│     │        ├─ decl_type
+│     │        │  └─ TypeRef 'Bool' @13:46
+│     │        └─ default
+│     │           └─ BoolLiteral false @13:53
+│     └─ Method 'mark_handled' @16:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @16:23
+│        └─ body
+│           └─ ExprStmt @17:5
+│              └─ expr
+│                 └─ Assign '=' @17:14
+│                    ├─ target
+│                    │  └─ InstanceVar '@handled' @17:5
+│                    └─ value
+│                       └─ BoolLiteral true @17:16
+├─ Class 'Account' @23:1
+│  └─ body
+│     ├─ Field 'email' @24:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @24:11
+│     ├─ Field 'active' @25:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Bool' @25:12
+│     ├─ Method 'initialize' @27:3
+│     │  └─ params
+│     │     ├─ Param 'email' instance_var @27:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'String' @27:28
+│     │     └─ Param 'active' instance_var @27:36
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Bool' @27:46
+│     ├─ Method 'email' @30:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'String' @30:16
+│     │  └─ body
+│     │     └─ ExprStmt @31:5
+│     │        └─ expr
+│     │           └─ InstanceVar '@email' @31:5
+│     └─ Method 'active?' @34:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @34:18
+│        └─ body
+│           └─ ExprStmt @35:5
+│              └─ expr
+│                 └─ InstanceVar '@active' @35:5
+├─ Class 'ConnectionSocket' @41:1
+│  └─ body
+│     ├─ Field 'connected' @42:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Bool' @42:15
+│     ├─ Field 'attempts' @43:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @43:14
+│     ├─ Method 'initialize' @45:3
+│     │  └─ params
+│     │     ├─ Param 'connected' instance_var @45:19
+│     │     │  ├─ decl_type
+│     │     │  │  └─ TypeRef 'Bool' @45:32
+│     │     │  └─ default
+│     │     │     └─ BoolLiteral false @45:39
+│     │     └─ Param 'attempts' instance_var @45:46
+│     │        ├─ decl_type
+│     │        │  └─ TypeRef 'Int32' @45:58
+│     │        └─ default
+│     │           └─ IntLiteral '0' @45:66
+│     ├─ Method 'try_connect' @48:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Bool' @48:22
+│     │  └─ body
+│     │     ├─ ExprStmt @49:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @49:15
+│     │     │        ├─ target
+│     │     │        │  └─ InstanceVar '@attempts' @49:5
+│     │     │        └─ value
+│     │     │           └─ Binary '+' @49:15
+│     │     │              ├─ lhs
+│     │     │              │  └─ InstanceVar '@attempts' @49:5
+│     │     │              └─ rhs
+│     │     │                 └─ IntLiteral '1' @49:18
+│     │     ├─ ExprStmt @50:5
+│     │     │  └─ expr
+│     │     │     └─ If @50:5
+│     │     │        ├─ cond
+│     │     │        │  └─ Binary '>=' @50:18
+│     │     │        │     ├─ lhs
+│     │     │        │     │  └─ InstanceVar '@attempts' @50:8
+│     │     │        │     └─ rhs
+│     │     │        │        └─ IntLiteral '3' @50:21
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @51:7
+│     │     │              └─ expr
+│     │     │                 └─ Assign '=' @51:18
+│     │     │                    ├─ target
+│     │     │                    │  └─ InstanceVar '@connected' @51:7
+│     │     │                    └─ value
+│     │     │                       └─ BoolLiteral true @51:20
+│     │     └─ ExprStmt @53:5
+│     │        └─ expr
+│     │           └─ InstanceVar '@connected' @53:5
+│     ├─ Method 'attempts' @56:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @56:19
+│     │  └─ body
+│     │     └─ ExprStmt @57:5
+│     │        └─ expr
+│     │           └─ InstanceVar '@attempts' @57:5
+│     └─ Method 'connected?' @60:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @60:21
+│        └─ body
+│           └─ ExprStmt @61:5
+│              └─ expr
+│                 └─ InstanceVar '@connected' @61:5
+├─ Method 'drain_event_queue' @67:1
+│  ├─ params
+│  │  └─ Param 'events' @67:24
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Array' @67:33
+│  │           └─ generics
+│  │              └─ TypeRef 'Event' @67:39
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @67:51
+│  └─ body
+│     ├─ ExprStmt @68:3
+│     │  └─ expr
+│     │     └─ Assign '=' @68:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'index' @68:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @68:11
+│     ├─ ExprStmt @69:3
+│     │  └─ expr
+│     │     └─ Assign '=' @69:17
+│     │        ├─ target
+│     │        │  └─ Identifier 'handled_count' @69:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @69:19
+│     ├─ While @70:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @70:15
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'index' @70:9
+│     │  │     └─ rhs
+│     │  │        └─ Member 'size' @70:23
+│     │  │           └─ object
+│     │  │              └─ Identifier 'events' @70:17
+│     │  └─ body
+│     │     ├─ ExprStmt @71:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @71:11
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'event' @71:5
+│     │     │        └─ value
+│     │     │           └─ Call @71:19
+│     │     │              ├─ callee
+│     │     │              │  └─ Member '[]' @71:19
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'events' @71:13
+│     │     │              └─ args
+│     │     │                 └─ Identifier 'index' @71:20
+│     │     ├─ ExprStmt @72:5
+│     │     │  └─ expr
+│     │     │     └─ Member 'mark_handled' @72:10
+│     │     │        └─ object
+│     │     │           └─ Identifier 'event' @72:5
+│     │     ├─ ExprStmt @73:5
+│     │     │  └─ expr
+│     │     │     └─ Call @73:19
+│     │     │        ├─ callee
+│     │     │        │  └─ Member '[]=' @73:11
+│     │     │        │     └─ object
+│     │     │        │        └─ Identifier 'events' @73:5
+│     │     │        └─ args
+│     │     │           ├─ Identifier 'index' @73:12
+│     │     │           └─ Identifier 'event' @73:21
+│     │     ├─ ExprStmt @74:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @74:19
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'handled_count' @74:5
+│     │     │        └─ value
+│     │     │           └─ Binary '+' @74:19
+│     │     │              ├─ lhs
+│     │     │              │  └─ Identifier 'handled_count' @74:5
+│     │     │              └─ rhs
+│     │     │                 └─ IntLiteral '1' @74:22
+│     │     └─ ExprStmt @75:5
+│     │        └─ expr
+│     │           └─ Assign '=' @75:11
+│     │              ├─ target
+│     │              │  └─ Identifier 'index' @75:5
+│     │              └─ value
+│     │                 └─ Binary '+' @75:11
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'index' @75:5
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '1' @75:14
+│     └─ ExprStmt @77:3
+│        └─ expr
+│           └─ Identifier 'handled_count' @77:3
+├─ Method 'find_active_account' @80:1
+│  ├─ params
+│  │  ├─ Param 'accounts' @80:26
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Array' @80:37
+│  │  │        └─ generics
+│  │  │           └─ TypeRef 'Account' @80:43
+│  │  └─ Param 'target_email' @80:53
+│  │     └─ decl_type
+│  │        └─ TypeRef 'String' @80:68
+│  ├─ return_type
+│  │  └─ TypeRef 'Bool' @80:80
+│  └─ body
+│     ├─ ExprStmt @81:3
+│     │  └─ expr
+│     │     └─ Assign '=' @81:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'index' @81:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @81:11
+│     ├─ ExprStmt @82:3
+│     │  └─ expr
+│     │     └─ Assign '=' @82:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'found' @82:3
+│     │        └─ value
+│     │           └─ BoolLiteral false @82:11
+│     ├─ While @83:3
+│     │  ├─ cond
+│     │  │  └─ Binary 'and' @83:31
+│     │  │     ├─ lhs
+│     │  │     │  └─ Binary '<' @83:15
+│     │  │     │     ├─ lhs
+│     │  │     │     │  └─ Identifier 'index' @83:9
+│     │  │     │     └─ rhs
+│     │  │     │        └─ Member 'size' @83:25
+│     │  │     │           └─ object
+│     │  │     │              └─ Identifier 'accounts' @83:17
+│     │  │     └─ rhs
+│     │  │        └─ Unary 'not' @83:35
+│     │  │           └─ operand
+│     │  │              └─ Identifier 'found' @83:39
+│     │  └─ body
+│     │     ├─ ExprStmt @84:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @84:13
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'account' @84:5
+│     │     │        └─ value
+│     │     │           └─ Call @84:23
+│     │     │              ├─ callee
+│     │     │              │  └─ Member '[]' @84:23
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'accounts' @84:15
+│     │     │              └─ args
+│     │     │                 └─ Identifier 'index' @84:24
+│     │     └─ ExprStmt @85:5
+│     │        └─ expr
+│     │           └─ If @85:5
+│     │              ├─ cond
+│     │              │  └─ Binary 'and' @85:38
+│     │              │     ├─ lhs
+│     │              │     │  └─ Binary '==' @85:22
+│     │              │     │     ├─ lhs
+│     │              │     │     │  └─ Member 'email' @85:15
+│     │              │     │     │     └─ object
+│     │              │     │     │        └─ Identifier 'account' @85:8
+│     │              │     │     └─ rhs
+│     │              │     │        └─ Identifier 'target_email' @85:25
+│     │              │     └─ rhs
+│     │              │        └─ Member 'active?' @85:49
+│     │              │           └─ object
+│     │              │              └─ Identifier 'account' @85:42
+│     │              ├─ then
+│     │              │  └─ ExprStmt @86:7
+│     │              │     └─ expr
+│     │              │        └─ Assign '=' @86:13
+│     │              │           ├─ target
+│     │              │           │  └─ Identifier 'found' @86:7
+│     │              │           └─ value
+│     │              │              └─ BoolLiteral true @86:15
+│     │              └─ else
+│     │                 └─ ExprStmt @88:7
+│     │                    └─ expr
+│     │                       └─ Assign '=' @88:13
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'index' @88:7
+│     │                          └─ value
+│     │                             └─ Binary '+' @88:13
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'index' @88:7
+│     │                                └─ rhs
+│     │                                   └─ IntLiteral '1' @88:16
+│     └─ ExprStmt @91:3
+│        └─ expr
+│           └─ Identifier 'found' @91:3
+├─ Method 'establish_connection' @94:1
+│  ├─ params
+│  │  ├─ Param 'socket' @94:27
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'ConnectionSocket' @94:36
+│  │  └─ Param 'max_attempts' @94:54
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @94:69
+│  ├─ return_type
+│  │  └─ TypeRef 'Bool' @94:80
+│  └─ body
+│     ├─ ExprStmt @95:3
+│     │  └─ expr
+│     │     └─ Assign '=' @95:12
+│     │        ├─ target
+│     │        │  └─ Identifier 'is_ready' @95:3
+│     │        └─ value
+│     │           └─ BoolLiteral false @95:14
+│     ├─ While @96:3
+│     │  ├─ cond
+│     │  │  └─ Binary 'and' @96:22
+│     │  │     ├─ lhs
+│     │  │     │  └─ Unary 'not' @96:9
+│     │  │     │     └─ operand
+│     │  │     │        └─ Identifier 'is_ready' @96:13
+│     │  │     └─ rhs
+│     │  │        └─ Binary '<' @96:42
+│     │  │           ├─ lhs
+│     │  │           │  └─ Member 'attempts' @96:32
+│     │  │           │     └─ object
+│     │  │           │        └─ Identifier 'socket' @96:26
+│     │  │           └─ rhs
+│     │  │              └─ Identifier 'max_attempts' @96:44
+│     │  └─ body
+│     │     └─ ExprStmt @97:5
+│     │        └─ expr
+│     │           └─ Assign '=' @97:14
+│     │              ├─ target
+│     │              │  └─ Identifier 'is_ready' @97:5
+│     │              └─ value
+│     │                 └─ Member 'try_connect' @97:22
+│     │                    └─ object
+│     │                       └─ Identifier 'socket' @97:16
+│     └─ ExprStmt @99:3
+│        └─ expr
+│           └─ Identifier 'is_ready' @99:3
+├─ Method 'strip_leading_spaces' @102:1
+│  ├─ params
+│  │  └─ Param 'text' @102:27
+│  │     └─ decl_type
+│  │        └─ TypeRef 'String' @102:34
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @102:46
+│  └─ body
+│     ├─ ExprStmt @103:3
+│     │  └─ expr
+│     │     └─ Assign '=' @103:10
+│     │        ├─ target
+│     │        │  └─ Identifier 'length' @103:3
+│     │        └─ value
+│     │           └─ Member 'size' @103:16
+│     │              └─ object
+│     │                 └─ Identifier 'text' @103:12
+│     ├─ ExprStmt @104:3
+│     │  └─ expr
+│     │     └─ Assign '=' @104:10
+│     │        ├─ target
+│     │        │  └─ Identifier 'offset' @104:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @104:12
+│     ├─ While @105:3
+│     │  ├─ cond
+│     │  │  └─ Binary 'and' @105:25
+│     │  │     ├─ lhs
+│     │  │     │  └─ Binary '<' @105:16
+│     │  │     │     ├─ lhs
+│     │  │     │     │  └─ Identifier 'offset' @105:9
+│     │  │     │     └─ rhs
+│     │  │     │        └─ Identifier 'length' @105:18
+│     │  │     └─ rhs
+│     │  │        └─ Binary '==' @105:42
+│     │  │           ├─ lhs
+│     │  │           │  └─ Call @105:33
+│     │  │           │     ├─ callee
+│     │  │           │     │  └─ Member '[]' @105:33
+│     │  │           │     │     └─ object
+│     │  │           │     │        └─ Identifier 'text' @105:29
+│     │  │           │     └─ args
+│     │  │           │        └─ Identifier 'offset' @105:34
+│     │  │           └─ rhs
+│     │  │              └─ CharLiteral ' ' @105:45
+│     │  └─ body
+│     │     └─ ExprStmt @106:5
+│     │        └─ expr
+│     │           └─ Assign '=' @106:12
+│     │              ├─ target
+│     │              │  └─ Identifier 'offset' @106:5
+│     │              └─ value
+│     │                 └─ Binary '+' @106:12
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'offset' @106:5
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '1' @106:15
+│     └─ ExprStmt @108:3
+│        └─ expr
+│           └─ Identifier 'offset' @108:3
+├─ ExprStmt @113:1
+│  └─ expr
+│     └─ Assign '=' @113:16
+│        ├─ target
+│        │  └─ Identifier 'pending_events' @113:1
+│        └─ value
+│           └─ ArrayLit @113:18
+│              └─ elements
+│                 ├─ Call @114:12
+│                 │  ├─ callee
+│                 │  │  └─ Member 'new' @114:8
+│                 │  │     └─ object
+│                 │  │        └─ Identifier 'Event' @114:3
+│                 │  └─ args
+│                 │     └─ StringLiteral 'click' @114:14
+│                 ├─ Call @115:12
+│                 │  ├─ callee
+│                 │  │  └─ Member 'new' @115:8
+│                 │  │     └─ object
+│                 │  │        └─ Identifier 'Event' @115:3
+│                 │  └─ args
+│                 │     └─ StringLiteral 'hover' @115:14
+│                 └─ Call @116:12
+│                    ├─ callee
+│                    │  └─ Member 'new' @116:8
+│                    │     └─ object
+│                    │        └─ Identifier 'Event' @116:3
+│                    └─ args
+│                       └─ StringLiteral 'submit' @116:14
+├─ ExprStmt @118:1
+│  └─ expr
+│     └─ Call @118:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @118:1
+│        └─ args
+│           └─ Binary '==' @118:46
+│              ├─ lhs
+│              │  └─ Call @118:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'drain_event_queue' @118:10
+│              │     └─ args
+│              │        └─ Identifier 'pending_events' @118:29
+│              └─ rhs
+│                 └─ IntLiteral '3' @118:49
+├─ ExprStmt @119:1
+│  └─ expr
+│     └─ Call @119:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @119:1
+│        └─ args
+│           └─ Member 'handled' @119:27
+│              └─ object
+│                 └─ Call @119:24
+│                    ├─ callee
+│                    │  └─ Member '[]' @119:24
+│                    │     └─ object
+│                    │        └─ Identifier 'pending_events' @119:10
+│                    └─ args
+│                       └─ IntLiteral '0' @119:25
+├─ ExprStmt @121:1
+│  └─ expr
+│     └─ Assign '=' @121:7
+│        ├─ target
+│        │  └─ Identifier 'users' @121:1
+│        └─ value
+│           └─ ArrayLit @121:9
+│              └─ elements
+│                 ├─ Call @122:14
+│                 │  ├─ callee
+│                 │  │  └─ Member 'new' @122:10
+│                 │  │     └─ object
+│                 │  │        └─ Identifier 'Account' @122:3
+│                 │  └─ args
+│                 │     ├─ StringLiteral 'alice@volt.dev' @122:16
+│                 │     └─ BoolLiteral true @122:34
+│                 └─ Call @123:14
+│                    ├─ callee
+│                    │  └─ Member 'new' @123:10
+│                    │     └─ object
+│                    │        └─ Identifier 'Account' @123:3
+│                    └─ args
+│                       ├─ StringLiteral 'bob@volt.dev' @123:16
+│                       └─ BoolLiteral false @123:32
+├─ ExprStmt @125:1
+│  └─ expr
+│     └─ Call @125:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @125:1
+│        └─ args
+│           └─ Binary '==' @125:57
+│              ├─ lhs
+│              │  └─ Call @125:29
+│              │     ├─ callee
+│              │     │  └─ Identifier 'find_active_account' @125:10
+│              │     └─ args
+│              │        ├─ Identifier 'users' @125:31
+│              │        └─ StringLiteral 'alice@volt.dev' @125:38
+│              └─ rhs
+│                 └─ BoolLiteral true @125:60
+├─ ExprStmt @126:1
+│  └─ expr
+│     └─ Call @126:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @126:1
+│        └─ args
+│           └─ Binary '==' @126:55
+│              ├─ lhs
+│              │  └─ Call @126:29
+│              │     ├─ callee
+│              │     │  └─ Identifier 'find_active_account' @126:10
+│              │     └─ args
+│              │        ├─ Identifier 'users' @126:31
+│              │        └─ StringLiteral 'bob@volt.dev' @126:38
+│              └─ rhs
+│                 └─ BoolLiteral false @126:58
+├─ ExprStmt @128:1
+│  └─ expr
+│     └─ Assign '=' @128:8
+│        ├─ target
+│        │  └─ Identifier 'socket' @128:1
+│        └─ value
+│           └─ Member 'new' @128:26
+│              └─ object
+│                 └─ Identifier 'ConnectionSocket' @128:10
+├─ ExprStmt @129:1
+│  └─ expr
+│     └─ Call @129:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @129:1
+│        └─ args
+│           └─ Binary '==' @129:44
+│              ├─ lhs
+│              │  └─ Call @129:30
+│              │     ├─ callee
+│              │     │  └─ Identifier 'establish_connection' @129:10
+│              │     └─ args
+│              │        ├─ Identifier 'socket' @129:32
+│              │        └─ IntLiteral '5' @129:40
+│              └─ rhs
+│                 └─ BoolLiteral true @129:47
+├─ ExprStmt @130:1
+│  └─ expr
+│     └─ Call @130:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @130:1
+│        └─ args
+│           └─ Binary '==' @130:26
+│              ├─ lhs
+│              │  └─ Member 'attempts' @130:16
+│              │     └─ object
+│              │        └─ Identifier 'socket' @130:10
+│              └─ rhs
+│                 └─ IntLiteral '3' @130:29
+└─ ExprStmt @132:1
+   └─ expr
+      └─ Call @132:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @132:1
+         └─ args
+            └─ Binary '==' @132:45
+               ├─ lhs
+               │  └─ Call @132:30
+               │     ├─ callee
+               │     │  └─ Identifier 'strip_leading_spaces' @132:10
+               │     └─ args
+               │        └─ StringLiteral '   hello' @132:32
+               └─ rhs
+                  └─ IntLiteral '3' @132:48
+--- exit 0 ---

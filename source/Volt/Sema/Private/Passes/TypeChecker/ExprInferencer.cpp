@@ -51,6 +51,25 @@ namespace
     return std::holds_alternative<Volt::Frontend::Lambda>( Ast.Expr( Id ) );
 }
 
+// A bare naked-type name (`Optional`, no `<T>` written) used as a receiver
+// still needs one binding slot per the type's own generic parameter, or
+// nothing downstream (`LookupOn`/`Reinstantiate`/`UnifyArgs`) has anywhere
+// to record what `T` turns out to be — `Optional::Some( "Yutsuna" )` would
+// reinstantiate to an unbound `Optional<T>` and fail `IsAssignable` against
+// a declared `Optional<String>`. Same placeholder-slot shape `Reinstantiate`
+// already uses for `Found.Decl->OwnGenerics` (`MemberResolver.cpp`), just
+// keyed on the *type's* own `Params` rather than a method's.
+[[nodiscard]] Volt::Core::SmallVec<Volt::Sema::SemaTypeId, 2> PlaceholderTypeArgs ( const Volt::Sema::TypeStore &Store,
+                                                                                    Volt::Sema::NominalId Named )
+{
+    Volt::Core::SmallVec<Volt::Sema::SemaTypeId, 2> Args;
+    for ( std::size_t Index = 0; Index < Store.Type( Named ).Params.Size(); ++Index )
+    {
+        Args.PushBack( Volt::Sema::SemaTypeId{} );
+    }
+    return Args;
+}
+
 [[nodiscard]] bool IsBlockResultInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
                                            Volt::Frontend::ExprId BlockArg,
                                            Volt::Sema::SemaTypeId BlockType )
@@ -83,8 +102,22 @@ namespace
     {
         return true;
     }
-    const auto *Name = std::get_if<Volt::Frontend::Identifier>( &Context.Ctx.Ast.Expr( Id ) );
-    return Name != nullptr and Context.UnconstrainedVarInitializers.contains( Name->Name );
+    const auto &Node = Context.Ctx.Ast.Expr( Id );
+    const auto *Name = std::get_if<Volt::Frontend::Identifier>( &Node );
+    if ( Name != nullptr )
+    {
+        return Context.UnconstrainedVarInitializers.contains( Name->Name );
+    }
+    // `-1` is a `Unary` over the still-unconstrained literal `1` (the parser
+    // never folds a sign into a literal token): a comparison operand written
+    // this way — `~zero == -1` — is exactly as malleable as the literal it
+    // wraps, or the cross-operand propagation below never reaches it and the
+    // literal keeps its default width.
+    if ( const auto *UnaryNode = std::get_if<Volt::Frontend::Unary>( &Node ); UnaryNode != nullptr )
+    {
+        return IsMalleable( Context, UnaryNode->Operand );
+    }
+    return false;
 }
 
 // The nominal `Type` resolves to, or an invalid handle when `Type` never
@@ -158,8 +191,9 @@ namespace
 {
     using namespace Volt::Sema::TypeCheckerPass;
 
-    const bool bHasTarget                      = Expr.Target.IsValid();
-    const Volt::Sema::SemaTypeId ScrutineeType = bHasTarget ? InferExpr( Context, Expr.Target ) : Context.SelfValue;
+    const Volt::Frontend::ExprId ScrutineeId   = Expr.Scrutinee.IsValid() ? Expr.Scrutinee : Expr.Target;
+    const bool bHasTarget                      = ScrutineeId.IsValid();
+    const Volt::Sema::SemaTypeId ScrutineeType = bHasTarget ? InferExpr( Context, ScrutineeId ) : Context.SelfValue;
     const Volt::Sema::NominalId Nominal        = ScrutineeNominal( Context, ScrutineeType );
     const bool bIsEnum                         = HasEnumCases( Context.Ctx.Types, Nominal );
 
@@ -226,7 +260,7 @@ namespace
     return Result;
 }
 
-// Builds `<ExceptionRoot>.new(MessageArg)` (MessageArg may be an invalid
+// Builds `<Root>.new(MessageArg)` (MessageArg may be an invalid
 // ExprId for a bare `.new()`), resolving the root type's name dynamically
 // through TypeStore rather than a hardcoded spelling. Shared by the two
 // places a `raise` needs to materialise an actual exception value: the
@@ -236,10 +270,10 @@ namespace
                                                                 Volt::Core::SourceRange Loc,
                                                                 Volt::Frontend::ExprId MessageArg )
 {
-    const auto Root = Context.Ctx.Types.GetExceptionRoot();
+    const auto Root = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
     if ( not Root )
     {
-        Context.Report( Loc, "no type is annotated @[ExceptionRoot]; the stdlib must declare one" );
+        Context.Report( Loc, "no type claims @[Literal( RaiseExpr )]; the stdlib must declare one" );
         return Volt::Frontend::ExprId{};
     }
     const std::string_view RootName      = Context.Ctx.Types.Text( Context.Ctx.Types.Type( *Root ).Name );
@@ -374,7 +408,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 if ( const auto Named = Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Expr.Name ) ) )
                 {
                     Context.NakedTypeExprs.insert( Id.Value );
-                    return Context.MakeType( *Named, {} );
+                    return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                 }
 
                 if ( Context.Ctx.Ast.Text( Expr.Name ) == "super" and Context.SelfValue.IsValid() )
@@ -447,7 +481,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     if ( const auto Named = Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Expr.Name ) ) )
                     {
                         Context.NakedTypeExprs.insert( Id.Value );
-                        return Context.MakeType( *Named, {} );
+                        return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                     }
                     const Resolution Found = LookupFreeFunction( Context, Context.Ctx.Ast.Text( Expr.Name ) );
                     if ( Found.Decl != nullptr )
@@ -550,9 +584,37 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 Context.UnconstrainedLiterals.insert( Id.Value );
                 return Context.MakeType( *Base, {} );
             },
+            [&] ( const Frontend::FuncAddr & ) -> SemaTypeId
+            {
+                // Inert like SizeOf/GenericInst: Target names an
+                // already-resolved Method Decl, not a value expression, so
+                // there is nothing to descend into. Always types as the
+                // exact type `Proc<R>#code` was declared with — read off
+                // that already-resolved field's own signature rather than
+                // reconstructed from a byte-width node-kind claim, the same
+                // trick LowerStringLit uses to borrow `String#initialize`'s
+                // parameter type instead of re-deriving "UInt8" itself
+                // (`rules/zero-hardcode.md`: no Volt type name spelled here).
+                const auto FuncBase = Context.Ctx.Types.LookupNodeKind( "FuncType" );
+                if ( not FuncBase )
+                {
+                    return SemaTypeId{};
+                }
+                const auto CodeField = Context.Ctx.Types.LookupMember( *FuncBase, "code" );
+                if ( CodeField.Decl == nullptr )
+                {
+                    return SemaTypeId{};
+                }
+                return Instantiate( Context.Ctx.Types, CodeField.Decl->Result, {}, SemaTypeId{}, Context.Ctx.Values );
+            },
             [&] ( const Frontend::Assign &Expr ) -> SemaTypeId
             {
                 const Volt::Sema::SemaTypeId Value = InferExpr( Context, Expr.Value );
+                // A first write that *declares* the local — `result = 1`, no
+                // annotation, no prior binding — records the initialiser as
+                // provisional below. Pinning it afterwards would defeat that
+                // record, so the two are mutually exclusive.
+                bool bProvisional = false;
                 if ( const auto *Target = std::get_if<Frontend::Identifier>( &Context.Ctx.Ast.Expr( Expr.Target ) ) )
                 {
                     const std::optional<SemaTypeId> Known = Context.FindLocal( Expr.Target, Target->Name );
@@ -568,6 +630,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                         if ( Context.IsUnconstrainedInit( Expr.Value, Value ) )
                         {
                             Context.UnconstrainedVarInitializers[Target->Name] = Expr.Value;
+                            bProvisional                                       = true;
                         }
                         Context.UninitializedLocals.erase( Target->Name );
                     }
@@ -576,7 +639,20 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // `x = x op v`, so compound assignment reaches this one check
                 // with no case of its own.
                 const SemaTypeId TargetType = InferExpr( Context, Expr.Target );
-                Context.ConstrainExprType( Expr.Value, TargetType );
+                // Constraining a provisional initialiser here would pin it to a
+                // type read back off the local we just wrote *from that very
+                // initialiser* — Int32 for `result = 1`. That is a no-op on the
+                // type and a loss everywhere else: ConstrainExprType consumes
+                // the UnconstrainedLiterals entry, and the literal is then
+                // unreachable when the local finally settles. `result *= base`
+                // moved the binding site to Int8 while the literal kept Int32,
+                // and the backend stored an i32 into the i8 slot — three bytes
+                // past its end. The last word has to win, so the first word
+                // must not be spoken.
+                if ( not bProvisional )
+                {
+                    Context.ConstrainExprType( Expr.Value, TargetType );
+                }
                 CheckAssignable( Context, Expr.Value, TargetType, EAssignSite::Assign );
                 return Value;
             },
@@ -631,20 +707,35 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                         Exception = MakeExceptionConstructor( Context, Loc, Frontend::ExprId{} );
                     }
                 }
-                else if ( std::holds_alternative<Frontend::StringLiteral>( Context.Ctx.Ast.Expr( Exception ) ) or
-                          std::holds_alternative<Frontend::Interp>( Context.Ctx.Ast.Expr( Exception ) ) )
+
+                // `raise "msg"` desugars to `Exception.new("msg")`. Detected
+                // by *type*, not by the pre-lowering node kind: InterpLowering
+                // (order 26) runs before TypeChecker (order 30), so an
+                // interpolated message never survives to this point as an
+                // `Interp` node — it is already a `Binary`/`Call` chain typed
+                // `String`. The type claiming @[Literal( StringLiteral )] is
+                // the same node-kind lookup TypeCompat uses for `nil`.
+                const auto Root          = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
+                SemaTypeId ExceptionType = InferExpr( Context, Exception );
+                NominalId Nominal =
+                    Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
+
+                if ( Root.has_value() and Nominal.IsValid() and not IsSubclassOf( Context.Ctx.Types, Nominal, *Root ) )
                 {
-                    // `raise "msg"` desugars to `Exception.new("msg")`, moved
-                    // here from the parser so the constructed callee resolves
-                    // through TypeStore's @[ExceptionRoot] instead of a
-                    // hardcoded name.
-                    Exception = MakeExceptionConstructor( Context, Loc, Exception );
+                    if ( const auto StringKind = Context.Ctx.Types.LookupNodeKind( "StringLiteral" );
+                         StringKind.has_value() and Nominal == *StringKind )
+                    {
+                        Exception     = MakeExceptionConstructor( Context, Loc, Exception );
+                        ExceptionType = InferExpr( Context, Exception );
+                        Nominal =
+                            Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
+                    }
                 }
 
                 std::get<Frontend::RaiseExpr>( Context.Ctx.Ast.Expr( Id ) ).Exception = Exception;
-                if ( Exception.IsValid() )
+                if ( Root.has_value() and Nominal.IsValid() and not IsSubclassOf( Context.Ctx.Types, Nominal, *Root ) )
                 {
-                    static_cast<void>( InferExpr( Context, Exception ) );
+                    Context.Report( Loc, "exception class/object expected" );
                 }
                 return TypeCheckerContext::NoReturnType();
             },
@@ -667,7 +758,8 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
                         const NominalId Nominal =
                             Context.Ctx.Values.Has( ExceptionType ) ? Context.Ctx.Values.Get( ExceptionType ).Base : NominalId{};
-                        if ( const auto ExcOpt = Context.Ctx.Types.GetExceptionRoot(); ExcOpt.has_value() and Nominal.IsValid() )
+                        if ( const auto ExcOpt = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" );
+                             ExcOpt.has_value() and Nominal.IsValid() )
                         {
                             if ( not IsSubclassOf( Context.Ctx.Types, Nominal, *ExcOpt ) )
                             {
@@ -676,7 +768,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                             }
                         }
                     }
-                    else if ( const auto ExcOpt = Context.Ctx.Types.GetExceptionRoot(); ExcOpt.has_value() )
+                    else if ( const auto ExcOpt = Context.Ctx.Types.LookupNodeKind( "RaiseExpr" ); ExcOpt.has_value() )
                     {
                         ExceptionType = Context.MakeType( *ExcOpt, {} );
                     }
@@ -710,6 +802,23 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 }
                 return Result;
             },
+            // `if` is an expression — `val = if c ... else ... end` — so its
+            // type is the join of the branches' trailing values, computed
+            // exactly as CaseExpr's is. TrailingType also *walks* each branch,
+            // which is what types the statements inside it.
+            //
+            // A branch that produces nothing (an `if` with no `else`, or one
+            // whose body ends in an assignment) contributes an invalid type,
+            // and UnifyBranchTypes lets the other side stand. That is the
+            // right answer in statement position, where the enclosing ExprStmt
+            // discards the value anyway.
+            [&] ( const Frontend::If &Expr ) -> SemaTypeId
+            {
+                static_cast<void>( InferExpr( Context, Expr.Cond ) );
+                const SemaTypeId Then = TrailingType( Context, Expr.Then );
+                const SemaTypeId Else = TrailingType( Context, Expr.Else );
+                return Context.UnifyBranchTypes( Then, Else );
+            },
             [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Context, Expr ); },
             [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Context, Id, Expr ); },
             // No Frontend::DotCall branch: DotCallLowering (order 23) rewrites
@@ -735,6 +844,29 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 return ClosureType( Context, "Block", TrailingType( Context, Expr.Body ), ParamTypes );
             },
             [&] ( const Frontend::CaseExpr &Expr ) -> SemaTypeId { return CaseType( Context, Id, Expr ); },
+            // `( Value : Type )` — explicit ascription, not a cast. Resolve
+            // `Type` and constrain `Value` against it exactly like a
+            // `LocalDecl`'s written type does (`DeclStmtWalker.cpp`): once
+            // before inferring `Value` (so an unconstrained lambda/closure
+            // body sees the expectation) and once after (a literal only
+            // joins `UnconstrainedLiterals` while being inferred, so the
+            // first call cannot narrow it).
+            [&] ( const Frontend::TypedExpr &Expr ) -> SemaTypeId
+            {
+                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                const SemaTypeId Written =
+                    ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
+                if ( Written.IsValid() )
+                {
+                    Context.ConstrainExprType( Expr.Value, Written );
+                }
+                const SemaTypeId ValueType = InferExpr( Context, Expr.Value );
+                if ( Written.IsValid() )
+                {
+                    Context.ConstrainExprType( Expr.Value, Written );
+                }
+                return Written.IsValid() ? Written : ValueType;
+            },
             [&] ( const auto &Expr ) -> SemaTypeId { return LiteralType( Context, Id, Expr ); },
         },
         Node );
@@ -760,13 +892,13 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     const SemaTypeId Callee = InferExpr( Context, Expr.Callee );
 
     // A callee that resolved to no member may still be callable: a local
-    // holding a closure is called as `f( x )`, which means the member its
-    // type annotates `@[Apply]`. Without this, `f( x )` evaluated to `f`
+    // holding a closure is called as `f( x )`, which invokes the contract of
+    // the type claiming FuncType. Without this, `f( x )` evaluated to `f`
     // itself, and every point-free pipeline stayed typed as its own Proc.
     auto It = Context.CalleeResolution.find( Expr.Callee.Value );
     if ( It == Context.CalleeResolution.end() )
     {
-        const Resolution Applied = LookupApplyOn( Context, Callee );
+        const Resolution Applied = LookupCallOn( Context, Callee );
         if ( Applied.Decl != nullptr )
         {
             It = Context.CalleeResolution.emplace( Expr.Callee.Value, Applied ).first;

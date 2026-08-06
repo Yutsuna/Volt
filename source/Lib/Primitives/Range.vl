@@ -1,0 +1,17 @@
+struct Range<T>
+  getter first : T
+  getter last  : T
+
+  def initialize( @first : T, @last : T )
+  end
+
+  include Enumerable<T>
+
+  def each( &block : T -> Void ) -> Void
+    i = @first
+    while i < @last
+      block.call( i )
+      i = i + 1
+    end
+  end
+end

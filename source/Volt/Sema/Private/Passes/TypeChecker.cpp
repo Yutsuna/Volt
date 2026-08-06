@@ -1,8 +1,11 @@
 // TypeChecker.cpp — Order 30 pass: gives every expression a type, and
 // resolves the members that types make available.
 
+#include "TypeChecker/ClosureLifting.hpp"
 #include "TypeChecker/DeclStmtWalker.hpp"
+#include "TypeChecker/EnumCaseLowering.hpp"
 #include "TypeChecker/LiteralInferencer.hpp"
+#include "TypeChecker/LiteralLowering.hpp"
 #include "TypeChecker/TypeCheckerContext.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -42,12 +45,43 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     RejectNilableTypes( Context );
 
     TypeCheckerPass::TypeCheckerContext State{ Context, TypeCheckerPass::MetadataExprs( Context.Ast ) };
-    TypeCheckerPass::WalkDecls( State, Context.Ast.TopDecls );
 
+    // Top-level statements first, same order ScopeResolver settled on: a file
+    // is a module, its top-level locals are its globals, and a `def` anywhere
+    // in the file can read them regardless of textual position.
     for ( const Frontend::StmtId Id : Context.Ast.TopStmts )
     {
         TypeCheckerPass::WalkStmt( State, Id );
     }
+    TypeCheckerPass::WalkDecls( State, Context.Ast.TopDecls );
+
+    // Only after every ConstrainExprType in the file has had its say: a
+    // literal passed as a call argument is naturally inferred before its
+    // parameter's type ever reaches it (CallType's own comment — "arguments
+    // are bound before being checked"), so rewriting inline the moment either
+    // path first settles a type bakes in whichever ran first. See
+    // LiteralLowering.hpp.
+    TypeCheckerPass::LowerArrayLits( State );
+    TypeCheckerPass::LowerHashLits( State );
+    TypeCheckerPass::LowerStringLits( State );
+
+    // Before LowerEnumCases, not after: a `case self when .Some(val)`
+    // pattern is, post-CaseLowering, syntactically identical to a genuine
+    // `EnumCase` construction call and would otherwise be misidentified as
+    // one. Unlike the other Lower* sweeps this one does not skip deferred
+    // (generic-body) expressions — see EnumCaseLowering.hpp.
+    TypeCheckerPass::LowerEnumPatterns( State );
+
+    // Same "final type only" discipline, same reason: an `EnumCase`
+    // construction reached as a call argument settles its type before the
+    // parameter constrains it. See EnumCaseLowering.hpp.
+    TypeCheckerPass::LowerEnumCases( State );
+
+    // No-capture only (Phase 3a, .agents/PLAN_CLOSURE_LOWERING.md): a
+    // capturing closure is left as a Lambda/Block until Phase 3b's env
+    // rewrite lands, so this must run after the literal lowerings above but
+    // still under the same "final type only" discipline.
+    TypeCheckerPass::LowerClosureLits( State );
 
     // Snapshot the settled resolutions into the unit before the pass-local
     // state dies — inference refines entries in place, so only the final map
@@ -62,7 +96,8 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
                                                                           .BlockParam  = Found.BlockParam,
                                                                           .Bindings    = Found.Bindings,
                                                                           .Receiver    = Found.Receiver,
-                                                                          .bConstructs = Found.bConstructs } );
+                                                                          .bConstructs = Found.bConstructs,
+                                                                          .bIndirect   = Found.bIndirect } );
         }
     }
 }

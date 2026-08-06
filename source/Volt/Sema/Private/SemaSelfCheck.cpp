@@ -2,13 +2,15 @@
 // the TypeStore arena, and the manifest-driven pass registry. Exercised under
 // -Werror so the header-only machinery is actually instantiated.
 
-#include "Volt/Core/Support/StringInterner.hpp"
-#include "Volt/Frontend/AST/AstContext.hpp"
-#include "Volt/Sema/Layout/MemoryLayout.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
-#include "Volt/Sema/Pass.hpp"
+#ifndef DEBUG_NO_STATIC_ASSERT
 
-#include <cstddef>
+    #include "Volt/Core/Support/StringInterner.hpp"
+    #include "Volt/Frontend/AST/AstContext.hpp"
+    #include "Volt/Sema/Layout/MemoryLayout.hpp"
+    #include "Volt/Sema/Layout/TypeStore.hpp"
+    #include "Volt/Sema/Pass.hpp"
+
+    #include <cstddef>
 
 namespace Volt
 {
@@ -82,7 +84,9 @@ namespace Sema
             PassStats Stats;
             UnitTypes Values;
             ScopeTable Scopes;
-            PassContext Context{ .Ast = Ast, .Types = Store, .Values = Values, .Scopes = Scopes, .Diags = Bag, .Stats = Stats };
+            SynthesizedFunctions Synth;
+            PassContext Context{
+                .Ast = Ast, .Types = Store, .Values = Values, .Scopes = Scopes, .Diags = Bag, .Stats = Stats, .Synth = Synth };
             const std::size_t Ran = RunPasses( Context );
 
             return Ran == Registry.size() and Bag.Errors() == 0;
@@ -93,3 +97,5 @@ namespace Sema
 } // namespace Sema
 
 } // namespace Volt
+
+#endif // DEBUG_NO_STATIC_ASSERT

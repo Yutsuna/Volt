@@ -1,10 +1,10 @@
 #include "Volt/CLI/Commands/CheckCommand.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"
-#include "Volt/Driver/WellKnown.hpp"
 
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -15,21 +15,11 @@
 #include <optional>
 #include <string>
 
-/**
- * Private helpers
- */
-
 namespace
 {
 
 namespace fs = std::filesystem;
 
-/// One line per non-zero counter, named by the field itself. Nothing here
-/// enumerates the counters: `--metrics` reports whatever PassStats declares,
-/// so a pass that adds one is visible without touching the CLI. This is the
-/// channel the AST-contract counters (ResidualSugarNodes, UntypedValueExprs)
-/// are read through — they are hard errors as well, but a count is what makes
-/// a regression measurable rather than just loud.
 void ReportMetrics ( const Volt::Sema::PassStats &Stats )
 {
     Volt::Core::FLogger::Info( "metrics:", "check" );
@@ -45,10 +35,6 @@ void ReportMetrics ( const Volt::Sema::PassStats &Stats )
 }
 
 } // namespace
-
-/**
- * Public
- */
 
 std::string_view Volt::CLI::FCheckCommand::GetName () const noexcept
 {
@@ -69,10 +55,6 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FCheckCommand::GetOptions ()
 {
     // clang-format off
     std::vector<FOption> Options = {
-        {
-            "-i", "--input", "INPUT", "Code target directory or source file",
-            [this] ( std::string_view Val ) { this->Input = Val; }
-        },
         {
             "", "--type", "TYPE", "Type verification scope (syntax|semantic|style)",
             [this] ( std::string_view Val ) { this->Type = Val; }
@@ -104,6 +86,11 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FCheckCommand::GetOptions ()
     };
     // clang-format on
 
+    for ( FOption &Option : GetInputOptions( InputFlags, "Code target directory or source file" ) )
+    {
+        Options.push_back( std::move( Option ) );
+    }
+
     for ( FOption &Option : StdlibCacheOptions( StdlibFlags ) )
     {
         Options.push_back( std::move( Option ) );
@@ -129,38 +116,13 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
         return ExitSuccess;
     }
 
-    if ( Input.empty() and not Result->Positionals.empty() )
+    const auto InputRes = ResolveInput( InputFlags, *Result, { .bAllowManifestFallback = true, .CommandName = "check" } );
+    if ( not InputRes.has_value() )
     {
-        Input = Result->Positionals.front();
-    }
-    else if ( not Input.empty() and not Result->Positionals.empty() )
-    {
-        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ), "check" );
-        Core::FLogger::Flush();
-        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
-        return ExitFailure;
-    }
-    if ( Input.empty() )
-    {
-        // Bare `volt check` inside a project directory checks that project.
-        std::error_code Ec;
-        if ( fs::is_regular_file( fs::current_path( Ec ) / Driver::WellKnown::ManifestName, Ec ) )
-        {
-            Input = fs::current_path( Ec ).string();
-        }
-    }
-    if ( Input.empty() )
-    {
-        Core::FLogger::Error( "Missing source analyzer validation inputs (-i)", "check" );
         return ExitFailure;
     }
 
-    std::error_code Ec;
-    if ( not fs::exists( Input, Ec ) )
-    {
-        Core::FLogger::Error( "Cannot read '" + Input + "': no such file or directory", "check" );
-        return ExitFailure;
-    }
+    const std::string &Input = InputRes->InputPath;
 
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
@@ -195,7 +157,6 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
         return ExitFailure;
     }
 
-    // Success front: one compact OK line, circuit-aware.
     std::string Summary = "OK : " + std::to_string( Compiled.Files ) + " file(s) type-checked";
     if ( TheDriver.Interfaces().Size() > 0 )
     {
@@ -210,7 +171,6 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
         Summary += ", " + std::to_string( Compiled.Stats.PipelinesLowered ) + " pipeline operator(s) lowered";
     }
     if ( TheDriver.Graph().ModuleCount() > 0 )
-
     {
         Summary += ", " + std::to_string( TheDriver.Graph().ModuleCount() ) + " module(s) in circuit `" +
                    TheDriver.Graph().NameOf( 0 ) + "`";
@@ -223,10 +183,6 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     }
     return ExitSuccess;
 }
-
-/**
- * Private
- */
 
 namespace
 {

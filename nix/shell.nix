@@ -5,31 +5,37 @@
 }:
 
 let
-  gccAttrs = pkgs.gcc16;
-  voltProj = pkgs.callPackage ./package.nix { inherit inputs; };
-  voltBuild = pkgs.callPackage ./volt-build.nix { };
+  deps = import ./deps.nix { inherit pkgs; };
+  ccacheStdenv = pkgs.overrideCC pkgs.stdenv pkgs.ccacheWrapper;
 in
-pkgs.mkShell {
-  inputsFrom = [ voltProj ];
+pkgs.mkShell.override { stdenv = ccacheStdenv; } {
 
-  nativeBuildInputs = with pkgs; [
-    gccAttrs
-    valgrind
-    gdb
-    gtest
-    clang-tools
-    cmake-lint
-    mold
-    ruby-lsp
-    graphify
-    voltBuild
-  ];
+  nativeBuildInputs =
+    deps.nativeBuildInputs
+    ++ deps.buildInputs
+    ++ (with pkgs; [
+      gcc16
+      valgrind
+      gdb
+      gtest
+      clang-tools
+      jq
+      uv
+    ]);
 
   shellHook = ''
-    export CXX=g++
-    export CC=gcc
+    export CCACHE_DIR="$PWD/.ccache"
+    export CCACHE_SLOPPINESS="pch_defines,time_macros,file_stat_matches,file_macro"
+    export CC="ccache gcc"
+    export CXX="ccache g++"
     export NIX_CFLAGS_LINK="-fuse-ld=mold"
 
-    # python3 scripts/graphify/update_graphify.py
+    if [ ! -d ".venv" ]; then
+      echo ">> initializing virtual environment"
+      uv venv .venv
+      uv pip install --python .venv/bin/python graphifyy
+    fi
+
+    source .venv/bin/activate
   '';
 }

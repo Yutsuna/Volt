@@ -1,0 +1,28 @@
+#{
+# meson.options
+# Declarative build options
+#}
+
+option('enable_testing', type : 'boolean', value : false,
+       description : 'Enable the CTest-equivalent test suite (not yet migrated)')
+
+option('enable_llvm', type : 'boolean', value : true,
+       description : 'Build BackendLLVM and link it into Driver/Volt')
+
+option('enable_asan', type : 'boolean', value : false,
+       description : 'AddressSanitizer, debug-like buildtypes only')
+
+option('enable_ubsan', type : 'boolean', value : false,
+       description : 'UndefinedBehaviorSanitizer, debug-like buildtypes only')
+
+option('enable_tsan', type : 'boolean', value : false,
+       description : 'ThreadSanitizer, debug-like buildtypes only')
+
+option('checked_ids', type : 'boolean', value : false,
+       description : 'Enable cross-arena TypedId provenance checks (VOLT_CHECKED_IDS)')
+
+option('enable_lto', type : 'boolean', value : false,
+       description : 'Link-time optimisation, release buildtype only')
+
+option('debug_full', type : 'boolean', value : false,
+       description : 'Use -g3 (full macro debug info) instead of the default -g1 in debug builds')

@@ -1,0 +1,125 @@
+Program 'samples/Tests/Conditional/UnlessElse.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'FAIL ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:19
+│                                   ├─ StringLiteral ':\tCalled by ' @3:11
+│                                   ├─ Identifier '__FUNCTION__' @3:43
+│                                   ├─ StringLiteral ' at ' @3:11
+│                                   ├─ Identifier '__LINE__' @3:62
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:10
+│        ├─ target
+│        │  └─ Identifier 'executed' @8:1
+│        └─ value
+│           └─ BoolLiteral false @8:12
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ If @9:1
+│        ├─ cond
+│        │  └─ Unary 'not' @9:1
+│        │     └─ operand
+│        │        └─ BoolLiteral false @9:8
+│        └─ then
+│           └─ ExprStmt @10:3
+│              └─ expr
+│                 └─ Assign '=' @10:12
+│                    ├─ target
+│                    │  └─ Identifier 'executed' @10:3
+│                    └─ value
+│                       └─ BoolLiteral true @10:14
+├─ ExprStmt @12:1
+│  └─ expr
+│     └─ Call @12:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @12:1
+│        └─ args
+│           └─ Binary '==' @12:19
+│              ├─ lhs
+│              │  └─ Identifier 'executed' @12:10
+│              └─ rhs
+│                 └─ BoolLiteral true @12:22
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Assign '=' @15:8
+│        ├─ target
+│        │  └─ Identifier 'status' @15:1
+│        └─ value
+│           └─ If @15:10
+│              ├─ cond
+│              │  └─ Unary 'not' @15:10
+│              │     └─ operand
+│              │        └─ BoolLiteral true @15:17
+│              ├─ then
+│              │  └─ ExprStmt @16:3
+│              │     └─ expr
+│              │        └─ StringLiteral 'active' @16:3
+│              └─ else
+│                 └─ ExprStmt @18:3
+│                    └─ expr
+│                       └─ StringLiteral 'inactive' @18:3
+├─ ExprStmt @20:1
+│  └─ expr
+│     └─ Call @20:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @20:1
+│        └─ args
+│           └─ Binary '==' @20:17
+│              ├─ lhs
+│              │  └─ Identifier 'status' @20:10
+│              └─ rhs
+│                 └─ StringLiteral 'inactive' @20:20
+├─ ExprStmt @23:1
+│  └─ expr
+│     └─ Assign '=' @23:17
+│        ├─ target
+│        │  └─ Identifier 'res_unless_then' @23:1
+│        └─ value
+│           └─ If @23:19
+│              ├─ cond
+│              │  └─ Unary 'not' @23:19
+│              │     └─ operand
+│              │        └─ BoolLiteral false @23:26
+│              ├─ then
+│              │  └─ ExprStmt @23:37
+│              │     └─ expr
+│              │        └─ StringLiteral 'ok' @23:37
+│              └─ else
+│                 └─ ExprStmt @23:47
+│                    └─ expr
+│                       └─ StringLiteral 'ko' @23:47
+└─ ExprStmt @24:1
+   └─ expr
+      └─ Call @24:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @24:1
+         └─ args
+            └─ Binary '==' @24:26
+               ├─ lhs
+               │  └─ Identifier 'res_unless_then' @24:10
+               └─ rhs
+                  └─ StringLiteral 'ok' @24:29
+--- exit 0 ---

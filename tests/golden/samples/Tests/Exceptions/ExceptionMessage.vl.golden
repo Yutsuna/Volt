@@ -1,0 +1,119 @@
+Program 'samples/Tests/Exceptions/ExceptionMessage.vl'
+├─ Annotation 'External' @1:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @1:13
+│     └─ StringLiteral 'exit' @1:21
+├─ Method 'libc_exit' external @2:10
+│  ├─ params
+│  │  └─ Param 'value' @2:25
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @2:44
+├─ Method 'level3' @5:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @5:15
+│  └─ body
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ RaiseExpr @6:3
+│              └─ exception
+│                 └─ Call @6:26
+│                    ├─ callee
+│                    │  └─ Member 'new' @6:22
+│                    │     └─ object
+│                    │        └─ Identifier 'ArgumentError' @6:9
+│                    └─ args
+│                       └─ StringLiteral 'deep message\tsurvives' @6:28
+├─ Method 'level2' @10:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @10:15
+│  └─ body
+│     └─ ExprStmt @11:3
+│        └─ expr
+│           └─ Identifier 'level3' @11:3
+├─ Method 'quiet' @15:1
+│  └─ return_type
+│     └─ TypeRef 'Void' @15:14
+├─ Method 'main' @19:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @19:13
+│  └─ body
+│     ├─ ExprStmt @20:3
+│     │  └─ expr
+│     │     └─ Assign '=' @20:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'total' @20:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @20:11
+│     ├─ ExprStmt @22:3
+│     │  └─ expr
+│     │     └─ BeginExpr @22:3
+│     │        ├─ body
+│     │        │  └─ ExprStmt @23:5
+│     │        │     └─ expr
+│     │        │        └─ Identifier 'level2' @23:5
+│     │        └─ rescue_clauses
+│     │           └─ RescueClause 'e' @24:10
+│     │              ├─ exception_type
+│     │              │  └─ TypeRef 'ArgumentError' @24:14
+│     │              └─ body
+│     │                 └─ ExprStmt @25:5
+│     │                    └─ expr
+│     │                       └─ Assign '=' @25:11
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'total' @25:5
+│     │                          └─ value
+│     │                             └─ Ternary @25:38
+│     │                                ├─ cond
+│     │                                │  └─ Binary '==' @25:28
+│     │                                │     ├─ lhs
+│     │                                │     │  └─ Member 'size' @25:22
+│     │                                │     │     └─ object
+│     │                                │     │        └─ Member 'message' @25:14
+│     │                                │     │           └─ object
+│     │                                │     │              └─ Identifier 'e' @25:13
+│     │                                │     └─ rhs
+│     │                                │        └─ IntLiteral '21_u64' @25:31
+│     │                                ├─ then
+│     │                                │  └─ IntLiteral '5' @25:40
+│     │                                └─ else
+│     │                                   └─ IntLiteral '0' @25:44
+│     ├─ ExprStmt @28:3
+│     │  └─ expr
+│     │     └─ BeginExpr @28:3
+│     │        ├─ body
+│     │        │  └─ ExprStmt @29:5
+│     │        │     └─ expr
+│     │        │        └─ Identifier 'quiet' @29:5
+│     │        └─ rescue_clauses
+│     │           └─ RescueClause 'e' @30:10
+│     │              ├─ exception_type
+│     │              │  └─ TypeRef 'Exception' @30:14
+│     │              └─ body
+│     │                 └─ ExprStmt @31:5
+│     │                    └─ expr
+│     │                       └─ Assign '=' @31:11
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'total' @31:5
+│     │                          └─ value
+│     │                             └─ Binary '+' @31:19
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'total' @31:13
+│     │                                └─ rhs
+│     │                                   └─ IntLiteral '100' @31:21
+│     └─ ExprStmt @34:3
+│        └─ expr
+│           └─ Binary '+' @34:9
+│              ├─ lhs
+│              │  └─ Identifier 'total' @34:3
+│              └─ rhs
+│                 └─ IntLiteral '2' @34:11
+└─ ExprStmt @38:1
+   └─ expr
+      └─ Call @38:10
+         ├─ callee
+         │  └─ Identifier 'libc_exit' @38:1
+         └─ args
+            └─ Identifier 'main' @38:12
+--- exit 0 ---

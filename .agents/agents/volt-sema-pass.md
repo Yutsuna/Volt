@@ -26,5 +26,6 @@ Respect **zero-hardcode** (`rules/zero-hardcode.md`): resolve names to
 name in C++. A pass must be safe to run concurrently on distinct files (no shared
 mutable state beyond the Bag).
 
-Finish with `volt-build format`, clean `volt-build build`, and (for parallel changes) a TSAN
-run: `volt-build debug tsan` and compile a multi-file circuit.
+Finish with the `format` configuration (end of phase), a clean `-Werror`
+build through the IDE, and — for parallel changes — a TSAN build over a
+multi-file circuit.

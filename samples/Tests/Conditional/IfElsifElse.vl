@@ -1,0 +1,49 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+x = 15
+result = 0
+if x < 10
+  result = 1
+elsif x == 15
+  result = 2
+else
+  result = 3
+end
+assert!( result == 2 )
+
+
+val = if 10 > 5
+  "greater"
+else
+  "lesser"
+end
+assert!(val == "greater")
+
+
+val2 = if 10 < 5 then
+  "lesser"
+else
+  "greater"
+end
+assert!(val2 == "greater")
+
+
+res_then = if true then "oui" else "non" end
+assert!( res_then == "oui" )
+#{ TODO
+# x = 15
+# result : Symbol = :none
+# if x < 10
+#   result = :small
+# elsif x == 15
+#   result = :medium
+# else
+#   result = :large
+# end
+# assert!(result == :medium)
+#}

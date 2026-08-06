@@ -4,12 +4,16 @@ external def libc_backtrace( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> 
 @[External( "libc", "backtrace_symbols" )]
 external def libc_backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<UInt8>>
 
+@[External( "libc", "write" )]
+external def libc_write( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+
+
 #{
   @class Exception
   @brief Represents an exception that occurred in the program.
   @example raise Exception.new( "An exception occurred" )
 #}
-@[ExceptionRoot]
+@[Literal( RaiseExpr )]
 class Exception
   getter message   : String
   getter backtrace : Array<String>
@@ -52,6 +56,16 @@ class Exception
 
     buffer.free
     frames
+  end
+
+  #{
+    @brief Reports an exception that reached the top of the program uncaught.
+    @details Called from Prelude.vl's `__volt_entry` rescue clause — an
+             ordinary method, not a backend hook.
+  #}
+  def report_unhandled -> Void
+    text = "Unhandled exception: " + @message + "\n"
+    libc_write( 2, text.data, text.size )
   end
 
   def format_backtrace -> String

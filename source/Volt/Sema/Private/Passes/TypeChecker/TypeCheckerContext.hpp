@@ -42,6 +42,9 @@ struct Resolution
     // `T.new( … )`: the callee is the initializer, and the call constructs.
     // See CalleeEntry::bConstructs — this is where that fact is decided.
     bool bConstructs = false;
+    // `f( x )` on a callable. See CalleeEntry::bIndirect — decided here, in
+    // the one place that knows the receiver claims the FuncType node kind.
+    bool bIndirect = false;
 };
 
 struct TypeCheckerContext
@@ -120,6 +123,20 @@ struct TypeCheckerContext
     // closure nested deeper cannot inherit it by accident.
     SemaTypeId ExpectedClosure{};
 
+    // Non-null only for Sema::ReinstantiateBody's walk. A generic body's
+    // Lambda/Block literal is shared by every instantiation (ast-value.md:
+    // one AST per file, not per instantiation), so ClosureLifting's rewrite
+    // may not overwrite its slot the way it does for a concrete body's own
+    // one-shot pass — a second instantiation would find its own literal
+    // already replaced by the first's concretely-typed lowering. When set,
+    // LowerClosureLit records `original -> replacement` here instead of
+    // mutating Ast.Expr( original ) in place; BodyEmitter consults the same
+    // map (Sema::ExprRedirectMap, FunctionFrame::Redirects) once per
+    // instantiation, so the one shared literal gets a fresh, correctly-typed
+    // construction for each concrete instantiation without ever touching the
+    // shared Ast.
+    std::unordered_map<std::uint32_t, Frontend::ExprId> *Redirects = nullptr;
+
     explicit TypeCheckerContext ( PassContext &InCtx, std::vector<bool> InMetadata );
 
     void Report ( Core::SourceRange Loc, std::string Message );
@@ -171,7 +188,9 @@ struct TypeCheckerContext
             return B;
         if ( not B.IsValid() )
             return A;
-        return A;
+        if ( A == B )
+            return A;
+        return SemaTypeId{};
     }
 
     [[nodiscard]] SemaTypeId MakeType ( NominalId Base, Core::SmallVec<SemaTypeId, 2> Args );

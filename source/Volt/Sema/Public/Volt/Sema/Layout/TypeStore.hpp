@@ -105,13 +105,6 @@ namespace Sema
         // one to state what an including type owes it, and that debt is
         // what the conformance check collects.
         bool bAbstract = false;
-        // `@[Apply]`: the member's signature *is* the receiver's type
-        // arguments — result first, then parameters — rather than what it
-        // wrote down. This is how a callable is invoked without the compiler
-        // knowing what a callable is: the stdlib type claiming the FuncType
-        // node marks its own `call`, and arity follows the receiver, which no
-        // fixed declaration could express.
-        bool bApply = false;
         // `@[External( "libc", "malloc" )]`: implemented outside Volt, so the
         // member is a *declaration* of a symbol the linker resolves rather
         // than a body any backend emits. Recorded here, at the one seam that
@@ -124,6 +117,15 @@ namespace Sema
         // gives only a library. Both invalid when the member is ordinary Volt.
         Symbol ExternLib;
         Symbol ExternSymbol;
+        // `EnumCase` only: the case's ordinal/explicit value, decoded once
+        // here (Phase A) from the already-materialized `IntLiteral`
+        // (`Frontend::EnumSynthesizeOrdinals`, which runs before `TypeBinder`
+        // for exactly this reason). Lets a later Sema-side lowering
+        // (`Optional::Some`/`Color::Red` construction) build a fresh
+        // `IntLiteral` in its own unit's arena without ever reaching across
+        // into the *declaring* unit's AST, which a cross-unit `Member` may
+        // not share with the unit doing the construction.
+        std::int64_t EnumOrdinal = 0;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
@@ -497,26 +499,6 @@ namespace Sema
             return Find( ByNodeKind, NodeKind );
         }
 
-        // --- Exception root ------------------------------------------------
-
-        // The one stdlib type annotated `@[ExceptionRoot]` (Exception.vl).
-        // `raise`/`rescue` reason about it through this binding instead of
-        // the C++ side ever spelling out the Volt type name "Exception".
-        bool SetExceptionRoot ( NominalId Id )
-        {
-            if ( ExceptionRoot.IsValid() and ExceptionRoot != Id )
-            {
-                return false;
-            }
-            ExceptionRoot = Id;
-            return true;
-        }
-
-        [[nodiscard]] std::optional<NominalId> GetExceptionRoot () const
-        {
-            return ExceptionRoot.IsValid() ? std::optional<NominalId>{ ExceptionRoot } : std::nullopt;
-        }
-
         // --- Layouts -----------------------------------------------------
 
         [[nodiscard]] LayoutId AddPrimitive ( Symbol Spelling, std::uint32_t Bits )
@@ -576,7 +558,7 @@ namespace Sema
         }
 
         // Serialises the whole store: both arenas, both name indexes,
-        // Functions + its index, Modules, ExceptionRoot and the store's own
+        // Functions + its index, Modules and the store's own
         // (private) StringInterner. A hand-written pair rather than a
         // Meta::Reflected fallback because TypeStore is a class with private
         // state and derived indexes, exactly like Core::Arena/StringInterner
@@ -606,7 +588,6 @@ namespace Sema
             Layouts = Core::Arena<LayoutNode, LayoutId>{};
             ByName.clear();
             ByNodeKind.clear();
-            ExceptionRoot = NominalId{};
             Functions.clear();
             FunctionByName.clear();
             Modules.clear();
@@ -637,7 +618,6 @@ namespace Sema
         Core::Arena<LayoutNode, LayoutId> Layouts;
         std::unordered_map<Symbol, NominalId> ByName;
         std::unordered_map<Symbol, NominalId> ByNodeKind;
-        NominalId ExceptionRoot;
         // Free functions: not owned by any NominalId, so a plain vector +
         // name index rather than the Members arrays. Never reallocated once
         // the serial TypeBinder seam ends, so the raw Member* handed out by

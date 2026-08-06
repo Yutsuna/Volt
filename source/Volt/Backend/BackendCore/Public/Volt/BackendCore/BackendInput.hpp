@@ -9,6 +9,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Sema/Layout/CalleeMap.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
+#include "Volt/Sema/Layout/SynthesizedFunctions.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
@@ -42,6 +43,11 @@ namespace Backend
         const Sema::UnitTypes *Values    = nullptr;
         const Sema::UnitCallees *Callees = nullptr;
         const Sema::ScopeTable *Scopes   = nullptr;
+        // Functions a lowering pass synthesized for this unit alone
+        // (ClosureLifting) — never a TypeStore member, see
+        // Sema/Layout/SynthesizedFunctions.hpp. Null in tools that stop
+        // before codegen, same contract as the other pointers here.
+        const Sema::SynthesizedFunctions *Synth = nullptr;
     };
 
     // The whole build: units in circuit link order (dependencies before

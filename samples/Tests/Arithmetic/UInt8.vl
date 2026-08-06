@@ -1,0 +1,43 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_uint8 -> Void
+  a : UInt8 = 200
+  b : UInt8 = 50
+  zero : UInt8 = 0
+
+  assert!( a + b == 250 )
+  assert!( a - b == 150 )
+  assert!( a / b == 4 )
+  assert!( a % b == 0 )
+  assert!( a.min( b ) == 50 )
+  assert!( a.max( b ) == 200 )
+  assert!( a.successor == 201 )
+  assert!( a.predecessor == 199 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( a.even? )
+  assert!( ( 128 : UInt8 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.distance( b ) == 150 )
+  assert!( b.double == 100 )
+  assert!( a.half == 100 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_uint8
+  0
+end
+
+libc_exit( main() )

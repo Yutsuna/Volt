@@ -306,8 +306,13 @@ namespace Frontend
             }
             else if constexpr ( std::same_as<F, TokenKind> )
             {
-                const std::string_view Spelling = TokenSpelling( Field );
-                Out << ' ' << ValueText( Quoted( Spelling.empty() ? TokenName( Field ) : Spelling ) );
+                // Eof is the unset sentinel (Section::Op when Kind isn't
+                // Operator) — skip it, mirroring Symbol::IsValid() above.
+                if ( Field != TokenKind::Eof )
+                {
+                    const std::string_view Spelling = TokenSpelling( Field );
+                    Out << ' ' << ValueText( Quoted( Spelling.empty() ? TokenName( Field ) : Spelling ) );
+                }
             }
             else if constexpr ( std::is_enum_v<F> )
             {

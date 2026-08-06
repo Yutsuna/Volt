@@ -41,8 +41,9 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseStatement ()
 {
     switch ( PeekKind() )
     {
-    case TokenKind::KwIf:
-        return ParseIf();
+    // No `KwIf` / `KwUnless` arm: both are expressions, so they arrive through
+    // the default one and come back wrapped in an ExprStmt — the same route
+    // `case` and `begin` already take.
     case TokenKind::KwWhile:
         return ParseWhile();
     case TokenKind::KwUntil:
@@ -83,6 +84,21 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseExprOrLocalStatement ()
     return MakeStmt( Node, RangeSince( Begin ) );
 }
 
+Volt::Frontend::StmtId Volt::Frontend::Parser::WrapExpr ( ExprId Expr, Core::SourceRange Span )
+{
+    ExprStmt Node;
+    Node.Expr = Expr;
+    return MakeStmt( Node, Span );
+}
+
+Volt::Frontend::ExprId Volt::Frontend::Parser::NegateCond ( ExprId Cond, Core::SourceRange Span )
+{
+    Unary Negated;
+    Negated.Op      = TokenKind::KwNot;
+    Negated.Operand = Cond;
+    return MakeExpr( Negated, Span );
+}
+
 Volt::Frontend::StmtId Volt::Frontend::Parser::ApplyModifiers ( StmtId Inner )
 {
     if ( not Inner.IsValid() )
@@ -97,91 +113,124 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ApplyModifiers ( StmtId Inner )
         If Node;
         Node.Cond = ParseExpr( 0 );
         Node.Then.PushBack( Inner );
-        return MakeStmt( Node, RangeSince( Begin ) );
+        const Core::SourceRange Span = RangeSince( Begin );
+        return WrapExpr( MakeExpr( Node, Span ), Span );
     }
 
     if ( Accept( TokenKind::KwUnless ) )
     {
-        const ExprId Cond = ParseExpr( 0 );
-        Unary Negated;
-        Negated.Op      = TokenKind::Bang;
-        Negated.Operand = Cond;
+        const ExprId Cond            = ParseExpr( 0 );
+        const Core::SourceRange Span = RangeSince( Begin );
         If Node;
-        Node.Cond = MakeExpr( Negated, RangeSince( Begin ) );
+        Node.Cond = NegateCond( Cond, Span );
         Node.Then.PushBack( Inner );
-        return MakeStmt( Node, RangeSince( Begin ) );
+        return WrapExpr( MakeExpr( Node, Span ), Span );
     }
 
     if ( Accept( TokenKind::KwUntil ) )
     {
-        const ExprId Cond = ParseExpr( 0 );
-        Unary Negated;
-        Negated.Op      = TokenKind::KwNot;
-        Negated.Operand = Cond;
+        const ExprId Cond            = ParseExpr( 0 );
+        const Core::SourceRange Span = RangeSince( Begin );
         While Node;
-        Node.Cond = MakeExpr( Negated, RangeSince( Begin ) );
+        Node.Cond = NegateCond( Cond, Span );
         Node.Body.PushBack( Inner );
+        Node.bPostTest = WrapsBeginBlock( Inner );
+        return MakeStmt( Node, Span );
+    }
+
+    // `stmt while cond` — the mirror of the `until` modifier, and the only
+    // form that can express a do-while together with `begin ... end`.
+    if ( Accept( TokenKind::KwWhile ) )
+    {
+        While Node;
+        Node.Cond = ParseExpr( 0 );
+        Node.Body.PushBack( Inner );
+        Node.bPostTest = WrapsBeginBlock( Inner );
         return MakeStmt( Node, RangeSince( Begin ) );
     }
 
     return Inner;
 }
 
-Volt::Frontend::StmtId Volt::Frontend::Parser::ParseIf ()
+// The tail every conditional shares: an optional `then`, the consequent, and
+// whichever of `elsif` / `else` / `end` closes it. `then` is accepted but never
+// required — both spellings are the same tree, so nothing downstream can tell
+// `if c then x end` from `if c \n x end`.
+//
+// NOLINTNEXTLINE(misc-no-recursion)
+void Volt::Frontend::Parser::ParseConditionalTail ( If &Node, const char *CloseHint )
+{
+    static_cast<void>( Accept( TokenKind::KwThen ) );
+    SkipTerminators();
+    ParseStatementBlock( Node.Then );
+
+    if ( Check( TokenKind::KwElsif ) )
+    {
+        // An `elsif` is a nested If in the Else branch (Expr.hpp), and it
+        // consumes the single `end` that closes the whole chain.
+        const std::uint32_t ElsifBegin = Here();
+        const ExprId Nested            = ParseElsif();
+        Node.Else.PushBack( WrapExpr( Nested, RangeSince( ElsifBegin ) ) );
+        return;
+    }
+
+    if ( Accept( TokenKind::KwElse ) )
+    {
+        SkipTerminators();
+        ParseStatementBlock( Node.Else );
+    }
+    Expect( TokenKind::KwEnd, CloseHint );
+}
+
+Volt::Frontend::ExprId Volt::Frontend::Parser::ParseIf ()
 {
     const std::uint32_t Begin = Here();
     Expect( TokenKind::KwIf, "to begin an if statement" );
 
     If Node;
     Node.Cond = ParseExpr( 0 );
-    SkipTerminators();
-    ParseStatementBlock( Node.Then );
+    ParseConditionalTail( Node, "to close if statement" );
 
-    if ( Check( TokenKind::KwElsif ) )
-    {
-        Node.Else.PushBack( ParseElsif() );
-    }
-    else if ( Accept( TokenKind::KwElse ) )
-    {
-        SkipTerminators();
-        ParseStatementBlock( Node.Else );
-        Expect( TokenKind::KwEnd, "to close if statement" );
-    }
-    else
-    {
-        Expect( TokenKind::KwEnd, "to close if statement" );
-    }
+    return MakeExpr( Node, RangeSince( Begin ) );
+}
 
-    return MakeStmt( Node, RangeSince( Begin ) );
+// `unless c` is `if not c` — same node, negated condition, so `else` and the
+// value position come for free.
+Volt::Frontend::ExprId Volt::Frontend::Parser::ParseUnless ()
+{
+    const std::uint32_t Begin = Here();
+    Expect( TokenKind::KwUnless, "to begin an unless statement" );
+
+    const ExprId Cond = ParseExpr( 0 );
+
+    If Node;
+    Node.Cond = NegateCond( Cond, RangeSince( Begin ) );
+    ParseConditionalTail( Node, "to close unless statement" );
+
+    return MakeExpr( Node, RangeSince( Begin ) );
 }
 
 // NOLINTNEXTLINE(misc-no-recursion)
-Volt::Frontend::StmtId Volt::Frontend::Parser::ParseElsif ()
+Volt::Frontend::ExprId Volt::Frontend::Parser::ParseElsif ()
 {
     const std::uint32_t Begin = Here();
     Expect( TokenKind::KwElsif, "to begin an elsif clause" );
 
     If Node;
     Node.Cond = ParseExpr( 0 );
-    SkipTerminators();
-    ParseStatementBlock( Node.Then );
+    ParseConditionalTail( Node, "to close if statement" );
 
-    if ( Check( TokenKind::KwElsif ) )
-    {
-        Node.Else.PushBack( ParseElsif() );
-    }
-    else if ( Accept( TokenKind::KwElse ) )
-    {
-        SkipTerminators();
-        ParseStatementBlock( Node.Else );
-        Expect( TokenKind::KwEnd, "to close if statement" );
-    }
-    else
-    {
-        Expect( TokenKind::KwEnd, "to close if statement" );
-    }
+    return MakeExpr( Node, RangeSince( Begin ) );
+}
 
-    return MakeStmt( Node, RangeSince( Begin ) );
+bool Volt::Frontend::Parser::WrapsBeginBlock ( StmtId Inner ) const
+{
+    if ( not Inner.IsValid() )
+    {
+        return false;
+    }
+    const auto *Stmt = std::get_if<ExprStmt>( &Context.Stmt( Inner ) );
+    return Stmt != nullptr and Stmt->Expr.IsValid() and std::holds_alternative<BeginExpr>( Context.Expr( Stmt->Expr ) );
 }
 
 Volt::Frontend::StmtId Volt::Frontend::Parser::ParseWhile ()
@@ -272,7 +321,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseReturn ()
     // a value when none of those come next.
     if ( not Check( TokenKind::Newline ) and not Check( TokenKind::Semicolon ) and not Check( TokenKind::Eof ) and
          not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) and
-         not Check( TokenKind::KwUntil ) )
+         not Check( TokenKind::KwUntil ) and not Check( TokenKind::KwWhile ) )
     {
         Node.Value = ParseExpr( 0 );
     }
@@ -287,7 +336,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseBreak ()
     Break Node;
     if ( not Check( TokenKind::Newline ) and not Check( TokenKind::Semicolon ) and not Check( TokenKind::Eof ) and
          not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) and
-         not Check( TokenKind::KwUntil ) )
+         not Check( TokenKind::KwUntil ) and not Check( TokenKind::KwWhile ) )
     {
         Node.Value = ParseExpr( 0 );
     }
@@ -302,7 +351,7 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseNext ()
     Next Node;
     if ( not Check( TokenKind::Newline ) and not Check( TokenKind::Semicolon ) and not Check( TokenKind::Eof ) and
          not Check( TokenKind::KwEnd ) and not Check( TokenKind::KwIf ) and not Check( TokenKind::KwUnless ) and
-         not Check( TokenKind::KwUntil ) )
+         not Check( TokenKind::KwUntil ) and not Check( TokenKind::KwWhile ) )
     {
         Node.Value = ParseExpr( 0 );
     }

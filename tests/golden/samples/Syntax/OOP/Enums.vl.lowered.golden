@@ -7,33 +7,35 @@ Program 'samples/Syntax/OOP/Enums.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'Void' @1:36
 │  └─ body
-│     └─ If @2:3
-│        ├─ cond
-│        │  └─ Unary 'not' @2:6
-│        │     └─ operand
-│        │        └─ Identifier 'condition' @2:10
-│        └─ then
-│           └─ ExprStmt @3:5
-│              └─ expr
-│                 └─ RaiseExpr @3:5
-│                    └─ exception
-│                       └─ Binary '+' @3:11
-│                          ├─ lhs
-│                          │  └─ Binary '+' @3:11
-│                          │     ├─ lhs
-│                          │     │  └─ Binary '+' @3:11
-│                          │     │     ├─ lhs
-│                          │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
-│                          │     │     └─ rhs
-│                          │     │        └─ StringLiteral 'samples/Syntax/OOP/Enums.vl' @3:31
-│                          │     └─ rhs
-│                          │        └─ StringLiteral ':' @3:11
-│                          └─ rhs
-│                             └─ Call @3:11
-│                                └─ callee
-│                                   └─ Member 'to_string' @3:11
-│                                      └─ object
-│                                         └─ IntLiteral '3' @3:43
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Syntax/OOP/Enums.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
 ├─ Enum 'Color' @9:1
 │  └─ body
 │     ├─ EnumCase 'Red' @10:3
@@ -98,7 +100,7 @@ Program 'samples/Syntax/OOP/Enums.vl'
 │           └─ ExprStmt @42:5
 │              └─ expr
 │                 └─ CaseExpr @42:5
-│                    ├─ target
+│                    ├─ scrutinee
 │                    │  └─ SelfExpr @42:10
 │                    └─ clauses
 │                       ├─ WhenClause @43:5
@@ -163,7 +165,7 @@ Program 'samples/Syntax/OOP/Enums.vl'
 │           └─ ExprStmt @57:5
 │              └─ expr
 │                 └─ CaseExpr @57:5
-│                    ├─ target
+│                    ├─ scrutinee
 │                    │  └─ SelfExpr @57:10
 │                    └─ clauses
 │                       ├─ WhenClause @58:5

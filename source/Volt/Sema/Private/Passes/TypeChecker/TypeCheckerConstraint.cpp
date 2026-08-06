@@ -2,6 +2,7 @@
 #include "TypeCheckerContext.hpp"
 
 #include "ExprInferencer.hpp"
+#include "LiteralLowering.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 
 /**
@@ -71,8 +72,39 @@ inline void ConstrainNode ( const Volt::Frontend::Binary &Node,
                             Volt::Frontend::ExprId Expr,
                             Volt::Sema::SemaTypeId TargetType )
 {
+    // Resolve the operator on its own terms first — exactly what a bare visit
+    // would do — before deciding whether the outer target has any business
+    // reaching the operands. A self-typed operator (`Arithmetic#+`, `-`, ...)
+    // returns its receiver's own type, so `doubled : Int32 = value * 2` needs
+    // the target pushed through to settle `value` and `2`. A comparison
+    // (`Comparable#==`, `<`, ...) returns a fixed `Bool` regardless of the
+    // receiver, so pushing the target through it re-types the *operands* to
+    // Bool instead of Bool being the operator's own answer — `check( a + b ==
+    // 12.5 )` against a `Bool` parameter retyped `a + b` itself to Bool, and
+    // the backend then emitted `icmp` on the float `FAdd` result. Comparing
+    // the resolved result against the (independently resolved) receiver type
+    // tells the two apart without hardcoding a single operator token.
+    const Volt::Sema::SemaTypeId Natural = Volt::Sema::TypeCheckerPass::InferExpr( Self, Expr );
+    if ( Natural.IsValid() and Natural != Self.Ctx.Values.ExprType( Node.Lhs ) )
+    {
+        return;
+    }
+
     ConstrainChild( Self, Node.Lhs, TargetType );
     ConstrainChild( Self, Node.Rhs, TargetType );
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
+}
+
+// `neg : Int8 = -5` — `-5` is a `Unary` over the still-unconstrained literal
+// `5`; without this overload it fell to the no-op default below and `5` kept
+// its default `Int32`, so the assignment failed against `Int8`. Same shape as
+// `Binary`, one operand.
+inline void ConstrainNode ( const Volt::Frontend::Unary &Node,
+                            Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                            Volt::Frontend::ExprId Expr,
+                            Volt::Sema::SemaTypeId TargetType )
+{
+    ConstrainChild( Self, Node.Operand, TargetType );
     Self.Ctx.Values.SetExprType( Expr, TargetType );
 }
 
@@ -120,6 +152,39 @@ inline void ConstrainNode ( const Volt::Frontend::HashLit &Node,
             ConstrainChild( Self, Value, Target.Args[1] );
         }
     }
+}
+
+// A naked-type enum-case access with no payload to learn from
+// (`Optional::None`) never gets its receiver's placeholder generic
+// arguments (`PlaceholderTypeArgs`, `ExprInferencer.cpp`) filled by
+// `UnifyArgs`: there is no call, hence no argument to unify against. The
+// only remaining source of truth is the assignment's own declared type,
+// exactly as `ArrayLit`'s empty `[]` adopts its target's element type above.
+// Scoped to a resolution that is an `EnumCase` of the *same* nominal as
+// `TargetType`, so an ordinary member access with a genuinely different
+// type still gets a real mismatch diagnostic instead of a silent coercion.
+inline void ConstrainNode ( const Volt::Frontend::Member &,
+                            Volt::Sema::TypeCheckerPass::TypeCheckerContext &Self,
+                            Volt::Frontend::ExprId Expr,
+                            Volt::Sema::SemaTypeId TargetType )
+{
+    const auto It = Self.CalleeResolution.find( Expr.Value );
+    if ( It == Self.CalleeResolution.end() or It->second.Decl == nullptr or
+         It->second.Decl->Kind != Volt::Sema::EMemberKind::EnumCase )
+    {
+        return;
+    }
+
+    const Volt::Sema::SemaTypeId Current = Self.Ctx.Values.ExprType( Expr );
+    if ( not Current.IsValid() or not Self.Ctx.Values.Has( Current ) or not Self.Ctx.Values.Has( TargetType ) )
+    {
+        return;
+    }
+    if ( Self.Ctx.Values.Get( Current ).Base != Self.Ctx.Values.Get( TargetType ).Base )
+    {
+        return;
+    }
+    Self.Ctx.Values.SetExprType( Expr, TargetType );
 }
 
 inline void ConstrainNode ( const Volt::Frontend::Lambda &,

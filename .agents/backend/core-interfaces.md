@@ -11,7 +11,7 @@ concrete read side:
 
 | Promise | Where a backend reads it |
 |---|---|
-| 27 core nodes, no sugar | `Frontend::AstContext` (checked by `AstInvariant`) |
+| 25 core nodes, no sugar | `Frontend::AstContext` (checked by `AstInvariant`) |
 | every value expression typed | `Sema::UnitTypes` (`Values.ExprType( Id )`) |
 | method vs. machine instruction | `Sema::UnitCallees` (`Layout/CalleeMap.hpp`) |
 | closure size/alignment/escape | `Sema::SynthesizeClosureFrame( Scopes, Types, ScopeId )` |
@@ -31,8 +31,8 @@ per-unit *facts* (AST, types, callees, scopes), not the Driver's
 orchestration state, so `BackendInput.hpp` defines its own read-only view:
 
 ```cpp
-struct UnitView    { std::uint32_t Ordinal; Module, Path, Ast*, Values*, Callees*, Scopes* };
-struct BackendInput{ const TypeStore *Types; std::span<const UnitView> Units; };
+struct UnitView    { std::uint32_t Ordinal; Module, Path, Ast*, Values*, Callees*, Scopes*, Synth* };
+struct BackendInput{ Sema::TypeStore *Types; std::span<const UnitView> Units; std::uint32_t StdlibUnitCount; };
 ```
 
 The Driver (or a CLI command) maps each `CompileUnit` into a `UnitView`, in
@@ -40,6 +40,13 @@ The Driver (or a CLI command) maps each `CompileUnit` into a `UnitView`, in
 single-pass emitter sees every callee's declaring unit before the call site's.
 The dependency chain stays `Backend* → Sema → Frontend → Core`, and the
 Driver may later grow a dependency on backends without a cycle.
+
+`Synth` points at the `SynthesizedFunctions` table `ClosureLifting` built for
+this unit: the synthesized top-level functions (closure bodies) that are not
+TypeStore members and must be declared and defined as a separate sweep.
+`StdlibUnitCount` is the count of leading `Units` entries that belong to the
+standard library — used by `BackendLLVM` (and optionally by other targets) to
+skip defining stdlib bodies when a precompiled artifact is linked instead.
 
 ### `Ordinal` — the bridge back to the store, and why it is a field
 
@@ -140,10 +147,22 @@ diagnostics about Volt source.
 ## Module wiring & meta-first
 
 - New backend = one directory under `source/Volt/Backend/` + one line in
-  `cmake/VoltBuild.cmake`'s `VoltAddModules`. `VoltModule()` generates
+  `source/Volt/meson.build` (`subdir('Backend/...')`). `meson.build` configures
   `<MODULE>_EXPORT` (`rules/shared-lib-exports.md`); optional toolchains gate
-  themselves with an early `return()` (`BackendLLVM` ↔ `VOLT_ENABLE_LLVM`).
+  themselves with an option check (`BackendLLVM` ↔ `enable_llvm`).
 - Per-target instruction tables are **manifests**, not switches:
   `BackendVM/Bytecode.inl` (one `VOLT_OP` line per opcode → enum, name LUT,
-  operand widths) is the template. A future LLVM spelling→instruction table
-  or WASM opcode table follows the same shape (`rules/meta-first.md`).
+  operand widths) is the template. The LLVM spelling→instruction table
+  (`InstructionTables.cpp`) and any future wasm opcode table follow the same
+  shape (`rules/meta-first.md`).
+- `BackendLLVM` organises its private sources by concern:
+  `Private/Core/` (orchestration, services, LLVM module context),
+  `Private/Functions/` (declare/define sweeps, signature, parameter binder),
+  `Private/Types/` (type mapping, ABI verifier),
+  `Private/Lower/Expr/` (per-expression emitters),
+  `Private/Lower/Stmt/` (statement emitters, tail value, loop),
+  `Private/Lower/Closure/` (indirect call, block-next),
+  `Private/Lower/Exception/` (raise/rescue/ensure, ancestry table),
+  `Private/Lower/Mono/` (monomorphized body emitter, drain driver),
+  `Private/Target/` (optimizer, object emitter, IR emitter, linker driver,
+  stdlib artifact builder).

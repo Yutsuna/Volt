@@ -9,6 +9,8 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/Frontend/AST/EnumSynthesis.hpp"
+#include "Volt/Frontend/AST/PointFreeLowering.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -164,7 +166,13 @@ namespace
 // Bumping this invalidates every on-disk cache unconditionally (a
 // Serialize.hpp layout change is not otherwise reflected in FrontendCacheKey,
 // which only hashes stdlib source + the running binary's own identity).
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453031ULL; // "VOLTFE01"
+// Bumped to 02 when `@[Apply]` was deleted: `Member` lost `bApply` and
+// `CalleeEntry` gained `bIndirect`, so both cached records changed shape.
+// Bumped to 03 when `@[ExceptionRoot]` was deleted: `TypeStore` lost its
+// serialised `ExceptionRoot` field.
+// Bumped to 04 when `@[Unhandled]` was deleted: `Member` lost its serialised
+// `bUnhandled` field.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453034ULL; // "VOLTFE04"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -283,6 +291,18 @@ void Volt::Driver::Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     {
         Parser.ParseFile();
     }
+
+    // Must run before BindUnitTypes below (the cross-unit seam that builds
+    // the free-function table from Ast.TopDecls): a Method a Sema pass adds
+    // later would never be found by name (see PointFreeLowering.hpp).
+    Frontend::LowerPointFreeDefs( Unit.Ast );
+
+    // Same seam, same reason (see EnumSynthesis.hpp): an EnumCase's ordinal
+    // must be materialized, and a payload-less enum's synthesized
+    // `to_value` must exist, before TypeBinder's Phase A freezes each
+    // type's member list.
+    Frontend::MaterializeEnumOrdinals( Unit.Ast );
+    Frontend::SynthesizeEnumMembers( Unit.Ast );
 }
 
 void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
@@ -297,7 +317,8 @@ void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag
                                .Stats   = Unit.Stats,
                                .Globals = &Registry,
                                .Sources = &Sources,
-                               .Callees = &Unit.Callees };
+                               .Callees = &Unit.Callees,
+                               .Synth   = Unit.Synth };
     static_cast<void>( Sema::RunPasses( Context ) );
 }
 
@@ -310,7 +331,8 @@ void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
                                .Scopes  = Unit.Scopes,
                                .Diags   = Bag,
                                .Stats   = Unit.Stats,
-                               .Sources = &Sources };
+                               .Sources = &Sources,
+                               .Synth   = Unit.Synth };
     static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
 }
 
@@ -869,7 +891,8 @@ std::vector<Volt::Backend::UnitView> Volt::Driver::Driver::MakeBackendViews () c
                                             .Ast     = &Source.Ast,
                                             .Values  = &Source.Types,
                                             .Callees = &Source.Callees,
-                                            .Scopes  = &Source.Scopes } );
+                                            .Scopes  = &Source.Scopes,
+                                            .Synth   = &Source.Synth } );
         bEmitted[Index] = true;
     };
 

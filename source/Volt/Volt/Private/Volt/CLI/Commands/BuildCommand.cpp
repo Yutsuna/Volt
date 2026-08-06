@@ -1,30 +1,17 @@
 #include "Volt/CLI/Commands/BuildCommand.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"
-#include "Volt/Driver/WellKnown.hpp"
 
 #include <filesystem>
 #include <iostream>
 #include <optional>
 #include <string>
 
-/**
- * Private helpers
- */
-
-namespace
-{
-
 namespace fs = std::filesystem;
-
-} // namespace
-
-/**
- * Public
- */
 
 std::string_view Volt::CLI::FBuildCommand::GetName () const noexcept
 {
@@ -45,10 +32,6 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
 {
     // clang-format off
     std::vector<FOption> Options = {
-        {
-            "-i", "--input", "INPUT", "File input source program",
-            [this] ( std::string_view Val ) { this->Input = Val; }
-        },
         {
             "-o", "--output", "OUTPUT", "Output artifact path",
             [this] ( std::string_view Val ) { this->Output = Val; }
@@ -76,6 +59,11 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
     };
     // clang-format on
 
+    for ( FOption &Option : GetInputOptions( InputFlags, "File input source program" ) )
+    {
+        Options.push_back( std::move( Option ) );
+    }
+
     for ( FOption &Option : StdlibCacheOptions( StdlibFlags ) )
     {
         Options.push_back( std::move( Option ) );
@@ -101,37 +89,13 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         return ExitSuccess;
     }
 
-    if ( Input.empty() and not Result->Positionals.empty() )
+    const auto InputRes = ResolveInput( InputFlags, *Result, { .bAllowManifestFallback = true, .CommandName = "build" } );
+    if ( not InputRes.has_value() )
     {
-        Input = Result->Positionals.front();
-    }
-    else if ( not Input.empty() and not Result->Positionals.empty() )
-    {
-        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ), "build" );
-        Core::FLogger::Flush();
-        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
-        return ExitFailure;
-    }
-    if ( Input.empty() )
-    {
-        std::error_code Ec;
-        if ( fs::is_regular_file( fs::current_path( Ec ) / Driver::WellKnown::ManifestName, Ec ) )
-        {
-            Input = fs::current_path( Ec ).string();
-        }
-    }
-    if ( Input.empty() )
-    {
-        Core::FLogger::Error( "Missing source input (-i)", "build" );
         return ExitFailure;
     }
 
-    std::error_code Ec;
-    if ( not fs::exists( Input, Ec ) )
-    {
-        Core::FLogger::Error( "Cannot read '" + Input + "': no such file or directory", "build" );
-        return ExitFailure;
-    }
+    const std::string &Input = InputRes->InputPath;
 
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
@@ -197,9 +161,6 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         }
     }
 
-    // Driver::Build() is the *only* place --target resolves to a concrete
-    // backend (Driver/Private/DriverBuild.cpp): this command never includes
-    // a Backend* header at all.
     const Driver::BuildResult Built = TheDriver.Build( BuildOpts );
     if ( not Built.bOk )
     {
@@ -210,10 +171,6 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
     Core::FLogger::Info( "OK : " + Built.Artifact, "build" );
     return ExitSuccess;
 }
-
-/**
- * Private
- */
 
 namespace
 {

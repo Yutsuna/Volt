@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/GenericCommand.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 
@@ -20,6 +21,7 @@ namespace CLI
      *        (a Project.vl manifest is found upward), the whole circuit is analysed.
      * @options
      *        -i INPUT, --input INPUT          Code target directory or source file
+     *        --stdin                          Read source from standard input
      *        --type TYPE                      Type verification scope (syntax|semantic|style)
      *        --rules RULES                    Location path defining validation rule models
      *        --output OUT                     Output validation layout formats
@@ -44,7 +46,7 @@ namespace CLI
 
     private:
 
-        std::string Input;
+        FInputFlags InputFlags;
         std::string Type = "syntax";
         std::string Rules;
         std::string OutputFormat = "json";

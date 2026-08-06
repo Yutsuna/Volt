@@ -188,8 +188,10 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrefix ()
         else
         {
             // Operator section: &.+ 5 or &.* 2
-            Node.Kind   = ESectionKind::Operator;
-            Node.Target = InternText( Advance() );
+            Node.Kind          = ESectionKind::Operator;
+            const Token &OpTok = Advance();
+            Node.Target        = InternText( OpTok );
+            Node.Op            = OpTok.Kind;
             if ( CanStartCommandArgument() or Check( TokenKind::IntLiteral ) or Check( TokenKind::FloatLiteral ) or
                  Check( TokenKind::StringLiteral ) )
             {
@@ -375,7 +377,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
             // A string/interp argument is sugar for `Exception.new(msg)`, but
             // the parser has no TypeStore to resolve the exception root
             // type's name — Sema's RaiseExpr handler performs that desugar
-            // once the root is known (see @[ExceptionRoot]).
+            // once the root is known (see @[Literal( RaiseExpr )]).
             Arg = ParseExpr( 0 );
         }
         RaiseExpr Node;
@@ -429,6 +431,12 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
 
     case TokenKind::KwCase:
         return ParseCaseExpr();
+
+    case TokenKind::KwIf:
+        return ParseIf();
+
+    case TokenKind::KwUnless:
+        return ParseUnless();
 
     case TokenKind::Dot:
         return ParsePostfix( ParseDotCall() );
@@ -862,6 +870,24 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseParenOrGroup ()
     const ExprId Inner = ParseExpr( 0 );
     bNoDoBlock         = Saved;
     SkipNewlines();
+
+    // `( Value : Type )` — explicit type ascription, not a cast (see
+    // `TypedExpr` in `Nodes.inl`): distinguished from lambda params above by
+    // running only once `Inner` is already a full expression.
+    if ( Accept( TokenKind::Colon ) )
+    {
+        SkipNewlines();
+        const TypeId Annotation = ParseType();
+        SkipNewlines();
+        Expect( TokenKind::RParen, "to close a type-ascribed expression" );
+
+        TypedExpr Node;
+        Node.Loc   = RangeSince( Begin );
+        Node.Value = Inner;
+        Node.Type  = Annotation;
+        return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
     Expect( TokenKind::RParen, "to close a parenthesised expression" );
     return Inner;
 }

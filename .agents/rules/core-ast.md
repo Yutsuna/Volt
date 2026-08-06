@@ -2,54 +2,105 @@
 
 A backend is written by declarative pattern-matching over a **core AST**. This
 file is that contract: what a backend may be handed, and what it may assume.
-`Nodes.inl` declares **36 `VOLT_EXPR`** — **27 core, 9 sugar**.
+Counting only the nodes this file tracks (it does not yet cover `TypedExpr`/
+`If`, added by unrelated work — see below), `Nodes.inl` declares **24 core,
+13 sugar** (was 25/11; `Lambda` and `Block` both moved to sugar once their
+construction protocol was fully lowered into ordinary AST, and `FuncAddr` was
+added as a new core node in the same effort — see "Closures are gone" below).
 
 Two invariants make the contract mechanical rather than aspirational, and
 `AstInvariant` (order 40) checks both on every build:
 
-1. **No sugar survives `Lowering`.** The 9 nodes below are gone from the arena
-   by the time `TypeChecker` runs.
+1. **No sugar survives `Lowering`.** The 13 nodes below are gone from the
+   arena by the time `TypeChecker` runs.
 2. **Every expression in value position has a type.** `Values.Has( Id )` holds
    for it.
 
-## The 9 sugar nodes
+**Known doc gap, pre-existing and unrelated to this section:** `Nodes.inl`
+also declares `TypedExpr` (an explicit-type expression, `( 10 : Int32 )`) and
+`If` as expression forms; neither is documented in this file yet — both
+predate the closure-lowering epic and are a separate piece of doc debt.
+
+## The 13 sugar nodes
 
 `Interp` · `Index` · `DotCall` · `Section` · `Composition` · `Pipeline` ·
-`JsxElement` · `JsxFragment` · `JsxText`
+`JsxElement` · `JsxFragment` · `JsxText` · `ArrayLit` · `HashLit` · `Lambda` ·
+`Block`
 
 They are marked `VOLT_EXPR_SUGAR` in `Frontend/AST/Nodes.inl` — one line each,
 and that mark is what `AstInvariant` reads. Adding a sugar node is one line;
 forgetting to lower it is a build error, not a discovery made in the backend.
 
-## The 27 core nodes
+`ArrayLit`/`HashLit` are not lowered by a `Lowering`-kind pass like most of the
+others — `LowerArrayLits`/`LowerHashLits` each run as a post-walk sweep
+*inside* `TypeChecker` itself (`EPassKind::Analysis`), once every constraint
+in the file has settled. See `.agents/PLAN_LITERAL_LOWERING.md` §2/§6 for why
+(a real ordering bug forced this away from the simpler "rewrite it inline the
+moment TypeChecker" design the `VOLT_EXPR_SUGAR` machinery would suggest).
+`Lambda`/`Block` follow the identical shape for the identical reason —
+`ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`) runs inside
+`TypeChecker` too, once a closure literal's own `ClosureType` has settled, for
+a two-part reason: registering the lifted function anywhere before the
+pre-`TypeChecker` seam would race across units' parallel `TypeChecker` runs
+(every other `Lowering` pass runs there safely only because it creates no new
+top-level declaration), and an unannotated closure parameter
+(`arr.each do |i| … end`) has no type before `TypeChecker` assigns one either.
+
+## The 24 core nodes
 
 | Category | Nodes | What a backend does with it |
 |---|---|---|
-| Terminals (9) | `IntLiteral` `FloatLiteral` `StringLiteral` `CharLiteral` `BoolLiteral` `NilLiteral` `SymbolLiteral` `ArrayLit` `HashLit` | materialise a constant / aggregate from the `MemoryLayout` of the type that claimed the node kind via `@[Literal]` (`NominalType::LiteralSlots`) |
+| Terminals (7) | `IntLiteral` `FloatLiteral` `StringLiteral` `CharLiteral` `BoolLiteral` `NilLiteral` `SymbolLiteral` | materialise a constant (`StringLiteral` produces a raw byte buffer pointer `Pointer<UInt8>` / `u8*`, while the aggregate `String` construction `String.new( bytes, size )` is lowered upstream in `TypeChecker` by `LowerStringLits`) |
 | Access (6) | `Identifier` `InstanceVar` `SelfExpr` `SuperExpr` `Member` `Deref` | load / GEP |
 | Operations (3) | `Call` `Assign` `Ternary` | call through `CalleeResolution`, store, select/branch |
 | Operators (2) | `Binary` `Unary` | see below |
 | Control (3) | `CaseExpr` `BeginExpr` `RaiseExpr` | test chain / jump table; EH |
-| Closures (2) | `Lambda` `Block` | function + `ClosureEnvFrame` (size, alignment, `bEscapes` already computed) |
-| Inert (2) | `GenericInst` `SizeOf` | carry no runtime value: read `Values.Get( Id )` (resp. the layout size) and **never descend into them** |
+| Inert (3) | `GenericInst` `SizeOf` `FuncAddr` | carry no runtime value beyond an address: read `Values.Get( Id )` (resp. the layout size, resp. the resolved callable's address) and **never descend into them** |
 
-### Why `ArrayLit` / `HashLit` / `CaseExpr` are core, not sugar
+`Lambda`/`Block` are gone from this table — see "Closures are gone" below.
+`FuncAddr` is new here: it denotes a resolved callable's address as a value,
+distinct from calling it — the third meaning an `Identifier`/`Member`
+occurrence can carry, alongside "read a place" and "paren-less call."
 
-They are not sugar being tolerated; lowering them would *cost* more than
-keeping them.
+## Closures are gone — `Lambda`/`Block` are lowered, not emitted
 
-- `ArrayLit` / `HashLit` are **literals**, exactly like `StringLiteral` (itself
-  an aggregate `{ data, size }`). They are already fully typed — `[1,2,3]` is an
-  `Array<Int32>` and `arr.push` resolves on it. Lowering them to `Array.new` +
-  `push` needs the generic argument, which is only known *after* `TypeChecker`,
-  so it needs a pass that hand-annotates the types of what it creates — the one
-  thing §9's structural invariant forbids.
-- `CaseExpr` after `CaseLowering` (order 22) is already a flat list of
-  `WhenClause{ Patterns: [expr Bool], Body }` + `ElseBody`: a control structure,
-  no more sugary than `If` or `While`. Lowering it to an `If` chain would need
-  types (exhaustiveness) *and* would destroy the only information that lets a
-  backend emit a jump table. Cost of keeping it: ~15 lines, the same ~15 an `If`
-  chain costs anyway.
+Unlike `CaseExpr` below, closures were **not** kept core because lowering them
+would cost more — the opposite held. `ClosureLifting` rewrites every
+`Lambda`/`Block` literal, no-capture or capturing, into a synthesized
+top-level function (registered in a per-unit `Sema::SynthesizedFunctions`
+table, never in the cross-unit `TypeStore` — nothing outside the unit ever
+needs to name a lifted closure by symbol, since it is only ever reached
+through its own `{code,env}` pair) plus an ordinary `Proc.new( FuncAddr, env )`
+construction at the literal's own site.
+A capturing closure's env is `Pointer<UInt8>` arithmetic
+(`to_address`/`from_address`, machine primitives in the closed vocabulary),
+and every captured-variable use inside the lifted body is rewritten in place
+into an ordinary `Deref`/`Call` load. The result: a backend sees a `Call` to
+a synthesized function and an ordinary `Proc` value — no closure-literal
+node, no nested-frame emission, no capture-binding logic of its own.
+`BackendLLVM/.../ClosureEmitter.cpp` shrank from 454 to 175 lines; the
+survivors (`EmitIndirectCall`, `EmitBlockNext`) are not closure-literal
+machinery — they operate on an already-resolved `{code,env}` *value*, exactly
+as `IsCallableType`/`bIndirect` already did before this epic (see
+`backend/llvm.md`'s "Invoking one" section).
+
+### Why `CaseExpr` is core, not sugar
+
+It is not sugar being tolerated; lowering it would *cost* more than keeping
+it. `CaseExpr` after `CaseLowering` (order 22) is already a flat list of
+`WhenClause{ Patterns: [expr Bool], Body }` + `ElseBody`: a control structure,
+no more sugary than `If` or `While`. Lowering it to an `If` chain would need
+types (exhaustiveness) *and* would destroy the only information that lets a
+backend emit a jump table. Cost of keeping it: ~15 lines, the same ~15 an `If`
+chain costs anyway.
+
+`HashLit`'s own version of this section is gone: that migration landed too —
+its rewrite (`LowerHashLits`, `LiteralLowering.cpp`) is the same shape as
+`ArrayLit`'s, using the stdlib's existing `Hash#[]=` (no stdlib change
+needed, unlike `Array<T>#<<`, which had to be added), synthesizing
+`Call( Member( tmp, "[]=" ), [ key, value ] )` per entry — the exact node
+shape `IndexLowering` already turns a hand-written `tmp[k] = v` into. The
+backend lost its `HashLit` dispatch arm and `FailAggregateLiteral` entirely.
 
 ## The operator contract (the one that is easy to get wrong)
 
@@ -144,9 +195,26 @@ refusal is not debt, a silence would be:
   table, which is backend work.
 - **Un-annotated lambda parameters with no expected type** — needs a
   bidirectional solver; a separate project, with no impact on the backends.
-  `samples/Functional/FunctionalSpec.vl` is the fixture: `add_five = ( &.+ 5 )`
-  then `add_five( 10 )`. It is a `Golden` (parse) sample and does not
-  type-check, by design.
+  `samples/Tests/Functional/{Lambda,PointFree}.vl` are the fixtures (the old
+  `samples/Functional/FunctionalSpec.vl` path no longer exists): `add_five =
+  ( &.+ 5 )` then `add_five( 10 )`. The point-free form is kept in a comment
+  right above its typed replacement, not deleted — the samples now compile
+  with `add_five = ( x : Int32 ) => x + 5`, but the case they document (a
+  `Section` with no expected type has no inferable parameter type) still
+  applies to the commented-out original.
+- **Heterogeneous literals / tuples.** `[ "Alice", "a@b.c", 42 ]` needs a sum
+  type or a `Tuple<…>`, the same wall `T?` hits. `samples/Tests/ControlFlow/
+  ForLoop.vl`'s `for_array` is rewritten to a homogeneous `Array<User>` with
+  the original heterogeneous array literal kept in a comment above it.
+- **`break <value>` outside a block.** Giving `break x` a value that becomes
+  the enclosing call's result needs the result type of the call that owns the
+  block to be the join of every `break`'s value in the body; `Frontend::Break`
+  is walked as a leaf by `DeclStmtWalker.cpp:250` and nothing joins anything.
+  Refused by name in the backend (see the `break` phase in
+  `.agents/PLAN_LLVM.md`). `samples/Tests/ControlFlow/BreakNext.vl`'s
+  `test_break_with_value` is rewritten to an accumulator (`found = x` before
+  `break`) that exercises the same non-local exit without depending on
+  `break`'s value.
 - **Integer literal suffixes are parsed and then ignored by Sema.** `0_u64`
   types as `Int32`, because `LiteralType` inserts every `IntLiteral` into
   `UnconstrainedLiterals` without ever reading the suffix. A real missing
@@ -159,7 +227,7 @@ refusal is not debt, a silence would be:
   declare. Those are stdlib gaps; they are parse fixtures, covered by `Golden`
   tests only. `AstInvariant`'s typing half is enforced on `source/Lib/**` and
   `samples/Sema/**`; its residual-sugar half on everything
-  (`tests/AstInvariant.cmake`).
+  (`tests/meson.build`).
 - **The JSX runtime is not declared.** `JsxLowering` is complete — zero Jsx
   nodes survive — but it emits `Volt.JSX.create_element( tag, props, children )`
   and no stdlib type declares it, so `.vlx` files lower correctly and then type

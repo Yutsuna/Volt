@@ -10,38 +10,43 @@ Program 'samples/Sema/NonExhaustiveCase.vl'
 │     ├─ EnumCase 'Blue' @7:3
 │     │  └─ value
 │     │     └─ IntLiteral '2' @7:3
-│     └─ Method 'name' @9:3
-│        ├─ return_type
-│        │  └─ TypeRef 'String' @9:15
+│     ├─ Method 'name' @9:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'String' @9:15
+│     │  └─ body
+│     │     └─ ExprStmt @10:5
+│     │        └─ expr
+│     │           └─ CaseExpr @10:5
+│     │              ├─ scrutinee
+│     │              │  └─ SelfExpr @10:10
+│     │              └─ clauses
+│     │                 ├─ WhenClause @11:5
+│     │                 │  ├─ patterns
+│     │                 │  │  └─ Call @11:10
+│     │                 │  │     └─ callee
+│     │                 │  │        └─ Member 'Red' @11:10
+│     │                 │  │           └─ object
+│     │                 │  │              └─ SelfExpr @10:10
+│     │                 │  └─ body
+│     │                 │     └─ ExprStmt @11:22
+│     │                 │        └─ expr
+│     │                 │           └─ StringLiteral 'red' @11:22
+│     │                 └─ WhenClause @12:5
+│     │                    ├─ patterns
+│     │                    │  └─ Call @12:10
+│     │                    │     └─ callee
+│     │                    │        └─ Member 'Green' @12:10
+│     │                    │           └─ object
+│     │                    │              └─ SelfExpr @10:10
+│     │                    └─ body
+│     │                       └─ ExprStmt @12:22
+│     │                          └─ expr
+│     │                             └─ StringLiteral 'green' @12:22
+│     └─ Method 'to_value' @4:1
 │        └─ body
-│           └─ ExprStmt @10:5
+│           └─ ExprStmt @4:1
 │              └─ expr
-│                 └─ CaseExpr @10:5
-│                    ├─ target
-│                    │  └─ SelfExpr @10:10
-│                    └─ clauses
-│                       ├─ WhenClause @11:5
-│                       │  ├─ patterns
-│                       │  │  └─ Call @11:10
-│                       │  │     └─ callee
-│                       │  │        └─ Member 'Red' @11:10
-│                       │  │           └─ object
-│                       │  │              └─ SelfExpr @10:10
-│                       │  └─ body
-│                       │     └─ ExprStmt @11:22
-│                       │        └─ expr
-│                       │           └─ StringLiteral 'red' @11:22
-│                       └─ WhenClause @12:5
-│                          ├─ patterns
-│                          │  └─ Call @12:10
-│                          │     └─ callee
-│                          │        └─ Member 'Green' @12:10
-│                          │           └─ object
-│                          │              └─ SelfExpr @10:10
-│                          └─ body
-│                             └─ ExprStmt @12:22
-│                                └─ expr
-│                                   └─ StringLiteral 'green' @12:22
+│                 └─ SelfExpr @4:1
 ├─ LocalDecl 'color' @17:1
 │  ├─ decl_type
 │  │  └─ TypeRef 'Color' @17:9

@@ -1,0 +1,63 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+class Config
+  getter host : String
+  setter port : Int32
+  property debug : Bool
+
+  def initialize( @host : String, @port : Int32, @debug : Bool )
+  end
+
+  def port_val -> Int32
+    @port
+  end
+end
+
+
+struct Vec3d
+  getter x : Float64
+  setter y : Float64
+  property z : Float64
+
+  def initialize( @x : Float64, @y : Float64, @z : Float64 )
+  end
+
+  def y_val -> Float64
+    @y
+  end
+end
+
+
+def test_class_accessors -> Void
+  cfg = Config.new( "localhost", 8080, false )
+  assert!( cfg.host == "localhost" )
+
+  cfg.port = 9090
+  assert!( cfg.port_val == 9090 )
+
+  assert!( cfg.debug == false )
+  cfg.debug = true
+  assert!( cfg.debug == true )
+end
+
+
+def test_struct_accessors -> Void
+  vec = Vec3d.new( 1.0, 2.0, 3.0 )
+  assert!( vec.x == 1.0 )
+
+  vec.y = 5.5
+  assert!( vec.y_val == 5.5 )
+
+  assert!( vec.z == 3.0 )
+  vec.z = 9.9
+  assert!( vec.z == 9.9 )
+end
+
+
+test_class_accessors
+test_struct_accessors

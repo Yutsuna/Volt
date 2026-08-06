@@ -52,10 +52,7 @@ If an un-typed concrete value expression is encountered, `AstInvariant` halts co
 
 `AstInvariant` is automatically executed:
 - At the end of every `volt check` or `volt build` invocation.
-- Across every test file in the codebase via `tests/AstInvariant.cmake`.
-- During automated CI runs (`volt-build format test`).
+- Across every test file in the codebase via `tests/meson.build`.
+- During CI runs of the full test suite.
 
-```bash
-# Manually run the AstInvariant verification suite
-volt-build test -R AstInvariant
-```
+Run the `AstInvariant` test target through the IDE (or filter `meson test` with `--suite golden`) to run the verification suite manually.

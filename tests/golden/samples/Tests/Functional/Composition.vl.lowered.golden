@@ -1,0 +1,222 @@
+Program 'samples/Tests/Functional/Composition.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     ├─ lhs
+│                                │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     ├─ lhs
+│                                │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
+│                                │     │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Functional/Composition.vl' @3:19
+│                                │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
+│                                │     │     │     │     └─ rhs
+│                                │     │     │     │        └─ StringLiteral 'assert!' @3:43
+│                                │     │     │     └─ rhs
+│                                │     │     │        └─ StringLiteral ' at ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ Call @3:11
+│                                │     │           └─ callee
+│                                │     │              └─ Member 'to_string' @3:11
+│                                │     │                 └─ object
+│                                │     │                    └─ IntLiteral '3' @3:62
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '74' @3:74
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:10
+│        ├─ target
+│        │  └─ Identifier 'raw_name' @8:1
+│        └─ value
+│           └─ StringLiteral '  VoLt ' @8:12
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Assign '=' @9:6
+│        ├─ target
+│        │  └─ Identifier 'name' @9:1
+│        └─ value
+│           └─ Call @9:17
+│              ├─ callee
+│              │  └─ Lambda @9:29
+│              │     ├─ params
+│              │     │  └─ Param 'fn_tmp_2' @9:29
+│              │     └─ body
+│              │        └─ Call @9:29
+│              │           ├─ callee
+│              │           │  └─ Lambda @9:33
+│              │           │     ├─ params
+│              │           │     │  └─ Param 'fn_tmp_1' @9:33
+│              │           │     └─ body
+│              │           │        └─ Call @9:33
+│              │           │           └─ callee
+│              │           │              └─ Member 'downcase' @9:33
+│              │           │                 └─ object
+│              │           │                    └─ Identifier 'fn_tmp_1' @9:33
+│              │           └─ args
+│              │              └─ Call @9:29
+│              │                 ├─ callee
+│              │                 │  └─ Lambda @9:21
+│              │                 │     ├─ params
+│              │                 │     │  └─ Param 'fn_tmp_0' @9:21
+│              │                 │     └─ body
+│              │                 │        └─ Call @9:21
+│              │                 │           └─ callee
+│              │                 │              └─ Member 'trim' @9:21
+│              │                 │                 └─ object
+│              │                 │                    └─ Identifier 'fn_tmp_0' @9:21
+│              │                 └─ args
+│              │                    └─ Identifier 'fn_tmp_2' @9:29
+│              └─ args
+│                 └─ Identifier 'raw_name' @9:8
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Binary '==' @10:15
+│              ├─ lhs
+│              │  └─ Identifier 'name' @10:10
+│              └─ rhs
+│                 └─ StringLiteral 'volt' @10:18
+├─ ExprStmt @13:1
+│  └─ expr
+│     └─ Assign '=' @13:7
+│        ├─ target
+│        │  └─ Identifier 'users' @13:1
+│        └─ value
+│           └─ ArrayLit @13:9
+│              └─ elements
+│                 ├─ StringLiteral ' alice ' @13:11
+│                 └─ StringLiteral '' @13:22
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Assign '=' @14:6
+│        ├─ target
+│        │  └─ Identifier 'kept' @14:1
+│        └─ value
+│           └─ Call @14:20
+│              ├─ callee
+│              │  └─ Member 'filter' @14:13
+│              │     └─ object
+│              │        └─ Identifier 'users' @14:8
+│              └─ block_arg
+│                 └─ Lambda @14:23
+│                    ├─ params
+│                    │  └─ Param 'fn_tmp_3' @14:23
+│                    └─ body
+│                       └─ Unary '!' @14:23
+│                          └─ operand
+│                             └─ Call @14:23
+│                                └─ callee
+│                                   └─ Member 'empty?' @14:23
+│                                      └─ object
+│                                         └─ Identifier 'fn_tmp_3' @14:23
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Call @15:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @15:1
+│        └─ args
+│           └─ Binary '==' @15:20
+│              ├─ lhs
+│              │  └─ Member 'size' @15:14
+│              │     └─ object
+│              │        └─ Identifier 'kept' @15:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @15:23
+├─ ExprStmt @17:1
+│  └─ expr
+│     └─ Assign '=' @17:6
+│        ├─ target
+│        │  └─ Identifier 'tidy' @17:1
+│        └─ value
+│           └─ Call @17:17
+│              ├─ callee
+│              │  └─ Member 'map' @17:13
+│              │     └─ object
+│              │        └─ Identifier 'users' @17:8
+│              └─ block_arg
+│                 └─ Lambda @17:28
+│                    ├─ params
+│                    │  └─ Param 'fn_tmp_6' @17:28
+│                    └─ body
+│                       └─ Call @17:28
+│                          ├─ callee
+│                          │  └─ Lambda @17:32
+│                          │     ├─ params
+│                          │     │  └─ Param 'fn_tmp_5' @17:32
+│                          │     └─ body
+│                          │        └─ Call @17:32
+│                          │           ├─ callee
+│                          │           │  └─ Member 'prefix' @17:32
+│                          │           │     └─ object
+│                          │           │        └─ Identifier 'fn_tmp_5' @17:32
+│                          │           └─ args
+│                          │              └─ StringLiteral 'usr_' @17:41
+│                          └─ args
+│                             └─ Call @17:28
+│                                ├─ callee
+│                                │  └─ Lambda @17:20
+│                                │     ├─ params
+│                                │     │  └─ Param 'fn_tmp_4' @17:20
+│                                │     └─ body
+│                                │        └─ Call @17:20
+│                                │           └─ callee
+│                                │              └─ Member 'trim' @17:20
+│                                │                 └─ object
+│                                │                    └─ Identifier 'fn_tmp_4' @17:20
+│                                └─ args
+│                                   └─ Identifier 'fn_tmp_6' @17:28
+└─ ExprStmt @18:1
+   └─ expr
+      └─ Call @18:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @18:1
+         └─ args
+            └─ Binary '==' @18:20
+               ├─ lhs
+               │  └─ Call @18:14
+               │     ├─ callee
+               │     │  └─ Member '[]' @18:14
+               │     │     └─ object
+               │     │        └─ Identifier 'tidy' @18:10
+               │     └─ args
+               │        └─ IntLiteral '0' @18:16
+               └─ rhs
+                  └─ StringLiteral 'usr_alice' @18:23
+--- exit 0 ---

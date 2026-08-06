@@ -1,0 +1,38 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+calc_pointed = ( x : Int32 ) => { ( x + 10 ) * 2 }
+calc_pointfree = ( &.+ 10 ) >> ( &.* 2 )
+assert!( calc_pointed( 2 ) == 24 )
+assert!( calc_pointfree( 2 ) == 24 )
+assert!( 2 |> calc_pointfree == 24 )
+
+
+clean_pointed = ( s : String ) => { s.trim.downcase.prefix("[user]: ") }
+clean_pointfree = (&.trim)
+               >> (&.downcase)
+               >> (&.prefix("[user]: "))
+
+assert!( clean_pointfree("  ALICE ") == "[user]: alice" )
+assert!( "  BOB " |> clean_pointfree == "[user]: bob" )
+
+
+numbers = [ 1, 2, 3, 4, 5 ]
+results = numbers.map( ( &.+ 10 ) >> ( &.* 2 ) )
+
+assert!( results[0] == 22 )
+assert!( results[1] == 24 )
+assert!( results[2] == 26 )
+
+
+transform = ( &.trim ) >> ( &.prefix( "usr_" ) )
+raw_users = [ " alice ", " bob " , "    " ]
+clean_users = raw_users
+  .filter( (&.empty?.!) )
+  .map( &transform )
+assert!( clean_users[0] == "usr_alice" )
+assert!( clean_users[1] == "usr_bob" )

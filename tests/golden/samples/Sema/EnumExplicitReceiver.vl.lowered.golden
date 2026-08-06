@@ -7,9 +7,14 @@ Program 'samples/Sema/EnumExplicitReceiver.vl'
 │     ├─ EnumCase 'Yellow' @8:3
 │     │  └─ value
 │     │     └─ IntLiteral '1' @8:3
-│     └─ EnumCase 'Green' @9:3
-│        └─ value
-│           └─ IntLiteral '2' @9:3
+│     ├─ EnumCase 'Green' @9:3
+│     │  └─ value
+│     │     └─ IntLiteral '2' @9:3
+│     └─ Method 'to_value' @6:1
+│        └─ body
+│           └─ ExprStmt @6:1
+│              └─ expr
+│                 └─ SelfExpr @6:1
 ├─ Method 'describe' @12:1
 │  ├─ params
 │  │  └─ Param 'light' @12:16
@@ -21,7 +26,7 @@ Program 'samples/Sema/EnumExplicitReceiver.vl'
 │     └─ ExprStmt @13:3
 │        └─ expr
 │           └─ CaseExpr @13:3
-│              ├─ target
+│              ├─ scrutinee
 │              │  └─ Identifier 'light' @13:8
 │              └─ clauses
 │                 ├─ WhenClause @14:3

@@ -1,0 +1,36 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+def test_loop_control -> Int32
+  i = 0
+  sum = 0
+  while i < 10
+    i += 1
+    next if i % 2 == 0
+    break if i > 7
+    sum += i
+  end
+  sum
+end
+
+
+def test_break_with_value -> Int32
+  # for x in [ 10, 20, 30 ]
+  #   break x if x == 20
+  # end
+  # 0
+  found = 0
+  for x in [ 10, 20, 30 ]
+    found = x
+    break if x == 20
+  end
+  found
+end
+
+
+assert!( test_loop_control == 16 )
+assert!( test_break_with_value == 20 )

@@ -20,6 +20,21 @@ struct Pointer<T>
   abstract def +( offset : UInt64 ) -> Pointer<T>
   abstract def -( offset : UInt64 ) -> Pointer<T>
 
+  # The pointer's own bit pattern as an integer, and back. Bodyless for the
+  # same reason `+`/`-` are: the `ptr` layout means the backend supplies it —
+  # here, `ptrtoint`/`inttoptr` rather than a `gep`, since neither is an
+  # address computation. Opaque pointers need no real conversion, so this is
+  # free at every target; it exists so a type-erased address (a closure
+  # environment's field, any `Pointer<UInt8>` slot) can be reinterpreted as a
+  # concrete `Pointer<U>` — spelled `Pointer<U>.from_address( p.to_address() )`,
+  # since Volt has no explicit-generic-argument call syntax on an *instance*
+  # method (`p.reinterpret<U>()` parses `<U>` as a stray positional argument,
+  # not a method generic — a real, separate parser gap) — the type-level form
+  # (`Pointer<U>.static_method(...)`) is unaffected and already how
+  # `Pointer<T>.malloc`/`.from_address` are called.
+  abstract def to_address() -> UInt64
+  abstract def self.from_address( address : UInt64 ) -> Pointer<T>
+
   def self.malloc( count : UInt64 ) -> Pointer<T>
     libc_malloc( count * sizeof T )
   end
@@ -37,4 +52,9 @@ struct Pointer<T>
       0
     end
   end
+
+  def to_string -> String
+    "Pointer<#{T}>[#{self.to_address()}]"
+  end
+
 end

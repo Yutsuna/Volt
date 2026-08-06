@@ -18,11 +18,13 @@
 #include "Volt/Sema/Layout/Instantiate.hpp"
 
 #include "ClosureInferencer.hpp"
+#include "ClosureLifting.hpp"
 #include "LiteralInferencer.hpp"
 #include "TypeCheckerContext.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
+#include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -82,6 +84,36 @@ using namespace Volt::Sema;
         Ast.Decl( Id ) );
 }
 
+// The type that lexically *declares* Entry — never Owner (the receiver's own
+// type): they differ whenever Entry is inherited from a mixin declared in a
+// different unit (`Array<T> include Enumerable<T>`, `filter` written inside
+// Enumerable.vl), and a `T` written in the method's own body must match
+// names interned by *that* unit, not the receiver's — mixing the two is
+// exactly the "wrong interner" GenericsOf's own comment warns about.
+// ReceiverArgs stays correct regardless: Entry.Bindings (ExprResolvedCallEmitter.cpp's
+// bInherited branch) is already positioned against the declaring type's own
+// generic space, the same space Instantiate() reads Entry.Params/Result
+// against via SigTypeId::ParamIndex — this only has to agree on the *names*.
+[[nodiscard]] Frontend::DeclId DeclaringTypeOf ( const TypeStore &Store, const Member &Entry )
+{
+    for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+    {
+        const NominalId Id{ static_cast<NominalId::ValueType>( Index ) };
+        if ( Store.Type( Id ).Unit != Entry.Unit )
+        {
+            continue;
+        }
+        for ( const Member &Candidate : Store.Type( Id ).Members )
+        {
+            if ( Candidate.Unit == Entry.Unit and Candidate.Decl == Entry.Decl )
+            {
+                return Store.Type( Id ).Decl;
+            }
+        }
+    }
+    return Frontend::DeclId{};
+}
+
 } // namespace
 
 Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &Store,
@@ -113,11 +145,16 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     const SemaTypeId Self =
         Owner.IsValid() ? Result.Values.Intern( SemaType{ .Base = Owner, .Args = std::move( OwnerArgs ) } ) : SemaTypeId{};
 
-    // A scratch pass run: Ast/Scopes are read-only for an Analysis pass like
-    // TypeChecker (only a Lowering pass rewrites them), so borrowing the
-    // declaring unit's own is sound even though PassContext's fields are
-    // mutable references — the same contract DefineMember already leans on
-    // when it reads a UnitView's Ast/Scopes to emit a concrete body.
+    // A scratch pass run: ordinary TypeChecker inference never writes through
+    // Ast/Scopes, so borrowing the declaring unit's own is sound even though
+    // PassContext's fields are mutable references — the same contract
+    // DefineMember already leans on when it reads a UnitView's Ast/Scopes to
+    // emit a concrete body. LowerClosureLit is the one exception below: it is
+    // a Lowering-shaped rewrite invoked from here, and it may freely Add()
+    // (every new node is instantiation-local, never revisited by anyone
+    // else) but is told, via Context.Redirects, never to overwrite a slot
+    // that already existed before this call — that slot's literal is shared
+    // by every other instantiation of this same generic body.
     Core::DiagEngine::Bag ScratchDiags;
     PassStats ScratchStats;
     PassContext ScratchCtx{
@@ -135,31 +172,48 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
         .Globals = nullptr,
         .Sources = nullptr,
         .Callees = &Result.Callees,
+        .Synth   = Result.Synth,
     };
-
-    TypeCheckerPass::TypeCheckerContext Context{ ScratchCtx, TypeCheckerPass::MetadataExprs( Ast ) };
-    Context.SelfType  = Owner;
-    Context.SelfValue = Self;
-    // A written `T` inside this body is answerable now: the arguments are
-    // fixed, so `sizeof T` in `Pointer<T>#malloc` is a concrete width rather
-    // than the deferral it is during the generic-shaped pass. The names come
-    // from the owner's own declaration, and only when this unit is the one
-    // that holds it — an inherited default declared elsewhere keeps the
-    // deferral rather than matching a name against the wrong interner.
-    Context.Substitution = ReceiverArgs;
-    if ( Owner.IsValid() and Store.Type( Owner ).Unit == Entry.Unit )
-    {
-        Context.SelfGenerics = GenericsOf( Ast, Store.Type( Owner ).Decl );
-    }
-    // bGenericBody stays false (the default): every binding above is now
-    // concrete, so nothing walked from here should defer — a node that still
-    // cannot resolve is a genuine middle-end gap, not this instantiation's.
 
     const auto *MethodNode = std::get_if<Frontend::Method>( &Ast.Decl( Entry.Decl ) );
     if ( MethodNode == nullptr )
     {
         return Result;
     }
+
+    // A written `T` (or `U`) inside this body is answerable now: the
+    // arguments are fixed, so `sizeof T` in `Pointer<T>#malloc` is a concrete
+    // width rather than the deferral it is during the generic-shaped pass.
+    // The names come from *Entry's own* declaring type, not Owner's
+    // (DeclaringTypeOf's own comment) — an inherited default written in a
+    // mixin declared in another unit still needs its `T` resolved against
+    // that mixin's own generics, interned in this same Ast, for `Array<T>.new`
+    // inside `Enumerable<T>#filter`'s own body to mean anything. The method's
+    // own generics (`map<U>`) are concatenated after — the identical
+    // "type generics first, then the method's" order `ReceiverArgs`/
+    // `Context.Substitution` already carries (Member::OwnGenerics's comment),
+    // so a positional name match against either still lands on the right slot.
+    Frontend::SymbolList CombinedGenerics;
+    if ( const Frontend::SymbolList *TypeGenerics = GenericsOf( Ast, DeclaringTypeOf( Store, Entry ) ); TypeGenerics != nullptr )
+    {
+        for ( const Frontend::Symbol Name : *TypeGenerics )
+        {
+            CombinedGenerics.PushBack( Name );
+        }
+    }
+    for ( const Frontend::Symbol Name : MethodNode->Generics )
+    {
+        CombinedGenerics.PushBack( Name );
+    }
+    TypeCheckerPass::TypeCheckerContext Context{ ScratchCtx, TypeCheckerPass::MetadataExprs( Ast ) };
+    Context.SelfType     = Owner;
+    Context.SelfValue    = Self;
+    Context.Redirects    = &Result.Redirects;
+    Context.Substitution = ReceiverArgs;
+    Context.SelfGenerics = &CombinedGenerics;
+    // bGenericBody stays false (the default): every binding above is now
+    // concrete, so nothing walked from here should defer — a node that still
+    // cannot resolve is a genuine middle-end gap, not this instantiation's.
 
     std::size_t Index = 0;
     for ( const Frontend::ParamId ParamRef : MethodNode->Params )
@@ -188,6 +242,32 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
         }
     }
 
+    // Every Lambda/Block literal this walk actually reached now has a
+    // concrete, non-deferred type in Result.Values (LowerClosureLit's guard
+    // reads exactly that). The declaring unit's own generic-shaped pass left
+    // each one un-lowered on purpose (the same guard, T unresolved there) —
+    // there is nothing concrete to copy from it, so it is lowered here
+    // instead, fresh, with Context.Redirects steering every rewrite into
+    // Result.Redirects rather than the shared Ast slot: the exact literal
+    // below is walked again, unchanged, by every other instantiation of this
+    // generic method (ast-rewrite.md's sweep discipline — the arena is
+    // bounded before the first Add() this loop causes).
+    const std::size_t OriginalExprCount = Ast.ExprCount();
+    for ( std::size_t ExprIndex = 0; ExprIndex < OriginalExprCount; ++ExprIndex )
+    {
+        const Frontend::ExprId CandidateId{ static_cast<Frontend::ExprId::ValueType>( ExprIndex ) };
+        if ( not Result.Values.ExprType( CandidateId ).IsValid() )
+        {
+            continue;
+        }
+        if ( not std::holds_alternative<Frontend::Lambda>( Ast.Expr( CandidateId ) ) and
+             not std::holds_alternative<Frontend::Block>( Ast.Expr( CandidateId ) ) )
+        {
+            continue;
+        }
+        TypeCheckerPass::LowerClosureLit( Context, CandidateId );
+    }
+
     // Snapshot the resolutions this walk collected — the same final step
     // TypeChecker itself takes at the end of a unit's pass run.
     for ( const auto &[Value, Found] : Context.CalleeResolution )
@@ -198,7 +278,8 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
                                                                     .BlockParam  = Found.BlockParam,
                                                                     .Bindings    = Found.Bindings,
                                                                     .Receiver    = Found.Receiver,
-                                                                    .bConstructs = Found.bConstructs } );
+                                                                    .bConstructs = Found.bConstructs,
+                                                                    .bIndirect   = Found.bIndirect } );
     }
 
     return Result;

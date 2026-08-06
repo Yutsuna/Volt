@@ -12,35 +12,37 @@ Program 'samples/Sema/BranchLocals.vl'
 │     │  │  └─ TypeRef 'Int32' @2:12
 │     │  └─ init
 │     │     └─ IntLiteral '0' @2:20
-│     ├─ If @3:3
-│     │  ├─ cond
-│     │  │  └─ Identifier 'flag' @3:6
-│     │  ├─ then
-│     │  │  ├─ LocalDecl 'tally' @4:5
-│     │  │  │  ├─ decl_type
-│     │  │  │  │  └─ TypeRef 'Int32' @4:13
-│     │  │  │  └─ init
-│     │  │  │     └─ IntLiteral '1' @4:21
-│     │  │  └─ ExprStmt @5:5
-│     │  │     └─ expr
-│     │  │        └─ Assign '=' @5:12
-│     │  │           ├─ target
-│     │  │           │  └─ Identifier 'result' @5:5
-│     │  │           └─ value
-│     │  │              └─ Identifier 'tally' @5:14
-│     │  └─ else
-│     │     ├─ LocalDecl 'tally' @7:5
-│     │     │  ├─ decl_type
-│     │     │  │  └─ TypeRef 'Int32' @7:13
-│     │     │  └─ init
-│     │     │     └─ IntLiteral '2' @7:21
-│     │     └─ ExprStmt @8:5
-│     │        └─ expr
-│     │           └─ Assign '=' @8:12
-│     │              ├─ target
-│     │              │  └─ Identifier 'result' @8:5
-│     │              └─ value
-│     │                 └─ Identifier 'tally' @8:14
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ If @3:3
+│     │        ├─ cond
+│     │        │  └─ Identifier 'flag' @3:6
+│     │        ├─ then
+│     │        │  ├─ LocalDecl 'tally' @4:5
+│     │        │  │  ├─ decl_type
+│     │        │  │  │  └─ TypeRef 'Int32' @4:13
+│     │        │  │  └─ init
+│     │        │  │     └─ IntLiteral '1' @4:21
+│     │        │  └─ ExprStmt @5:5
+│     │        │     └─ expr
+│     │        │        └─ Assign '=' @5:12
+│     │        │           ├─ target
+│     │        │           │  └─ Identifier 'result' @5:5
+│     │        │           └─ value
+│     │        │              └─ Identifier 'tally' @5:14
+│     │        └─ else
+│     │           ├─ LocalDecl 'tally' @7:5
+│     │           │  ├─ decl_type
+│     │           │  │  └─ TypeRef 'Int32' @7:13
+│     │           │  └─ init
+│     │           │     └─ IntLiteral '2' @7:21
+│     │           └─ ExprStmt @8:5
+│     │              └─ expr
+│     │                 └─ Assign '=' @8:12
+│     │                    ├─ target
+│     │                    │  └─ Identifier 'result' @8:5
+│     │                    └─ value
+│     │                       └─ Identifier 'tally' @8:14
 │     └─ ExprStmt @10:3
 │        └─ expr
 │           └─ Identifier 'result' @10:3

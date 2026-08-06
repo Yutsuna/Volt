@@ -1,0 +1,86 @@
+Program 'samples/Tests/OOP/Mixins.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
+├─ Mixin 'Identifiable' @7:1
+│  └─ body
+│     └─ Method 'id_prefix' @8:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @8:20
+│        └─ body
+│           └─ ExprStmt @9:5
+│              └─ expr
+│                 └─ StringLiteral 'ID-' @9:5
+├─ Class 'ServiceDevice' @13:1
+│  └─ body
+│     ├─ Include @14:3
+│     │  └─ target
+│     │     └─ TypeRef 'Identifiable' @14:11
+│     ├─ Field 'serial' @16:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @16:12
+│     ├─ Method 'initialize' @18:3
+│     │  └─ params
+│     │     └─ Param 'serial' instance_var @18:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'String' @18:29
+│     └─ Method 'full_id' @21:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @21:18
+│        └─ body
+│           └─ ExprStmt @22:5
+│              └─ expr
+│                 └─ Interp @22:5
+│                    └─ parts
+│                       ├─ Identifier 'id_prefix' @22:8
+│                       └─ InstanceVar '@serial' @22:20
+├─ ExprStmt @26:1
+│  └─ expr
+│     └─ Assign '=' @26:8
+│        ├─ target
+│        │  └─ Identifier 'device' @26:1
+│        └─ value
+│           └─ Call @26:27
+│              ├─ callee
+│              │  └─ Member 'new' @26:23
+│              │     └─ object
+│              │        └─ Identifier 'ServiceDevice' @26:10
+│              └─ args
+│                 └─ StringLiteral '9901' @26:29
+└─ ExprStmt @27:1
+   └─ expr
+      └─ Call @27:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @27:1
+         └─ args
+            └─ Binary '==' @27:25
+               ├─ lhs
+               │  └─ Member 'full_id' @27:16
+               │     └─ object
+               │        └─ Identifier 'device' @27:10
+               └─ rhs
+                  └─ StringLiteral 'ID-9901' @27:28
+--- exit 0 ---

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/GenericCommand.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 
@@ -22,6 +23,8 @@ namespace CLI
      *        command itself never includes a Backend* header.
      *        When the input belongs to a circuit (a Project.vl manifest is
      *        found upward), the whole circuit is built.
+     *        When --stdin is used, source is read from standard input and
+     *        compiled as a single file (no circuit manifest lookup).
      * @options
      *        -i INPUT, --input INPUT          File input source program
      *        -o OUTPUT, --output OUTPUT       Output artifact path
@@ -29,6 +32,7 @@ namespace CLI
      *        -O LEVEL                         Optimization level (0|2|3)
      *        --emit KIND                      Stop after an intermediate artifact (ir|obj)
      *        --lto                            Enable link-time optimization (native only)
+     *        --stdin                          Read source from standard input
      *        -v, --verbose                    Enable verbose output
      *        --no-stdlib-cache                Bypass frontend + native stdlib caches
      *        --fresh-stdlib                   Force-refresh the stdlib cache
@@ -52,7 +56,8 @@ namespace CLI
 
     private:
 
-        std::string Input;
+        FInputFlags InputFlags;
+
         std::string Output;
         std::string Target = "native";
         std::string OptLevel;

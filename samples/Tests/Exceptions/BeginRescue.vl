@@ -1,0 +1,84 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+calculate_ensure_count = 0
+method_rescue_ensure_count = 0
+uncaught_ensure_executed = false
+
+
+def calculate( x : Int32 ) -> Int32
+  begin
+    if x == 0
+      raise "Division by zero"
+    end
+    100 / x
+  rescue e : ArgumentError
+    -1
+  rescue e
+    -2
+  ensure
+    calculate_ensure_count += 1
+  end
+end
+
+
+def method_rescue( y : Int32 ) -> Int32
+  if y < 0
+    raise "Negative value"
+  end
+  y * 2
+rescue err
+  0
+ensure
+  method_rescue_ensure_count += 1
+end
+
+
+def test_ensure_propagation
+  begin
+    raise "Exception non gérée localement"
+  ensure
+    uncaught_ensure_executed = true
+  end
+end
+
+
+calculate_ensure_count = 0
+res1 = calculate( 10 )
+assert!( res1 == 10 )
+assert!( calculate_ensure_count == 1 )
+
+
+calculate_ensure_count = 0
+res2 = calculate( 0 )
+assert!( res2 == -2 )
+assert!( calculate_ensure_count == 1 )
+
+
+method_rescue_ensure_count = 0
+res3 = method_rescue( 5 )
+assert!( res3 == 10 )
+assert!( method_rescue_ensure_count == 1 )
+
+
+method_rescue_ensure_count = 0
+res4 = method_rescue( -5 )
+assert!( res4 == 0 )
+assert!( method_rescue_ensure_count == 1 )
+
+
+uncaught_ensure_executed = false
+caught_outside = false
+
+begin
+  test_ensure_propagation
+rescue e
+  caught_outside = true
+end
+
+assert!( caught_outside == true )
+assert!( uncaught_ensure_executed == true )

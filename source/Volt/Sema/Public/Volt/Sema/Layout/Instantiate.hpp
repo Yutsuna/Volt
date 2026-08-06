@@ -21,13 +21,16 @@
 // never *how* to type what it finds.
 
 #include "Sema_export.hpp"
+#include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Sema/Layout/CalleeMap.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
+#include "Volt/Sema/Layout/SynthesizedFunctions.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include <cstdint>
 #include <span>
+#include <unordered_map>
 
 namespace Volt::Frontend
 {
@@ -37,6 +40,16 @@ class AstContext;
 namespace Volt::Sema
 {
 
+// `original literal ExprId -> the replacement subtree Sema::ReinstantiateBody
+// built for it`. Keyed by `.Value` like UnitCallees's own map. A generic
+// body's Lambda/Block literal is one shared AST node, re-typed once per
+// concrete instantiation (Instantiate.hpp's own header comment) — lowering it
+// cannot mutate that shared slot the way an ordinary unit's one-shot
+// TypeChecker pass does, so ReinstantiateBody records the substitution here
+// instead (TypeCheckerContext::Redirects) and a backend's expression emitter
+// consults this map before reading Ast.Expr( Id ) at all.
+using ExprRedirectMap = std::unordered_map<std::uint32_t, Frontend::ExprId>;
+
 // The per-instantiation overlay: the same shapes a concrete unit
 // publishes (UnitTypes, UnitCallees), just scoped to one request rather
 // than one file.
@@ -45,6 +58,8 @@ struct InstantiatedBody
 
     UnitTypes Values;
     UnitCallees Callees;
+    SynthesizedFunctions Synth;
+    ExprRedirectMap Redirects;
 };
 
 // Re-type `Entry`'s declared body — found via `Entry.Decl` in `Ast`,
@@ -59,7 +74,11 @@ struct InstantiatedBody
 // `Entry` must name a `Method` with a body (`Kind == Method`, not
 // `bAbstract`, no `ExternSymbol`); the caller has already made that
 // determination, the same one `DeclareMember`/`DefineMember` make for a
-// concrete member.
+// concrete member. Any Lambda/Block literal reached while re-typing that
+// body is lowered fresh into `Result.Synth`/`Result.Redirects` — see
+// ExprRedirectMap's own comment; the declaring unit's own (pre-instantiation)
+// SynthesizedFunctions table is never consulted, since a literal touching a
+// type parameter has nothing concrete recorded there to reuse.
 [[nodiscard]] SEMA_EXPORT InstantiatedBody ReinstantiateBody ( const TypeStore &Store,
                                                                const Frontend::AstContext &Ast,
                                                                const ScopeTable &Scopes,

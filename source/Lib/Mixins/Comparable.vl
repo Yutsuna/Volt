@@ -28,4 +28,8 @@ mixin Comparable
   def >=( other : self ) -> Bool
     ( self <=> other ) >= 0
   end
+
+  def ..( other : self ) -> Range<self>
+    Range<self>.new( self, other )
+  end
 end

@@ -69,7 +69,7 @@ Counters are reported by `volt check --metrics` (`PassStats`, aggregated via ref
 ---
 
 ## MiddleEnd Output Artifact
-At the exit of the MiddleEnd, the AST/HIR delivered to the backend (see [`rules/core-ast.md`](rules/core-ast.md) for the complete contract — **27 core nodes**, with `CalleeResolution` and `ClosureEnvFrame` fully precomputed) is:
+At the exit of the MiddleEnd, the AST/HIR delivered to the backend (see [`rules/core-ast.md`](rules/core-ast.md) for the complete contract — **25 core nodes**, with `CalleeResolution` and `ClosureEnvFrame` fully precomputed) is:
 - **100% Resolved**: Every identifier is bound to its declaration site.
 - **100% Typed**: With a single nuance defined by the contract: typed immediately in concrete code, **typed after substitution** inside generic bodies (`T` in `Array<T>` becomes a type only upon monomorphization during codegen).
 - **100% Validated**: All semantic diagnostics have been emitted.

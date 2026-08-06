@@ -6,18 +6,20 @@
  *          and asserts their invariants under -Werror.
  */
 
-#include "Volt/Core/Meta/Overloaded.hpp"
-#include "Volt/Core/Meta/Reflect.hpp"
-#include "Volt/Core/Meta/TypeList.hpp"
-#include "Volt/Core/Support/Arena.hpp"
-#include "Volt/Core/Support/Id.hpp"
-#include "Volt/Core/Support/Result.hpp"
-#include "Volt/Core/Support/SmallVec.hpp"
-#include "Volt/Core/Support/Span.hpp"
-#include "Volt/Core/Support/StringInterner.hpp"
+#ifndef DEBUG_NO_STATIC_ASSERT
 
-#include <string>
-#include <variant>
+    #include "Volt/Core/Meta/Overloaded.hpp"
+    #include "Volt/Core/Meta/Reflect.hpp"
+    #include "Volt/Core/Meta/TypeList.hpp"
+    #include "Volt/Core/Support/Arena.hpp"
+    #include "Volt/Core/Support/Id.hpp"
+    #include "Volt/Core/Support/Result.hpp"
+    #include "Volt/Core/Support/SmallVec.hpp"
+    #include "Volt/Core/Support/Span.hpp"
+    #include "Volt/Core/Support/StringInterner.hpp"
+
+    #include <string>
+    #include <variant>
 
 namespace Volt
 {
@@ -109,3 +111,5 @@ namespace Core
 } // namespace Core
 
 } // namespace Volt
+
+#endif // DEBUG_NO_STATIC_ASSERT

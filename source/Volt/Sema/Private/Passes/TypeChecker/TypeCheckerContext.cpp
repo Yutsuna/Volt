@@ -41,6 +41,18 @@ std::optional<Volt::Sema::SemaTypeId> Volt::Sema::TypeCheckerPass::TypeCheckerCo
         {
             FoundType = It->second;
         }
+        else if ( const Binding *Bound = Ctx.Scopes.BindingOf( Use );
+                  Bound != nullptr and Ctx.Scopes.Get( Bound->Owner ).Kind == EScopeKind::Unit )
+        {
+            // A file is a module and its top-level locals are its globals
+            // (rules/core-ast.md's sibling decision): `EnterMethod` clears
+            // `LocalTypes` for every `def`, but a Unit-scope site was already
+            // typed once while the file's top-level statements ran, and that
+            // typing lives in `Ctx.Values` (never reset) — exactly what the
+            // backend itself reads for a Unit-scope binding (`SlotFor`,
+            // StmtEmitter.cpp).
+            FoundType = Ctx.Values.SiteType( *Site );
+        }
     }
     else if ( const auto It = Locals.find( Name ); It != Locals.end() )
     {

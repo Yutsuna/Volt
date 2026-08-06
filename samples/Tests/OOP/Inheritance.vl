@@ -1,0 +1,38 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+#{ TODO: add `abstract` keyword to support abstract classes #}
+class Base
+  getter a : Int32
+  getter b : Int32
+
+  def initialize( @a : Int32, @b : Int32 )
+  end
+
+  def sum -> Int32
+    @a + @b
+  end
+end
+
+
+class Derived < Base
+  getter c : Int32
+
+  def initialize( a : Int32, b : Int32, @c : Int32 )
+    super( a, b )
+  end
+
+  def total -> Int32
+    sum() + @c
+  end
+end
+
+
+def main -> Int32
+  d = Derived.new( 3, 4, 5 )
+  d.total() + d.a
+end
+
+
+libc_exit( main )

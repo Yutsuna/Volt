@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/GenericCommand.hpp"
 
 #include <string>
@@ -18,6 +19,7 @@ namespace CLI
      *        Generate & display the abstract syntax tree.
      * @options
      *        -i INPUT, --input INPUT          Source input module path
+     *        --stdin                          Read source from standard input
      *        -o OUTPUT, --output OUTPUT       Output target path structure
      *        --format FORMAT                  Serialization formats (json|dot|text)
      *        --simplify                       Deduplicate structural tree layout elements
@@ -42,7 +44,7 @@ namespace CLI
 
     private:
 
-        std::string Input;
+        FInputFlags InputFlags;
         std::string Output;
         std::string Format = "text";
 

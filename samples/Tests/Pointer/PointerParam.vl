@@ -1,0 +1,15 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+def is_nil( p : Pointer<Int32> ) -> Bool
+  p == nil
+end
+
+
+def main -> Int32
+  is_nil( nil ) ? 9 : 0
+end
+
+
+libc_exit( main )

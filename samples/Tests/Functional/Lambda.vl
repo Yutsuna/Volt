@@ -1,0 +1,15 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+double = ( x : Int32 ) => { x * 2 }
+# add_five = ( &.+ 5 )
+add_five = ( x : Int32 ) => x + 5
+
+assert!( double( 4 ) == 8 )
+assert!( 4 |> double == 8 )
+assert!( add_five( 10 ) == 15 )
+assert!( 10 |> add_five == 15 )

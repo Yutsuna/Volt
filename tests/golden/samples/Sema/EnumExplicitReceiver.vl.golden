@@ -2,8 +2,19 @@ Program 'samples/Sema/EnumExplicitReceiver.vl'
 ├─ Enum 'TrafficLight' @6:1
 │  └─ body
 │     ├─ EnumCase 'Red' @7:3
+│     │  └─ value
+│     │     └─ IntLiteral '0' @7:3
 │     ├─ EnumCase 'Yellow' @8:3
-│     └─ EnumCase 'Green' @9:3
+│     │  └─ value
+│     │     └─ IntLiteral '1' @8:3
+│     ├─ EnumCase 'Green' @9:3
+│     │  └─ value
+│     │     └─ IntLiteral '2' @9:3
+│     └─ Method 'to_value' @6:1
+│        └─ body
+│           └─ ExprStmt @6:1
+│              └─ expr
+│                 └─ SelfExpr @6:1
 ├─ Method 'describe' @12:1
 │  ├─ params
 │  │  └─ Param 'light' @12:16

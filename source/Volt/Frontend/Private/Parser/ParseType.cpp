@@ -24,8 +24,11 @@ bool Volt::Frontend::Parser::AtGenericOpen () const
 bool Volt::Frontend::Parser::Parser::AtGenericArgs () const
 {
     // The type list must start on a type name — in Volt those are always
-    // Constants — which already rejects `count<max`.
-    if ( not AtGenericOpen() or PeekKind( 1 ) != TokenKind::Constant )
+    // Constants — which already rejects `count<max`. `self` is the one
+    // non-Constant spelling a type can start with (ParseTypePrimary treats
+    // it identically to a type name), needed for `Range<self>.new(...)`
+    // inside a generic-body method like `Comparable#..`.
+    if ( not AtGenericOpen() or ( PeekKind( 1 ) != TokenKind::Constant and PeekKind( 1 ) != TokenKind::KwSelf ) )
     {
         return false;
     }
@@ -55,6 +58,7 @@ bool Volt::Frontend::Parser::Parser::AtGenericArgs () const
             }
             break;
         case TokenKind::Constant:
+        case TokenKind::KwSelf:
         case TokenKind::ColonColon:
         case TokenKind::Comma:
         case TokenKind::Star:

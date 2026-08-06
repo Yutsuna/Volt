@@ -48,7 +48,7 @@ Volt::Sema::TypeCheckerPass::BindClosureParams ( TypeCheckerContext &Context, co
     return Types;
 }
 
-Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::TrailingType ( TypeCheckerContext &Context, const Frontend::StmtList &Body )
+Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::TrailingType ( TypeCheckerContext &Context, Frontend::StmtList Body )
 {
     SemaTypeId Last;
     for ( const Frontend::StmtId Id : Body )

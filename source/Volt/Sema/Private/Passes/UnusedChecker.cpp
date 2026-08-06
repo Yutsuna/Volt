@@ -44,29 +44,37 @@ Volt::Core::SourceRange LocOfSite ( const Volt::Frontend::AstContext &Ast, const
 
 void Volt::Sema::UnusedChecker ( PassContext &Context )
 {
-    for ( std::size_t I = 0; I < Context.Scopes.Size(); ++I )
+    for ( std::size_t Idx = 0; Idx < Context.Scopes.Size(); ++Idx )
     {
-        const ScopeId Id{ static_cast<std::uint32_t>( I ) };
-        const Scope &S = Context.Scopes.Get( Id );
+        const ScopeId Id{ static_cast<std::uint32_t>( Idx ) };
+        const Scope &Scope = Context.Scopes.Get( Id );
 
         // Only check Method and Block scopes — Unit and Type bindings
         // are public API / field declarations, never "unused" in the
         // local sense. Branch scopes inherit their parent's bindings
         // and do not declare locals of their own.
-        if ( S.Kind != EScopeKind::Method and S.Kind != EScopeKind::Block )
+        if ( Scope.Kind != EScopeKind::Method and Scope.Kind != EScopeKind::Block )
         {
             continue;
         }
 
-        for ( const Symbol Name : S.Order )
+        for ( const Symbol Name : Scope.Order )
         {
-            const auto It = S.Bindings.find( Name );
-            if ( It == S.Bindings.end() )
+            const auto It = Scope.Bindings.find( Name );
+            if ( It == Scope.Bindings.end() )
             {
                 continue;
             }
 
             const Binding &Entry = It->second;
+
+            if ( const auto *ParamIdPtr = std::get_if<Frontend::ParamId>( &Entry.Site ) )
+            {
+                if ( Context.Ast.GetParam( *ParamIdPtr ).bInstanceVar )
+                {
+                    continue;
+                }
+            }
 
             // Convention: names starting with '_' are intentionally unused.
             const std::string_view Spelling = Context.Ast.Text( Name );

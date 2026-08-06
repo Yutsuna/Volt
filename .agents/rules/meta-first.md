@@ -53,7 +53,7 @@ are exactly two:
 - `Sema/Private/Passes/AstInvariant.cpp` builds a `constexpr std::array` of the
   sugar kinds and reports any survivor. **No `switch`** — membership on a
   generated set.
-- `tests/AstInvariant.cmake` reads the same lines out of the manifest with a
+- `tests/meson.build` reads the same lines out of the manifest with a
   regex, so the corpus-wide census cannot drift from the compiler's own.
 
 Marking a new node as sugar is therefore **one word** in `Nodes.inl`, and

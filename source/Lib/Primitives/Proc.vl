@@ -9,9 +9,33 @@
 @[Literal( FuncType ), Literal( Lambda ), Literal( Block )]
 struct Proc<R>
 
-  # Invoking a callable: `@[Apply]` says the signature is the receiver's own
-  # arguments, since a Proc's arity is carried by its type, not by this line.
-  @[Apply]
+  # The callable value itself: an address to enter, and the environment to
+  # enter it with. Declared as ordinary fields — not a backend-synthesized
+  # shape — so `InstanceLayouts::Of` needs no `IsCallable` special case: the
+  # same field-flattening every other struct gets already produces the
+  # `{ ptr, ptr }` layout .agents/backend/abi.md fixes. An empty environment
+  # is a null `Pointer<UInt8>`, never a missing field.
+  code : Pointer<UInt8>
+  env : Pointer<UInt8>
+
+  def initialize( code : Pointer<UInt8>, env : Pointer<UInt8> )
+    @code = code
+    @env = env
+  end
+
+  # The one contract of a callable. It is `abstract` for the same reason
+  # `Int32#+` is: the target supplies the operation. `+` on a primitive layout
+  # is a machine instruction; `call` on the type claiming FuncType is an
+  # indirect call through the `{ code, env }` pair — both decided by what the
+  # receiver *is*, never by an annotation naming this line.
+  #
+  # It takes no parameters here because it cannot: a Proc's arity lives in its
+  # type arguments (`Proc<R, A, B>`), which is why the resolution reads the
+  # signature off the receiver rather than off this declaration.
   abstract def call -> R
+
+  def to_string -> String
+    "Proc(#{@code}, #{@env})"
+  end
 
 end

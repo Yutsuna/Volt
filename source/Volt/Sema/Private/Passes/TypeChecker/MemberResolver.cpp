@@ -28,6 +28,17 @@ namespace
     return ( Ch < 'a' or Ch > 'z' ) and ( Ch < 'A' or Ch > 'Z' ) and Ch != '_';
 }
 
+// `..`/`...` are spelled like operators (neither opens with a letter or
+// `_`) but no instruction table row backs either of them — a range is an
+// ordinary aggregate (`Range<T>`), resolved through `Comparable#..` like any
+// other non-primitive operator. Excluding them here is what lets `1..3` fall
+// through to real member lookup instead of being silently waved through as
+// "the backend supplies this".
+[[nodiscard]] bool IsRangeOperator ( std::string_view Name )
+{
+    return Name == ".." or Name == "...";
+}
+
 // Is `Name` an operator the machine itself provides on this receiver — that
 // is, does the receiver collapse to a Primitive or a Pointer? Deliberately
 // narrower than IsBuiltinOpOn, which also widens `===` to an enum: an enum is
@@ -38,7 +49,7 @@ namespace
 {
     using namespace Volt::Sema;
 
-    if ( not Base.IsValid() or not IsOperatorName( Name ) )
+    if ( not Base.IsValid() or not IsOperatorName( Name ) or IsRangeOperator( Name ) )
     {
         return false;
     }
@@ -96,7 +107,12 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         return Resolution{};
     }
 
-    if ( Found.Decl->bApply )
+    // Invoking a callable. The signature is not what the contract wrote down
+    // — it *cannot* be, since a Proc's arity lives in its type arguments —
+    // so it is read off the receiver: result first, then one parameter per
+    // remaining argument. Nothing here names a type or a member; the receiver
+    // being the FuncType claimant is the whole test.
+    if ( IsCallableType( Context, Receiver ) and Found.Decl->bAbstract )
     {
         const Core::SmallVec<SemaTypeId, 2> &Signature = Context.Ctx.Values.Get( Receiver ).Args;
         Core::SmallVec<SemaTypeId, 4> Params;
@@ -104,14 +120,15 @@ Volt::Sema::TypeCheckerPass::LookupOn ( TypeCheckerContext &Context, SemaTypeId 
         {
             Params.PushBack( Signature[Index] );
         }
-        // No block slot: an `@[Apply]` signature is the receiver's own
-        // arguments, and a callable takes its argument positionally.
+        // No block slot: the signature is the receiver's own arguments, and a
+        // callable takes its arguments positionally.
         return Resolution{ .Decl       = Found.Decl,
                            .Result     = Signature.IsEmpty() ? SemaTypeId{} : Signature[0],
                            .Params     = std::move( Params ),
                            .BlockParam = SemaTypeId{},
                            .Bindings   = {},
-                           .Receiver   = Receiver };
+                           .Receiver   = Receiver,
+                           .bIndirect  = true };
     }
 
     // A signature's ParamIndex counts against the type that *declares* it,
@@ -190,7 +207,10 @@ Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupFreeF
 
 void Volt::Sema::TypeCheckerPass::Reinstantiate ( TypeCheckerContext &Context, Resolution &Found )
 {
-    if ( Found.Decl == nullptr or Found.Decl->bApply )
+    // An indirect callee's signature came from its receiver's type arguments,
+    // not from `Decl->Params`; recomputing it from the declaration would
+    // overwrite it with the empty contract.
+    if ( Found.Decl == nullptr or Found.bIndirect )
     {
         return;
     }
@@ -220,7 +240,25 @@ void Volt::Sema::TypeCheckerPass::Reinstantiate ( TypeCheckerContext &Context, R
 
 void Volt::Sema::TypeCheckerPass::UnifyArgs ( TypeCheckerContext &Context, Resolution &Found, const Frontend::ExprList &Args )
 {
-    if ( Found.Decl == nullptr or Found.Decl->OwnGenerics == 0 )
+    if ( Found.Decl == nullptr )
+    {
+        return;
+    }
+
+    // `OwnGenerics == 0` usually means "nothing new to learn": the ordinary
+    // case is a receiver whose own generic arguments are already concrete
+    // (`arr.push(x)` on a bound `Array<Int32>`), and inside a generic
+    // definition's own body an unbound `Binding` is *expected* and must stay
+    // that way until instantiation (`rules/core-ast.md`'s "generic
+    // definition bodies" contract) — proceeding there would unify against
+    // something not ready yet. Scoped narrowly to `EnumCase`, the one kind
+    // that is never itself generic (`TypeBinder.cpp`'s Phase B never sets
+    // `OwnGenerics` on it) yet can still carry an unbound *owner* slot: a
+    // naked-type receiver used as a constructor (`Optional::Some(
+    // "Yutsuna" )`, `Optional` with no `<T>` written) seeds `Bindings` with
+    // invalid placeholders (`PlaceholderTypeArgs`, `ExprInferencer.cpp`)
+    // precisely so this call can still teach it what `T` is.
+    if ( Found.Decl->OwnGenerics == 0 and Found.Decl->Kind != EMemberKind::EnumCase )
     {
         return;
     }
@@ -293,23 +331,37 @@ void Volt::Sema::TypeCheckerPass::CheckMemberSelf ( TypeCheckerContext &Context,
     }
 }
 
-Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupApplyOn ( TypeCheckerContext &Context,
-                                                                                     SemaTypeId Receiver )
+bool Volt::Sema::TypeCheckerPass::IsCallableType ( const TypeCheckerContext &Context, SemaTypeId Receiver )
 {
     if ( not Context.Ctx.Values.Has( Receiver ) )
     {
-        return Resolution{};
+        return false;
     }
-
     const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
     if ( not Base.IsValid() )
     {
+        return false;
+    }
+    const auto Callable = Context.Ctx.Types.LookupNodeKind( "FuncType" );
+    return Callable.has_value() and *Callable == Base;
+}
+
+Volt::Sema::TypeCheckerPass::Resolution Volt::Sema::TypeCheckerPass::LookupCallOn ( TypeCheckerContext &Context,
+                                                                                    SemaTypeId Receiver )
+{
+    if ( not IsCallableType( Context, Receiver ) )
+    {
         return Resolution{};
     }
 
+    // The contract, not a spelling: the callable type declares exactly one
+    // abstract member and that member is what invoking a value means. Reading
+    // it out of the store rather than writing "call" here is what keeps the
+    // member's name Volt's to choose.
+    const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
     for ( const Member &Entry : Context.Ctx.Types.Type( Base ).Members )
     {
-        if ( Entry.bApply )
+        if ( Entry.Kind == EMemberKind::Method and Entry.bAbstract )
         {
             // Re-resolved by name rather than used directly, so the call goes
             // through the same instantiation path as `f.call( x )` would.
@@ -331,7 +383,7 @@ bool Volt::Sema::TypeCheckerPass::HasEnumCases ( const TypeStore &Store, Nominal
 
 bool Volt::Sema::TypeCheckerPass::IsBuiltinOpOn ( const TypeCheckerContext &Context, NominalId Base, std::string_view Name )
 {
-    if ( not Base.IsValid() or not IsOperatorName( Name ) )
+    if ( not Base.IsValid() or not IsOperatorName( Name ) or IsRangeOperator( Name ) )
     {
         return false;
     }

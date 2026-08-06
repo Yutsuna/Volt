@@ -1,0 +1,61 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_int8 -> Void
+  a : Int8 = 10
+  b : Int8 = 5
+  zero : Int8 = 0
+  neg : Int8 = -5
+
+  assert!( a + b == 15 )
+  assert!( a - b == 5 )
+  assert!( a * b == 50 )
+  assert!( a / b == 2 )
+  assert!( a % b == 0 )
+  assert!( ( a & b ) == 0 )
+  assert!( ( a | b ) == 15 )
+  assert!( ( a ^ b ) == 15 )
+  assert!( ( b << 1 ) == 10 )
+  assert!( ( a >> 1 ) == 5 )
+  assert!( ~zero == -1 )
+
+  assert!( a.negate == -10 )
+  assert!( neg.abs == 5 )
+  assert!( a.min( b ) == 5 )
+  assert!( a.max( b ) == 10 )
+  assert!( a.successor == 11 )
+  assert!( a.predecessor == 9 )
+  assert!( a.between?( 1, 20 ) )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( a.even? )
+  assert!( b.odd? )
+  assert!( ( 8 : Int8 ).power_of_two? )
+  assert!( a.divisible_by?( b ) )
+  assert!( a.clamp( 1, 5 ) == 5 )
+  assert!( a.distance( b ) == 5 )
+  assert!( b.square == 25 )
+  assert!( b.double == 10 )
+  assert!( a.half == 5 )
+  assert!( b.cube == 125 )
+  assert!( ( 2 : Int8 ).pow( 3 ) == 8 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_int8
+  0
+end
+
+libc_exit( main() )

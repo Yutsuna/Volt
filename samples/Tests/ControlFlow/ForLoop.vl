@@ -1,0 +1,75 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#{
+# collection.each { |item| total += item }
+#}
+def for_collection -> Int32
+  collection = [ 1, 2, 3 ]
+  total = 0
+  for item in collection
+    total += item
+  end
+  total
+end
+
+#{
+# dictionary.each { |key, value| total += value }
+#}
+def for_dictionary -> Int32
+  dictionary = { "a" => 1, "b" => 2, "c" => 3 }
+  total = 0
+  for _key, value in dictionary
+    total += value
+  end
+  total
+end
+
+#{
+# (1..3).each { |i| total += 1 }
+#}
+def for_range -> Int32
+  total = 0
+  for i in 1..3
+    total += i
+  end
+  total
+end
+
+class User
+  getter name  : String
+  getter email : String
+  getter age   : Int32
+
+  def initialize( @name : String, @email : String, @age : Int32 )
+  end
+end
+
+#{
+#  users.each { |_name, _email, age| total += age" }
+#}
+def for_array -> Int32
+  # users = [
+  #           [ "Alice", "alice@petass.com", 42 ],
+  #           [ "Morgan", "morgan@bg.fr", 25 ],
+  #           [ "Bob", "bob@marley.lol", 30 ]
+  #         ]
+  users = [
+            User.new( "Alice", "alice@petass.com", 42 ),
+            User.new( "Morgan", "morgan@bg.fr", 25 ),
+            User.new( "Bob", "bob@marley.lol", 30 )
+          ]
+  total = 0
+  for user in users
+    total += user.age
+  end
+  total
+end
+
+assert!( for_collection == 6 )
+assert!( for_dictionary == 6 )
+assert!( for_range == 3 )
+assert!( for_array == 97 )

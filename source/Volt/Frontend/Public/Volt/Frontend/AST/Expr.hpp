@@ -206,6 +206,32 @@ namespace Frontend
         TypeId Type;
     };
 
+    // The address of a resolved Method, as a value — never written by the
+    // parser; only a lowering pass (ClosureLifting) synthesizes this, to name
+    // a function it has just lifted without going through ordinary member/
+    // free-function name lookup. Inert like SizeOf/GenericInst: nothing to
+    // descend into, the Decl is already resolved by construction.
+    struct FuncAddr
+    {
+
+        Core::SourceRange Loc;
+        DeclId Target;
+    };
+
+    // `( Value : Type )` — an explicit type ascription, not a cast: it
+    // constrains an otherwise-unconstrained value (chiefly an int/float
+    // literal) to `Type` instead of the default the literal would infer.
+    // Core rather than sugar for the same reason as `ArrayLit`/`HashLit`
+    // (`core-ast.md`): resolving `Type` and constraining `Value` against it
+    // needs `TypeChecker`, so lowering it away earlier would need types.
+    struct TypedExpr
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+        TypeId Type;
+    };
+
     // `*Operand` in value position.
     struct Deref
     {
@@ -245,11 +271,15 @@ namespace Frontend
     // `case [Target] when Pattern1, Pattern2 [then] Body... [else ElseBody...] end`.
     // Target is invalid for a `case` without target expression (defaults to true matching).
     // Clauses is a StmtList of StmtIds referring to WhenClause nodes.
+    // CaseLowering (order 22) folds Target into each clause's patterns and moves it here —
+    // Scrutinee keeps the scrutinee sub-expression reachable for ScopeResolver/TypeChecker
+    // without a backend having to re-derive it from folded patterns (rules/core-ast.md).
     struct CaseExpr
     {
 
         Core::SourceRange Loc;
         ExprId Target;
+        ExprId Scrutinee;
         StmtList Clauses;
         StmtList ElseBody;
     };
@@ -280,6 +310,13 @@ namespace Frontend
         ExprId TargetExpr;
         ExprList Args;
         bool bNegated;
+        // Set only for ESectionKind::Operator — the raw token behind
+        // `Target`'s spelling. A lowering needs this to build a `Binary`/
+        // `Unary` node (the two the operator's spelling could be), never a
+        // `Member`+`Call`: that shape is exempt from any resolution on a
+        // primitive receiver (rules/core-ast.md's operator contract), so it
+        // is unreachable outside a Binary/Unary node's own dispatch.
+        TokenKind Op = TokenKind::Eof;
     };
 
     struct Composition
@@ -304,6 +341,23 @@ namespace Frontend
         StmtList Body;
         StmtList RescueClauses;
         StmtList EnsureBody;
+    };
+
+    // `if Cond [then] ... [else ...] end`, and `unless` after the parser has
+    // negated its condition. An `elsif` chain is a nested If living in the
+    // Else branch — no separate node needed.
+    //
+    // An expression, like CaseExpr and BeginExpr, and for the same reason:
+    // `val = if c ... end` is ordinary Volt, so the node has to be able to
+    // carry a value. Statement position is reached through ParseStatement's
+    // default arm, which wraps it in an ExprStmt.
+    struct If
+    {
+        using Self = If;
+        Core::SourceRange Loc;
+        ExprId Cond;
+        StmtList Then;
+        StmtList Else;
     };
 
     enum class ExprKind

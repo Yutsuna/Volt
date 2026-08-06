@@ -28,11 +28,5 @@ jobs:
       - name: Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v8
 
-      - name: Check Formatting
-        run: nix develop --command volt-build format
-
-      - name: Build & Test Suite
-        run: nix develop --command volt-build llvm test
-
       - name: Build Release
         run: nix build

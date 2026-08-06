@@ -1,0 +1,45 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_float64 -> Void
+  a : Float64 = 100.0
+  b : Float64 = 25.0
+  neg : Float64 = -50.0
+  zero : Float64 = 0.0
+
+  assert!( a + b == 125.0 )
+  assert!( a - b == 75.0 )
+  assert!( a * b == 2500.0 )
+  assert!( a / b == 4.0 )
+  assert!( neg.abs == 50.0 )
+  assert!( neg.negate == 50.0 )
+  assert!( a.min( b ) == 25.0 )
+  assert!( a.max( b ) == 100.0 )
+  assert!( zero.zero? )
+  assert!( a.non_zero? )
+  assert!( a.positive? )
+  assert!( neg.negative? )
+  assert!( b.square == 625.0 )
+  assert!( b.double == 50.0 )
+  assert!( a.half == 50.0 )
+  assert!( ( 3.0 : Float64 ).cube == 27.0 )
+  assert!( a.distance( b ) == 75.0 )
+  assert!( a.clamp( 0.0, 50.0 ) == 50.0 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_float64
+  0
+end
+
+libc_exit( main() )

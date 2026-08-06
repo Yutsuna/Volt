@@ -15,8 +15,8 @@ navigate the compiler without re-reading every file.
   ```
 
   This refreshes `graph.json` + `GRAPH_REPORT.md`. Do it as part of finishing the
-  task, alongside `volt-build format`. For a scoped refresh of just the compiler tree,
-  `graphify update source/Volt` is enough.
+  task, alongside a `format` pass at the end of the phase. For a scoped refresh
+  of just the compiler tree, `graphify update source/Volt` is enough.
 
 Rule of thumb: if you added or removed a top-level function, a module, or a
 manifest entry, refresh the graph before you call the change done.

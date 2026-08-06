@@ -1,0 +1,29 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+executed = false
+if false
+  executed = true
+end
+assert!(not executed)
+
+
+if true
+  executed = true
+end
+assert!(executed)
+
+
+#{ TODO:
+#  [ false, nil, 0, "", [], {}, () ].each do |value|
+#   executed = false
+#   if value
+#     executed = true
+#   end
+#   assert!(not executed)
+# end
+#}

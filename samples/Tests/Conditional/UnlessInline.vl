@@ -1,0 +1,14 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end
+
+
+val_unless = 50
+val_unless = 100 unless false
+assert!( val_unless == 100 )
+
+
+val_unless = 200 unless true
+assert!( val_unless == 100 )

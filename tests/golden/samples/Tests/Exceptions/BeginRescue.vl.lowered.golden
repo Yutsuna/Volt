@@ -1,0 +1,431 @@
+Program 'samples/Tests/Exceptions/BeginRescue.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     ├─ lhs
+│                                │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     ├─ lhs
+│                                │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │  └─ Binary '+' @3:11
+│                                │     │     │     │     │     │     ├─ lhs
+│                                │     │     │     │     │     │     │  └─ StringLiteral 'FAIL ' @3:11
+│                                │     │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │     │        └─ StringLiteral 'samples/Tests/Exceptions/BeginRescue.vl' @3:19
+│                                │     │     │     │     │     └─ rhs
+│                                │     │     │     │     │        └─ StringLiteral ':\tCalled by ' @3:11
+│                                │     │     │     │     └─ rhs
+│                                │     │     │     │        └─ StringLiteral 'assert!' @3:43
+│                                │     │     │     └─ rhs
+│                                │     │     │        └─ StringLiteral ' at ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ Call @3:11
+│                                │     │           └─ callee
+│                                │     │              └─ Member 'to_string' @3:11
+│                                │     │                 └─ object
+│                                │     │                    └─ IntLiteral '3' @3:62
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '74' @3:74
+├─ Method 'calculate' @13:1
+│  ├─ params
+│  │  └─ Param 'x' @13:16
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @13:20
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @13:31
+│  └─ body
+│     └─ ExprStmt @14:3
+│        └─ expr
+│           └─ BeginExpr @14:3
+│              ├─ body
+│              │  ├─ ExprStmt @15:5
+│              │  │  └─ expr
+│              │  │     └─ If @15:5
+│              │  │        ├─ cond
+│              │  │        │  └─ Binary '==' @15:10
+│              │  │        │     ├─ lhs
+│              │  │        │     │  └─ Identifier 'x' @15:8
+│              │  │        │     └─ rhs
+│              │  │        │        └─ IntLiteral '0' @15:13
+│              │  │        └─ then
+│              │  │           └─ ExprStmt @16:7
+│              │  │              └─ expr
+│              │  │                 └─ RaiseExpr @16:7
+│              │  │                    └─ exception
+│              │  │                       └─ StringLiteral 'Division by zero' @16:13
+│              │  └─ ExprStmt @18:5
+│              │     └─ expr
+│              │        └─ Binary '/' @18:9
+│              │           ├─ lhs
+│              │           │  └─ IntLiteral '100' @18:5
+│              │           └─ rhs
+│              │              └─ Identifier 'x' @18:11
+│              ├─ rescue_clauses
+│              │  ├─ RescueClause 'e' @19:10
+│              │  │  ├─ exception_type
+│              │  │  │  └─ TypeRef 'ArgumentError' @19:14
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @20:5
+│              │  │        └─ expr
+│              │  │           └─ Unary '-' @20:5
+│              │  │              └─ operand
+│              │  │                 └─ IntLiteral '1' @20:6
+│              │  └─ RescueClause 'e' @21:10
+│              │     └─ body
+│              │        └─ ExprStmt @22:5
+│              │           └─ expr
+│              │              └─ Unary '-' @22:5
+│              │                 └─ operand
+│              │                    └─ IntLiteral '2' @22:6
+│              └─ ensure_body
+│                 └─ ExprStmt @24:5
+│                    └─ expr
+│                       └─ Assign '=' @24:28
+│                          ├─ target
+│                          │  └─ Identifier 'calculate_ensure_count' @24:5
+│                          └─ value
+│                             └─ Binary '+' @24:28
+│                                ├─ lhs
+│                                │  └─ Identifier 'calculate_ensure_count' @24:5
+│                                └─ rhs
+│                                   └─ IntLiteral '1' @24:31
+├─ Method 'method_rescue' @29:1
+│  ├─ params
+│  │  └─ Param 'y' @29:20
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @29:24
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @29:35
+│  └─ body
+│     └─ ExprStmt @34:1
+│        └─ expr
+│           └─ BeginExpr @34:1
+│              ├─ body
+│              │  ├─ ExprStmt @30:3
+│              │  │  └─ expr
+│              │  │     └─ If @30:3
+│              │  │        ├─ cond
+│              │  │        │  └─ Binary '<' @30:8
+│              │  │        │     ├─ lhs
+│              │  │        │     │  └─ Identifier 'y' @30:6
+│              │  │        │     └─ rhs
+│              │  │        │        └─ IntLiteral '0' @30:10
+│              │  │        └─ then
+│              │  │           └─ ExprStmt @31:5
+│              │  │              └─ expr
+│              │  │                 └─ RaiseExpr @31:5
+│              │  │                    └─ exception
+│              │  │                       └─ StringLiteral 'Negative value' @31:11
+│              │  └─ ExprStmt @33:3
+│              │     └─ expr
+│              │        └─ Binary '*' @33:5
+│              │           ├─ lhs
+│              │           │  └─ Identifier 'y' @33:3
+│              │           └─ rhs
+│              │              └─ IntLiteral '2' @33:7
+│              ├─ rescue_clauses
+│              │  └─ RescueClause 'err' @34:8
+│              │     └─ body
+│              │        └─ ExprStmt @35:3
+│              │           └─ expr
+│              │              └─ IntLiteral '0' @35:3
+│              └─ ensure_body
+│                 └─ ExprStmt @37:3
+│                    └─ expr
+│                       └─ Assign '=' @37:30
+│                          ├─ target
+│                          │  └─ Identifier 'method_rescue_ensure_count' @37:3
+│                          └─ value
+│                             └─ Binary '+' @37:30
+│                                ├─ lhs
+│                                │  └─ Identifier 'method_rescue_ensure_count' @37:3
+│                                └─ rhs
+│                                   └─ IntLiteral '1' @37:33
+├─ Method 'test_ensure_propagation' @41:1
+│  └─ body
+│     └─ ExprStmt @42:3
+│        └─ expr
+│           └─ BeginExpr @42:3
+│              ├─ body
+│              │  └─ ExprStmt @43:5
+│              │     └─ expr
+│              │        └─ RaiseExpr @43:5
+│              │           └─ exception
+│              │              └─ StringLiteral 'Exception non gérée localement' @43:11
+│              └─ ensure_body
+│                 └─ ExprStmt @45:5
+│                    └─ expr
+│                       └─ Assign '=' @45:30
+│                          ├─ target
+│                          │  └─ Identifier 'uncaught_ensure_executed' @45:5
+│                          └─ value
+│                             └─ BoolLiteral true @45:32
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:24
+│        ├─ target
+│        │  └─ Identifier 'calculate_ensure_count' @8:1
+│        └─ value
+│           └─ IntLiteral '0' @8:26
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Assign '=' @9:28
+│        ├─ target
+│        │  └─ Identifier 'method_rescue_ensure_count' @9:1
+│        └─ value
+│           └─ IntLiteral '0' @9:30
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Assign '=' @10:26
+│        ├─ target
+│        │  └─ Identifier 'uncaught_ensure_executed' @10:1
+│        └─ value
+│           └─ BoolLiteral false @10:28
+├─ ExprStmt @50:1
+│  └─ expr
+│     └─ Assign '=' @50:24
+│        ├─ target
+│        │  └─ Identifier 'calculate_ensure_count' @50:1
+│        └─ value
+│           └─ IntLiteral '0' @50:26
+├─ ExprStmt @51:1
+│  └─ expr
+│     └─ Assign '=' @51:6
+│        ├─ target
+│        │  └─ Identifier 'res1' @51:1
+│        └─ value
+│           └─ Call @51:17
+│              ├─ callee
+│              │  └─ Identifier 'calculate' @51:8
+│              └─ args
+│                 └─ IntLiteral '10' @51:19
+├─ ExprStmt @52:1
+│  └─ expr
+│     └─ Call @52:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @52:1
+│        └─ args
+│           └─ Binary '==' @52:15
+│              ├─ lhs
+│              │  └─ Identifier 'res1' @52:10
+│              └─ rhs
+│                 └─ IntLiteral '10' @52:18
+├─ ExprStmt @53:1
+│  └─ expr
+│     └─ Call @53:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @53:1
+│        └─ args
+│           └─ Binary '==' @53:33
+│              ├─ lhs
+│              │  └─ Identifier 'calculate_ensure_count' @53:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @53:36
+├─ ExprStmt @56:1
+│  └─ expr
+│     └─ Assign '=' @56:24
+│        ├─ target
+│        │  └─ Identifier 'calculate_ensure_count' @56:1
+│        └─ value
+│           └─ IntLiteral '0' @56:26
+├─ ExprStmt @57:1
+│  └─ expr
+│     └─ Assign '=' @57:6
+│        ├─ target
+│        │  └─ Identifier 'res2' @57:1
+│        └─ value
+│           └─ Call @57:17
+│              ├─ callee
+│              │  └─ Identifier 'calculate' @57:8
+│              └─ args
+│                 └─ IntLiteral '0' @57:19
+├─ ExprStmt @58:1
+│  └─ expr
+│     └─ Call @58:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @58:1
+│        └─ args
+│           └─ Binary '==' @58:15
+│              ├─ lhs
+│              │  └─ Identifier 'res2' @58:10
+│              └─ rhs
+│                 └─ Unary '-' @58:18
+│                    └─ operand
+│                       └─ IntLiteral '2' @58:19
+├─ ExprStmt @59:1
+│  └─ expr
+│     └─ Call @59:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @59:1
+│        └─ args
+│           └─ Binary '==' @59:33
+│              ├─ lhs
+│              │  └─ Identifier 'calculate_ensure_count' @59:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @59:36
+├─ ExprStmt @62:1
+│  └─ expr
+│     └─ Assign '=' @62:28
+│        ├─ target
+│        │  └─ Identifier 'method_rescue_ensure_count' @62:1
+│        └─ value
+│           └─ IntLiteral '0' @62:30
+├─ ExprStmt @63:1
+│  └─ expr
+│     └─ Assign '=' @63:6
+│        ├─ target
+│        │  └─ Identifier 'res3' @63:1
+│        └─ value
+│           └─ Call @63:21
+│              ├─ callee
+│              │  └─ Identifier 'method_rescue' @63:8
+│              └─ args
+│                 └─ IntLiteral '5' @63:23
+├─ ExprStmt @64:1
+│  └─ expr
+│     └─ Call @64:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @64:1
+│        └─ args
+│           └─ Binary '==' @64:15
+│              ├─ lhs
+│              │  └─ Identifier 'res3' @64:10
+│              └─ rhs
+│                 └─ IntLiteral '10' @64:18
+├─ ExprStmt @65:1
+│  └─ expr
+│     └─ Call @65:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @65:1
+│        └─ args
+│           └─ Binary '==' @65:37
+│              ├─ lhs
+│              │  └─ Identifier 'method_rescue_ensure_count' @65:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @65:40
+├─ ExprStmt @68:1
+│  └─ expr
+│     └─ Assign '=' @68:28
+│        ├─ target
+│        │  └─ Identifier 'method_rescue_ensure_count' @68:1
+│        └─ value
+│           └─ IntLiteral '0' @68:30
+├─ ExprStmt @69:1
+│  └─ expr
+│     └─ Assign '=' @69:6
+│        ├─ target
+│        │  └─ Identifier 'res4' @69:1
+│        └─ value
+│           └─ Call @69:21
+│              ├─ callee
+│              │  └─ Identifier 'method_rescue' @69:8
+│              └─ args
+│                 └─ Unary '-' @69:23
+│                    └─ operand
+│                       └─ IntLiteral '5' @69:24
+├─ ExprStmt @70:1
+│  └─ expr
+│     └─ Call @70:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @70:1
+│        └─ args
+│           └─ Binary '==' @70:15
+│              ├─ lhs
+│              │  └─ Identifier 'res4' @70:10
+│              └─ rhs
+│                 └─ IntLiteral '0' @70:18
+├─ ExprStmt @71:1
+│  └─ expr
+│     └─ Call @71:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @71:1
+│        └─ args
+│           └─ Binary '==' @71:37
+│              ├─ lhs
+│              │  └─ Identifier 'method_rescue_ensure_count' @71:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @71:40
+├─ ExprStmt @74:1
+│  └─ expr
+│     └─ Assign '=' @74:26
+│        ├─ target
+│        │  └─ Identifier 'uncaught_ensure_executed' @74:1
+│        └─ value
+│           └─ BoolLiteral false @74:28
+├─ ExprStmt @75:1
+│  └─ expr
+│     └─ Assign '=' @75:16
+│        ├─ target
+│        │  └─ Identifier 'caught_outside' @75:1
+│        └─ value
+│           └─ BoolLiteral false @75:18
+├─ ExprStmt @77:1
+│  └─ expr
+│     └─ BeginExpr @77:1
+│        ├─ body
+│        │  └─ ExprStmt @78:3
+│        │     └─ expr
+│        │        └─ Identifier 'test_ensure_propagation' @78:3
+│        └─ rescue_clauses
+│           └─ RescueClause 'e' @79:8
+│              └─ body
+│                 └─ ExprStmt @80:3
+│                    └─ expr
+│                       └─ Assign '=' @80:18
+│                          ├─ target
+│                          │  └─ Identifier 'caught_outside' @80:3
+│                          └─ value
+│                             └─ BoolLiteral true @80:20
+├─ ExprStmt @83:1
+│  └─ expr
+│     └─ Call @83:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @83:1
+│        └─ args
+│           └─ Binary '==' @83:25
+│              ├─ lhs
+│              │  └─ Identifier 'caught_outside' @83:10
+│              └─ rhs
+│                 └─ BoolLiteral true @83:28
+└─ ExprStmt @84:1
+   └─ expr
+      └─ Call @84:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @84:1
+         └─ args
+            └─ Binary '==' @84:35
+               ├─ lhs
+               │  └─ Identifier 'uncaught_ensure_executed' @84:10
+               └─ rhs
+                  └─ BoolLiteral true @84:38
+--- exit 0 ---

@@ -22,7 +22,13 @@
 VOLT_PASS( FunctionalLowering, 8, Lowering )
 VOLT_PASS( PipelineLowering, 9, Lowering )
 VOLT_PASS( ScopeResolver, 10, Analysis )
-VOLT_PASS( EnumLowering, 12, Lowering )
+// Enum-case ordinal materialization used to live here (order 12) but moved
+// to Frontend::MaterializeEnumOrdinals (EnumSynthesis.cpp), running from
+// Driver::ParseOne before Sema::BindUnitTypes: it was already purely
+// syntactic (no type information needed), and TypeBinder's Phase A now
+// caches each case's ordinal onto its Member (Member::EnumOrdinal), which
+// requires the value to already be materialized by the time Phase A runs —
+// earlier than any Sema pass in this list ever executes.
 
 VOLT_PASS( MacroExpansion, 15, Lowering )
 // After MacroExpansion on purpose: macro-generated text gets its constants

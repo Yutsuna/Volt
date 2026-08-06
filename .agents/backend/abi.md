@@ -24,6 +24,30 @@ Derived from `LayoutNode` alone — no Volt type name enters
 C compatibility is deliberate: an `@[External("libc","calloc")]` boundary
 means Volt aggregates must look like C structs under the platform ABI.
 
+### Inheritance: the base's fields lead, flattened
+
+`class Derived < Base` lays out **`Base`'s fields first, spliced flat**, then
+its own. Nothing about that is a preference either:
+
+- `super( a, b )` hands `self` straight to `Base#initialize`, which GEPs `@a`
+  at the offset *`Base`'s own* layout gives it. A prefix-sharing layout is
+  what makes that pointer mean the same thing in both frames — the same
+  single-inheritance rule C++ uses, and for the same reason.
+- Flat, not nested (`{ base, own… }`), because an inherited `@x` is resolved
+  **by name** against the *subclass's* layout (`FieldAddress`), and a nested
+  base would hide every inherited name from that lookup.
+
+Two builders produce aggregates and both must obey this: `Sema::TypeBinder`'s
+`EnsureStructLayout` for a concrete type — reading the parent off the **AST**,
+since `NominalType::Super` is only filled in a later phase than the one that
+attaches layouts (`Driver.cpp`) — and `BackendCore::InstanceLayouts::Of` for a
+generic instantiation, where the parent link is a signature and its arguments
+substitute out of `FlatArgs` exactly like a field's. Neither used to look at
+the parent at all, which laid every subclass out as a **zero-field aggregate**:
+`raise ArgumentError.new( "…" )` had `Exception#initialize` write 40 bytes into
+a 0-byte frame slot, and the corrupted frame is what made every `raise`
+segfault. Regression sample: `samples/Codegen/Inheritance.vl`.
+
 ## Objects, strings, arrays — stdlib-declared, engine-measured
 
 The compiler has **no object model**. `String` is whatever aggregate the
@@ -71,11 +95,20 @@ struct return.
 
 ## Closure environments
 
-`SynthesizeClosureFrame` (Sema) already fixed the env aggregate: field
-offsets, `TotalSize`, `Alignment`, `bEscapes`. Backends allocate it
-(stack when `bEscapes == false`, stdlib heap otherwise) and address captures
-by the frame's precomputed offsets. A closure **value** is uniformly the
-two-slot aggregate `{ code, env }` — function pointer / `FunctionTable`
+`SynthesizeClosureFrame` (Sema) fixes the env aggregate: field offsets,
+`TotalSize`, `Alignment`, `bEscapes`. Unlike the rest of this file, closure
+environments are **not a per-target backend concern** any more: `Lambda`/
+`Block` are sugar (`rules/core-ast.md`), and `ClosureLifting`
+(`Sema/.../TypeChecker/ClosureLifting.cpp`) allocates and addresses the env
+itself, upstream, before any backend runs — heap-allocated via an ordinary
+`Pointer<UInt8>.malloc( Frame.TotalSize )` call (the stack-when-non-escaping
+optimisation is a deferred reclaim, not a blocker; every env is heap today),
+with each capture stored and every capturing use rewritten in place into
+ordinary `Deref`/`Call( Pointer<T>.from_address, [env-offset expr] )` nodes.
+A backend therefore never sees a capture as such — only the `Deref`/`Call`
+nodes it already knows how to emit — and needs no closure-specific logic of
+its own to reproduce this for VM or wasm. A closure **value** is uniformly
+the two-slot aggregate `{ code, env }` — function pointer / `FunctionTable`
 index / `call_indirect` table index respectively.
 
 An env field holds the **address** of the captured binding, not a copy of its
