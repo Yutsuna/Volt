@@ -7,8 +7,8 @@
 #if defined( VOLT_CHECKED_IDS )
     #include <atomic>
     #include <cstdint>
-    #include <cstdio>
     #include <cstdlib>
+    #include <print>
 #endif
 
 namespace Volt
@@ -115,7 +115,7 @@ namespace Core
             const bool bForeign = Id.Provenance != 0 and Id.Provenance != Tag;
             if ( bForeign or Id.Value >= Storage.size() )
             {
-                std::fprintf( stderr, "Volt: TypedId %u (arena tag %u) used with arena tag %u of size %zu\n", Id.Value,
+                std::println( stderr, "Volt: TypedId %u (arena tag %u) used with arena tag %u of size %zu\n", Id.Value,
                               Id.Provenance, Tag, Storage.size() );
                 std::abort();
             }
