@@ -81,8 +81,8 @@ void MaterializeEnumCaseOrdinals ( Frontend::AstContext &Context, Frontend::Decl
             continue;
         }
 
-        Case.Value                = MakeIntLiteral( Context, NextImplicit, Case.Loc );
-        Context.Decl( CaseId )    = Frontend::DeclNode{ std::move( Case ) };
+        Case.Value             = MakeIntLiteral( Context, NextImplicit, Case.Loc );
+        Context.Decl( CaseId ) = Frontend::DeclNode{ std::move( Case ) };
         ++NextImplicit;
     }
 }
@@ -148,14 +148,37 @@ void Volt::Frontend::SynthesizeEnumMembers ( AstContext &Context )
 
         Enum Type = std::get<Enum>( Context.Decl( Id ) );
 
-        if ( HasPayload( Context, Type.Body ) or HasMethodNamed( Context, Type.Body, "to_value" ) )
+        if ( HasPayload( Context, Type.Body ) )
+        {
+            // A payload case's construction (`Optional::Some( x )`,
+            // `Sema/Private/Passes/TypeChecker/EnumCaseLowering.cpp`)
+            // rewrites to an ordinary `T.new()` call, exactly like
+            // `LowerArrayLit`'s `Array.new()` — but unlike `Array`/`Hash`/
+            // `String`, a plain `enum` never gets a hand-written
+            // `initialize` from the user (there is no such thing as a
+            // compiler-synthesized default constructor in Volt; every
+            // constructible struct declares one). The construction fills
+            // every field itself right after `.new()` returns, so the
+            // synthesized body does nothing at all.
+            if ( not HasMethodNamed( Context, Type.Body, "initialize" ) )
+            {
+                Method Ctor;
+                Ctor.Loc  = Type.Loc;
+                Ctor.Name = Context.Strings().Intern( "initialize" );
+                Type.Body.PushBack( Context.Add( Ctor ) );
+                Context.Decl( Id ) = DeclNode{ std::move( Type ) };
+            }
+            continue;
+        }
+
+        if ( HasMethodNamed( Context, Type.Body, "to_value" ) )
         {
             continue;
         }
 
         SelfExpr Self;
-        Self.Loc             = Type.Loc;
-        const ExprId SelfId  = Context.Add( Self );
+        Self.Loc            = Type.Loc;
+        const ExprId SelfId = Context.Add( Self );
 
         ExprStmt Tail;
         Tail.Loc  = Type.Loc;
