@@ -9,6 +9,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/Frontend/AST/PointFreeLowering.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/Sema/Pass.hpp"
@@ -289,6 +290,11 @@ void Volt::Driver::Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     {
         Parser.ParseFile();
     }
+
+    // Must run before BindUnitTypes below (the cross-unit seam that builds
+    // the free-function table from Ast.TopDecls): a Method a Sema pass adds
+    // later would never be found by name (see PointFreeLowering.hpp).
+    Frontend::LowerPointFreeDefs( Unit.Ast );
 }
 
 void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
