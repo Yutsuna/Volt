@@ -19,7 +19,7 @@ namespace Volt
          */
         struct FInputFlags
         {
-            const std::string ExplicitInput;
+            std::string ExplicitInput;
             bool bStdin = false;
         };
 

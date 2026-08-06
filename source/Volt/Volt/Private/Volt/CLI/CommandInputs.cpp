@@ -69,7 +69,7 @@ std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInpu
     {
         if ( not Flags.ExplicitInput.empty() or not ParsedArgs.Positionals.empty() )
         {
-            Core::FLogger::Error( "--stdin cannot be combined with input files", LogTag );
+            Core::FLogger::Error( "--stdin cannot be combined with input files", std::string( LogTag ) );
             return std::nullopt;
         }
 
@@ -79,7 +79,7 @@ std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInpu
 
         if ( Source.empty() )
         {
-            Core::FLogger::Error( "No data provided on standard input", LogTag );
+            Core::FLogger::Error( "No data provided on standard input", std::string( LogTag ) );
             return std::nullopt;
         }
 
@@ -87,7 +87,7 @@ std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInpu
         const fs::path TempDir = fs::temp_directory_path( Ec );
         if ( Ec )
         {
-            Core::FLogger::Error( "Cannot access temporary directory: " + Ec.message(), LogTag );
+            Core::FLogger::Error( "Cannot access temporary directory: " + Ec.message(), std::string( LogTag ) );
             return std::nullopt;
         }
 
@@ -96,7 +96,7 @@ std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInpu
             std::ofstream Out( TempPath, std::ios::binary );
             if ( not Out )
             {
-                Core::FLogger::Error( "Cannot create temporary file for stdin input", LogTag );
+                Core::FLogger::Error( "Cannot create temporary file for stdin input", std::string( LogTag ) );
                 return std::nullopt;
             }
             Out.write( Source.data(), static_cast<std::streamsize>( Source.size() ) );
@@ -120,7 +120,7 @@ std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInpu
     }
     else if ( not Input.empty() and not ParsedArgs.Positionals.empty() )
     {
-        Core::FLogger::Error( "Unexpected argument: " + std::string( ParsedArgs.Positionals.front() ), LogTag );
+        Core::FLogger::Error( "Unexpected argument: " + std::string( ParsedArgs.Positionals.front() ), std::string( LogTag ) );
         return std::nullopt;
     }
 
@@ -135,14 +135,14 @@ std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInpu
 
     if ( Input.empty() )
     {
-        Core::FLogger::Error( "Missing source input (-i)", LogTag );
+        Core::FLogger::Error( "Missing source input (-i)", std::string( LogTag ) );
         return std::nullopt;
     }
 
     std::error_code Ec;
     if ( not fs::exists( Input, Ec ) )
     {
-        Core::FLogger::Error( "Cannot read '" + Input + "': no such file or directory", LogTag );
+        Core::FLogger::Error( "Cannot read '" + Input + "': no such file or directory", std::string( LogTag ) );
         return std::nullopt;
     }
 
