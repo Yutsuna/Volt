@@ -1,6 +1,7 @@
 #include "Volt/BackendCore/InstanceLayout.hpp"
 
 #include <cstddef>
+#include <string>
 #include <utility>
 #include <variant>
 
@@ -232,14 +233,75 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
         }
     }
 
+    // A generic enum (`Optional<T>`) never gets a `Field`-only pass here:
+    // its tag needs no substitution (it's never generic), and each payload
+    // param substitutes exactly like a field's declared type would — reread
+    // through `Entry.Params`, since an `EnumCase` member's own `Result` is
+    // the constructed enum itself (`SelfSigOf`), not a payload type.
+    bool bHasEnumCase = false;
     for ( const Sema::Member &Entry : Store.Type( Base ).Members )
     {
-        if ( Entry.Kind != Sema::EMemberKind::Field )
+        if ( Entry.Kind == Sema::EMemberKind::EnumCase )
         {
-            continue;
+            bHasEnumCase = true;
+            break;
         }
-        Shape.Fields.PushBack(
-            Sema::FieldLayout{ .Name = Entry.Name, .Type = OfSig( Store, Entry.Result, FlatArgs, SelfArgs, 1 ) } );
+    }
+
+    if ( bHasEnumCase )
+    {
+        // The tag never depends on a generic argument (see
+        // `EnumTagNominal`/`EnsureEnumLayout`, `TypeBinder.cpp`) — a
+        // non-generic enum's own already-attached `Primitive` layout is
+        // exactly what a generic enum's tag reuses too, found the same way
+        // `TypeBinder` finds it for the non-generic case: whichever nominal
+        // claims `IntLiteral`, unless the enum wrote `: Underlying`. Neither
+        // is expressible from a bare `TypeStore` without the AST, so instead
+        // this reads the width straight off any one `EnumCase` member that
+        // has already been resolved for a *non-generic* sibling enum — which
+        // doesn't exist here. Simplify: every generic enum's tag is the
+        // same default `IntLiteral`-claiming primitive a non-generic enum
+        // with no `: Underlying` gets; a generic enum writing `: Underlying`
+        // is out of scope until a sample needs it.
+        if ( const auto DefaultTag = Store.LookupNodeKind( "IntLiteral" ) )
+        {
+            if ( const Sema::LayoutId TagLayout = Store.Type( *DefaultTag ).Layout; TagLayout.IsValid() )
+            {
+                Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( "tag" ), .Type = TagLayout } );
+            }
+        }
+
+        for ( const Sema::Member &Entry : Store.Type( Base ).Members )
+        {
+            if ( Entry.Kind != Sema::EMemberKind::EnumCase )
+            {
+                continue;
+            }
+            // Same naming rule as `TypeBinder::EnsureEnumLayout` (case name
+            // alone for a single payload, `<CaseName>_<Index>` past that) —
+            // kept in sync by hand since a bare `TypeStore` has no AST to
+            // re-derive the written parameter name from.
+            for ( std::size_t Index = 0; Index < Entry.Params.Size(); ++Index )
+            {
+                const std::string FieldName = Entry.Params.Size() > 1
+                                                   ? std::string{ Store.Text( Entry.Name ) } + "_" + std::to_string( Index )
+                                                   : std::string{ Store.Text( Entry.Name ) };
+                Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( FieldName ),
+                                                          .Type = OfSig( Store, Entry.Params[Index], FlatArgs, SelfArgs, 1 ) } );
+            }
+        }
+    }
+    else
+    {
+        for ( const Sema::Member &Entry : Store.Type( Base ).Members )
+        {
+            if ( Entry.Kind != Sema::EMemberKind::Field )
+            {
+                continue;
+            }
+            Shape.Fields.PushBack(
+                Sema::FieldLayout{ .Name = Entry.Name, .Type = OfSig( Store, Entry.Result, FlatArgs, SelfArgs, 1 ) } );
+        }
     }
 
     if ( Shape.Fields.Size() == 0 )
