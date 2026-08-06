@@ -78,10 +78,7 @@ private:
 
         switch ( Sec.Kind )
         {
-        // An instance-method section and an operator section desugar the
-        // same way: the difference lives in the spelling of Sec.Target.
         case Frontend::ESectionKind::InstanceMethod:
-        case Frontend::ESectionKind::Operator:
         {
             Frontend::Member Mem;
             Mem.Loc                    = Sec.Loc;
@@ -98,6 +95,35 @@ private:
                 Cal.ArgNames.PushBack( Core::Symbol{} );
             }
             BodyExpr = Context.Add( Cal );
+            break;
+        }
+        // An operator, unlike a named method, must desugar to a `Binary`/
+        // `Unary` node rather than `Member`+`Call`: on a primitive receiver
+        // MemberType deliberately records no resolution for a Binary/Unary's
+        // own Member sub-node (rules/core-ast.md's operator contract — the
+        // backend derives the instruction from the receiver's Primitive
+        // spelling instead), and only Binary/Unary's own emitter knows that
+        // convention. A `Call` node has no such fallback and expects every
+        // callee to have resolved to something.
+        case Frontend::ESectionKind::Operator:
+        {
+            if ( Sec.Args.Size() == 1 )
+            {
+                Frontend::Binary Bin;
+                Bin.Loc  = Sec.Loc;
+                Bin.Op   = Sec.Op;
+                Bin.Lhs  = IdExpr;
+                Bin.Rhs  = Sec.Args[0];
+                BodyExpr = Context.Add( Bin );
+            }
+            else
+            {
+                Frontend::Unary Un;
+                Un.Loc     = Sec.Loc;
+                Un.Op      = Sec.Op;
+                Un.Operand = IdExpr;
+                BodyExpr   = Context.Add( Un );
+            }
             break;
         }
         case Frontend::ESectionKind::StaticCapture:
