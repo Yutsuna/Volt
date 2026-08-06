@@ -7,24 +7,31 @@
 #include "Volt/Driver/WellKnown.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
-
-/**
- * Private helpers
- */
 
 namespace
 {
 
 namespace fs = std::filesystem;
 
-} // namespace
+struct FTempFileGuard
+{
+    std::optional<fs::path> Path;
+    ~FTempFileGuard ()
+    {
+        if ( Path )
+        {
+            std::error_code Ec;
+            fs::remove( *Path, Ec );
+        }
+    }
+};
 
-/**
- * Public
- */
+} // namespace
 
 std::string_view Volt::CLI::FBuildCommand::GetName () const noexcept
 {
@@ -70,6 +77,10 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
             [this] ( std::string_view ) { this->bLto = true; }
         },
         {
+            "", "--stdin", "", "Read source from standard input",
+            [this] ( std::string_view ) { this->bStdin = true; }
+        },
+        {
             "-v", "--verbose", "", "Enable verbose output",
             [this] ( std::string_view ) { this->bVerbose = true; this->StdlibFlags.bVerbose = true; }
         }
@@ -101,36 +112,81 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         return ExitSuccess;
     }
 
-    if ( Input.empty() and not Result->Positionals.empty() )
-    {
-        Input = Result->Positionals.front();
-    }
-    else if ( not Input.empty() and not Result->Positionals.empty() )
-    {
-        Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ), "build" );
-        Core::FLogger::Flush();
-        CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
-        return ExitFailure;
-    }
-    if ( Input.empty() )
-    {
-        std::error_code Ec;
-        if ( fs::is_regular_file( fs::current_path( Ec ) / Driver::WellKnown::ManifestName, Ec ) )
-        {
-            Input = fs::current_path( Ec ).string();
-        }
-    }
-    if ( Input.empty() )
-    {
-        Core::FLogger::Error( "Missing source input (-i)", "build" );
-        return ExitFailure;
-    }
+    FTempFileGuard TempGuard;
 
-    std::error_code Ec;
-    if ( not fs::exists( Input, Ec ) )
+    if ( bStdin )
     {
-        Core::FLogger::Error( "Cannot read '" + Input + "': no such file or directory", "build" );
-        return ExitFailure;
+        if ( not Input.empty() or not Result->Positionals.empty() )
+        {
+            Core::FLogger::Error( "--stdin cannot be combined with input files", "build" );
+            return ExitFailure;
+        }
+
+        std::ostringstream SourceStream;
+        SourceStream << std::cin.rdbuf();
+        const std::string Source = SourceStream.str();
+
+        if ( Source.empty() )
+        {
+            Core::FLogger::Error( "No data provided on standard input", "build" );
+            return ExitFailure;
+        }
+
+        std::error_code Ec;
+        fs::path TempDir = fs::temp_directory_path( Ec );
+        if ( Ec )
+        {
+            Core::FLogger::Error( "Cannot access temporary directory: " + Ec.message(), "build" );
+            return ExitFailure;
+        }
+
+        const fs::path TempPath = TempDir / "volt_stdin.vl";
+        {
+            std::ofstream Out( TempPath, std::ios::binary );
+            if ( !Out )
+            {
+                Core::FLogger::Error( "Cannot create temporary file for stdin input", "build" );
+                return ExitFailure;
+            }
+            Out.write( Source.data(), static_cast<std::streamsize>( Source.size() ) );
+        }
+
+        TempGuard.Path = TempPath;
+        Input          = TempPath.string();
+    }
+    else
+    {
+        if ( Input.empty() and not Result->Positionals.empty() )
+        {
+            Input = Result->Positionals.front();
+        }
+        else if ( not Input.empty() and not Result->Positionals.empty() )
+        {
+            Core::FLogger::Error( "Unexpected argument: " + std::string( Result->Positionals.front() ), "build" );
+            Core::FLogger::Flush();
+            CommandParser::PrintUsage( std::cerr, GetUsage(), Options );
+            return ExitFailure;
+        }
+        if ( Input.empty() )
+        {
+            std::error_code Ec;
+            if ( fs::is_regular_file( fs::current_path( Ec ) / Driver::WellKnown::ManifestName, Ec ) )
+            {
+                Input = fs::current_path( Ec ).string();
+            }
+        }
+        if ( Input.empty() )
+        {
+            Core::FLogger::Error( "Missing source input (-i)", "build" );
+            return ExitFailure;
+        }
+
+        std::error_code Ec;
+        if ( not fs::exists( Input, Ec ) )
+        {
+            Core::FLogger::Error( "Cannot read '" + Input + "': no such file or directory", "build" );
+            return ExitFailure;
+        }
     }
 
     Driver::Driver TheDriver;
