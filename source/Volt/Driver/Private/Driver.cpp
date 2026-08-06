@@ -9,6 +9,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/Frontend/AST/EnumSynthesis.hpp"
 #include "Volt/Frontend/AST/PointFreeLowering.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
@@ -295,6 +296,13 @@ void Volt::Driver::Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     // the free-function table from Ast.TopDecls): a Method a Sema pass adds
     // later would never be found by name (see PointFreeLowering.hpp).
     Frontend::LowerPointFreeDefs( Unit.Ast );
+
+    // Same seam, same reason (see EnumSynthesis.hpp): an EnumCase's ordinal
+    // must be materialized, and a payload-less enum's synthesized
+    // `to_value` must exist, before TypeBinder's Phase A freezes each
+    // type's member list.
+    Frontend::MaterializeEnumOrdinals( Unit.Ast );
+    Frontend::SynthesizeEnumMembers( Unit.Ast );
 }
 
 void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
