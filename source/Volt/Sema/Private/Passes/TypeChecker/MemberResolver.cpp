@@ -240,7 +240,25 @@ void Volt::Sema::TypeCheckerPass::Reinstantiate ( TypeCheckerContext &Context, R
 
 void Volt::Sema::TypeCheckerPass::UnifyArgs ( TypeCheckerContext &Context, Resolution &Found, const Frontend::ExprList &Args )
 {
-    if ( Found.Decl == nullptr or Found.Decl->OwnGenerics == 0 )
+    if ( Found.Decl == nullptr )
+    {
+        return;
+    }
+
+    // `OwnGenerics == 0` usually means "nothing new to learn": the ordinary
+    // case is a receiver whose own generic arguments are already concrete
+    // (`arr.push(x)` on a bound `Array<Int32>`), and inside a generic
+    // definition's own body an unbound `Binding` is *expected* and must stay
+    // that way until instantiation (`rules/core-ast.md`'s "generic
+    // definition bodies" contract) — proceeding there would unify against
+    // something not ready yet. Scoped narrowly to `EnumCase`, the one kind
+    // that is never itself generic (`TypeBinder.cpp`'s Phase B never sets
+    // `OwnGenerics` on it) yet can still carry an unbound *owner* slot: a
+    // naked-type receiver used as a constructor (`Optional::Some(
+    // "Yutsuna" )`, `Optional` with no `<T>` written) seeds `Bindings` with
+    // invalid placeholders (`PlaceholderTypeArgs`, `ExprInferencer.cpp`)
+    // precisely so this call can still teach it what `T` is.
+    if ( Found.Decl->OwnGenerics == 0 and Found.Decl->Kind != EMemberKind::EnumCase )
     {
         return;
     }
