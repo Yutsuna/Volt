@@ -43,7 +43,6 @@ namespace Sema
         std::size_t ResidualSugarNodes = 0;
         std::size_t UntypedValueExprs  = 0;
         std::size_t MacrosExpanded     = 0;
-        std::size_t EnumsLowered       = 0;
         std::size_t PipelinesLowered   = 0;
         std::size_t MagicsExpanded     = 0;
         std::size_t ScopesResolved     = 0;
