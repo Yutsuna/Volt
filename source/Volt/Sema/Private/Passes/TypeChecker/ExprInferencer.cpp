@@ -51,6 +51,25 @@ namespace
     return std::holds_alternative<Volt::Frontend::Lambda>( Ast.Expr( Id ) );
 }
 
+// A bare naked-type name (`Optional`, no `<T>` written) used as a receiver
+// still needs one binding slot per the type's own generic parameter, or
+// nothing downstream (`LookupOn`/`Reinstantiate`/`UnifyArgs`) has anywhere
+// to record what `T` turns out to be — `Optional::Some( "Yutsuna" )` would
+// reinstantiate to an unbound `Optional<T>` and fail `IsAssignable` against
+// a declared `Optional<String>`. Same placeholder-slot shape `Reinstantiate`
+// already uses for `Found.Decl->OwnGenerics` (`MemberResolver.cpp`), just
+// keyed on the *type's* own `Params` rather than a method's.
+[[nodiscard]] Volt::Core::SmallVec<Volt::Sema::SemaTypeId, 2> PlaceholderTypeArgs ( const Volt::Sema::TypeStore &Store,
+                                                                                    Volt::Sema::NominalId Named )
+{
+    Volt::Core::SmallVec<Volt::Sema::SemaTypeId, 2> Args;
+    for ( std::size_t Index = 0; Index < Store.Type( Named ).Params.Size(); ++Index )
+    {
+        Args.PushBack( Volt::Sema::SemaTypeId{} );
+    }
+    return Args;
+}
+
 [[nodiscard]] bool IsBlockResultInferred ( const Volt::Sema::TypeCheckerPass::TypeCheckerContext &Context,
                                            Volt::Frontend::ExprId BlockArg,
                                            Volt::Sema::SemaTypeId BlockType )
@@ -389,7 +408,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 if ( const auto Named = Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Expr.Name ) ) )
                 {
                     Context.NakedTypeExprs.insert( Id.Value );
-                    return Context.MakeType( *Named, {} );
+                    return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                 }
 
                 if ( Context.Ctx.Ast.Text( Expr.Name ) == "super" and Context.SelfValue.IsValid() )
@@ -462,7 +481,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     if ( const auto Named = Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Expr.Name ) ) )
                     {
                         Context.NakedTypeExprs.insert( Id.Value );
-                        return Context.MakeType( *Named, {} );
+                        return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                     }
                     const Resolution Found = LookupFreeFunction( Context, Context.Ctx.Ast.Text( Expr.Name ) );
                     if ( Found.Decl != nullptr )
