@@ -21,7 +21,7 @@ assert!( clean_pointfree("  ALICE ") == "[user]: alice" )
 assert!( "  BOB " |> clean_pointfree == "[user]: bob" )
 
 
-numbers = [ 1..5 ]
+numbers = [ 1, 2, 3, 4, 5 ]
 results = numbers.map( ( &.+ 10 ) >> ( &.* 2 ) )
 
 assert!( results[0] == 22 )

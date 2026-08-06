@@ -29,6 +29,75 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │                                   ├─ Identifier '__LINE__' @3:62
 │                                   ├─ StringLiteral ':' @3:11
 │                                   └─ Identifier '__COLUMN__' @3:74
+├─ Method 'calc_pointfree' [T_1] @9:29
+│  ├─ params
+│  │  └─ Param 'fn_tmp_0' @9:29
+│  │     └─ decl_type
+│  │        └─ TypeRef 'T_1' @9:29
+│  ├─ return_type
+│  │  └─ TypeRef 'T_1' @9:29
+│  └─ body
+│     └─ ExprStmt @9:29
+│        └─ expr
+│           └─ Call @9:29
+│              ├─ callee
+│              │  └─ Section operator '*' '*' @9:34
+│              │     └─ args
+│              │        └─ IntLiteral '2' @9:38
+│              └─ args
+│                 └─ Call @9:29
+│                    ├─ callee
+│                    │  └─ Section operator '+' '+' @9:20
+│                    │     └─ args
+│                    │        └─ IntLiteral '10' @9:24
+│                    └─ args
+│                       └─ Identifier 'fn_tmp_0' @9:29
+├─ Method 'clean_pointfree' [T_3] @18:16
+│  ├─ params
+│  │  └─ Param 'fn_tmp_2' @18:16
+│  │     └─ decl_type
+│  │        └─ TypeRef 'T_3' @18:16
+│  ├─ return_type
+│  │  └─ TypeRef 'T_3' @18:16
+│  └─ body
+│     └─ ExprStmt @18:16
+│        └─ expr
+│           └─ Call @18:16
+│              ├─ callee
+│              │  └─ Section instance_method 'prefix' @18:20
+│              │     └─ args
+│              │        └─ StringLiteral '[user]: ' @18:29
+│              └─ args
+│                 └─ Call @18:16
+│                    ├─ callee
+│                    │  └─ Composition @17:16
+│                    │     ├─ lhs
+│                    │     │  └─ Section instance_method 'trim' @16:20
+│                    │     └─ rhs
+│                    │        └─ Section instance_method 'downcase' @17:20
+│                    └─ args
+│                       └─ Identifier 'fn_tmp_2' @18:16
+├─ Method 'transform' [T_5] @32:24
+│  ├─ params
+│  │  └─ Param 'fn_tmp_4' @32:24
+│  │     └─ decl_type
+│  │        └─ TypeRef 'T_5' @32:24
+│  ├─ return_type
+│  │  └─ TypeRef 'T_5' @32:24
+│  └─ body
+│     └─ ExprStmt @32:24
+│        └─ expr
+│           └─ Call @32:24
+│              ├─ callee
+│              │  └─ Section instance_method 'prefix' @32:29
+│              │     └─ args
+│              │        └─ StringLiteral 'usr_' @32:39
+│              └─ args
+│                 └─ Call @32:24
+│                    ├─ callee
+│                    │  └─ Section instance_method 'trim' @32:15
+│                    └─ args
+│                       └─ Identifier 'fn_tmp_4' @32:24
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
@@ -50,21 +119,6 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │                    │        └─ IntLiteral '10' @8:41
 │                    └─ rhs
 │                       └─ IntLiteral '2' @8:48
-├─ ExprStmt @9:1
-│  └─ expr
-│     └─ Assign '=' @9:16
-│        ├─ target
-│        │  └─ Identifier 'calc_pointfree' @9:1
-│        └─ value
-│           └─ Composition @9:29
-│              ├─ lhs
-│              │  └─ Section operator '+' @9:20
-│              │     └─ args
-│              │        └─ IntLiteral '10' @9:24
-│              └─ rhs
-│                 └─ Section operator '*' @9:34
-│                    └─ args
-│                       └─ IntLiteral '2' @9:38
 ├─ ExprStmt @10:1
 │  └─ expr
 │     └─ Call @10:8
@@ -133,23 +187,6 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │                    │                    └─ Identifier 's' @15:37
 │                    └─ args
 │                       └─ StringLiteral '[user]: ' @15:60
-├─ ExprStmt @16:1
-│  └─ expr
-│     └─ Assign '=' @16:17
-│        ├─ target
-│        │  └─ Identifier 'clean_pointfree' @16:1
-│        └─ value
-│           └─ Composition @18:16
-│              ├─ lhs
-│              │  └─ Composition @17:16
-│              │     ├─ lhs
-│              │     │  └─ Section instance_method 'trim' @16:20
-│              │     └─ rhs
-│              │        └─ Section instance_method 'downcase' @17:20
-│              └─ rhs
-│                 └─ Section instance_method 'prefix' @18:20
-│                    └─ args
-│                       └─ StringLiteral '[user]: ' @18:29
 ├─ ExprStmt @20:1
 │  └─ expr
 │     └─ Call @20:8
@@ -188,11 +225,11 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │        └─ value
 │           └─ ArrayLit @24:11
 │              └─ elements
-│                 └─ Binary '..' @24:14
-│                    ├─ lhs
-│                    │  └─ IntLiteral '1' @24:13
-│                    └─ rhs
-│                       └─ IntLiteral '5' @24:16
+│                 ├─ IntLiteral '1' @24:13
+│                 ├─ IntLiteral '2' @24:16
+│                 ├─ IntLiteral '3' @24:19
+│                 ├─ IntLiteral '4' @24:22
+│                 └─ IntLiteral '5' @24:25
 ├─ ExprStmt @25:1
 │  └─ expr
 │     └─ Assign '=' @25:9
@@ -207,11 +244,11 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              └─ block_arg
 │                 └─ Composition @25:35
 │                    ├─ lhs
-│                    │  └─ Section operator '+' @25:26
+│                    │  └─ Section operator '+' '+' @25:26
 │                    │     └─ args
 │                    │        └─ IntLiteral '10' @25:30
 │                    └─ rhs
-│                       └─ Section operator '*' @25:40
+│                       └─ Section operator '*' '*' @25:40
 │                          └─ args
 │                             └─ IntLiteral '2' @25:44
 ├─ ExprStmt @27:1
@@ -259,19 +296,6 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │        └─ IntLiteral '2' @29:18
 │              └─ rhs
 │                 └─ IntLiteral '26' @29:24
-├─ ExprStmt @32:1
-│  └─ expr
-│     └─ Assign '=' @32:11
-│        ├─ target
-│        │  └─ Identifier 'transform' @32:1
-│        └─ value
-│           └─ Composition @32:24
-│              ├─ lhs
-│              │  └─ Section instance_method 'trim' @32:15
-│              └─ rhs
-│                 └─ Section instance_method 'prefix' @32:29
-│                    └─ args
-│                       └─ StringLiteral 'usr_' @32:39
 ├─ ExprStmt @33:1
 │  └─ expr
 │     └─ Assign '=' @33:11
