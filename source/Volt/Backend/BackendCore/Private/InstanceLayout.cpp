@@ -277,15 +277,19 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
             {
                 continue;
             }
-            // Same naming rule as `TypeBinder::EnsureEnumLayout` (case name
-            // alone for a single payload, `<CaseName>_<Index>` past that) —
-            // kept in sync by hand since a bare `TypeStore` has no AST to
-            // re-derive the written parameter name from.
+            // Same naming rule as `TypeBinder::EnsureEnumLayout` (`$` +
+            // case name alone for a single payload, `$<CaseName>_<Index>`
+            // past that) — kept in sync by hand since a bare `TypeStore`
+            // has no AST to re-derive the written parameter name from. The
+            // `$` matters as much here as there: an `EnumCase` member of
+            // the identical bare name already lives in this same Members
+            // vector, and `OwnMember`'s first-match lookup would otherwise
+            // resolve `self.Some` to it instead of this field.
             for ( std::size_t Index = 0; Index < Entry.Params.Size(); ++Index )
             {
                 const std::string FieldName = Entry.Params.Size() > 1
-                                                   ? std::string{ Store.Text( Entry.Name ) } + "_" + std::to_string( Index )
-                                                   : std::string{ Store.Text( Entry.Name ) };
+                                                  ? "$" + std::string{ Store.Text( Entry.Name ) } + "_" + std::to_string( Index )
+                                                  : "$" + std::string{ Store.Text( Entry.Name ) };
                 Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( FieldName ),
                                                           .Type = OfSig( Store, Entry.Params[Index], FlatArgs, SelfArgs, 1 ) } );
             }
