@@ -117,6 +117,15 @@ namespace Sema
         // gives only a library. Both invalid when the member is ordinary Volt.
         Symbol ExternLib;
         Symbol ExternSymbol;
+        // `EnumCase` only: the case's ordinal/explicit value, decoded once
+        // here (Phase A) from the already-materialized `IntLiteral`
+        // (`Frontend::EnumSynthesizeOrdinals`, which runs before `TypeBinder`
+        // for exactly this reason). Lets a later Sema-side lowering
+        // (`Optional::Some`/`Color::Red` construction) build a fresh
+        // `IntLiteral` in its own unit's arena without ever reaching across
+        // into the *declaring* unit's AST, which a cross-unit `Member` may
+        // not share with the unit doing the construction.
+        std::int64_t EnumOrdinal = 0;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
