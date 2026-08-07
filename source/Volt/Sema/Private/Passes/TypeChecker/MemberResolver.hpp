@@ -15,6 +15,11 @@ constexpr std::string_view IndexOperator = "[]";
 constexpr std::string_view ConstructorCall = "new";
 constexpr std::string_view ConstructorName = "initialize";
 
+// The RAII-style destructor spelling `FinalizeLowering` looks up on a
+// scope-local's type. A naming convention, not overload resolution — a type
+// with no member of this name gets no synthesized call at all.
+constexpr std::string_view FinalizeName = "finalize";
+
 [[nodiscard]] Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name );
 
 // A top-level `def`, looked up by name alone — no receiver, so no `self` to
