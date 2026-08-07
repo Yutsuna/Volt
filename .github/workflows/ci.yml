@@ -28,5 +28,14 @@ jobs:
       - name: Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v8
 
-      - name: Build Release
-        run: nix build
+      - name: Meson setup
+        uses: meson setup build
+
+      - name: Meson Build
+        run: meson compile -C build
+
+      - name: Meson tests
+        run: meson compile -C build tests
+
+      - name: Valgrind tests
+        run: python3 scripts/valgrind_check.py
