@@ -20,6 +20,14 @@ namespace Volt::Sema::TypeCheckerPass
 // no ensure-stack lookup). A method with zero candidates is left completely
 // untouched: this must stay true for the pass to be a no-op on ordinary code.
 //
+// Move-out exemption: Volt has no explicit `return` in a body this phase
+// touches, so the tail statement itself is the return (Ruby-style implicit
+// last-expression return). A candidate that the tail hands back by bare name
+// (`result` as a body's final statement) is skipped — freeing it here would
+// hand the caller a dangling buffer. Enumerable#map/#filter/#to_array
+// (source/Lib/Mixins/Enumerable.vl) are exactly this shape and are the
+// regression this exemption exists for.
+//
 // Runs from TypeChecker.cpp, right after LowerClosureLits and before the
 // Context.Callees snapshot loop — same "final type only, one more post-walk
 // sweep inside TypeChecker" shape core-ast.md already documents for
