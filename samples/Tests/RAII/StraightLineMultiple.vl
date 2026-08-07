@@ -1,0 +1,25 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def use_three_arrays -> UInt64
+  first = Array<Int32>.new( 2 )
+  first.push( 1 )
+
+  second = Array<Int32>.new( 2 )
+  second.push( 2 )
+  second.push( 3 )
+
+  third = Array<Int32>.new( 2 )
+  third.push( 4 )
+  third.push( 5 )
+  third.push( 6 )
+
+  first.size + second.size + third.size
+end
+
+assert!( use_three_arrays == 6 )
