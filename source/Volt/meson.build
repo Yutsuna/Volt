@@ -8,7 +8,7 @@ subdir('Frontend')
 subdir('Sema')
 subdir('Backend/BackendCore')
 if get_option('enable_llvm')
-  subdir('Backend/BackendLLVM')
+    subdir('Backend/BackendLLVM')
 endif
 subdir('Driver')
 subdir('Backend/BackendVM')
