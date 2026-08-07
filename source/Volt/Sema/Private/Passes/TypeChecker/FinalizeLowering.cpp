@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace
@@ -201,6 +202,85 @@ bool ContainsExitExpr ( const Frontend::AstContext &Ast, Frontend::ExprId Id )
         }
     }
     return false;
+}
+
+// Forward declarations — a StmtList's own tail and an expression's possible
+// tail values recurse into each other (If/Ternary/CaseExpr/BeginExpr).
+void CollectTailIdentifierNames ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::unordered_set<std::uint32_t> &Out );
+
+// The move-out exemption (design decision 4a/4b) must be conservative about
+// *every* path a value can reach the caller through, not just the literal
+// syntactic tail — found the hard way: `result = "1" + "2"; flag ? "-" +
+// result : result` only checks whether Body's OWN last statement is a bare
+// Identifier, and here it's an `If`/`Ternary`, so `result` was never
+// recognised as moved out — the method's own EnsureBody then freed the very
+// buffer one branch had just handed back by reference, a use-after-free the
+// caller's own next read (or double free, if that branch's value is later
+// finalized again) can't recover from. This walks every branch of an
+// If/Ternary/CaseExpr/BeginExpr tail and collects every name that could be
+// the literal value handed back on *some* path — the caller of this
+// function excludes all of them, never just the first found.
+void CollectTailIdentifierNamesFromBody ( const Frontend::AstContext &Ast,
+                                          const Frontend::StmtList &Body,
+                                          std::unordered_set<std::uint32_t> &Out )
+{
+    if ( Body.IsEmpty() )
+    {
+        return;
+    }
+    if ( const auto *TailStmt = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Body.Size() - 1] ) ) )
+    {
+        CollectTailIdentifierNames( Ast, TailStmt->Expr, Out );
+    }
+}
+
+void CollectTailIdentifierNames ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::unordered_set<std::uint32_t> &Out )
+{
+    if ( not Id.IsValid() )
+    {
+        return;
+    }
+    if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Ast.Expr( Id ) ) )
+    {
+        Out.insert( Ident->Name.Value );
+        return;
+    }
+    if ( const auto *Tern = std::get_if<Frontend::Ternary>( &Ast.Expr( Id ) ) )
+    {
+        CollectTailIdentifierNames( Ast, Tern->Then, Out );
+        CollectTailIdentifierNames( Ast, Tern->Else, Out );
+        return;
+    }
+    if ( const auto *IfNode = std::get_if<Frontend::If>( &Ast.Expr( Id ) ) )
+    {
+        CollectTailIdentifierNamesFromBody( Ast, IfNode->Then, Out );
+        CollectTailIdentifierNamesFromBody( Ast, IfNode->Else, Out );
+        return;
+    }
+    if ( const auto *CaseNode = std::get_if<Frontend::CaseExpr>( &Ast.Expr( Id ) ) )
+    {
+        for ( const Frontend::StmtId ClauseId : CaseNode->Clauses )
+        {
+            const auto &Clause = std::get<Frontend::WhenClause>( Ast.Stmt( ClauseId ) );
+            CollectTailIdentifierNamesFromBody( Ast, Clause.Body, Out );
+        }
+        CollectTailIdentifierNamesFromBody( Ast, CaseNode->ElseBody, Out );
+        return;
+    }
+    if ( const auto *BeginNode = std::get_if<Frontend::BeginExpr>( &Ast.Expr( Id ) ) )
+    {
+        CollectTailIdentifierNamesFromBody( Ast, BeginNode->Body, Out );
+        for ( const Frontend::StmtId RescueId : BeginNode->RescueClauses )
+        {
+            const auto &Rescue = std::get<Frontend::RescueClause>( Ast.Stmt( RescueId ) );
+            CollectTailIdentifierNamesFromBody( Ast, Rescue.Body, Out );
+        }
+        return;
+    }
+    // Anything else (Binary, Call, ...) is not a bare passthrough of an
+    // existing binding — conservatively still finalized, same as the
+    // project's existing "anything more complex than a bare Identifier
+    // return is conservative" philosophy.
 }
 
 // One finalize candidate, gathered from the Method scope's own Order/
@@ -595,18 +675,15 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
             // there is nothing to move out. `x` may name a local of THIS
             // Body or of any enclosing one (`return a` from inside a nested
             // `if`, where `a` was declared in the method body) — the skip
-            // below applies uniformly to both lists.
-            Core::Symbol ReturnMovedOutName;
+            // below applies uniformly to both lists. `return flag ? a : b`
+            // needs every branch collected, not just an immediate bare
+            // Identifier — see CollectTailIdentifierNames's own doc comment
+            // for the use-after-free this recursion exists to prevent.
+            std::unordered_set<std::uint32_t> ReturnMovedOutNames;
             if ( bIsReturn )
             {
                 const Frontend::Return &ReturnRef = std::get<Frontend::Return>( Ast.Stmt( StmtId ) );
-                if ( ReturnRef.Value.IsValid() )
-                {
-                    if ( const auto *ReturnIdentifier = std::get_if<Frontend::Identifier>( &Ast.Expr( ReturnRef.Value ) ) )
-                    {
-                        ReturnMovedOutName = ReturnIdentifier->Name;
-                    }
-                }
+                CollectTailIdentifierNames( Ast, ReturnRef.Value, ReturnMovedOutNames );
             }
 
             std::vector<FinalizeCandidate> ToFinalize     = ReversedBefore( Candidates, BodyPos );
@@ -615,7 +692,7 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 
             for ( const FinalizeCandidate &Candidate : ToFinalize )
             {
-                if ( ReturnMovedOutName.IsValid() and Candidate.Name == ReturnMovedOutName )
+                if ( ReturnMovedOutNames.contains( Candidate.Name.Value ) )
                 {
                     continue;
                 }
@@ -646,14 +723,14 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     // purely statement-position body (an ordinary `if`/`while` used only for
     // control flow) never has this type read, so copying it is harmless.
     Sema::SemaTypeId TailType;
-    Core::Symbol MovedOutName;
+    std::unordered_set<std::uint32_t> MovedOutNames;
     if ( const auto *TailStmt = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Body[Body.Size() - 1] ) ) )
     {
         TailType = Context.Ctx.Values.ExprType( TailStmt->Expr );
-        if ( const auto *TailIdentifier = std::get_if<Frontend::Identifier>( &Ast.Expr( TailStmt->Expr ) ) )
-        {
-            MovedOutName = TailIdentifier->Name;
-        }
+        // `flag ? a : b` / `if c then a else b end` used as this Body's own
+        // tail must exclude every branch's possible bare-Identifier value,
+        // not just an immediate one — see CollectTailIdentifierNames.
+        CollectTailIdentifierNames( Ast, TailStmt->Expr, MovedOutNames );
     }
 
     // Step 5 — reverse declaration order, last-declared first-finalized,
@@ -662,7 +739,7 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     Frontend::StmtList EnsureBody;
     for ( auto It = Candidates.rbegin(); It != Candidates.rend(); ++It )
     {
-        if ( MovedOutName.IsValid() and It->Name == MovedOutName )
+        if ( MovedOutNames.contains( It->Name.Value ) )
         {
             continue;
         }
