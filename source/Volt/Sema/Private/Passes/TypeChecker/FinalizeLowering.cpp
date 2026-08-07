@@ -97,9 +97,20 @@ bool ContainsReturnExpr ( const Frontend::AstContext &Ast, Frontend::ExprId Id )
     return ScanReturnFields( Ast, Ast.Expr( Id ) );
 }
 
-[[nodiscard]] bool ContainsReturnAnywhere ( const Frontend::AstContext &Ast, const Frontend::StmtList &Body )
+// Phase 3 gate: a `Return` nested inside a branch/loop/begin body (never a
+// direct element of Body itself) is left for Phase 4 — the whole method is
+// skipped untouched, same as Phase 1's blanket gate used to do for every
+// Return. A `Return` that IS one of Body's own top-level elements is fine:
+// the splice below handles it directly.
+[[nodiscard]] bool ContainsNestedReturn ( const Frontend::AstContext &Ast, const Frontend::StmtList &Body )
 {
-    return std::ranges::any_of( Body, [&Ast] ( const Frontend::StmtId Id ) { return ContainsReturnStmt( Ast, Id ); } );
+    return std::ranges::any_of( Body,
+                                [&Ast] ( const Frontend::StmtId Id )
+                                {
+                                    // a top-level Return itself is not "nested"
+                                    return Id.IsValid() and not std::holds_alternative<Frontend::Return>( Ast.Stmt( Id ) ) and
+                                           ContainsReturnStmt( Ast, Id );
+                                } );
 }
 
 // One finalize candidate, gathered from the Method scope's own Order/
@@ -278,13 +289,11 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             continue;
         }
 
-        // TODO Phase 3: return splice. `return` bypasses `Ensure` entirely
-        // today — EmitReturn (StmtReturnBreakNext.cpp) is a raw `CreateRet`,
-        // with no ensure-stack lookup at all — so wrapping a method
-        // containing one in a fall-through BeginExpr here would silently
-        // never run its finalize calls on that path. Left completely
-        // untouched until the splice (design decision 4b) lands.
-        if ( ContainsReturnAnywhere( Ast, Node.Body ) )
+        // Phase 4 TODO: a Return nested inside a branch/loop/begin body is
+        // out of scope (same "top-level only" restriction CollectCandidates
+        // already applies to locals) — left completely untouched. A
+        // top-level Return is handled below by the splice.
+        if ( ContainsNestedReturn( Ast, Node.Body ) )
         {
             continue;
         }
@@ -305,6 +314,62 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
         }
 
         const Core::SourceRange Loc = Node.Loc;
+
+        // Phase 3: splice finalize calls directly before each top-level
+        // Return — Return bypasses Ensure entirely (EmitReturn is a raw
+        // CreateRet, no ensure-stack lookup: see FinalizeLowering.hpp), so
+        // wrap (a) below can never reach that exit path at all. Only
+        // Return statements that are literally one of Body's own top-level
+        // elements are spliced here — ContainsNestedReturn above already
+        // refused the whole method if one hides inside a branch/loop/begin
+        // body (Phase 4).
+        Frontend::StmtList SplicedBody;
+        for ( std::size_t BodyPos = 0; BodyPos < Node.Body.Size(); ++BodyPos )
+        {
+            const Frontend::StmtId StmtId = Node.Body[BodyPos];
+            if ( StmtId.IsValid() and std::holds_alternative<Frontend::Return>( Ast.Stmt( StmtId ) ) )
+            {
+                // Copied out before any Add() below — rules/ast-rewrite.md:
+                // Ast.Stmt(StmtId) is a reference into the Stmt arena, and
+                // BuildFinalizeCall's own Add()s (a different arena, but the
+                // discipline is copy-first regardless) must never be issued
+                // while a live reference into an arena is held.
+                const Frontend::Return ReturnCopy = std::get<Frontend::Return>( Ast.Stmt( StmtId ) );
+
+                // Move-out exemption, per exit site (design decision 4b): a
+                // bare `return x` handing back exactly one candidate does
+                // not finalize that candidate at THIS splice point — its
+                // buffer becomes the caller's own local.
+                Core::Symbol ReturnMovedOutName;
+                if ( ReturnCopy.Value.IsValid() )
+                {
+                    if ( const auto *ReturnIdentifier = std::get_if<Frontend::Identifier>( &Ast.Expr( ReturnCopy.Value ) ) )
+                    {
+                        ReturnMovedOutName = ReturnIdentifier->Name;
+                    }
+                }
+
+                // Reverse declaration order, restricted to candidates
+                // already declared strictly before this Return's own
+                // position — anything declared later in program order is
+                // simply not live on this path yet.
+                for ( auto It = Candidates.rbegin(); It != Candidates.rend(); ++It )
+                {
+                    if ( It->BodyIndex >= BodyPos )
+                    {
+                        continue;
+                    }
+                    if ( ReturnMovedOutName.IsValid() and It->Name == ReturnMovedOutName )
+                    {
+                        continue;
+                    }
+                    const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( It->Site );
+                    const Frontend::ExprId CallId    = BuildFinalizeCall( Context, Loc, *It, LocalType, MethodScope );
+                    SplicedBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+                }
+            }
+            SplicedBody.PushBack( StmtId );
+        }
 
         // `EmitStmts` marks Body's own last statement `bTail`, and — when
         // the method returns a value — reads that tail expression's value
@@ -357,8 +422,8 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
         }
 
-        const Frontend::ExprId WrapId = Ast.Add( Frontend::ExprNode{
-            Frontend::BeginExpr{ .Loc = Loc, .Body = Node.Body, .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } } );
+        const Frontend::ExprId WrapId = Ast.Add( Frontend::ExprNode{ Frontend::BeginExpr{
+            .Loc = Loc, .Body = std::move( SplicedBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } } );
         if ( TailType.IsValid() )
         {
             Context.Ctx.Values.SetExprType( WrapId, TailType );
