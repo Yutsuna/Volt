@@ -247,6 +247,10 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     // BindingSite's ExprId arm).
     std::unordered_map<std::uint32_t, std::size_t> TopLevelStmtIndex;
     std::unordered_map<std::uint32_t, std::size_t> TopLevelImplicitIndex;
+    // The initializing expression behind each top-level implicit local — a
+    // bare `x = Type.new(...)` Assign's own Value — needed below to refuse
+    // candidacy for an aliasing copy (see the bAliasInit check).
+    std::unordered_map<std::uint32_t, Frontend::ExprId> TopLevelImplicitInit;
     for ( std::size_t Index = 0; Index < Body.Size(); ++Index )
     {
         const Frontend::StmtId StmtId = Body[Index];
@@ -261,6 +265,7 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
             if ( const auto *AssignNode = std::get_if<Frontend::Assign>( &Ast.Expr( ExprStmtNode->Expr ) ) )
             {
                 TopLevelImplicitIndex[AssignNode->Target.Value] = Index;
+                TopLevelImplicitInit[AssignNode->Target.Value]  = AssignNode->Value;
             }
         }
     }
@@ -277,12 +282,17 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 
         std::size_t BodyIndex = 0;
         bool bTopLevel        = false;
+        Frontend::ExprId InitId; // invalid unless this site is an implicit local
         if ( const auto *StmtSite = std::get_if<Frontend::StmtId>( &Entry.Site ) )
         {
             if ( const auto Found = TopLevelStmtIndex.find( StmtSite->Value ); Found != TopLevelStmtIndex.end() )
             {
                 bTopLevel = true;
                 BodyIndex = Found->second;
+                if ( const auto *LocalDeclNode = std::get_if<Frontend::LocalDecl>( &Ast.Stmt( *StmtSite ) ) )
+                {
+                    InitId = LocalDeclNode->Init;
+                }
             }
         }
         else if ( const auto *ExprSite = std::get_if<Frontend::ExprId>( &Entry.Site ) )
@@ -291,11 +301,34 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
             {
                 bTopLevel = true;
                 BodyIndex = Found->second;
+                InitId    = TopLevelImplicitInit.at( ExprSite->Value );
             }
         }
         // ParamId / DeclId sites, and anything not literally a top-level
         // statement of THIS Body, are never candidates here.
         if ( not bTopLevel )
+        {
+            continue;
+        }
+
+        // Volt has no move/borrow system (a documented, accepted limitation
+        // — see the move-out exemption below, which already treats a bare
+        // `return x` conservatively for the same reason): a local whose own
+        // initializer is a bare `Identifier`/`InstanceVar` read is, by
+        // construction, never a fresh value — it is a struct-copy *alias* of
+        // whatever `x`/`@x` already holds (Aggregate locals are copy
+        // semantics, not reference semantics — rules/backend-machine-only.md
+        // via .agents/backend/abi.md). Finalizing it here as well as the
+        // thing it aliases is a double free, confirmed empirically
+        // (`a2 = a1; ...` on an `Array<T>` crashes with
+        // "double free detected in tcache" without this guard). A
+        // Call-initialized local (`x = f(...)`) is not excluded — an
+        // ordinary function returning an owned value (the move-out exemption
+        // on the *producing* side is what makes that safe) is a distinct,
+        // legitimate, already-tested shape (see ReturnMovedOut.vl) — only a
+        // *bare* read of an existing binding is refused here.
+        if ( InitId.IsValid() and ( std::holds_alternative<Frontend::Identifier>( Ast.Expr( InitId ) ) or
+                                    std::holds_alternative<Frontend::InstanceVar>( Ast.Expr( InitId ) ) ) )
         {
             continue;
         }
