@@ -12,6 +12,10 @@ struct Array<T>
     @buffer = Pointer<T>.malloc( @capacity )
   end
 
+  def finalize -> Void
+    @buffer.free
+  end
+
   def empty? -> Bool
     @size == 0
   end
