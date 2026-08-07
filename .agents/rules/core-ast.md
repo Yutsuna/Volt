@@ -46,6 +46,43 @@ pre-`TypeChecker` seam would race across units' parallel `TypeChecker` runs
 top-level declaration), and an unannotated closure parameter
 (`arr.each do |i| … end`) has no type before `TypeChecker` assigns one either.
 
+A sixth post-walk sweep, `InsertFinalizeCalls`
+(`Sema/.../TypeChecker/FinalizeLowering.cpp`), runs last, right after
+`ClosureLifting` and before `TypeChecker`'s own `Context.Callees` snapshot
+loop. It does not lower a sugar node — every node it touches is already core
+— so it introduces no new `VOLT_EXPR_SUGAR` entry; it is here because it
+needs the same "final type only" guarantee the other five sweeps do. A
+scope-local whose resolved type has `LayoutKind::Aggregate` and declares a
+member named `finalize` gets a synthesized `Call` to it inserted at every
+exit from the `StmtList` it is declared directly in — the method or closure
+body itself, or any nested `If`/`While`/`CaseExpr`-clause/`BeginExpr` body,
+processed recursively, innermost first. Two exit shapes, both expressible
+with ordinary nodes a backend already knows:
+
+- **Fall-through, an unhandled `raise`, or a non-local `break`** — the
+  `StmtList` is wrapped in a synthetic `BeginExpr{ Body, EnsureBody }`;
+  `EmitBegin` already threads all three through `EnsureBody` with no new
+  backend node.
+- **`return`, and a loop-owned `break`/`next`** — all three bypass `Ensure`
+  entirely (`EmitReturn`/`EmitBreak`/`EmitNext` in `StmtReturnBreakNext.cpp`
+  branch directly, no ensure-stack lookup), so the finalize `Call`s are
+  spliced directly before the exit statement instead, covering not just that
+  `StmtList`'s own candidates but every enclosing scope's candidates the exit
+  is also unwinding past (an "ambient" candidate list threaded down through
+  the recursion — reset at each `While::Body` boundary for `break`/`next`,
+  which only unwind to their own innermost loop, but carried unbounded for
+  `return`, which unwinds the whole call).
+
+A local whose exit hands it back by bare `Identifier` name is exempted at
+that exit site only (ownership moves to the caller's scope). A method
+containing an exit that hides inside an *expression-position* control
+construct (`x = if c then return 1 else 2 end`, reachable only because `If`/
+`CaseExpr`/`BeginExpr` are core *expression* nodes, not just statement-position
+sugar) is left completely untouched rather than risk missing a finalize — the
+one shape this sweep's structural recursion cannot reach, since it only
+descends into a `While`/`If`/`CaseExpr`/`BeginExpr` found directly as a
+`StmtList` element.
+
 ## The 24 core nodes
 
 | Category | Nodes | What a backend does with it |
