@@ -1,5 +1,3 @@
-name: CI
-
 on:
   push:
     branches: [ main ]
@@ -29,7 +27,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v8
 
       - name: Meson setup
-        uses: meson setup build
+        run: meson setup build
 
       - name: Meson Build
         run: meson compile -C build
