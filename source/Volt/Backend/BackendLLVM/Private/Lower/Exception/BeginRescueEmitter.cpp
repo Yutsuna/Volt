@@ -198,9 +198,36 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
     }
 
     Builder.SetInsertPoint( Ensure );
+
+    // Whatever is pending on entry here (an unhandled exception that fell
+    // through every clause, or a `break` sailing through) must not leak into
+    // EnsureBody's own execution: every resolved call checks the exception
+    // tag / break flag *after itself* (EmitExceptionCheck / EmitUnwindCheck,
+    // ExprResolvedCallEmitter.cpp) to decide whether to propagate — with
+    // nothing done here, the first call inside `ensure` finds the leftover
+    // pending state, mistakes it for something it just raised, and
+    // propagates immediately, silently skipping every EnsureBody statement
+    // after it. Save it, run under a clean slate, restore afterward — unless
+    // EnsureBody raised something of its own, which is already mid-
+    // propagation (Emitter.Terminated()) and takes priority over what was
+    // saved.
+    llvm::Value *SavedTag = Builder.CreateLoad( llvm::Type::getInt32Ty( Context ), ExceptionTagSlot(), "exc.tag.saved" );
+    llvm::Value *SavedExc = Builder.CreateLoad( llvm::PointerType::get( Context, 0 ), ExceptionValueSlot(), "exc.value.saved" );
+    llvm::Value *SavedBrk = Builder.CreateLoad( Builder.getInt1Ty(), BreakFlagSlot(), "brk.saved" );
+    static_cast<void>( Builder.CreateStore(
+        llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ), ExceptionTagSlot() ) );
+    static_cast<void>(
+        Builder.CreateStore( llvm::Constant::getNullValue( llvm::PointerType::get( Context, 0 ) ), ExceptionValueSlot() ) );
+    static_cast<void>( Builder.CreateStore( Builder.getFalse(), BreakFlagSlot() ) );
+
     Emitter.EmitStmts( Node.EnsureBody, false );
+
     if ( not Emitter.Terminated() )
     {
+        static_cast<void>( Builder.CreateStore( SavedTag, ExceptionTagSlot() ) );
+        static_cast<void>( Builder.CreateStore( SavedExc, ExceptionValueSlot() ) );
+        static_cast<void>( Builder.CreateStore( SavedBrk, BreakFlagSlot() ) );
+
         // A `break` in flight through this `begin` is exactly as "still pending"
         // as an unhandled exception — dispatch above only ever matches exception
         // ancestry, so a break sails through every clause untouched
