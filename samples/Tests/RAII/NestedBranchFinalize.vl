@@ -1,0 +1,45 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def branch_and_track( log : Pointer<Int32>, cursor : Pointer<Int32>, flag : Bool ) -> Void
+  if flag
+    a = Tracked.new( 1, log, cursor )
+  else
+    b = Tracked.new( 2, log, cursor )
+  end
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 1 )
+
+branch_and_track( log, cursor, true )
+assert!( *cursor == 1 )
+assert!( *( log + 0 ) == 1 )
+
+*cursor = 0
+branch_and_track( log, cursor, false )
+assert!( *cursor == 1 )
+assert!( *( log + 0 ) == 2 )
+
+log.free
+cursor.free
