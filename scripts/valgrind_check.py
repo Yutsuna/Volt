@@ -32,8 +32,12 @@ class Colors:
 class TestStatus(enum.StrEnum):
     PASSED = "PASSED"
     LEAKED = "LEAKED"
+    MEMORY_ERROR = "MEMORY_ERROR"
     BUILD_FAILED = "BUILD_FAILED"
     EXECUTION_FAILED = "EXECUTION_FAILED"
+
+
+VALGRIND_ERROR_EXIT_CODE = 99
 
 
 @dataclass(frozen=True)
@@ -129,6 +133,7 @@ class ValgrindRunner:
             "valgrind",
             "--leak-check=full",
             "--show-leak-kinds=all",
+            f"--error-exitcode={VALGRIND_ERROR_EXIT_CODE}",
             str(binary_path),
         ]
 
@@ -163,10 +168,19 @@ class TestCaseWorker:
                         error_message=build_err,
                     )
 
-                _, valgrind_out = await ValgrindRunner.run(temp_bin)
+                valgrind_returncode, valgrind_out = await ValgrindRunner.run(temp_bin)
                 metrics = ValgrindAnalyzer.analyze(valgrind_out)
 
                 duration = time.perf_counter() - start_time
+
+                if valgrind_returncode == VALGRIND_ERROR_EXIT_CODE:
+                    return TestResult(
+                        file_path=file_path,
+                        status=TestStatus.MEMORY_ERROR,
+                        duration_seconds=duration,
+                        metrics=metrics,
+                        raw_valgrind_output=valgrind_out,
+                    )
 
                 if metrics.has_leaks:
                     return TestResult(
@@ -238,6 +252,11 @@ class ConsoleReporter:
                 print(f"     └── Still Reachable : {result.metrics.still_reachable} B")
                 if verbose and result.raw_valgrind_output:
                     print(f"\n--- Valgrind Log [{result.file_path.name}] ---\n{result.raw_valgrind_output}")
+            case TestStatus.MEMORY_ERROR:
+                print(f"[{Colors.RED}MEMORY ERROR{Colors.RESET}] {result.file_path} {duration_str}")
+                print("  └─ valgrind reported an error (invalid read/write, double free, etc.) — rerun with -v for the log")
+                if verbose and result.raw_valgrind_output:
+                    print(f"\n--- Valgrind Log [{result.file_path.name}] ---\n{result.raw_valgrind_output}")
             case TestStatus.BUILD_FAILED:
                 print(f"[{Colors.YELLOW}BUILD FAILED{Colors.RESET}] {result.file_path} {duration_str}")
                 if result.error_message:
@@ -252,6 +271,7 @@ class ConsoleReporter:
         total = len(results)
         passed = sum(1 for r in results if r.status == TestStatus.PASSED)
         leaked = sum(1 for r in results if r.status == TestStatus.LEAKED)
+        mem_err = sum(1 for r in results if r.status == TestStatus.MEMORY_ERROR)
         build_err = sum(1 for r in results if r.status == TestStatus.BUILD_FAILED)
         exec_err = sum(1 for r in results if r.status == TestStatus.EXECUTION_FAILED)
 
@@ -259,6 +279,7 @@ class ConsoleReporter:
         print(f"Total Evaluated : {total}")
         print(f"Passed          : {Colors.GREEN}{passed}{Colors.RESET}")
         print(f"Memory Leaks    : {Colors.RED}{leaked}{Colors.RESET}")
+        print(f"Memory Errors   : {Colors.RED}{mem_err}{Colors.RESET}")
         print(f"Build Failures  : {Colors.YELLOW}{build_err}{Colors.RESET}")
         print(f"Exec Errors     : {Colors.RED}{exec_err}{Colors.RESET}")
 
