@@ -220,10 +220,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseClass ()
     Expect( TokenKind::KwClass, "to begin a class" );
 
     Class Node;
-    Node.Name     = InternText( Expect( TokenKind::Constant, "as a class name" ) );
+    Node.Name                       = InternText( Expect( TokenKind::Constant, "as a class name" ) );
     const GenericParamList Generics = ParseGenericParams();
-    Node.Generics       = Generics.Names;
-    Node.GenericBounds  = Generics.Bounds;
+    Node.Generics                   = Generics.Names;
+    Node.GenericBounds              = Generics.Bounds;
     if ( Accept( TokenKind::Lt ) )
     {
         Node.Super = ParseType();
@@ -241,10 +241,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseStruct ()
     Expect( TokenKind::KwStruct, "to begin a struct" );
 
     Struct Node;
-    Node.Name     = InternText( Expect( TokenKind::Constant, "as a struct name" ) );
+    Node.Name                       = InternText( Expect( TokenKind::Constant, "as a struct name" ) );
     const GenericParamList Generics = ParseGenericParams();
-    Node.Generics       = Generics.Names;
-    Node.GenericBounds  = Generics.Bounds;
+    Node.Generics                   = Generics.Names;
+    Node.GenericBounds              = Generics.Bounds;
     SkipTerminators();
     ParseDeclBlock( Node.Body );
     Expect( TokenKind::KwEnd, "to close struct" );
@@ -331,10 +331,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMixin ()
     Expect( TokenKind::KwMixin, "to begin a mixin" );
 
     Mixin Node;
-    Node.Name     = InternText( Expect( TokenKind::Constant, "as a mixin name" ) );
+    Node.Name                       = InternText( Expect( TokenKind::Constant, "as a mixin name" ) );
     const GenericParamList Generics = ParseGenericParams();
-    Node.Generics       = Generics.Names;
-    Node.GenericBounds  = Generics.Bounds;
+    Node.Generics                   = Generics.Names;
+    Node.GenericBounds              = Generics.Bounds;
     SkipTerminators();
     ParseDeclBlock( Node.Body );
     Expect( TokenKind::KwEnd, "to close mixin" );
