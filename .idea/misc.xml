@@ -9,13 +9,16 @@
     </sourceRoots>
     <excludeRoots>
       <file path="$PROJECT_DIR$/.cache" />
+      <file path="$PROJECT_DIR$/.ccache" />
       <file path="$PROJECT_DIR$/.claude" />
       <file path="$PROJECT_DIR$/.direnv" />
       <file path="$PROJECT_DIR$/build" />
+      <file path="$PROJECT_DIR$/build-asan" />
       <file path="$PROJECT_DIR$/build-release" />
       <file path="$PROJECT_DIR$/build-testing" />
       <file path="$PROJECT_DIR$/graphify-out" />
       <file path="$PROJECT_DIR$/tests/golden" />
+      <file path="$PROJECT_DIR$/volt" />
     </excludeRoots>
   </component>
   <component name="ExternalStorageConfigurationManager" enabled="true" />
