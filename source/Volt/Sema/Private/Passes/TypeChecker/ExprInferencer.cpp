@@ -573,7 +573,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // on this node's own site: the site map is where a type
                 // attached to an Id that is not a value expression lives, the
                 // same channel a `rescue` clause's filter uses.
-                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                UnitSink Sink{ .Values  = Context.Ctx.Values,
+                    .Self    = Context.SelfValue,
+                    .Bindings = Context.GenericBindings(),
+                    .Diags   = &Context.Ctx.Diags };
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
                                                                                     Context.Generics(), Sink, Expr.Type ) );
                 const auto Base = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
@@ -752,8 +755,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     SemaTypeId ExceptionType{};
                     if ( Clause.ExceptionType.IsValid() )
                     {
-                        UnitSink Sink{
-                            .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                        UnitSink Sink{ .Values   = Context.Ctx.Values,
+                                       .Self     = Context.SelfValue,
+                                       .Bindings = Context.GenericBindings(),
+                                       .Diags    = &Context.Ctx.Diags };
                         ExceptionType =
                             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
                         const NominalId Nominal =
@@ -853,7 +858,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             // first call cannot narrow it).
             [&] ( const Frontend::TypedExpr &Expr ) -> SemaTypeId
             {
-                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                UnitSink Sink{ .Values  = Context.Ctx.Values,
+                    .Self    = Context.SelfValue,
+                    .Bindings = Context.GenericBindings(),
+                    .Diags   = &Context.Ctx.Diags };
                 const SemaTypeId Written =
                     ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
                 if ( Written.IsValid() )
@@ -1013,7 +1021,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::GenericInstType ( TypeChecke
     Core::SmallVec<SemaTypeId, 2> Args;
     for ( const Frontend::TypeId Arg : Expr.Args )
     {
-        UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+        UnitSink Sink{ .Values  = Context.Ctx.Values,
+                    .Self    = Context.SelfValue,
+                    .Bindings = Context.GenericBindings(),
+                    .Diags   = &Context.Ctx.Diags };
         Args.PushBack( ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Arg ) );
     }
 

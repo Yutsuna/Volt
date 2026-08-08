@@ -59,6 +59,11 @@ namespace Sema
             const Frontend::SymbolList *Generics = nullptr;
             const Frontend::DeclList *Body       = nullptr;
             Frontend::TypeId Super;
+            // Parallel to Generics; null for a shape that does not carry
+            // bounds yet (Enum — see AST Decl.hpp). A non-null list may still
+            // be empty (no generics at all) or hold invalid TypeIds
+            // (unbounded parameters).
+            const Frontend::TypeList *GenericBounds = nullptr;
         };
 
         // Walk the declarations of one scope, invoking Visit for every
@@ -93,29 +98,32 @@ namespace Sema
                         [&] ( const Frontend::Module &Nested ) { ForEachTypeDecl( Ast, Nested.Body, Visit ); },
                         [&] ( const Frontend::Struct &Type )
                         {
-                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
-                                             .Id       = Id,
-                                             .Generics = &Type.Generics,
-                                             .Body     = &Type.Body,
-                                             .Super    = Frontend::TypeId{} },
+                            Visit( TypeDecl{ .Name           = Ast.Text( Type.Name ),
+                                             .Id             = Id,
+                                             .Generics       = &Type.Generics,
+                                             .Body           = &Type.Body,
+                                             .Super          = Frontend::TypeId{},
+                                             .GenericBounds  = &Type.GenericBounds },
                                    Pending );
                         },
                         [&] ( const Frontend::Class &Type )
                         {
-                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
-                                             .Id       = Id,
-                                             .Generics = &Type.Generics,
-                                             .Body     = &Type.Body,
-                                             .Super    = Type.Super },
+                            Visit( TypeDecl{ .Name           = Ast.Text( Type.Name ),
+                                             .Id             = Id,
+                                             .Generics       = &Type.Generics,
+                                             .Body           = &Type.Body,
+                                             .Super          = Type.Super,
+                                             .GenericBounds  = &Type.GenericBounds },
                                    Pending );
                         },
                         [&] ( const Frontend::Mixin &Type )
                         {
-                            Visit( TypeDecl{ .Name     = Ast.Text( Type.Name ),
-                                             .Id       = Id,
-                                             .Generics = &Type.Generics,
-                                             .Body     = &Type.Body,
-                                             .Super    = Frontend::TypeId{} },
+                            Visit( TypeDecl{ .Name           = Ast.Text( Type.Name ),
+                                             .Id             = Id,
+                                             .Generics       = &Type.Generics,
+                                             .Body           = &Type.Body,
+                                             .Super          = Frontend::TypeId{},
+                                             .GenericBounds  = &Type.GenericBounds },
                                    Pending );
                         },
                         [&] ( const Frontend::Enum &Type )
@@ -889,6 +897,22 @@ namespace Sema
                     Store.SetSuper( Id, ParentOf( Decl.Super, Generics ) );
                 }
 
+                // `T : Bound` — resolved here, not Phase A, for the same
+                // reason as Super/Includes: the bound's own name may live in
+                // a different unit, so it is only guaranteed to exist once
+                // every unit's Phase A has run. Kept in this type's own
+                // parameter space (ParentOf / SigSink), exactly like a
+                // written parent link.
+                if ( Decl.GenericBounds != nullptr )
+                {
+                    Core::SmallVec<SigTypeId, 2> Bounds;
+                    for ( const Frontend::TypeId Bound : *Decl.GenericBounds )
+                    {
+                        Bounds.PushBack( Bound.IsValid() ? ParentOf( Bound, Generics ) : SigTypeId{} );
+                    }
+                    Store.SetParamBounds( Id, std::move( Bounds ) );
+                }
+
                 for ( const Frontend::DeclId Child : *Decl.Body )
                 {
                     if ( not Child.IsValid() )
@@ -1159,6 +1183,210 @@ namespace Sema
         {
             const NominalId Id{ static_cast<NominalId::ValueType>( Index ) };
             static_cast<void>( EnsureStructLayout( Units, Store, Id, 0 ) );
+        }
+    }
+
+    namespace
+    {
+
+        // The member-name spelling `finalize` — not a Volt type name
+        // (rules/zero-hardcode.md's guardrail greps for type identifiers
+        // only), the same plain member spelling
+        // `Sema::TypeCheckerPass::FinalizeName` (MemberResolver.hpp) already
+        // uses to look one up by name once TypeChecker runs.
+        constexpr std::string_view FinalizeMemberName = "finalize";
+
+        // Aggregate-layout, non-generic and declaring `finalize` (own or
+        // inherited) — the same candidacy `FinalizeLowering.cpp`'s
+        // `IsFinalizeCandidateType` checks, but against a bare `NominalId`
+        // rather than a receiver's (possibly generic-argument-bearing)
+        // `SemaTypeId`: a field never needs substitution here, since a
+        // generic field's own nominal never attaches a Layout in the first
+        // place (EnsureStructLayout's own comment above) — this returns
+        // false for it automatically, the same wall CASCADE_FINALIZE.md's
+        // item 2 already documents.
+        [[nodiscard]] bool IsFinalizeCandidateNominal ( const TypeStore &Store, NominalId Id )
+        {
+            if ( not Id.IsValid() )
+            {
+                return false;
+            }
+            const NominalType &Type = Store.Type( Id );
+            if ( not Type.Layout.IsValid() or KindOf( Store.Get( Type.Layout ) ) != LayoutKind::Aggregate )
+            {
+                return false;
+            }
+            return Store.LookupMember( Id, FinalizeMemberName ).Decl != nullptr;
+        }
+
+        // Bounded the same way EnsureStructLayout's own cross-unit recursion
+        // is (MaxLayoutDepth) — a genuine by-value cycle cannot exist, but a
+        // malformed one must not hang the seam.
+        constexpr std::uint32_t MaxFinalizeDepth = 32;
+
+        // Ensures `Id`'s own finalize candidacy (already declared by hand, or
+        // freshly synthesized as an empty stub here) is *decided* before a
+        // sibling recursion asks `IsFinalizeCandidateNominal` on it — the
+        // same memoized-by-attachment shape `EnsureStructLayout` already
+        // uses for the identical cross-type-order problem (a field may name
+        // a type this walk has not reached yet). `Done` memoizes per
+        // `NominalId` so a diamond-shaped field graph is visited once.
+        void EnsureFinalizeStub ( std::span<Frontend::AstContext *const> Units,
+                                  TypeStore &Store,
+                                  NominalId Id,
+                                  std::vector<bool> &Done,
+                                  std::uint32_t Depth )
+        {
+            if ( not Id.IsValid() or Depth > MaxFinalizeDepth or Id.Value >= Done.size() or Done[Id.Value] )
+            {
+                return;
+            }
+            Done[Id.Value] = true;
+
+            const NominalType &Type = Store.Type( Id );
+
+            // A generic type's own field types are not resolved until
+            // instantiation — the same wall CASCADE_FINALIZE.md's item 2
+            // hits, and the reason `InsertFinalizeCalls`' own field-cascade
+            // step (FinalizeLowering.cpp) is scoped to `Generics.IsEmpty()`
+            // too.
+            if ( Type.Params.Size() > 0 )
+            {
+                return;
+            }
+
+            // A user-declared `finalize` already exists: nothing to
+            // synthesize. TypeChecker's own `AppendFieldCascade` appends the
+            // field-cascade epilogue to it exactly as it already does today.
+            if ( Store.OwnMember( Id, FinalizeMemberName ) != nullptr )
+            {
+                return;
+            }
+
+            if ( Type.Unit >= Units.size() or Units[Type.Unit] == nullptr )
+            {
+                return; // a cache-hit stdlib slot: already resolved and cached.
+            }
+
+            Frontend::AstContext &Ast = *Units[Type.Unit];
+
+            // `Mixin`/`Enum` are out of scope (Struct/Class only, matching
+            // CASCADE_FINALIZE.md item 3's own design) — decided once, up
+            // front, so nothing below holds a reference across the
+            // recursive `EnsureFinalizeStub` calls the field loop makes
+            // (rules/ast-rewrite.md: a sibling recursion may `Add()` into
+            // this very same unit's Decl arena for an unrelated type).
+            const bool bStruct = std::holds_alternative<Frontend::Struct>( Ast.Decl( Type.Decl ) );
+            const bool bClass  = std::holds_alternative<Frontend::Class>( Ast.Decl( Type.Decl ) );
+            if ( not bStruct and not bClass )
+            {
+                return;
+            }
+
+            Core::SourceRange Loc;
+            std::visit(
+                [&] ( const auto &N )
+                {
+                    using T = std::remove_cvref_t<decltype( N )>;
+                    if constexpr ( not std::is_same_v<T, std::monostate> )
+                    {
+                        Loc = N.Loc;
+                    }
+                },
+                Ast.Decl( Type.Decl ) );
+
+            const Frontend::DeclList *BodyPtr = TypeBodyOf( Ast, Type.Decl );
+            if ( BodyPtr == nullptr )
+            {
+                return;
+            }
+            // Copied out before any recursive `Add()` below — never a
+            // reference held across one (rules/ast-rewrite.md).
+            const Frontend::DeclList Body = *BodyPtr;
+
+            bool bHasCandidateField = false;
+            for ( const Frontend::DeclId Child : Body )
+            {
+                if ( not Child.IsValid() )
+                {
+                    continue;
+                }
+                const auto *Field = std::get_if<Frontend::Field>( &Ast.Decl( Child ) );
+                if ( Field == nullptr )
+                {
+                    continue;
+                }
+                const std::optional<NominalId> FieldNominal = FieldTypeNominal( Ast, Store, Field->DeclType );
+                if ( not FieldNominal )
+                {
+                    continue;
+                }
+                // Settle the field's own type first — it may not have been
+                // reached by the outer TypeCount() sweep yet.
+                EnsureFinalizeStub( Units, Store, *FieldNominal, Done, Depth + 1 );
+                if ( IsFinalizeCandidateNominal( Store, *FieldNominal ) )
+                {
+                    bHasCandidateField = true;
+                    break;
+                }
+            }
+            if ( not bHasCandidateField )
+            {
+                return; // silent default: nothing to cascade, nothing synthesized.
+            }
+
+            // An empty `finalize -> Void` — `ReturnType` stays invalid, which
+            // is exactly what a hand-written `-> Void` itself resolves to
+            // (`Void` names no declared type; see ResolveTypeExpr's own
+            // "unknown name yields an invalid id and no diagnostic").
+            // TypeChecker's existing `AppendFieldCascade` fills this Body
+            // with the `@field.finalize()` epilogue exactly as it already
+            // does for a hand-written `finalize`.
+            Frontend::Method Stub;
+            Stub.Loc                     = Loc;
+            Stub.Name                    = Ast.Strings().Intern( FinalizeMemberName );
+            const Frontend::DeclId StubId = Ast.Add( Frontend::DeclNode{ std::move( Stub ) } );
+
+            // Splice into the owning Struct/Class's own Body — copy-out,
+            // then write back (rules/ast-rewrite.md); `Ast.Add` above is the
+            // only thing that could have invalidated a live reference into
+            // the Decl arena, and it already happened before this read.
+            if ( bStruct )
+            {
+                Frontend::Struct Copy = std::get<Frontend::Struct>( Ast.Decl( Type.Decl ) );
+                Copy.Body.PushBack( StubId );
+                Ast.Decl( Type.Decl ) = Frontend::DeclNode{ std::move( Copy ) };
+            }
+            else
+            {
+                Frontend::Class Copy = std::get<Frontend::Class>( Ast.Decl( Type.Decl ) );
+                Copy.Body.PushBack( StubId );
+                Ast.Decl( Type.Decl ) = Frontend::DeclNode{ std::move( Copy ) };
+            }
+
+            // Registered exactly like Phase A's own DeclareMembers would for
+            // a hand-written `finalize` — an ordinary zero-parameter Method
+            // member, so ResolveUnitSignatures' `Store.MemberByDecl` lookup
+            // (which walks the very same `*Decl.Body` this just grew) finds
+            // and resolves it like any other, and TypeChecker's
+            // `FindOwnFinalizeMethod`/backend emission walk both see it
+            // exactly as they would a hand-written one.
+            Member Slot;
+            Slot.Name = Store.Intern( FinalizeMemberName );
+            Slot.Kind = EMemberKind::Method;
+            Slot.Unit = Type.Unit;
+            Slot.Decl = StubId;
+            Store.AddMember( Id, std::move( Slot ) );
+        }
+
+    } // namespace
+
+    void SynthesizeFinalizeStubs ( std::span<Frontend::AstContext *const> Units, TypeStore &Store )
+    {
+        std::vector<bool> Done( Store.TypeCount(), false );
+        for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+        {
+            EnsureFinalizeStub( Units, Store, NominalId{ static_cast<NominalId::ValueType>( Index ) }, Done, 0 );
         }
     }
 

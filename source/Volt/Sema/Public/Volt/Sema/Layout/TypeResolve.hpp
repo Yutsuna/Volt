@@ -12,6 +12,7 @@
 // The C++ never spells a node name nor a Volt type name.
 
 #include "Sema_export.hpp"
+#include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
@@ -21,7 +22,9 @@
 #include "Volt/Sema/Layout/TypeStore.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <type_traits>
 #include <variant>
@@ -75,6 +78,11 @@ namespace Sema
         UnitTypes &Values;
         SemaTypeId Self;
         std::span<const SemaTypeId> Bindings;
+        // Non-null enables generic-bound checking (Sema::CheckGenericBounds)
+        // at every `TypeRef` this sink resolves — nullptr keeps
+        // ResolveTypeExpr's ordinary "no diagnostic" behaviour for a caller
+        // that only wants a best-effort type (e.g. Sema::ReinstantiateBody).
+        Core::DiagEngine::Bag *Diags = nullptr;
 
         [[nodiscard]] IdType Make ( NominalId Base, Core::SmallVec<IdType, 2> Args )
         {
@@ -95,6 +103,37 @@ namespace Sema
             return Self;
         }
     };
+
+    // A generic parameter whose declared bound (`T : Bound`) the supplied
+    // argument does not satisfy.
+    struct BoundViolation
+    {
+
+        std::size_t ParamIndex = 0;
+        NominalId RequiredBound;
+        NominalId SuppliedBase;
+    };
+
+    /// `Base<Args...>`: does every bounded parameter of `Base` accept the
+    /// concrete type supplied at the matching index? Mirrors
+    /// `TypeCheckerPass::CheckAbstractConformance`'s question but in the
+    /// opposite direction — that checks a *declaration* satisfies the
+    /// mixins it includes, this checks a call-site *argument* satisfies a
+    /// bound the generic parameter itself declared. A bound is satisfied the
+    /// same way an includer satisfies a mixin: every abstract member the
+    /// bound's own body declares must resolve, through LookupMemberOn, to a
+    /// non-abstract implementation.
+    ///
+    /// An argument that is itself unresolved (deferred — inside another
+    /// generic body, `T` has no concrete value yet) is skipped rather than
+    /// reported: there is nothing yet to check, and the concrete
+    /// instantiation this deferred to will be checked when it, in turn,
+    /// resolves a concrete argument.
+    ///
+    /// Returns the first violation found, in parameter order — one
+    /// diagnostic per `TypeRef`, matching every other check in this layer.
+    [[nodiscard]] SEMA_EXPORT std::optional<BoundViolation> CheckGenericBounds (
+        const TypeStore &Store, UnitTypes &Values, NominalId Base, std::span<const SemaTypeId> Args );
 
     /// Resolve the type annotation `Id` through `Out`. `Generics` are the
     /// enclosing declaration's generic parameter names, matched by symbol.
@@ -154,6 +193,40 @@ namespace Sema
                     {
                         Args.PushBack( ResolveTypeExpr( Ast, Store, Generics, Out, Arg ) );
                     }
+
+                    // Bound checking only ever applies to a sink that yields
+                    // concrete, already-interned types (UnitSink) — a
+                    // SigSink's Args may themselves be un-instantiated
+                    // parameter references, which have nothing to check yet.
+                    if constexpr ( std::is_same_v<IdType, SemaTypeId> )
+                    {
+                        if ( Out.Diags != nullptr )
+                        {
+                            const std::span<const SemaTypeId> Concrete{ Args.begin(), Args.Size() };
+                            if ( const auto Violation = CheckGenericBounds( Store, Out.Values, *Base, Concrete ) )
+                            {
+                                const NominalType &BaseType = Store.Type( *Base );
+                                const std::string ParamName =
+                                    Violation->ParamIndex < BaseType.Params.Size()
+                                        ? std::string{ Store.Text( BaseType.Params[Violation->ParamIndex] ) }
+                                        : std::string{ "?" };
+                                const std::string ArgName = Violation->SuppliedBase.IsValid()
+                                                                 ? std::string{ Store.Text( Store.Type( Violation->SuppliedBase ).Name ) }
+                                                                 : std::string{ "<unresolved>" };
+                                const std::string BoundName = Violation->RequiredBound.IsValid()
+                                                                   ? std::string{ Store.Text( Store.Type( Violation->RequiredBound ).Name ) }
+                                                                   : std::string{ "<unresolved>" };
+                                Out.Diags->Report( Core::Diagnostic{
+                                    .Severity = Core::ESeverity::Error,
+                                    .Range    = Ref.Loc,
+                                    .Message  = "type " + ArgName + " does not satisfy bound " + BoundName +
+                                               " required by generic parameter " + ParamName + " of " +
+                                               std::string{ Store.Text( BaseType.Name ) },
+                                    .Notes = {} } );
+                            }
+                        }
+                    }
+
                     return Out.Make( *Base, std::move( Args ) );
                 },
                 // Every other shape, present or future: the node claims a

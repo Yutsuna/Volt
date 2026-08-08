@@ -138,6 +138,66 @@ namespace Sema
         return InstantiatedMember{};
     }
 
+    std::optional<BoundViolation> CheckGenericBounds (
+        const TypeStore &Store, UnitTypes &Values, NominalId Base, std::span<const SemaTypeId> Args )
+    {
+        if ( not Base.IsValid() )
+        {
+            return std::nullopt;
+        }
+
+        const NominalType &Type = Store.Type( Base );
+
+        for ( std::size_t Index = 0; Index < Type.ParamBounds.Size() and Index < Args.size(); ++Index )
+        {
+            const SigTypeId BoundSig = Type.ParamBounds[Index];
+            if ( not BoundSig.IsValid() )
+            {
+                continue; // unbounded parameter
+            }
+
+            const NominalId Bound = Store.BaseOf( BoundSig );
+            if ( not Bound.IsValid() )
+            {
+                continue;
+            }
+
+            const SemaTypeId Arg = Args[Index];
+            if ( not Values.Has( Arg ) )
+            {
+                continue; // deferred — nothing concrete to check yet
+            }
+
+            const NominalId ArgBase = Values.Get( Arg ).Base;
+
+            // Satisfied the same way CheckAbstractConformance answers "does
+            // this includer satisfy this mixin": every abstract member the
+            // bound declares directly must resolve to a non-abstract
+            // implementation on the supplied argument.
+            bool bSatisfied = true;
+            for ( const Member &Entry : Store.Type( Bound ).Members )
+            {
+                if ( not Entry.bAbstract )
+                {
+                    continue;
+                }
+                const InstantiatedMember Found = LookupMemberOn( Store, Values, Arg, Arg, Store.Text( Entry.Name ) );
+                if ( Found.Decl == nullptr or Found.Decl->bAbstract )
+                {
+                    bSatisfied = false;
+                    break;
+                }
+            }
+
+            if ( not bSatisfied )
+            {
+                return BoundViolation{ .ParamIndex = Index, .RequiredBound = Bound, .SuppliedBase = ArgBase };
+            }
+        }
+
+        return std::nullopt;
+    }
+
     bool IsSubclassOf ( const TypeStore &Store, NominalId Child, NominalId Parent )
     {
         if ( not Child.IsValid() or not Parent.IsValid() )

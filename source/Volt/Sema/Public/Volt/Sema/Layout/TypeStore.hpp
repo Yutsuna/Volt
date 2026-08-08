@@ -148,6 +148,12 @@ namespace Sema
         // Generic parameter names in declaration order; a SigType's
         // ParamIndex indexes into this.
         Core::SmallVec<Symbol, 2> Params;
+        // Parallel to Params: `T : Bound` kept as written, in this type's own
+        // parameter space (the same shape Super/Includes already use for a
+        // parent link) — invalid when the parameter is unbounded. Resolved in
+        // Phase B (a bound's own name may live in another unit), read by
+        // Sema::CheckGenericBounds at every concrete instantiation.
+        Core::SmallVec<SigTypeId, 2> ParamBounds;
         // The declared interface: fields and methods of the body itself.
         std::vector<Member> Members;
         // `class X < Y<T>` / `include Enumerable<T>`, kept *as written*, in
@@ -222,6 +228,11 @@ namespace Sema
         void SetParams ( NominalId Id, Core::SmallVec<Symbol, 2> Names )
         {
             Types.Get( Id ).Params = std::move( Names );
+        }
+
+        void SetParamBounds ( NominalId Id, Core::SmallVec<SigTypeId, 2> Bounds )
+        {
+            Types.Get( Id ).ParamBounds = std::move( Bounds );
         }
 
         void SetLiteralSlots ( NominalId Id, std::vector<Core::SmallVec<Symbol, 2>> Slots )
