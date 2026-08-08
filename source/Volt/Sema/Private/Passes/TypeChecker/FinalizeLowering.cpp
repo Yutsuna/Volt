@@ -1273,7 +1273,9 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
 // Forward declarations — a StmtId's own fields and an ExprId's own fields
 // recurse into each other, same shape as ContainsExitStmt/ContainsExitExpr
 // above.
-void CollectHandFinalizedFieldsStmt ( const Frontend::AstContext &Ast, Frontend::StmtId Id, std::unordered_set<std::uint32_t> &Out );
+void CollectHandFinalizedFieldsStmt ( const Frontend::AstContext &Ast,
+                                      Frontend::StmtId Id,
+                                      std::unordered_set<std::uint32_t> &Out );
 void CollectHandFinalizedFields ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::unordered_set<std::uint32_t> &Out );
 
 // Same reflective-descent shape as ScanExitFields above (Meta::ForEachField,
@@ -1283,7 +1285,9 @@ void CollectHandFinalizedFields ( const Frontend::AstContext &Ast, Frontend::Exp
 // body, keyed by the InstanceVar's own interned spelling (kept with its
 // leading `@`, matching `BuildFieldFinalizeCall`'s own `AtName`).
 template <typename NodeVariant>
-void ScanHandFinalizedFields ( const Frontend::AstContext &Ast, const NodeVariant &Variant, std::unordered_set<std::uint32_t> &Out )
+void ScanHandFinalizedFields ( const Frontend::AstContext &Ast,
+                               const NodeVariant &Variant,
+                               std::unordered_set<std::uint32_t> &Out )
 {
     std::visit(
         [&] ( const auto &Node )
@@ -1323,7 +1327,9 @@ void ScanHandFinalizedFields ( const Frontend::AstContext &Ast, const NodeVarian
         Variant );
 }
 
-void CollectHandFinalizedFieldsStmt ( const Frontend::AstContext &Ast, Frontend::StmtId Id, std::unordered_set<std::uint32_t> &Out )
+void CollectHandFinalizedFieldsStmt ( const Frontend::AstContext &Ast,
+                                      Frontend::StmtId Id,
+                                      std::unordered_set<std::uint32_t> &Out )
 {
     if ( not Id.IsValid() )
     {
