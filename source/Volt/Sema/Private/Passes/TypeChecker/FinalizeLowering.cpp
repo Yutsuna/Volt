@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -296,7 +297,40 @@ struct FinalizeCandidate
     Sema::BindingSite Site;
     Core::Symbol Name;
     std::size_t BodyIndex = 0;
+    // Non-null only for a RescueClause's own bound variable (see
+    // BuildRescueCandidate) — its Binding lives in a *different* Scope
+    // (RescueClause pushes its own Branch scope for VarName, ScopeResolver.
+    // cpp's own WalkStmt) than MethodScope, so BuildFinalizeCall's ordinary
+    // `Scopes.Resolve( MethodScope, Name )` would never find it. Carrying
+    // the already-resolved Binding directly (a stable reference into that
+    // Scope's own Bindings map — never a temporary, since BindUse stores a
+    // pointer to whatever Binding it is given) sidesteps needing a second,
+    // scope-aware resolution path in BuildFinalizeCall.
+    const Sema::Binding *DirectBinding = nullptr;
 };
+
+// Aggregate-layout typed and declaring a `FinalizeName` member — the
+// candidacy type-check shared by CollectCandidates (per ordinary local),
+// ScopeHasAnyFinalizeCandidate (the whole-method cheap pre-check), and
+// BuildRescueCandidate (a RescueClause's own bound variable).
+[[nodiscard]] bool IsFinalizeCandidateType ( TypeCheckerContext &Context, Sema::SemaTypeId LocalType )
+{
+    if ( not LocalType.IsValid() or not Context.Ctx.Values.Has( LocalType ) )
+    {
+        return false;
+    }
+    const Sema::NominalId Base = Context.Ctx.Values.Get( LocalType ).Base;
+    if ( not Base.IsValid() )
+    {
+        return false;
+    }
+    const Sema::NominalType &Nominal = Context.Ctx.Types.Type( Base );
+    if ( not Nominal.Layout.IsValid() or Sema::KindOf( Context.Ctx.Types.Get( Nominal.Layout ) ) != Sema::LayoutKind::Aggregate )
+    {
+        return false;
+    }
+    return Sema::LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, LocalType, LocalType, FinalizeName ).Decl != nullptr;
+}
 
 // Candidacy per the plan (design decision 2): declared directly at the top
 // level of Body (never hoisted in from a nested branch — an implicit
@@ -414,26 +448,7 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
         }
 
         const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( Entry.Site );
-        if ( not LocalType.IsValid() or not Context.Ctx.Values.Has( LocalType ) )
-        {
-            continue;
-        }
-
-        const Sema::NominalId Base = Context.Ctx.Values.Get( LocalType ).Base;
-        if ( not Base.IsValid() )
-        {
-            continue;
-        }
-        const Sema::NominalType &Nominal = Context.Ctx.Types.Type( Base );
-        if ( not Nominal.Layout.IsValid() or
-             Sema::KindOf( Context.Ctx.Types.Get( Nominal.Layout ) ) != Sema::LayoutKind::Aggregate )
-        {
-            continue;
-        }
-
-        const Sema::InstantiatedMember FinalizeMember =
-            Sema::LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, LocalType, LocalType, FinalizeName );
-        if ( FinalizeMember.Decl == nullptr )
+        if ( not IsFinalizeCandidateType( Context, LocalType ) )
         {
             continue;
         }
@@ -459,7 +474,15 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
     const Frontend::ExprId ReadId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Candidate.Name } } );
-    if ( const Sema::Binding *Bound = Context.Ctx.Scopes.Resolve( MethodScope, Candidate.Name ) )
+    // DirectBinding is set only for a RescueClause's own bound variable,
+    // whose Binding lives in a Scope Resolve-by-name against MethodScope can
+    // never reach (see FinalizeCandidate's own doc comment) — every other
+    // candidate's Binding is exactly what Resolve already finds.
+    if ( Candidate.DirectBinding != nullptr )
+    {
+        Context.Ctx.Scopes.BindUse( ReadId, *Candidate.DirectBinding, true );
+    }
+    else if ( const Sema::Binding *Bound = Context.Ctx.Scopes.Resolve( MethodScope, Candidate.Name ) )
     {
         Context.Ctx.Scopes.BindUse( ReadId, *Bound, true );
     }
@@ -489,6 +512,40 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     return Out;
 }
 
+// A RescueClause's own bound variable, as a finalize candidate for its own
+// Body — see FinalizeCandidate::DirectBinding's own doc comment for why this
+// needs the RescueClause's own Scope (never MethodScope) and a stable
+// Binding reference rather than a synthesized temporary. Returns nullopt for
+// an anonymous clause (`rescue` / `rescue; ...` with no bound name), an
+// empty Body (nothing to look the pushed Scope up from), a non-finalizable
+// type, or a Scope lookup that somehow fails.
+[[nodiscard]] std::optional<FinalizeCandidate>
+BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause &Clause, Frontend::StmtId RescueId )
+{
+    if ( not Clause.VarName.IsValid() or Clause.Body.IsEmpty() )
+    {
+        return std::nullopt;
+    }
+    const Sema::ScopeId RescueScope = Context.Ctx.Scopes.ScopeOf( Clause.Body[0] );
+    if ( not RescueScope.IsValid() )
+    {
+        return std::nullopt;
+    }
+    const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( Sema::BindingSite{ RescueId } );
+    if ( not IsFinalizeCandidateType( Context, LocalType ) )
+    {
+        return std::nullopt;
+    }
+    const Sema::Scope &RescueScopeRef = Context.Ctx.Scopes.Get( RescueScope );
+    const auto BindingIt              = RescueScopeRef.Bindings.find( Clause.VarName );
+    if ( BindingIt == RescueScopeRef.Bindings.end() )
+    {
+        return std::nullopt;
+    }
+    return FinalizeCandidate{
+        .Site = Sema::BindingSite{ RescueId }, .Name = Clause.VarName, .BodyIndex = 0, .DirectBinding = &BindingIt->second };
+}
+
 // ProcessBlock applies the wrap-and-splice transform to one StmtList, then
 // recurses into every nested one. Two "ambient" lists carry candidates
 // belonging to *enclosing* StmtLists, already in finalize order (nearest
@@ -501,12 +558,23 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 // - LoopAmbient resets to empty each time recursion enters a fresh
 //   `While::Body` — a `break`/`next` only unwinds as far as its own
 //   innermost enclosing loop.
+//
+// ImplicitCandidate is set only when Body is a RescueClause's own — its
+// bound variable (`rescue e : Exception`) is declared before Body's first
+// statement even runs, in a Scope of its own ScopeResolver pushes
+// specifically for it (never MethodScope, so CollectCandidates can never see
+// it), yet must still finalize at every one of Body's own exits exactly like
+// an ordinary local. It is folded into the local candidate list (finalized
+// after everything CollectCandidates itself found, since it was "declared"
+// before all of them) and threaded into ambient the same way any other
+// local of this Body would be, wherever this call recurses further inward.
 [[nodiscard]] Frontend::StmtList ProcessBlock ( TypeCheckerContext &Context,
                                                 Sema::ScopeId MethodScope,
                                                 Frontend::StmtList Body,
                                                 bool bInLoop,
                                                 std::vector<FinalizeCandidate> ReturnAmbient,
-                                                std::vector<FinalizeCandidate> LoopAmbient )
+                                                std::vector<FinalizeCandidate> LoopAmbient,
+                                                std::optional<FinalizeCandidate> ImplicitCandidate = std::nullopt )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -514,6 +582,11 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     // top-level index from whichever Body is passed, so a nested branch's
     // own locals are never claimed by an outer level) — computed before
     // recursing so each child call can be given the right ambient slice.
+    // ImplicitCandidate is deliberately NOT folded in here: it is "declared"
+    // before position 0, which BodyIndex (an unsigned, position-filtered
+    // value real candidates use) cannot represent — every consumer below
+    // appends it explicitly, after the position-filtered result, wherever
+    // that consumer's own ordering calls for "finalized last".
     const std::vector<FinalizeCandidate> Candidates = CollectCandidates( Context, MethodScope, Body );
 
     // Step 1 — recurse bottom-up into every nested StmtList reachable
@@ -537,6 +610,10 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 
             std::vector<FinalizeCandidate> ChildReturnAmbient = ReversedBefore( Candidates, Pos );
             ChildReturnAmbient.insert( ChildReturnAmbient.end(), ReturnAmbient.begin(), ReturnAmbient.end() );
+            if ( ImplicitCandidate.has_value() )
+            {
+                ChildReturnAmbient.push_back( *ImplicitCandidate );
+            }
 
             WhileCopy.Body = ProcessBlock( Context, MethodScope, std::move( WhileCopy.Body ), true,
                                            std::move( ChildReturnAmbient ), /*fresh loop*/ {} );
@@ -563,6 +640,14 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
                 ChildLoopAmbient = ReversedBefore( Candidates, Pos );
                 ChildLoopAmbient.insert( ChildLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
             }
+            if ( ImplicitCandidate.has_value() )
+            {
+                ChildReturnAmbient.push_back( *ImplicitCandidate );
+                if ( bInLoop )
+                {
+                    ChildLoopAmbient.push_back( *ImplicitCandidate );
+                }
+            }
 
             IfCopy.Then =
                 ProcessBlock( Context, MethodScope, std::move( IfCopy.Then ), bInLoop, ChildReturnAmbient, ChildLoopAmbient );
@@ -581,6 +666,14 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
             {
                 ChildLoopAmbient = ReversedBefore( Candidates, Pos );
                 ChildLoopAmbient.insert( ChildLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
+            }
+            if ( ImplicitCandidate.has_value() )
+            {
+                ChildReturnAmbient.push_back( *ImplicitCandidate );
+                if ( bInLoop )
+                {
+                    ChildLoopAmbient.push_back( *ImplicitCandidate );
+                }
             }
 
             for ( const Frontend::StmtId ClauseId : CaseCopy.Clauses )
@@ -606,14 +699,29 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
                 ChildLoopAmbient = ReversedBefore( Candidates, Pos );
                 ChildLoopAmbient.insert( ChildLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
             }
+            if ( ImplicitCandidate.has_value() )
+            {
+                ChildReturnAmbient.push_back( *ImplicitCandidate );
+                if ( bInLoop )
+                {
+                    ChildLoopAmbient.push_back( *ImplicitCandidate );
+                }
+            }
 
             BeginCopy.Body =
                 ProcessBlock( Context, MethodScope, std::move( BeginCopy.Body ), bInLoop, ChildReturnAmbient, ChildLoopAmbient );
             for ( const Frontend::StmtId RescueId : BeginCopy.RescueClauses )
             {
                 Frontend::RescueClause RescueCopy = std::get<Frontend::RescueClause>( Ast.Stmt( RescueId ) );
+                // The clause's own bound variable (`rescue e : Exception`) —
+                // an implicit candidate for its own Body only, orthogonal to
+                // whatever this level's own ImplicitCandidate (an outer
+                // enclosing rescue var, if this BeginExpr is itself nested)
+                // already folded into ChildReturnAmbient/ChildLoopAmbient
+                // above.
+                const std::optional<FinalizeCandidate> RescueCandidate = BuildRescueCandidate( Context, RescueCopy, RescueId );
                 RescueCopy.Body = ProcessBlock( Context, MethodScope, std::move( RescueCopy.Body ), bInLoop, ChildReturnAmbient,
-                                                ChildLoopAmbient );
+                                                ChildLoopAmbient, RescueCandidate );
                 Ast.Stmt( RescueId ) = Frontend::StmtNode{ std::move( RescueCopy ) };
             }
             BeginCopy.EnsureBody = ProcessBlock( Context, MethodScope, std::move( BeginCopy.EnsureBody ), bInLoop,
@@ -628,7 +736,8 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     // bare `break` inside an `if` with no local of its own, unwinding past
     // the while body's own `x` — see ProcessBlock's own doc comment). Only
     // bail out completely when there is truly nothing to do anywhere.
-    if ( Body.IsEmpty() or ( Candidates.empty() and ReturnAmbient.empty() and ( not bInLoop or LoopAmbient.empty() ) ) )
+    if ( Body.IsEmpty() or ( Candidates.empty() and ReturnAmbient.empty() and ( not bInLoop or LoopAmbient.empty() ) and
+                             not ImplicitCandidate.has_value() ) )
     {
         return Body;
     }
@@ -689,6 +798,14 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
             std::vector<FinalizeCandidate> ToFinalize     = ReversedBefore( Candidates, BodyPos );
             const std::vector<FinalizeCandidate> &Ambient = bIsReturn ? ReturnAmbient : LoopAmbient;
             ToFinalize.insert( ToFinalize.end(), Ambient.begin(), Ambient.end() );
+            // ImplicitCandidate (this Body's own RescueClause-bound
+            // variable, if any) is "declared" before every real statement in
+            // Body, so it finalizes last — appended after both the local and
+            // ambient candidates above, for either kind of spliced exit.
+            if ( ImplicitCandidate.has_value() )
+            {
+                ToFinalize.push_back( *ImplicitCandidate );
+            }
 
             for ( const FinalizeCandidate &Candidate : ToFinalize )
             {
@@ -709,7 +826,7 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     // local fall-through/raise coverage to wrap either. Return the spliced
     // result as-is; an outer level (or the method's own top-level wrap)
     // owns the corresponding EnsureBody for whatever was just spliced in.
-    if ( Candidates.empty() )
+    if ( Candidates.empty() and not ImplicitCandidate.has_value() )
     {
         return SplicedBody;
     }
@@ -747,6 +864,14 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
         const Frontend::ExprId CallId    = BuildFinalizeCall( Context, Loc, *It, LocalType, MethodScope );
         EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
     }
+    // ImplicitCandidate finalizes last on fall-through too — same "declared
+    // before everything else in Body" reasoning as Step 3's splice.
+    if ( ImplicitCandidate.has_value() and not MovedOutNames.contains( ImplicitCandidate->Name.Value ) )
+    {
+        const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( ImplicitCandidate->Site );
+        const Frontend::ExprId CallId    = BuildFinalizeCall( Context, Loc, *ImplicitCandidate, LocalType, MethodScope );
+        EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+    }
 
     const Frontend::ExprId WrapId = Ast.Add( Frontend::ExprNode{ Frontend::BeginExpr{
         .Loc = Loc, .Body = std::move( SplicedBody ), .RescueClauses = {}, .EnsureBody = std::move( EnsureBody ) } } );
@@ -758,6 +883,80 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     Frontend::StmtList Result;
     Result.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = WrapId } } ) );
     return Result;
+}
+
+// Cheap, approximate pre-check: does Node.Body contain a RescueClause with a
+// bound VarName, anywhere reachable through the same statement-position
+// control-flow constructs ProcessBlock itself recurses into? Doesn't verify
+// the variable's *type* (that needs Values.SiteType, cheap enough on its own
+// but this scan only needs to decide whether ProcessBlock is worth calling
+// at all) — a false positive here just means ProcessBlock runs and finds
+// nothing, never a correctness issue.
+[[nodiscard]] bool ContainsNamedRescueClause ( const Frontend::AstContext &Ast, const Frontend::StmtList &Body )
+{
+    for ( const Frontend::StmtId Id : Body )
+    {
+        if ( not Id.IsValid() )
+        {
+            continue;
+        }
+        const Frontend::StmtNode &Node = Ast.Stmt( Id );
+        if ( const auto *WhileNode = std::get_if<Frontend::While>( &Node ) )
+        {
+            if ( ContainsNamedRescueClause( Ast, WhileNode->Body ) )
+            {
+                return true;
+            }
+            continue;
+        }
+        const auto *ExprStmtNode = std::get_if<Frontend::ExprStmt>( &Node );
+        if ( ExprStmtNode == nullptr )
+        {
+            continue;
+        }
+        const Frontend::ExprNode &Inner = Ast.Expr( ExprStmtNode->Expr );
+        if ( const auto *IfNode = std::get_if<Frontend::If>( &Inner ) )
+        {
+            if ( ContainsNamedRescueClause( Ast, IfNode->Then ) or ContainsNamedRescueClause( Ast, IfNode->Else ) )
+            {
+                return true;
+            }
+        }
+        else if ( const auto *CaseNode = std::get_if<Frontend::CaseExpr>( &Inner ) )
+        {
+            for ( const Frontend::StmtId ClauseId : CaseNode->Clauses )
+            {
+                if ( ContainsNamedRescueClause( Ast, std::get<Frontend::WhenClause>( Ast.Stmt( ClauseId ) ).Body ) )
+                {
+                    return true;
+                }
+            }
+            if ( ContainsNamedRescueClause( Ast, CaseNode->ElseBody ) )
+            {
+                return true;
+            }
+        }
+        else if ( const auto *BeginNode = std::get_if<Frontend::BeginExpr>( &Inner ) )
+        {
+            if ( ContainsNamedRescueClause( Ast, BeginNode->Body ) )
+            {
+                return true;
+            }
+            for ( const Frontend::StmtId RescueId : BeginNode->RescueClauses )
+            {
+                const auto &Rescue = std::get<Frontend::RescueClause>( Ast.Stmt( RescueId ) );
+                if ( Rescue.VarName.IsValid() )
+                {
+                    return true;
+                }
+                if ( ContainsNamedRescueClause( Ast, Rescue.Body ) )
+                {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
 }
 
 // Cheapest possible whole-method check: does this method's scope contain
@@ -779,23 +978,7 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
         {
             continue;
         }
-        const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( BindingIt->second.Site );
-        if ( not LocalType.IsValid() or not Context.Ctx.Values.Has( LocalType ) )
-        {
-            continue;
-        }
-        const Sema::NominalId Base = Context.Ctx.Values.Get( LocalType ).Base;
-        if ( not Base.IsValid() )
-        {
-            continue;
-        }
-        const Sema::NominalType &Nominal = Context.Ctx.Types.Type( Base );
-        if ( not Nominal.Layout.IsValid() or
-             Sema::KindOf( Context.Ctx.Types.Get( Nominal.Layout ) ) != Sema::LayoutKind::Aggregate )
-        {
-            continue;
-        }
-        if ( Sema::LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, LocalType, LocalType, FinalizeName ).Decl != nullptr )
+        if ( IsFinalizeCandidateType( Context, Context.Ctx.Values.SiteType( BindingIt->second.Site ) ) )
         {
             return true;
         }
@@ -847,7 +1030,7 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             continue;
         }
 
-        if ( not ScopeHasAnyFinalizeCandidate( Context, MethodScope ) )
+        if ( not ScopeHasAnyFinalizeCandidate( Context, MethodScope ) and not ContainsNamedRescueClause( Ast, Node.Body ) )
         {
             continue;
         }
