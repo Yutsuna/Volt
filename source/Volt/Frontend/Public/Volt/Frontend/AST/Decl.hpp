@@ -27,6 +27,9 @@ namespace Frontend
         Core::SourceRange Loc;
         Symbol Name;
         SymbolList Generics;
+        // Parallel to Generics: `Generics[i] : GenericBounds[i]`, invalid
+        // when parameter `i` has no bound (`T`, not `T : Finalizable`).
+        TypeList GenericBounds;
         TypeId Super;
         DeclList Body;
     };
@@ -37,6 +40,7 @@ namespace Frontend
         Core::SourceRange Loc;
         Symbol Name;
         SymbolList Generics;
+        TypeList GenericBounds;
         DeclList Body;
     };
 
@@ -46,6 +50,7 @@ namespace Frontend
         Core::SourceRange Loc;
         Symbol Name;
         SymbolList Generics;
+        TypeList GenericBounds;
         DeclList Body;
     };
 

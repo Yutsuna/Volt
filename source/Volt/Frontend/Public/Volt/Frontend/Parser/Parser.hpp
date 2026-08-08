@@ -260,7 +260,7 @@ namespace Frontend
         [[nodiscard]] DeclId ParseFieldOrMember ();
         void ParseDeclBlock ( DeclList &Out );
         void ParseParameterList ( ParamList &Out );
-        [[nodiscard]] SymbolList ParseGenericParams ();
+        [[nodiscard]] GenericParamList ParseGenericParams ();
 
         // --- Grammar: types (ParseType.cpp) ------------------------------
 
