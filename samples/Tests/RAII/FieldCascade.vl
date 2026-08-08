@@ -1,0 +1,51 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# A struct/class's own `finalize` never needs to hand-enumerate its own
+# Aggregate-typed fields — the compiler appends one `@field.finalize()` call
+# per candidate field after whatever body is written (or as the whole body,
+# for a class that declares `finalize` only to opt into the cascade).
+
+class Pair
+  getter a : String
+  getter b : String
+
+  def initialize( @a : String, @b : String )
+  end
+
+  # Deliberately empty — @a and @b are still finalized, entirely via the
+  # compiler's own field cascade.
+  def finalize -> Void
+  end
+end
+
+class Logger
+  getter tag : String
+  count : Int32
+
+  def initialize( @tag : String )
+    @count = 0
+  end
+
+  # Non-empty: the cascade appends after this, not instead of it.
+  def finalize -> Void
+    @count = -1
+  end
+end
+
+def use_pair -> UInt64
+  p = Pair.new( "hello-" + "world", "foo-" + "bar" )
+  p.a.size + p.b.size
+end
+
+def use_logger -> UInt64
+  l = Logger.new( "prefix-" + "suffix" )
+  l.tag.size
+end
+
+assert!( use_pair == 18_u64 )
+assert!( use_logger == 13_u64 )

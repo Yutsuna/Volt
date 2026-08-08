@@ -23,9 +23,17 @@ class Exception
     @backtrace = capture_backtrace()
   end
 
+  # @message and @backtrace are finalized automatically (the compiler's
+  # field-finalize cascade, .agents/CASCADE_FINALIZE.md item 3 — appended
+  # after this body). Array<T>#finalize itself doesn't cascade into its own
+  # elements yet (item 2, blocked on generic bounds Volt doesn't have), so
+  # each backtrace String element still needs freeing by hand here.
   def finalize -> Void
-    @message.finalize
-    @backtrace.finalize
+    i = 0_u64
+    while i < @backtrace.size
+      @backtrace[ i ].finalize
+      i += 1
+    end
   end
 
   def inspect -> String
