@@ -26,23 +26,45 @@ its own construction to the end of the enclosing statement.
 
 Status: design only, not yet implemented.
 
-## 2. `Array<T>#finalize` cascading into elements — BLOCKED
+## 2. `Array<T>#finalize` cascading into elements — DONE
 
-Needs generic type bounds (`T : Finalizable`) that Volt does not have.
-`MonoDriver`/`MonoBodyEmitter` (monomorphisation) live exclusively in
-`BackendLLVM/`, never in `Sema/`: a generic body like `Array<T>#finalize` is
-type-checked **once**, with `T` left deferred (`MarkDeferred`) —
-`FinalizeLowering` (a `TypeChecker` sweep) never sees a concrete `T` and
-cannot decide "does this `T` declare `finalize`". Deciding that in the
-backend would mean the backend acquiring protocol knowledge about a Volt
-construct, which `backend-machine-only.md` forbids outright.
+Turned out **not** to need generic bounds at all — the original "BLOCKED"
+framing conflated two different questions. `Array<T>#finalize`'s own body
+(inside `source/Lib/Primitives/Array.vl`) genuinely cannot special-case
+`T` (that *would* need bounds, `T : Finalizable`, and would wrongly force
+every `Array<T>` — including `Array<Int32>` — to require `T` to declare
+`finalize`). But the actual leak lived one layer up: whatever local/field
+*holds* the `Array<T>`. `FinalizeLowering.cpp` already resolves that
+holder's own generic argument (`GetElementFinalizeCandidateType`, reading
+`SemaType.Args[0]`, general to any single-generic-argument Aggregate, not
+just `Array` — no Volt name spelled in C++) and, if the element type is
+itself a finalize candidate (declares `finalize`, checked the same
+structural way as every other candidacy in this file — duck-typed, no
+bound), synthesizes a `while` loop calling `element.finalize()` on every
+element (via `.size`/`[]`, both ordinary member calls resolved through
+`InferExpr` — `rules/zero-hardcode.md`'s "a synthesized operator is not a
+built-in either") *before* the container's own `.finalize()`. This existed
+for **local** candidates already (`BuildFinalizeCall`, shipped in an earlier
+session); this pass added the same cascade to **field** candidates
+(`BuildFieldFinalizeCall`), by extracting the shared element-loop logic into
+`BuildFinalizeCallOnReceiver` (parameterized over a `MakeReadId` callable —
+an `Identifier` read for a local, an `InstanceVar` read for a field) so both
+call sites stay in sync instead of drifting.
 
-Real fix needs a language feature: generic bounds constraining `T`, checked
-at the generic definition site the same way `Arithmetic`'s abstract contracts
-already gate primitive operators. Out of scope until that lands.
+No new annotation, no bound on `Array<T>` itself — `Array<Int32>` is
+untouched and still typechecks with no `finalize` requirement on `Int32`.
+Verified valgrind-clean: `samples/Tests/RAII/FieldArrayElementCascade.vl`
+(a `struct` field typed `Array<String>`, no user-declared `finalize` at
+all — item 3's synthesis handles that half, this item's element loop
+handles the elements). Confirmed no double-free between the array-typed
+local passed into the constructor and the field alias it initializes (the
+existing "bare-identifier-read is an alias, not a candidate" rule in
+`CollectCandidates` already prevents the local from *also* being finalized
+independently of the field it was moved into).
 
-Status: **not started, explicitly deferred** — documented here as the
-blocking dependency for anyone revisiting this.
+Status: **done**. The generic-bounds language feature (below, item 3's
+prerequisite investigation) landed anyway as part of this epic, but this
+item did not end up needing it.
 
 ## 3. Auto field-finalize propagation for Aggregate fields — IN PROGRESS
 
