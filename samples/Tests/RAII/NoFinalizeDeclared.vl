@@ -18,4 +18,19 @@ def use_plain -> Int32
   p.tag
 end
 
+#------------------------------------------------------------------------------
+
+struct Holder
+  getter label : String
+
+  def initialize( @label : String )
+  end
+end
+
+def use_holder -> UInt64
+  h = Holder.new( "hello-" + "world" )
+  h.label.size
+end
+
 assert!( use_plain == 42 )
+assert!( use_holder == 11_u64 )
