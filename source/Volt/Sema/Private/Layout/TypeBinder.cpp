@@ -98,32 +98,32 @@ namespace Sema
                         [&] ( const Frontend::Module &Nested ) { ForEachTypeDecl( Ast, Nested.Body, Visit ); },
                         [&] ( const Frontend::Struct &Type )
                         {
-                            Visit( TypeDecl{ .Name           = Ast.Text( Type.Name ),
-                                             .Id             = Id,
-                                             .Generics       = &Type.Generics,
-                                             .Body           = &Type.Body,
-                                             .Super          = Frontend::TypeId{},
-                                             .GenericBounds  = &Type.GenericBounds },
+                            Visit( TypeDecl{ .Name          = Ast.Text( Type.Name ),
+                                             .Id            = Id,
+                                             .Generics      = &Type.Generics,
+                                             .Body          = &Type.Body,
+                                             .Super         = Frontend::TypeId{},
+                                             .GenericBounds = &Type.GenericBounds },
                                    Pending );
                         },
                         [&] ( const Frontend::Class &Type )
                         {
-                            Visit( TypeDecl{ .Name           = Ast.Text( Type.Name ),
-                                             .Id             = Id,
-                                             .Generics       = &Type.Generics,
-                                             .Body           = &Type.Body,
-                                             .Super          = Type.Super,
-                                             .GenericBounds  = &Type.GenericBounds },
+                            Visit( TypeDecl{ .Name          = Ast.Text( Type.Name ),
+                                             .Id            = Id,
+                                             .Generics      = &Type.Generics,
+                                             .Body          = &Type.Body,
+                                             .Super         = Type.Super,
+                                             .GenericBounds = &Type.GenericBounds },
                                    Pending );
                         },
                         [&] ( const Frontend::Mixin &Type )
                         {
-                            Visit( TypeDecl{ .Name           = Ast.Text( Type.Name ),
-                                             .Id             = Id,
-                                             .Generics       = &Type.Generics,
-                                             .Body           = &Type.Body,
-                                             .Super          = Frontend::TypeId{},
-                                             .GenericBounds  = &Type.GenericBounds },
+                            Visit( TypeDecl{ .Name          = Ast.Text( Type.Name ),
+                                             .Id            = Id,
+                                             .Generics      = &Type.Generics,
+                                             .Body          = &Type.Body,
+                                             .Super         = Frontend::TypeId{},
+                                             .GenericBounds = &Type.GenericBounds },
                                    Pending );
                         },
                         [&] ( const Frontend::Enum &Type )
@@ -1343,8 +1343,8 @@ namespace Sema
             // with the `@field.finalize()` epilogue exactly as it already
             // does for a hand-written `finalize`.
             Frontend::Method Stub;
-            Stub.Loc                     = Loc;
-            Stub.Name                    = Ast.Strings().Intern( FinalizeMemberName );
+            Stub.Loc                      = Loc;
+            Stub.Name                     = Ast.Strings().Intern( FinalizeMemberName );
             const Frontend::DeclId StubId = Ast.Add( Frontend::DeclNode{ std::move( Stub ) } );
 
             // Splice into the owning Struct/Class's own Body — copy-out,

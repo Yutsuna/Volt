@@ -132,8 +132,8 @@ namespace Sema
     ///
     /// Returns the first violation found, in parameter order — one
     /// diagnostic per `TypeRef`, matching every other check in this layer.
-    [[nodiscard]] SEMA_EXPORT std::optional<BoundViolation> CheckGenericBounds (
-        const TypeStore &Store, UnitTypes &Values, NominalId Base, std::span<const SemaTypeId> Args );
+    [[nodiscard]] SEMA_EXPORT std::optional<BoundViolation>
+    CheckGenericBounds ( const TypeStore &Store, UnitTypes &Values, NominalId Base, std::span<const SemaTypeId> Args );
 
     /// Resolve the type annotation `Id` through `Out`. `Generics` are the
     /// enclosing declaration's generic parameter names, matched by symbol.
@@ -210,19 +210,21 @@ namespace Sema
                                     Violation->ParamIndex < BaseType.Params.Size()
                                         ? std::string{ Store.Text( BaseType.Params[Violation->ParamIndex] ) }
                                         : std::string{ "?" };
-                                const std::string ArgName = Violation->SuppliedBase.IsValid()
-                                                                 ? std::string{ Store.Text( Store.Type( Violation->SuppliedBase ).Name ) }
-                                                                 : std::string{ "<unresolved>" };
-                                const std::string BoundName = Violation->RequiredBound.IsValid()
-                                                                   ? std::string{ Store.Text( Store.Type( Violation->RequiredBound ).Name ) }
-                                                                   : std::string{ "<unresolved>" };
-                                Out.Diags->Report( Core::Diagnostic{
-                                    .Severity = Core::ESeverity::Error,
-                                    .Range    = Ref.Loc,
-                                    .Message  = "type " + ArgName + " does not satisfy bound " + BoundName +
-                                               " required by generic parameter " + ParamName + " of " +
-                                               std::string{ Store.Text( BaseType.Name ) },
-                                    .Notes = {} } );
+                                const std::string ArgName =
+                                    Violation->SuppliedBase.IsValid()
+                                        ? std::string{ Store.Text( Store.Type( Violation->SuppliedBase ).Name ) }
+                                        : std::string{ "<unresolved>" };
+                                const std::string BoundName =
+                                    Violation->RequiredBound.IsValid()
+                                        ? std::string{ Store.Text( Store.Type( Violation->RequiredBound ).Name ) }
+                                        : std::string{ "<unresolved>" };
+                                Out.Diags->Report( Core::Diagnostic{ .Severity = Core::ESeverity::Error,
+                                                                     .Range    = Ref.Loc,
+                                                                     .Message  = "type " + ArgName + " does not satisfy bound " +
+                                                                                BoundName + " required by generic parameter " +
+                                                                                ParamName + " of " +
+                                                                                std::string{ Store.Text( BaseType.Name ) },
+                                                                     .Notes = {} } );
                             }
                         }
                     }

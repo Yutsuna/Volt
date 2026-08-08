@@ -332,6 +332,65 @@ struct FinalizeCandidate
     return Sema::LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, LocalType, LocalType, FinalizeName ).Decl != nullptr;
 }
 
+// Does `Candidate`'s own Binding appear, by bare name, as a positional
+// argument to a *constructor* call (`Type.new( x )`, `Resolution::bConstructs`)
+// anywhere in this file? Volt has no move/borrow system (the alias-init
+// guard just above already documents this same limitation for `a2 = a1`) —
+// passing an Aggregate local into `Type.new( x )` is a struct-copy exactly
+// like an assignment is, and when the constructor stores the parameter into
+// a field via the `@x` shorthand (the overwhelmingly common shape), that
+// field now aliases the caller's own local. Two independent finalizes of the
+// same buffer is a double free (confirmed empirically: `arr = Array<String>.
+// new; arr << "x"; b = Bag.new( arr )` — `arr` finalizes its buffer, then
+// `b.finalize`'s field cascade frees the identical pointer again).
+//
+// Scoped to constructors only, not every call: an ordinary function
+// (`drain_event_queue( events )`, ControlFlow/WhileLoop.vl) reads its
+// argument transiently and returns, so its own local is correctly still
+// live and must still be finalized — the false positive this scoping avoids
+// (`WhileLoop.vl` started leaking `pending_events` when this checked every
+// call, not just `bConstructs` ones). Within *that* scope this is still
+// coarser than checking whether the matched parameter actually carries the
+// `@` shorthand: resolving a callee that lives in another unit would need
+// that unit's own AstContext, not just the frozen TypeStore's `Member`
+// (a signature, not which parameter is instance-var-backed). Treating every
+// bare-name constructor argument as a possible escape trades a narrower
+// false positive (a constructor that reads its argument transiently, never
+// storing it, now leaks that argument instead of double-freeing) for safety
+// — leaking is item 1's own already-accepted gap, corruption is not.
+// `BindingOf` resolves each argument's own Binding, so a shadowed name in a
+// nested scope can never be confused with this candidate's.
+[[nodiscard]] bool EscapesAsConstructorArgument ( TypeCheckerContext &Context, const Sema::Binding &CandidateBinding )
+{
+    const Frontend::AstContext &Ast = Context.Ctx.Ast;
+    for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        const auto *CallNode = std::get_if<Frontend::Call>( &Ast.Expr( Id ) );
+        if ( CallNode == nullptr )
+        {
+            continue;
+        }
+        const auto ResolutionIt = Context.CalleeResolution.find( CallNode->Callee.Value );
+        if ( ResolutionIt == Context.CalleeResolution.end() or not ResolutionIt->second.bConstructs )
+        {
+            continue;
+        }
+        for ( const Frontend::ExprId ArgId : CallNode->Args )
+        {
+            if ( not ArgId.IsValid() or not std::holds_alternative<Frontend::Identifier>( Ast.Expr( ArgId ) ) )
+            {
+                continue;
+            }
+            if ( Context.Ctx.Scopes.BindingOf( ArgId ) == &CandidateBinding )
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // Candidacy per the plan (design decision 2): declared directly at the top
 // level of Body (never hoisted in from a nested branch — an implicit
 // local's binding is hoisted to NearestNonBranchScope by ScopeResolver even
@@ -453,6 +512,11 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
             continue;
         }
 
+        if ( EscapesAsConstructorArgument( Context, Entry ) )
+        {
+            continue;
+        }
+
         Result.push_back( FinalizeCandidate{ .Site = Entry.Site, .Name = Name, .BodyIndex = BodyIndex } );
     }
 
@@ -493,8 +557,10 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 // and a field (`BuildFieldFinalizeCall`, an InstanceVar read) — the two
 // differ only in what kind of node MakeReadId builds.
 template <typename MakeReadIdFn>
-[[nodiscard]] Frontend::ExprId
-BuildFinalizeCallOnReceiver ( TypeCheckerContext &Context, Core::SourceRange Loc, MakeReadIdFn MakeReadId, Sema::SemaTypeId ValueType )
+[[nodiscard]] Frontend::ExprId BuildFinalizeCallOnReceiver ( TypeCheckerContext &Context,
+                                                             Core::SourceRange Loc,
+                                                             MakeReadIdFn MakeReadId,
+                                                             Sema::SemaTypeId ValueType )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -515,8 +581,8 @@ BuildFinalizeCallOnReceiver ( TypeCheckerContext &Context, Core::SourceRange Loc
         // e.g. `IntLiteral`/`PointerType` — never "which type is named
         // this"; no type claims a node kind literally spelled `UInt64`, so
         // the lookup always failed and this entire cascade was dead code).
-        const Sema::ScopeId LoopScope = Context.Ctx.Scopes.PushScope( Sema::ScopeId{}, Sema::EScopeKind::Branch );
-        const Core::Symbol IdxName    = Ast.MakeUniqueSymbol( "__fin_i" );
+        const Sema::ScopeId LoopScope   = Context.Ctx.Scopes.PushScope( Sema::ScopeId{}, Sema::EScopeKind::Branch );
+        const Core::Symbol IdxName      = Ast.MakeUniqueSymbol( "__fin_i" );
         const Sema::Binding *IdxBinding = nullptr;
 
         auto MakeIdxReadId = [&] () -> Frontend::ExprId
@@ -572,9 +638,9 @@ BuildFinalizeCallOnReceiver ( TypeCheckerContext &Context, Core::SourceRange Loc
         // TypeChecker runs, and this synthesis happens *inside* TypeChecker
         // — a raw `Index` node here would survive to `AstInvariant` and be
         // refused as residual sugar.
-        const Frontend::ExprId IndexArgsId = MakeIdxReadId();
-        const Frontend::ExprId IndexCalleeId = Ast.Add( Frontend::ExprNode{
-            Frontend::Member{ .Loc = Loc, .Object = MakeReadId(), .Name = Ast.Strings().Intern( "[]" ) } } );
+        const Frontend::ExprId IndexArgsId   = MakeIdxReadId();
+        const Frontend::ExprId IndexCalleeId = Ast.Add(
+            Frontend::ExprNode{ Frontend::Member{ .Loc = Loc, .Object = MakeReadId(), .Name = Ast.Strings().Intern( "[]" ) } } );
         const Frontend::ExprId ElementId = Ast.Add( Frontend::ExprNode{
             Frontend::Call{ .Loc = Loc, .Callee = IndexCalleeId, .Args = { IndexArgsId }, .ArgNames = {}, .BlockArg = {} } } );
         InferExpr( Context, ElementId );
@@ -584,8 +650,7 @@ BuildFinalizeCallOnReceiver ( TypeCheckerContext &Context, Core::SourceRange Loc
         const Frontend::ExprId ElemCallId   = Ast.Add( Frontend::ExprNode{
             Frontend::Call{ .Loc = Loc, .Callee = ElemMemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
         InferExpr( Context, ElemCallId );
-        const Frontend::StmtId ElemStmtId =
-            Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = ElemCallId } } );
+        const Frontend::StmtId ElemStmtId = Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = ElemCallId } } );
 
         // 4. Body statement 2: __fin_i = __fin_i + 1
         const Frontend::ExprId OneLitId =
@@ -613,11 +678,10 @@ BuildFinalizeCallOnReceiver ( TypeCheckerContext &Context, Core::SourceRange Loc
         // 6. Finalize candidate call: candidate.finalize()
         const Frontend::ExprId MemberId = Ast.Add( Frontend::ExprNode{
             Frontend::Member{ .Loc = Loc, .Object = MakeReadId(), .Name = Ast.Strings().Intern( FinalizeName ) } } );
-        const Frontend::ExprId CallId   = Ast.Add( Frontend::ExprNode{
-            Frontend::Call{ .Loc = Loc, .Callee = MemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
+        const Frontend::ExprId CallId   = Ast.Add(
+            Frontend::ExprNode{ Frontend::Call{ .Loc = Loc, .Callee = MemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
         InferExpr( Context, CallId );
-        const Frontend::StmtId FinalizeStmtId =
-            Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } );
+        const Frontend::StmtId FinalizeStmtId = Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } );
 
         // 7. BeginExpr wrapping the sequence
         Frontend::StmtList BeginBody;
@@ -1206,13 +1270,101 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
 // not resolved until instantiation (the same MonoDriver-lives-only-in-
 // BackendLLVM wall CASCADE_FINALIZE.md's item 2 hits).
 
+// Forward declarations — a StmtId's own fields and an ExprId's own fields
+// recurse into each other, same shape as ContainsExitStmt/ContainsExitExpr
+// above.
+void CollectHandFinalizedFieldsStmt ( const Frontend::AstContext &Ast, Frontend::StmtId Id, std::unordered_set<std::uint32_t> &Out );
+void CollectHandFinalizedFields ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::unordered_set<std::uint32_t> &Out );
+
+// Same reflective-descent shape as ScanExitFields above (Meta::ForEachField,
+// not a hand-picked switch over every node kind — rules/meta-first.md), but
+// collecting a set instead of a bool: every `@field.finalize` (or
+// `@field.finalize()`) call reachable anywhere in a user-written `finalize`
+// body, keyed by the InstanceVar's own interned spelling (kept with its
+// leading `@`, matching `BuildFieldFinalizeCall`'s own `AtName`).
+template <typename NodeVariant>
+void ScanHandFinalizedFields ( const Frontend::AstContext &Ast, const NodeVariant &Variant, std::unordered_set<std::uint32_t> &Out )
+{
+    std::visit(
+        [&] ( const auto &Node )
+        {
+            using T = std::remove_cvref_t<decltype( Node )>;
+            if constexpr ( not std::is_same_v<T, std::monostate> )
+            {
+                Meta::ForEachField( Node,
+                                    [&] ( const char *, const auto &Field )
+                                    {
+                                        using F = std::remove_cvref_t<decltype( Field )>;
+                                        if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                                        {
+                                            CollectHandFinalizedFields( Ast, Field, Out );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                                        {
+                                            for ( const Frontend::ExprId Child : Field )
+                                            {
+                                                CollectHandFinalizedFields( Ast, Child, Out );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtId> )
+                                        {
+                                            CollectHandFinalizedFieldsStmt( Ast, Field, Out );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                        {
+                                            for ( const Frontend::StmtId Child : Field )
+                                            {
+                                                CollectHandFinalizedFieldsStmt( Ast, Child, Out );
+                                            }
+                                        }
+                                    } );
+            }
+        },
+        Variant );
+}
+
+void CollectHandFinalizedFieldsStmt ( const Frontend::AstContext &Ast, Frontend::StmtId Id, std::unordered_set<std::uint32_t> &Out )
+{
+    if ( not Id.IsValid() )
+    {
+        return;
+    }
+    ScanHandFinalizedFields( Ast, Ast.Stmt( Id ), Out );
+}
+
+void CollectHandFinalizedFields ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::unordered_set<std::uint32_t> &Out )
+{
+    if ( not Id.IsValid() )
+    {
+        return;
+    }
+    const Frontend::ExprNode &Node = Ast.Expr( Id );
+    if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
+    {
+        if ( CallNode->Callee.IsValid() )
+        {
+            if ( const auto *MemberNode = std::get_if<Frontend::Member>( &Ast.Expr( CallNode->Callee ) ) )
+            {
+                if ( MemberNode->Object.IsValid() and Ast.Text( MemberNode->Name ) == FinalizeName )
+                {
+                    if ( const auto *IVarNode = std::get_if<Frontend::InstanceVar>( &Ast.Expr( MemberNode->Object ) ) )
+                    {
+                        Out.insert( IVarNode->Name.Value );
+                    }
+                }
+            }
+        }
+    }
+    ScanHandFinalizedFields( Ast, Node, Out );
+}
+
 // Every Field declared directly in Body whose resolved type is an
 // Aggregate-layout, finalize-declaring candidate — resolved straight off
 // each Field's own written TypeRef (ResolveTypeExpr), never through
 // TypeStore/NominalId machinery: a non-generic type's field types need no
 // instantiation, so there is nothing generic-argument-shaped to substitute.
-[[nodiscard]] std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>>
-CollectCascadeFields ( TypeCheckerContext &Context, const Frontend::DeclList &Body )
+[[nodiscard]] std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> CollectCascadeFields ( TypeCheckerContext &Context,
+                                                                                            const Frontend::DeclList &Body )
 {
     std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Result;
     const Frontend::AstContext &Ast = Context.Ctx.Ast;
@@ -1242,7 +1394,8 @@ CollectCascadeFields ( TypeCheckerContext &Context, const Frontend::DeclList &Bo
 // The Struct/Class's own `finalize`, if directly declared in Body — a plain
 // AST scan, not a TypeStore lookup: answering "is one of Body's own
 // elements a Method named finalize" needs no member-resolution machinery.
-[[nodiscard]] std::optional<Frontend::DeclId> FindOwnFinalizeMethod ( const Frontend::AstContext &Ast, const Frontend::DeclList &Body )
+[[nodiscard]] std::optional<Frontend::DeclId> FindOwnFinalizeMethod ( const Frontend::AstContext &Ast,
+                                                                      const Frontend::DeclList &Body )
 {
     for ( const Frontend::DeclId Id : Body )
     {
@@ -1382,11 +1535,37 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
         {
             continue;
         }
-        const std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Fields = CollectCascadeFields( Context, *Body );
+        std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Fields = CollectCascadeFields( Context, *Body );
         if ( Fields.empty() )
         {
             continue;
         }
+
+        // A user-written `finalize` may already call `@field.finalize`
+        // itself (the only correct way to write one before this cascade
+        // existed — Exception.vl's own former backtrace loop did exactly
+        // this). Appending the cascade on top unconditionally would double
+        // free that field (confirmed empirically: a `finalize` whose whole
+        // body is `@s.finalize` had its single field freed twice once the
+        // cascade landed). Only cascade fields the body does not already
+        // finalize by hand.
+        const auto &FinalizeMethod = std::get<Frontend::Method>( Ast.Decl( *FinalizeId ) );
+        std::unordered_set<std::uint32_t> HandFinalized;
+        for ( const Frontend::StmtId StmtId : FinalizeMethod.Body )
+        {
+            CollectHandFinalizedFieldsStmt( Ast, StmtId, HandFinalized );
+        }
+        std::erase_if( Fields,
+                       [&] ( const std::pair<Core::Symbol, Sema::SemaTypeId> &Entry )
+                       {
+                           const Core::Symbol AtName = Ast.Strings().Intern( "@" + std::string( Ast.Text( Entry.first ) ) );
+                           return HandFinalized.contains( AtName.Value );
+                       } );
+        if ( Fields.empty() )
+        {
+            continue;
+        }
+
         AppendFieldCascade( Context, *FinalizeId, Fields );
     }
 

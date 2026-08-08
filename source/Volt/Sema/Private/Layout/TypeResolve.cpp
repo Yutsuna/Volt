@@ -138,8 +138,8 @@ namespace Sema
         return InstantiatedMember{};
     }
 
-    std::optional<BoundViolation> CheckGenericBounds (
-        const TypeStore &Store, UnitTypes &Values, NominalId Base, std::span<const SemaTypeId> Args )
+    std::optional<BoundViolation>
+    CheckGenericBounds ( const TypeStore &Store, UnitTypes &Values, NominalId Base, std::span<const SemaTypeId> Args )
     {
         if ( not Base.IsValid() )
         {
