@@ -1135,11 +1135,200 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
     return false;
 }
 
+// --- Auto field-finalize cascade (.agents/CASCADE_FINALIZE.md item 3) -----
+//
+// A struct/class's own `finalize` should not need to hand-enumerate every
+// Aggregate-typed field itself (Exception#finalize did, by hand, before
+// this). Scoped to a type that already declares its own `finalize` —
+// synthesizing a brand-new Method Decl for a type with *no* declared
+// `finalize` would need registering with TypeStore/ScopeResolver *before*
+// TypeChecker runs (the same reason ClosureLifting's synthesized functions
+// get their own dedicated SynthesizedFunctions table rather than an
+// ordinary Decl append at this pass's own late stage — a Decl added here
+// would never be visible to TypeBinder's member table or the backend's own
+// per-type emission walk). CASCADE_FINALIZE.md tracks that half separately.
+// Also scoped to non-generic types only: a generic type's field types are
+// not resolved until instantiation (the same MonoDriver-lives-only-in-
+// BackendLLVM wall CASCADE_FINALIZE.md's item 2 hits).
+
+// Every Field declared directly in Body whose resolved type is an
+// Aggregate-layout, finalize-declaring candidate — resolved straight off
+// each Field's own written TypeRef (ResolveTypeExpr), never through
+// TypeStore/NominalId machinery: a non-generic type's field types need no
+// instantiation, so there is nothing generic-argument-shaped to substitute.
+[[nodiscard]] std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>>
+CollectCascadeFields ( TypeCheckerContext &Context, const Frontend::DeclList &Body )
+{
+    std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Result;
+    const Frontend::AstContext &Ast = Context.Ctx.Ast;
+    for ( const Frontend::DeclId Id : Body )
+    {
+        if ( not Id.IsValid() )
+        {
+            continue;
+        }
+        const auto *FieldNode = std::get_if<Frontend::Field>( &Ast.Decl( Id ) );
+        if ( FieldNode == nullptr )
+        {
+            continue;
+        }
+        Sema::UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Sema::SemaTypeId{}, .Bindings = {} };
+        const Sema::SemaTypeId FieldType =
+            Sema::ResolveTypeExpr( Ast, Context.Ctx.Types, /*Generics=*/{}, Sink, FieldNode->DeclType );
+        if ( not IsFinalizeCandidateType( Context, FieldType ) )
+        {
+            continue;
+        }
+        Result.emplace_back( FieldNode->Name, FieldType );
+    }
+    return Result;
+}
+
+// The Struct/Class's own `finalize`, if directly declared in Body — a plain
+// AST scan, not a TypeStore lookup: answering "is one of Body's own
+// elements a Method named finalize" needs no member-resolution machinery.
+[[nodiscard]] std::optional<Frontend::DeclId> FindOwnFinalizeMethod ( const Frontend::AstContext &Ast, const Frontend::DeclList &Body )
+{
+    for ( const Frontend::DeclId Id : Body )
+    {
+        if ( not Id.IsValid() )
+        {
+            continue;
+        }
+        if ( const auto *MethodNode = std::get_if<Frontend::Method>( &Ast.Decl( Id ) ) )
+        {
+            if ( Ast.Text( MethodNode->Name ) == FinalizeName )
+            {
+                return Id;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+// `@field.finalize()` — mirrors BuildFinalizeCall's own shape (manual type
+// on the receiver, InferExpr for the Member/Call), but the receiver is an
+// InstanceVar rather than an Identifier: field access needs no scope
+// Binding at all (ExprPlaceEmitter reads it off Frame().Self directly at
+// codegen), and resolving it through the ordinary InstanceVar arm of
+// InferExpr would need Context.SelfValue set to this type — not ambient
+// here, since this step runs over every Struct/Class Decl in the file,
+// outside any per-method walk. Setting the type directly (InferExpr's own
+// cache check memoizes it, ExprInferencer.cpp) sidesteps that without
+// needing to fake a Self context.
+[[nodiscard]] Frontend::ExprId
+BuildFieldFinalizeCall ( TypeCheckerContext &Context, Core::SourceRange Loc, Core::Symbol FieldName, Sema::SemaTypeId FieldType )
+{
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    // The written spelling keeps its `@` (ExprPlaceEmitter's own doc
+    // comment on InstanceVar) — Field.Name never carries one, so this
+    // synthesizes the same spelling a hand-written `@message` token would
+    // have interned.
+    const Core::Symbol AtName     = Ast.Strings().Intern( "@" + std::string( Ast.Text( FieldName ) ) );
+    const Frontend::ExprId IVarId = Ast.Add( Frontend::ExprNode{ Frontend::InstanceVar{ .Loc = Loc, .Name = AtName } } );
+    Context.Ctx.Values.SetExprType( IVarId, FieldType );
+
+    const Frontend::ExprId MemberId = Ast.Add(
+        Frontend::ExprNode{ Frontend::Member{ .Loc = Loc, .Object = IVarId, .Name = Ast.Strings().Intern( FinalizeName ) } } );
+    const Frontend::ExprId CallId = Ast.Add(
+        Frontend::ExprNode{ Frontend::Call{ .Loc = Loc, .Callee = MemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
+    InferExpr( Context, CallId );
+    return CallId;
+}
+
+// Appends one `@field.finalize()` ExprStmt per cascade-candidate field to
+// the end of an *existing*, user-declared `finalize` method's own Body.
+// Reverse field declaration order (last-declared, first-finalized),
+// matching every other finalize ordering this pass already produces. Runs
+// before InsertFinalizeCalls' own per-Method loop, so the ordinary
+// candidate/wrap machinery (ProcessBlock) sees the cascade calls as part of
+// the body it instruments, exactly like a hand-written tail.
+void AppendFieldCascade ( TypeCheckerContext &Context,
+                          Frontend::DeclId FinalizeMethodId,
+                          const std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> &Fields )
+{
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    // Copied out before any Add() below appends to the Expr/Stmt arenas
+    // (rules/ast-rewrite.md).
+    Frontend::Method Node = std::get<Frontend::Method>( Ast.Decl( FinalizeMethodId ) );
+
+    // A user-declared `finalize` with a genuinely empty body (only the
+    // cascade needed, nothing hand-written) is a legitimate shape — there is
+    // no Body[0] to read a Loc off, so fall back to the Method's own.
+    Core::SourceRange Loc = Node.Loc;
+    if ( not Node.Body.IsEmpty() )
+    {
+        std::visit(
+            [&] ( const auto &N )
+            {
+                using T = std::remove_cvref_t<decltype( N )>;
+                if constexpr ( not std::is_same_v<T, std::monostate> )
+                {
+                    Loc = N.Loc;
+                }
+            },
+            Ast.Stmt( Node.Body[Node.Body.Size() - 1] ) );
+    }
+
+    for ( auto It = Fields.rbegin(); It != Fields.rend(); ++It )
+    {
+        const Frontend::ExprId CallId = BuildFieldFinalizeCall( Context, Loc, It->first, It->second );
+        Node.Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+    }
+
+    Ast.Decl( FinalizeMethodId ) = Frontend::DeclNode{ std::move( Node ) };
+}
+
 } // namespace
 
 void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Context )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    // Field cascade (.agents/CASCADE_FINALIZE.md item 3) — runs first, over
+    // every Struct/Class Decl, so a type's own `finalize` (if it has one)
+    // already carries its field-cascade epilogue by the time the ordinary
+    // per-Method loop below instruments it. Never adds a Decl (only
+    // appends Stmts to an *existing* Method's Body), so it needs no
+    // DeclCount snapshot of its own — the arena's Decl slots are stable
+    // across this loop.
+    for ( std::size_t Index = 0; Index < Ast.DeclCount(); ++Index )
+    {
+        const Frontend::DeclId Id{ static_cast<Frontend::DeclId::ValueType>( Index ) };
+        const Frontend::DeclList *Body = nullptr;
+        if ( const auto *StructNode = std::get_if<Frontend::Struct>( &Ast.Decl( Id ) ) )
+        {
+            if ( StructNode->Generics.IsEmpty() )
+            {
+                Body = &StructNode->Body;
+            }
+        }
+        else if ( const auto *ClassNode = std::get_if<Frontend::Class>( &Ast.Decl( Id ) ) )
+        {
+            if ( ClassNode->Generics.IsEmpty() )
+            {
+                Body = &ClassNode->Body;
+            }
+        }
+        if ( Body == nullptr )
+        {
+            continue;
+        }
+
+        const std::optional<Frontend::DeclId> FinalizeId = FindOwnFinalizeMethod( Ast, *Body );
+        if ( not FinalizeId.has_value() )
+        {
+            continue;
+        }
+        const std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Fields = CollectCascadeFields( Context, *Body );
+        if ( Fields.empty() )
+        {
+            continue;
+        }
+        AppendFieldCascade( Context, *FinalizeId, Fields );
+    }
 
     // A file's own top-level statements are a distinct list from any Method
     // body (Ast.TopStmts, a plain std::vector<StmtId> — never a
