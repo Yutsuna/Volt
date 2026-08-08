@@ -440,6 +440,23 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         }
         Sema::ResolveStructLayouts( UnitAsts, Types );
 
+        // Still serial, still the same seam, right after field layouts land
+        // and before any signature is resolved: synthesize an empty
+        // `finalize` for every non-generic Struct/Class that declares none
+        // of its own but has a cascade-candidate field
+        // (.agents/CASCADE_FINALIZE.md item 3 — SynthesizeFinalizeStubs's
+        // own doc comment has the full contract). Needs a *mutable* AST per
+        // unit (it splices a new Method Decl into a type's own Body), unlike
+        // ResolveStructLayouts' read-only UnitAsts above — built the same
+        // way, a null entry for a cache-hit stdlib slot skipped identically.
+        std::vector<Frontend::AstContext *> MutableUnitAsts;
+        MutableUnitAsts.reserve( Units.size() );
+        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+        {
+            MutableUnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
+        }
+        Sema::SynthesizeFinalizeStubs( MutableUnitAsts, Types );
+
         // Still serial, still the same seam, but a second pass: a signature
         // may name a type declared in a file that comes later, so every name
         // must exist before any signature is resolved — otherwise stdlib file
