@@ -1,0 +1,57 @@
+@[External( "libc", "memcpy" )]
+external def libc_memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
+
+
+struct StringBuilder
+  buffer   : Pointer<UInt8>
+  size     : UInt64
+  capacity : UInt64
+
+  def initialize( initial_capacity : UInt64 = 16 )
+    @size = 0
+    @capacity = initial_capacity
+    @buffer = Pointer<UInt8>.malloc( @capacity )
+  end
+
+  def finalize -> Void
+    @buffer.free if @buffer != nil
+  end
+
+  def grow_to( needed : UInt64 ) -> Void
+    return if needed <= @capacity
+    new_cap = @capacity == 0 ? 8 : @capacity * 2
+    while new_cap < needed
+      new_cap = new_cap * 2
+    end
+    new_buf = Pointer<UInt8>.malloc( new_cap )
+    libc_memcpy( new_buf, @buffer, @size )
+    @buffer.free
+    @buffer = new_buf
+    @capacity = new_cap
+  end
+
+  def append( str : String ) -> self
+    grow_to( @size + str.size )
+    libc_memcpy( @buffer + @size, str.data, str.size )
+    @size += str.size
+    self
+  end
+
+  def append_byte( byte : UInt8 ) -> self
+    grow_to( @size + 1_u64 )
+    *( @buffer + @size ) = byte
+    @size += 1
+    self
+  end
+
+  def clear -> Void
+    @size = 0
+  end
+
+  def build -> String
+    buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+    libc_memcpy( buf, @buffer, @size )
+    *( buf + @size ) = 0_u8
+    String.owned( buf, @size )
+  end
+end
