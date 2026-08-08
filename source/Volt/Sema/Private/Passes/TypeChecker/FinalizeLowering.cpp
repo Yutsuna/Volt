@@ -1135,8 +1135,6 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
     return false;
 }
 
-// --- Auto field-finalize cascade (.agents/CASCADE_FINALIZE.md item 3) -----
-//
 // A struct/class's own `finalize` should not need to hand-enumerate every
 // Aggregate-typed field itself (Exception#finalize did, by hand, before
 // this). Scoped to a type that already declares its own `finalize` —
