@@ -23,6 +23,11 @@ class Exception
     @backtrace = capture_backtrace()
   end
 
+  def finalize -> Void
+    @message.finalize
+    @backtrace.finalize
+  end
+
   def inspect -> String
     "#{@message}\n" + format_backtrace()
   end
@@ -45,7 +50,7 @@ class Exception
         while i < frames_count
           raw_sym = *( symbols + i )
           if raw_sym != nil
-            frames.push( String.from_c_string( raw_sym ) )
+            frames.push( String.from_c_string( raw_sym ).dup )
           end
           i += 1
         end
@@ -64,18 +69,24 @@ class Exception
              ordinary method, not a backend hook.
   #}
   def report_unhandled -> Void
-    text = "Unhandled exception: " + @message + "\n"
+    sb = StringBuilder.new
+    sb.append( "Unhandled exception: " )
+    sb.append( @message )
+    sb.append_byte( 10_u8 )
+    text = sb.build
     libc_write( 2, text.data, text.size )
   end
 
   def format_backtrace -> String
-    result = ""
+    sb = StringBuilder.new
     i = 0_u64
     while i < @backtrace.size
-      result = result + "  from " + @backtrace[ i ] + "\n"
+      sb.append( "  from " )
+      sb.append( @backtrace[ i ] )
+      sb.append_byte( 10_u8 )
       i += 1
     end
-    result
+    sb.build
   end
 end
 

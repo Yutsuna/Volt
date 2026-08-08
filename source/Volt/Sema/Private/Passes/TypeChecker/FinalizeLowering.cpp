@@ -461,6 +461,25 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
     return Result;
 }
 
+[[nodiscard]] Sema::SemaTypeId GetElementFinalizeCandidateType ( TypeCheckerContext &Context, Sema::SemaTypeId LocalType )
+{
+    if ( not LocalType.IsValid() or not Context.Ctx.Values.Has( LocalType ) )
+    {
+        return Sema::SemaTypeId{};
+    }
+    const Sema::SemaType &SemType = Context.Ctx.Values.Get( LocalType );
+    if ( SemType.Args.IsEmpty() )
+    {
+        return Sema::SemaTypeId{};
+    }
+    const Sema::SemaTypeId ElemType = SemType.Args[0];
+    if ( IsFinalizeCandidateType( Context, ElemType ) )
+    {
+        return ElemType;
+    }
+    return Sema::SemaTypeId{};
+}
+
 // `<candidate>.finalize()` — an ordinary read of the local, resolved through
 // InferExpr/MemberType exactly as hand-written source would be
 // (rules/backend-machine-only.md's "a synthesized operator is not a built-in
@@ -473,21 +492,120 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
-    const Frontend::ExprId ReadId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Candidate.Name } } );
-    // DirectBinding is set only for a RescueClause's own bound variable,
-    // whose Binding lives in a Scope Resolve-by-name against MethodScope can
-    // never reach (see FinalizeCandidate's own doc comment) — every other
-    // candidate's Binding is exactly what Resolve already finds.
-    if ( Candidate.DirectBinding != nullptr )
+    auto MakeReadId = [&] () -> Frontend::ExprId
     {
-        Context.Ctx.Scopes.BindUse( ReadId, *Candidate.DirectBinding, true );
-    }
-    else if ( const Sema::Binding *Bound = Context.Ctx.Scopes.Resolve( MethodScope, Candidate.Name ) )
-    {
-        Context.Ctx.Scopes.BindUse( ReadId, *Bound, true );
-    }
-    Context.Ctx.Values.SetExprType( ReadId, LocalType );
+        const Frontend::ExprId ReadId =
+            Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Candidate.Name } } );
+        if ( Candidate.DirectBinding != nullptr )
+        {
+            Context.Ctx.Scopes.BindUse( ReadId, *Candidate.DirectBinding, true );
+        }
+        else if ( const Sema::Binding *Bound = Context.Ctx.Scopes.Resolve( MethodScope, Candidate.Name ) )
+        {
+            Context.Ctx.Scopes.BindUse( ReadId, *Bound, true );
+        }
+        Context.Ctx.Values.SetExprType( ReadId, LocalType );
+        return ReadId;
+    };
 
+    const Sema::SemaTypeId ElemType = GetElementFinalizeCandidateType( Context, LocalType );
+    if ( ElemType.IsValid() )
+    {
+        const auto UInt64NominalOpt = Context.Ctx.Types.LookupNodeKind( "UInt64" );
+        if ( UInt64NominalOpt.has_value() )
+        {
+            const Sema::SemaTypeId UInt64Type = Context.MakeType( *UInt64NominalOpt, {} );
+            const Core::Symbol IdxName        = Ast.Strings().Intern( "__fin_i" );
+
+            auto MakeIdxReadId = [&] () -> Frontend::ExprId
+            {
+                const Frontend::ExprId Id = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = IdxName } } );
+                Context.Ctx.Values.SetExprType( Id, UInt64Type );
+                return Id;
+            };
+
+            // 1. Init: __fin_i = 0_u64
+            const Frontend::ExprId ZeroLitId =
+                Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( "0_u64" ) } } );
+            InferExpr( Context, ZeroLitId );
+            Context.Ctx.Values.SetExprType( ZeroLitId, UInt64Type );
+
+            const Frontend::ExprId InitAssignId =
+                Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = Loc, .Target = MakeIdxReadId(), .Value = ZeroLitId } } );
+            InferExpr( Context, InitAssignId );
+            const Frontend::StmtId InitStmtId =
+                Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = InitAssignId } } );
+
+            // 2. Condition: __fin_i < candidate.size
+            const Frontend::ExprId ReadIdSize = Ast.Add( Frontend::ExprNode{
+                Frontend::Member{ .Loc = Loc, .Object = MakeReadId(), .Name = Ast.Strings().Intern( "size" ) } } );
+            InferExpr( Context, ReadIdSize );
+
+            const Frontend::ExprId CondId = Ast.Add( Frontend::ExprNode{
+                Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Lt, .Lhs = MakeIdxReadId(), .Rhs = ReadIdSize } } );
+            InferExpr( Context, CondId );
+
+            // 3. Body statement 1: candidate[__fin_i].finalize()
+            const Frontend::ExprId IndexArgsId = MakeIdxReadId();
+            const Frontend::ExprId ElementId =
+                Ast.Add( Frontend::ExprNode{ Frontend::Index{ .Loc = Loc, .Object = MakeReadId(), .Args = { IndexArgsId } } } );
+            InferExpr( Context, ElementId );
+
+            const Frontend::ExprId ElemMemberId = Ast.Add( Frontend::ExprNode{
+                Frontend::Member{ .Loc = Loc, .Object = ElementId, .Name = Ast.Strings().Intern( FinalizeName ) } } );
+            const Frontend::ExprId ElemCallId   = Ast.Add( Frontend::ExprNode{
+                Frontend::Call{ .Loc = Loc, .Callee = ElemMemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
+            InferExpr( Context, ElemCallId );
+            const Frontend::StmtId ElemStmtId =
+                Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = ElemCallId } } );
+
+            // 4. Body statement 2: __fin_i = __fin_i + 1_u64
+            const Frontend::ExprId OneLitId =
+                Ast.Add( Frontend::ExprNode{ Frontend::IntLiteral{ .Loc = Loc, .Raw = Ast.Strings().Intern( "1_u64" ) } } );
+            InferExpr( Context, OneLitId );
+            Context.Ctx.Values.SetExprType( OneLitId, UInt64Type );
+
+            const Frontend::ExprId AddId = Ast.Add( Frontend::ExprNode{
+                Frontend::Binary{ .Loc = Loc, .Op = Frontend::TokenKind::Plus, .Lhs = MakeIdxReadId(), .Rhs = OneLitId } } );
+            InferExpr( Context, AddId );
+
+            const Frontend::ExprId IncrAssignId =
+                Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = Loc, .Target = MakeIdxReadId(), .Value = AddId } } );
+            InferExpr( Context, IncrAssignId );
+            const Frontend::StmtId IncrStmtId =
+                Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = IncrAssignId } } );
+
+            // 5. While loop: while __fin_i < candidate.size ... end
+            Frontend::StmtList LoopBody;
+            LoopBody.PushBack( ElemStmtId );
+            LoopBody.PushBack( IncrStmtId );
+
+            const Frontend::StmtId WhileStmtId =
+                Ast.Add( Frontend::StmtNode{ Frontend::While{ .Loc = Loc, .Cond = CondId, .Body = std::move( LoopBody ) } } );
+
+            // 6. Finalize candidate call: candidate.finalize()
+            const Frontend::ExprId MemberId = Ast.Add( Frontend::ExprNode{
+                Frontend::Member{ .Loc = Loc, .Object = MakeReadId(), .Name = Ast.Strings().Intern( FinalizeName ) } } );
+            const Frontend::ExprId CallId   = Ast.Add( Frontend::ExprNode{
+                Frontend::Call{ .Loc = Loc, .Callee = MemberId, .Args = {}, .ArgNames = {}, .BlockArg = {} } } );
+            InferExpr( Context, CallId );
+            const Frontend::StmtId FinalizeStmtId =
+                Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } );
+
+            // 7. BeginExpr wrapping the sequence
+            Frontend::StmtList BeginBody;
+            BeginBody.PushBack( InitStmtId );
+            BeginBody.PushBack( WhileStmtId );
+            BeginBody.PushBack( FinalizeStmtId );
+
+            const Frontend::ExprId BeginExprId = Ast.Add( Frontend::ExprNode{
+                Frontend::BeginExpr{ .Loc = Loc, .Body = std::move( BeginBody ), .RescueClauses = {}, .EnsureBody = {} } } );
+            Context.Ctx.Values.SetExprType( BeginExprId, Context.Ctx.Values.ExprType( CallId ) );
+            return BeginExprId;
+        }
+    }
+
+    const Frontend::ExprId ReadId   = MakeReadId();
     const Frontend::ExprId MemberId = Ast.Add(
         Frontend::ExprNode{ Frontend::Member{ .Loc = Loc, .Object = ReadId, .Name = Ast.Strings().Intern( FinalizeName ) } } );
     const Frontend::ExprId CallId = Ast.Add(
@@ -515,18 +633,26 @@ CollectCandidates ( TypeCheckerContext &Context, Sema::ScopeId MethodScope, cons
 // A RescueClause's own bound variable, as a finalize candidate for its own
 // Body — see FinalizeCandidate::DirectBinding's own doc comment for why this
 // needs the RescueClause's own Scope (never MethodScope) and a stable
-// Binding reference rather than a synthesized temporary. Returns nullopt for
-// an anonymous clause (`rescue` / `rescue; ...` with no bound name), an
-// empty Body (nothing to look the pushed Scope up from), a non-finalizable
-// type, or a Scope lookup that somehow fails.
+// Binding reference rather than a synthesized temporary. ScopeOf(RescueId)
+// resolves directly to that Scope — ScopeResolver.cpp's RescueClause arm
+// overrides the generic SetScopeOf(Id, Current) specifically so this (and
+// BackendLLVM's SlotFor, which classifies unit-scope vs frame-local storage
+// the same way) never has to special-case "the scope this Stmt pushed for
+// itself" via a linear scan. Returns nullopt for an anonymous clause
+// (`rescue` / `rescue; ...` with no bound name), a non-finalizable type, or a
+// Scope lookup that somehow fails. An *empty* Body is deliberately still a
+// candidate — `e` is bound and goes out of scope the moment the (empty)
+// clause ends, exactly like a C++ destructor firing for a variable whose
+// scope has no statements; ProcessBlock's own empty-Body path synthesizes
+// the one-statement finalize-only body this produces a candidate for.
 [[nodiscard]] std::optional<FinalizeCandidate>
 BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause &Clause, Frontend::StmtId RescueId )
 {
-    if ( not Clause.VarName.IsValid() or Clause.Body.IsEmpty() )
+    if ( not Clause.VarName.IsValid() )
     {
         return std::nullopt;
     }
-    const Sema::ScopeId RescueScope = Context.Ctx.Scopes.ScopeOf( Clause.Body[0] );
+    const Sema::ScopeId RescueScope = Context.Ctx.Scopes.ScopeOf( RescueId );
     if ( not RescueScope.IsValid() )
     {
         return std::nullopt;
@@ -568,13 +694,17 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
 // after everything CollectCandidates itself found, since it was "declared"
 // before all of them) and threaded into ambient the same way any other
 // local of this Body would be, wherever this call recurses further inward.
+// EmptyBodyLoc is read only on the Body.IsEmpty() + ImplicitCandidate path
+// below (an empty RescueClause body has no Body[0] of its own to read a
+// SourceRange off of — the caller passes the RescueClause's own Loc instead).
 [[nodiscard]] Frontend::StmtList ProcessBlock ( TypeCheckerContext &Context,
                                                 Sema::ScopeId MethodScope,
                                                 Frontend::StmtList Body,
                                                 bool bInLoop,
                                                 std::vector<FinalizeCandidate> ReturnAmbient,
                                                 std::vector<FinalizeCandidate> LoopAmbient,
-                                                std::optional<FinalizeCandidate> ImplicitCandidate = std::nullopt )
+                                                std::optional<FinalizeCandidate> ImplicitCandidate = std::nullopt,
+                                                Core::SourceRange EmptyBodyLoc                     = {} )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -721,7 +851,7 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
                 // above.
                 const std::optional<FinalizeCandidate> RescueCandidate = BuildRescueCandidate( Context, RescueCopy, RescueId );
                 RescueCopy.Body = ProcessBlock( Context, MethodScope, std::move( RescueCopy.Body ), bInLoop, ChildReturnAmbient,
-                                                ChildLoopAmbient, RescueCandidate );
+                                                ChildLoopAmbient, RescueCandidate, RescueCopy.Loc );
                 Ast.Stmt( RescueId ) = Frontend::StmtNode{ std::move( RescueCopy ) };
             }
             BeginCopy.EnsureBody = ProcessBlock( Context, MethodScope, std::move( BeginCopy.EnsureBody ), bInLoop,
@@ -730,14 +860,33 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
         }
     }
 
+    // An empty Body (`rescue e : Exception` with nothing in it — a real,
+    // legal shape: RaiseUnwind.vl's own fixture) can still carry an
+    // ImplicitCandidate: `e` is bound and goes out of scope the instant the
+    // clause ends, with no statements to wrap or splice around — just the
+    // finalize call itself, at the RescueClause's own Loc (there is no
+    // Body[0] to read one from).
+    if ( Body.IsEmpty() )
+    {
+        if ( not ImplicitCandidate.has_value() )
+        {
+            return Body;
+        }
+        const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( ImplicitCandidate->Site );
+        const Frontend::ExprId CallId    = BuildFinalizeCall( Context, EmptyBodyLoc, *ImplicitCandidate, LocalType, MethodScope );
+        Frontend::StmtList Result;
+        Result.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = EmptyBodyLoc, .Expr = CallId } } ) );
+        return Result;
+    }
+
     // Body may still need Step 3's splice even with zero LOCAL candidates:
     // an ambient candidate from an enclosing scope must still be finalized
     // at a Return/Break/Next that is a top-level element of THIS Body (a
     // bare `break` inside an `if` with no local of its own, unwinding past
     // the while body's own `x` — see ProcessBlock's own doc comment). Only
     // bail out completely when there is truly nothing to do anywhere.
-    if ( Body.IsEmpty() or ( Candidates.empty() and ReturnAmbient.empty() and ( not bInLoop or LoopAmbient.empty() ) and
-                             not ImplicitCandidate.has_value() ) )
+    if ( Candidates.empty() and ReturnAmbient.empty() and ( not bInLoop or LoopAmbient.empty() ) and
+         not ImplicitCandidate.has_value() )
     {
         return Body;
     }
@@ -991,6 +1140,36 @@ BuildRescueCandidate ( TypeCheckerContext &Context, const Frontend::RescueClause
 void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Context )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+    // A file's own top-level statements are a distinct list from any Method
+    // body (Ast.TopStmts, a plain std::vector<StmtId> — never a
+    // Frontend::StmtList — walked under the Unit root Scope ScopeResolver
+    // pushes once per file, ScopeResolver.cpp's own `WalkStmt( Id, Root )`
+    // loop). The Decl-only loop below would silently skip every top-level
+    // `begin/rescue`, `Array<T>.new(...)` local, etc. — exactly the shape
+    // BeginRescue.vl's and RaiseUnwind.vl's own top-level `begin ... rescue
+    // e ... end` use, previously never finalized at all. Converted to a
+    // StmtList and back — ProcessBlock's contract, not TopStmts' own.
+    if ( not Ast.TopStmts.empty() )
+    {
+        Frontend::StmtList TopBody;
+        for ( const Frontend::StmtId Id : Ast.TopStmts )
+        {
+            TopBody.PushBack( Id );
+        }
+
+        const Sema::ScopeId UnitScope = Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] );
+        if ( UnitScope.IsValid() and not ContainsUnstructuredExit( Ast, TopBody ) and
+             ( ScopeHasAnyFinalizeCandidate( Context, UnitScope ) or ContainsNamedRescueClause( Ast, TopBody ) ) )
+        {
+            TopBody = ProcessBlock( Context, UnitScope, std::move( TopBody ), /*bInLoop=*/false, {}, {} );
+            Ast.TopStmts.clear();
+            for ( const Frontend::StmtId Id : TopBody )
+            {
+                Ast.TopStmts.push_back( Id );
+            }
+        }
+    }
 
     // Decls never grow in this pass (only Method's own Body slot is
     // rewritten, in place), but the count is still snapshotted before the
