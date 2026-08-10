@@ -23,6 +23,6 @@ struct Char
     buf = Pointer<UInt8>.malloc( 2_u64 )
     *( buf ) = self
     *( buf + 1_u64 ) = 0_u8
-    String.new( buf, 1_u64 )
+    String.new( buf, 1_u64, true )
   end
 end
