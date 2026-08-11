@@ -12,8 +12,8 @@ gccStdenv.mkDerivation {
   inherit version;
   src = pkgs.lib.cleanSource ../.;
 
-  nativeBuildInputs = deps.nativeBuildInputs ++ [ pkgs.autoPatchelfHook ];
-  inherit (deps) buildInputs;
+  nativeBuildInputs = deps.nativeBuildInputs;
+  buildInputs = deps.buildInputs ++ [ pkgs.gcc16.cc.lib ];
 
   mesonBuildType = "release";
   mesonFlags = [
@@ -31,5 +31,4 @@ gccStdenv.mkDerivation {
     license = licenses.mit;
     platforms = platforms.unix;
   };
-
 }
