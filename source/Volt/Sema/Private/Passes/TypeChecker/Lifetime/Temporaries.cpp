@@ -352,6 +352,18 @@ namespace
         // `Binding` captured at declaration.
         const Sema::ScopeId RegionScope = Context.Ctx.Scopes.PushScope( Sema::ScopeId{}, Sema::EScopeKind::Branch );
 
+        if ( std::getenv( "VOLT_RAII_TRACE" ) != nullptr and Context.Ctx.Sources != nullptr )
+        {
+            const Core::LineColumn Where = Context.Ctx.Sources->Resolve( Loc.File, Loc.Begin );
+            std::println( stderr, "[raii] {}:{} root={} kind={} ownroot={}", Context.Ctx.Sources->PathOf( Loc.File ), Where.Line,
+                          Root.Value, Ast.Expr( Root ).index(), bOwnRoot );
+            for ( const Frontend::ExprId Site : Sites )
+            {
+                std::println( stderr, "[raii]    site={} kind={} callee-res={}", Site.Value, Ast.Expr( Site ).index(),
+                              Context.CalleeResolution.contains( Site.Value ) );
+            }
+        }
+
         Frontend::StmtList RegionBody;
         std::vector<Temporary> Owned;
         Owned.reserve( Sites.size() + 1 );
@@ -397,13 +409,6 @@ namespace
             const Frontend::ExprId CallId =
                 BuildFinalizeCallOnReceiver( Context, Loc, [&] { return ReadTemporary( Context, *It, Loc ); }, It->Type );
             CleanupBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
-        }
-
-        if ( std::getenv( "VOLT_RAII_TRACE" ) != nullptr and Context.Ctx.Sources != nullptr )
-        {
-            const Core::LineColumn Where = Context.Ctx.Sources->Resolve( Loc.File, Loc.Begin );
-            std::println( stderr, "[raii] {}:{} temps={} ownroot={}", Context.Ctx.Sources->PathOf( Loc.File ), Where.Line,
-                          Owned.size(), bOwnRoot );
         }
 
         EmitBoundaryInto( Ast, Context.Ctx.Values, Root, Loc, std::move( RegionBody ), std::move( CleanupBody ), RootType );
