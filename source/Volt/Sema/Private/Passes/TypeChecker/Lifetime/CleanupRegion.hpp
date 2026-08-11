@@ -48,6 +48,29 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
                                               Frontend::StmtList CleanupBody,
                                               SemaTypeId ResultType );
 
+// The same boundary, written *into* an expression slot that already exists
+// rather than appended as a fresh one.
+//
+// A full-expression region is discovered around an expression some parent
+// node already points at (`LocalDecl::Init`, `Return::Value`, `While::Cond`).
+// Rewriting the slot in place is what lets the region be introduced without
+// touching that parent at all — the arena-rewrite discipline
+// (rules/ast-rewrite.md) in its purest form: parents refer to the `Id`, so
+// the whole tree updates at once.
+//
+// `Body`'s tail must therefore be whatever the slot used to evaluate to,
+// moved to a slot of its own — this function does not move it for the caller,
+// because only the caller knows which side tables that move has to carry
+// along (`CalleeResolution` for a `Binary`, a scope binding for an
+// `Identifier`).
+void EmitBoundaryInto ( Frontend::AstContext &Ast,
+                        UnitTypes &Values,
+                        Frontend::ExprId Slot,
+                        Core::SourceRange Loc,
+                        Frontend::StmtList Body,
+                        Frontend::StmtList CleanupBody,
+                        SemaTypeId ResultType );
+
 // Several statements sequenced into one expression — **not** a boundary: it
 // owns nothing and cleans up nothing.
 //
