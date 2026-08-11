@@ -14,6 +14,7 @@
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/Sema/Pass.hpp"
+#include "Volt/Sema/Raii/OwnershipInference.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -172,7 +173,11 @@ namespace
 // serialised `ExceptionRoot` field.
 // Bumped to 04 when `@[Unhandled]` was deleted: `Member` lost its serialised
 // `bUnhandled` field.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453034ULL; // "VOLTFE04"
+// Bumped to 05 when `Sema::Member` gained `bReturnsOwned`: the store's cache
+// is a reflected aggregate dump, so a new field silently shifts every byte
+// after it. The magic is the only thing standing between a stale cache and a
+// misread signature table.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453035ULL; // "VOLTFE05"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -469,6 +474,16 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             }
             Sema::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
         }
+
+        // Last thing the seam does, and the last chance to do it: whether a
+        // member hands its caller an owned value is a whole-program fixpoint
+        // over every declared body, so it needs every unit at once — and
+        // TypeChecker, which reads the answer, runs in parallel immediately
+        // after, so the answer must already be still by then. `UnitAsts` (the
+        // read-only view built above) is what it wants: nothing here mutates
+        // an AST, only the store's own `Member` records.
+        Sema::Raii::InferReturnOwnership( UnitAsts, Types );
+
         Diagnostics.Merge( std::move( SeamBag ) );
 
         if ( bStdlibCacheHit )
