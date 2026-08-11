@@ -117,8 +117,7 @@ namespace
         {
             return false;
         }
-        return Sema::Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values,
-                                                    Context.Ctx.Values.ExprType( Id ) );
+        return Sema::Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, Context.Ctx.Values.ExprType( Id ) );
     }
 
     // --- Region discovery -------------------------------------------------
@@ -140,11 +139,8 @@ namespace
     //     regions of their own, and are recursed into as such — a temporary
     //     created inside a loop body must be released once per iteration,
     //     not once per enclosing statement.
-    void CollectOwnedSubExprs ( TypeCheckerContext &Context,
-                                Frontend::ExprId Id,
-                                bool bMoved,
-                                bool bIsRoot,
-                                std::vector<Frontend::ExprId> &Out )
+    void CollectOwnedSubExprs (
+        TypeCheckerContext &Context, Frontend::ExprId Id, bool bMoved, bool bIsRoot, std::vector<Frontend::ExprId> &Out )
     {
         if ( not Id.IsValid() )
         {
@@ -184,28 +180,27 @@ namespace
                 using T = std::remove_cvref_t<decltype( Inner )>;
                 if constexpr ( not std::is_same_v<T, std::monostate> )
                 {
-                    Meta::ForEachField( Inner,
-                                        [&] ( const char *, const auto &Field )
-                                        {
-                                            using F = std::remove_cvref_t<decltype( Field )>;
-                                            if constexpr ( std::is_same_v<F, Frontend::ExprId> )
-                                            {
-                                                CollectOwnedSubExprs( Context, Field, MovedChildren.contains( Field.Value ),
-                                                                      false, Out );
-                                            }
-                                            else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
-                                            {
-                                                for ( const Frontend::ExprId Child : Field )
-                                                {
-                                                    CollectOwnedSubExprs( Context, Child,
-                                                                          MovedChildren.contains( Child.Value ), false, Out );
-                                                }
-                                            }
-                                            else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
-                                            {
-                                                static_cast<void>( ProcessStmtList( Context, Field ) );
-                                            }
-                                        } );
+                    Meta::ForEachField(
+                        Inner,
+                        [&] ( const char *, const auto &Field )
+                        {
+                            using F = std::remove_cvref_t<decltype( Field )>;
+                            if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                            {
+                                CollectOwnedSubExprs( Context, Field, MovedChildren.contains( Field.Value ), false, Out );
+                            }
+                            else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                            {
+                                for ( const Frontend::ExprId Child : Field )
+                                {
+                                    CollectOwnedSubExprs( Context, Child, MovedChildren.contains( Child.Value ), false, Out );
+                                }
+                            }
+                            else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                            {
+                                static_cast<void>( ProcessStmtList( Context, Field ) );
+                            }
+                        } );
                 }
             },
             Node );
@@ -244,7 +239,7 @@ namespace
     {
         Frontend::AstContext &Ast = Context.Ctx.Ast;
 
-        const Sema::SemaTypeId Type = Context.Ctx.Values.ExprType( Slot );
+        const Sema::SemaTypeId Type  = Context.Ctx.Values.ExprType( Slot );
         const Frontend::ExprId Moved = Ast.Add( Frontend::ExprNode{ Ast.Expr( Slot ) } );
         if ( Type.IsValid() )
         {
@@ -301,8 +296,7 @@ namespace
 
     // A fresh read of `Temp`. Value-AST nodes are single-owner, so every
     // occurrence needs its own node (rules/ast-value.md).
-    [[nodiscard]] Frontend::ExprId
-    ReadTemporary ( TypeCheckerContext &Context, const Temporary &Temp, Core::SourceRange Loc )
+    [[nodiscard]] Frontend::ExprId ReadTemporary ( TypeCheckerContext &Context, const Temporary &Temp, Core::SourceRange Loc )
     {
         const Frontend::ExprId Id =
             Context.Ctx.Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Temp.Name } } );
@@ -349,8 +343,8 @@ namespace
             return false;
         }
 
-        Frontend::AstContext &Ast   = Context.Ctx.Ast;
-        const Core::SourceRange Loc = LocOf( Ast.Expr( Root ) );
+        Frontend::AstContext &Ast       = Context.Ctx.Ast;
+        const Core::SourceRange Loc     = LocOf( Ast.Expr( Root ) );
         const Sema::SemaTypeId RootType = Context.Ctx.Values.ExprType( Root );
 
         // One scope for the whole region. Parent-less on purpose: a `__tN`
@@ -364,9 +358,9 @@ namespace
 
         for ( const Frontend::ExprId Site : Sites )
         {
-            const Sema::SemaTypeId Type = Context.Ctx.Values.ExprType( Site );
+            const Sema::SemaTypeId Type  = Context.Ctx.Values.ExprType( Site );
             const Frontend::ExprId Value = DetachSlot( Context, Site );
-            const Temporary Temp = DeclareTemporary( Context, RegionScope, Loc, Value, Type, RegionBody );
+            const Temporary Temp         = DeclareTemporary( Context, RegionScope, Loc, Value, Type, RegionBody );
 
             // The slot the parent still points at now reads the temporary —
             // which is what makes this a rewrite of one node rather than of
@@ -400,8 +394,8 @@ namespace
         Frontend::StmtList CleanupBody;
         for ( auto It = Owned.rbegin(); It != Owned.rend(); ++It )
         {
-            const Frontend::ExprId CallId = BuildFinalizeCallOnReceiver(
-                Context, Loc, [&] { return ReadTemporary( Context, *It, Loc ); }, It->Type );
+            const Frontend::ExprId CallId =
+                BuildFinalizeCallOnReceiver( Context, Loc, [&] { return ReadTemporary( Context, *It, Loc ); }, It->Type );
             CleanupBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
         }
 

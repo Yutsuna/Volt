@@ -54,9 +54,8 @@ void EmitBoundaryInto ( Frontend::AstContext &Ast,
     // `Slot` taken before it would dangle (rules/ast-rewrite.md). The
     // assignment sequences the call before the destination is evaluated,
     // which is the same discipline every rewriting pass here follows.
-    const Frontend::ExprId Built =
-        MakeBeginNode( Ast, Values, Loc, std::move( Body ), std::move( CleanupBody ), ResultType );
-    Ast.Expr( Slot ) = Ast.Expr( Built );
+    const Frontend::ExprId Built = MakeBeginNode( Ast, Values, Loc, std::move( Body ), std::move( CleanupBody ), ResultType );
+    Ast.Expr( Slot )             = Ast.Expr( Built );
     if ( ResultType.IsValid() )
     {
         Values.SetExprType( Slot, ResultType );
