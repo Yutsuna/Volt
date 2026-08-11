@@ -2,6 +2,7 @@
 
 #include "Lifetime/FieldCascade.hpp"
 #include "Lifetime/ScopeCleanup.hpp"
+#include "Lifetime/Temporaries.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
@@ -14,6 +15,7 @@
 // *what gets a region*, and delegates everything else.
 //
 //   Lifetime/FieldCascade    — a type finalizes what its fields own
+//   Lifetime/Temporaries     — a statement finalizes what it never named
 //   Lifetime/ScopeCleanup    — a body finalizes what its locals own
 //   Lifetime/CleanupRegion   — the one cleanup boundary a region lowers to
 //   Lifetime/ExitPaths       — which paths leave a region, and what they carry
@@ -44,6 +46,7 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             TopBody.PushBack( Id );
         }
 
+        static_cast<void>( Lifetime::RunTemporaries( Context, TopBody ) );
         if ( Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] ), TopBody ) )
         {
             Ast.TopStmts.clear();
@@ -75,7 +78,13 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             continue;
         }
 
-        if ( Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Node.Body[0] ), Node.Body ) )
+        // Temporaries first: it rewrites *expression* slots the body already
+        // points at, never the StmtList itself, so ScopeCleanup then sees a
+        // body whose unnamed owned values have already become ordinary
+        // regions — and needs no notion of a temporary of its own.
+        const bool bTemporaries = Lifetime::RunTemporaries( Context, Node.Body );
+        const bool bCleanup     = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Node.Body[0] ), Node.Body );
+        if ( bTemporaries or bCleanup )
         {
             Ast.Decl( Id ) = Frontend::DeclNode{ std::move( Node ) };
         }
