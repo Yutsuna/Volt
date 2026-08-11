@@ -18,6 +18,7 @@
 
 #include "Volt/Sema/Layout/TypeBinder.hpp"
 
+#include "Raii/Ownership.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
@@ -1189,35 +1190,14 @@ namespace Sema
     namespace
     {
 
-        // The member-name spelling `finalize` — not a Volt type name
-        // (rules/zero-hardcode.md's guardrail greps for type identifiers
-        // only), the same plain member spelling
-        // `Sema::TypeCheckerPass::FinalizeName` (MemberResolver.hpp) already
-        // uses to look one up by name once TypeChecker runs.
-        constexpr std::string_view FinalizeMemberName = "finalize";
-
-        // Aggregate-layout, non-generic and declaring `finalize` (own or
-        // inherited) — the same candidacy `FinalizeLowering.cpp`'s
-        // `IsFinalizeCandidateType` checks, but against a bare `NominalId`
-        // rather than a receiver's (possibly generic-argument-bearing)
-        // `SemaTypeId`: a field never needs substitution here, since a
-        // generic field's own nominal never attaches a Layout in the first
-        // place (EnsureStructLayout's own comment above) — this returns
-        // false for it automatically, the same wall CASCADE_FINALIZE.md's
-        // item 2 already documents.
-        [[nodiscard]] bool IsFinalizeCandidateNominal ( const TypeStore &Store, NominalId Id )
-        {
-            if ( not Id.IsValid() )
-            {
-                return false;
-            }
-            const NominalType &Type = Store.Type( Id );
-            if ( not Type.Layout.IsValid() or KindOf( Store.Get( Type.Layout ) ) != LayoutKind::Aggregate )
-            {
-                return false;
-            }
-            return Store.LookupMember( Id, FinalizeMemberName ).Decl != nullptr;
-        }
+        // The `finalize` member spelling and the "does this nominal need
+        // finalizing" predicate both used to be redeclared here, verbatim
+        // copies of `FinalizeLowering.cpp`'s own. They now have one
+        // definition each, in Private/Raii/Ownership.hpp, which this seam and
+        // the in-TypeChecker sweeps share — see that header for why the
+        // question belongs at the type level.
+        using Raii::FinalizeName;
+        using Raii::IsFinalizeCandidateNominal;
 
         // Bounded the same way EnsureStructLayout's own cross-unit recursion
         // is (MaxLayoutDepth) — a genuine by-value cycle cannot exist, but a
@@ -1258,7 +1238,7 @@ namespace Sema
             // A user-declared `finalize` already exists: nothing to
             // synthesize. TypeChecker's own `AppendFieldCascade` appends the
             // field-cascade epilogue to it exactly as it already does today.
-            if ( Store.OwnMember( Id, FinalizeMemberName ) != nullptr )
+            if ( Store.OwnMember( Id, FinalizeName ) != nullptr )
             {
                 return;
             }
@@ -1344,7 +1324,7 @@ namespace Sema
             // does for a hand-written `finalize`.
             Frontend::Method Stub;
             Stub.Loc                      = Loc;
-            Stub.Name                     = Ast.Strings().Intern( FinalizeMemberName );
+            Stub.Name                     = Ast.Strings().Intern( FinalizeName );
             const Frontend::DeclId StubId = Ast.Add( Frontend::DeclNode{ std::move( Stub ) } );
 
             // Splice into the owning Struct/Class's own Body — copy-out,
@@ -1372,7 +1352,7 @@ namespace Sema
             // `FindOwnFinalizeMethod`/backend emission walk both see it
             // exactly as they would a hand-written one.
             Member Slot;
-            Slot.Name = Store.Intern( FinalizeMemberName );
+            Slot.Name = Store.Intern( FinalizeName );
             Slot.Kind = EMemberKind::Method;
             Slot.Unit = Type.Unit;
             Slot.Decl = StubId;
