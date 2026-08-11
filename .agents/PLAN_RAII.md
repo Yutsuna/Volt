@@ -282,6 +282,191 @@ englobant, sinon le temporaire fuit par itération.
 Attendu : `FullOOP`, `Mixins`, `Composition`, `BreakNext` propres ; `ForLoop`
 réduit à la seule fuite `Hash`.
 
+---
+
+## Phase 3 — ÉTAT AU MOMENT DE L'ARRÊT (EN COURS, NON TERMINÉE)
+
+**Statut : `meson test` = 264 OK / 10 FAIL** (baseline avant Phase 3 : 272 OK /
+2 FAIL). Donc **8 régressions nettes introduites**, à corriger avant d'aller
+plus loin. Ne pas passer en Phase 4 tant que ce n'est pas revenu à 272/2.
+
+### Ce qui est écrit et compile
+
+| Fichier | État |
+|---|---|
+| `Sema/Public/Volt/Sema/Layout/TypeStore.hpp` | `Member::bReturnsOwned` ajouté (+ doc). Accesseurs mutables `MutableMembers( NominalId )` / `MutableFreeFunctions()` ajoutés à côté de `MemberByDecl`. |
+| `Sema/Public/Volt/Sema/Raii/OwnershipInference.hpp` | Nouveau. Déclare `SEMA_EXPORT void InferReturnOwnership( span<const AstContext* const>, TypeStore& )`. |
+| `Sema/Private/Raii/OwnershipInference.cpp` | Nouveau (~430 l.). Point fixe monotone. Voir détail ci-dessous. |
+| `Sema/Public/Volt/Sema/Pass.hpp` | Les 11 compteurs `Raii*` ajoutés à `PassStats` (remontent déjà à `check --metrics`, vérifié). |
+| `.../TypeChecker/Lifetime/CleanupRegion.{hpp,cpp}` | `EmitBoundaryInto( …, ExprId Slot, … )` ajouté : écrit la frontière *dans* un slot existant. L'invariant « `Frontend::BeginExpr` seulement ici » tient toujours. |
+| `.../TypeChecker/Lifetime/Temporaries.{hpp,cpp}` | Nouveau (~470 l.). Le cœur de la phase. |
+| `.../TypeChecker/FinalizeLowering.cpp` | Appelle `RunTemporaries` **avant** `RunScopeCleanup`, sur `TopStmts` et sur chaque `Method::Body`. |
+| `Driver/Private/Driver.cpp` | `Sema::Raii::InferReturnOwnership( UnitAsts, Types )` appelé **après** `ResolveUnitSignatures`, avant `Diagnostics.Merge` et avant la phase sema parallèle. Magic du cache frontend bumpé `VOLTFE04` → `VOLTFE05` (obligatoire : `Member` est un agrégat réfléchi, un champ de plus décale tout le dump). |
+
+### Décisions de conception prises (et pourquoi)
+
+1. **Le seam validé n'est PAS celui du plan.** Le plan disait « même seam que
+   `SynthesizeFinalizeStubs` (`Driver.cpp:458`) ». C'est **faux** : à cet
+   endroit `ResolveUnitSignatures` n'a pas encore tourné, donc les membres ne
+   sont pas résolvables. `InferReturnOwnership` est donc appelé **juste après
+   la boucle `ResolveUnitSignatures`**, toujours sérial, toujours avant
+   `ForEachUnitParallel( &Driver::RunSemaOne )`. Vérifié : le seam voit bien
+   toutes les unités.
+2. **`CalleeResolution` n'existe pas au seam** (elle est construite dans
+   `TypeChecker`, en parallèle, par unité). Le point fixe travaille donc
+   **syntaxiquement** sur les AST bruts :
+   - `Call( Member( Obj, "new" ), … )` ⇒ owned (construction) ;
+   - receveur *statique* résoluble (`String.owned( … )`, `self.helper( … )`) ⇒
+     `Store.LookupMember( nominal, name )`, précis ;
+   - sinon **index par nom, tout-ou-rien** : owned ssi *tous* les membres du
+     store portant cette orthographe sont `bReturnsOwned`. C'est **sound**
+     (le vrai callee est dans l'ensemble) mais imprécis — un seul `to_string`
+     empruntant démote tous les `to_string`. Perte = fuite comptée, jamais
+     double free.
+   - un nom local lié à une valeur owned propage l'ownership (indispensable :
+     `Enumerable#map` finit par `result`, pas par une construction).
+3. **La classification au *site d'appel*, elle, est précise** : dans
+   `Temporaries`, `ResolutionOf` lit `Context.CalleeResolution` — clé
+   `Callee.Value` pour un `Call`, clé propre pour `Binary`/`Unary`.
+4. **La région est posée sur l'*expression racine*, pas sur le statement.**
+   `EmitBoundaryInto` réécrit le slot en place ⇒ le parent n'est jamais
+   reconstruit (`rules/ast-rewrite.md`), et ça marche uniformément pour
+   `LocalDecl::Init`, `Return::Value`, `While::Cond`, `If::Cond`, un
+   `ExprStmt` nu. C'est ce qui rend le cas `While::Cond` gratuit.
+5. **Le scrutinee d'un `CaseExpr` est délibérément exclu** : après
+   `CaseLowering`, chaque pattern de clause relit le *même* `Scrutinee` id ;
+   l'envelopper rejouerait la région (et son cleanup) une fois par clause.
+
+### Bug déjà trouvé et corrigé (garder la leçon)
+
+> **La dernière expression d'un corps EST la valeur de ce corps.**
+
+Traiter le tail d'un `StmtList` comme `Discarded` faisait matérialiser puis
+finaliser la valeur de retour : `String#+` se termine sur
+`String.owned( buf, total )`, donc tout appelant d'un opérateur string
+recevait un buffer déjà libéré (`s = "aa" + "bb"` ⇒ *double free detected in
+tcache*). Corrigé : dans `ProcessStmtList`, `bTail = ( Pos + 1 == Body.Size() )`
+⇒ `ERootUse::Moved`. Vaut à tous les niveaux (tail d'une branche `If`/`when`/
+`begin` en position d'expression aussi).
+
+### Les 10 échecs restants — diagnostic en cours
+
+```
+golden-lowered/Sema/MixinGenerics.vl   ← PRÉ-EXISTANT, sans rapport (segfault parse)
+samples/Tests/Exceptions/Exceptions.vl
+samples/Tests/Exceptions/UncaughtRaise.vl
+samples/Tests/Exceptions/BeginRescue.vl
+samples/Tests/Exceptions/ExceptionMessage.vl
+samples/Tests/Functional/Composition.vl
+samples/Tests/Functional/PointFree.vl
+samples/Tests/RAII/RaiseUnwind.vl
+samples/Tests/ControlFlow/ForLoop.vl
+samples/Tests/ControlFlow/BreakNext.vl
+```
+
+Deux familles distinctes :
+
+**(A) Échec de *build* — `Composition`, `PointFree`.**
+
+```
+✗ Finalize failed: llvm: call at expression 6 carries no callee resolution
+  — TypeChecker records one for every call it accepts (while emitting '_V_init_22')
+```
+
+Repro minimal (2 lignes), dans le scratchpad sous `d3.vl` :
+
+```volt
+raw_name = "  VoLt "
+name = raw_name |> (&.trim)
+```
+
+Trace (`VOLT_RAII_TRACE=1 volt build -i d3.vl -o /dev/null`) :
+
+```
+[raii] d3.vl:2 root=7 kind=17 ownroot=false
+[raii]    site=5 kind=18 callee-res=true
+```
+
+Lecture : le `Pipeline` d'origine occupait l'expr **6**, réécrit *en place* en
+`Call` par `PipelineLowering`. Le site matérialisé est **5** (la `Section`
+`(&.trim)`, devenue `Proc.new( FuncAddr, env )` par `ClosureLifting`) — et ce
+site **porte une entrée `CalleeResolution` sur son propre id** (`callee-res=true`),
+ce que `DetachSlot` déplace vers le nouveau slot puis **efface à l'ancien id**.
+Le backend, lui, résout un `Call` via `Callees->Get( Node.Callee )`
+(`ExprCallEmitter.cpp:23`) — donc **clé = l'id du *callee*, pas celui du `Call`**.
+
+⇒ **Hypothèse de travail à vérifier en premier** : le slot matérialisé sert
+*aussi* de `Callee` à un `Call` parent (ici le `Call` id 6 issu du pipeline :
+son `Callee` est un `Member( <site 5>, "call" )`, ou directement le site).
+Quand `DetachSlot` efface `CalleeResolution[5]` et met un `Identifier` en 5,
+le parent perd sa résolution. **Un slot en position de callee ne doit jamais
+être matérialisé**, ou bien la résolution doit être *dupliquée* et non
+*déplacée*. La piste la plus simple et la plus sûre : dans
+`CollectOwnedSubExprs`, ne jamais collecter un enfant atteint par le champ
+`Call::Callee` (un callee n'est pas une valeur qu'on possède, c'est une
+désignation) — à ajouter au même mécanisme que `MovedChildren`.
+
+**(B) Échec à l'*exécution* — les 4 `Exceptions` + `RaiseUnwind` + `ForLoop` +
+`BreakNext`.**
+
+```
+$ volt build -i samples/Tests/Exceptions/BeginRescue.vl -o br && ./br
+free(): invalid pointer     (exit 134)
+```
+
+Non diagnostiqué. Pistes, par ordre de probabilité :
+1. Un temporaire matérialisé dans un corps `begin/rescue` : `EmitBegin`
+   ré-propage l'unwind, et la région imbriquée que `Temporaries` pose *à
+   l'intérieur* d'un `BeginExpr` existant peut finaliser deux fois sur le
+   chemin `rescue.dispatch` → `begin.ensure`.
+2. `RaiseExpr` : `raise "msg"` est désucré en construction d'`Exception` —
+   c'est un `Owned` **transféré au mécanisme d'unwind**, donc un move, pas un
+   temporaire à finaliser. Rien ne l'exclut aujourd'hui ⇒ très probable cause
+   du `free(): invalid pointer`. **À exclure explicitement** (même mécanisme
+   que `MovedChildren`).
+3. `ForLoop`/`BreakNext` : la région posée sur `While::Cond` interagit avec le
+   splice `break`/`next` de `ScopeCleanup` (qui court-circuite `ensure`).
+
+### Outil de debug laissé en place (À RETIRER en Phase 6)
+
+`Temporaries.cpp` contient un bloc traçant chaque région créée, activé par la
+variable d'environnement `VOLT_RAII_TRACE` :
+
+```sh
+VOLT_RAII_TRACE=1 ./build/source/Volt/Volt/volt build -i FICHIER.vl -o /dev/null
+# [raii] <path>:<line> root=<exprid> kind=<variant index> ownroot=<bool>
+# [raii]    site=<exprid> kind=<variant index> callee-res=<bool>
+```
+
+Il a servi à isoler (A) ; il faut le supprimer avant la fin de l'épopée (avec
+les `#include <print>` / `<cstdlib>` / `SourceManager.hpp` correspondants).
+
+### Autres notes utiles pour la reprise
+
+- **`volt parse --lowered` ne montre RIEN de ce travail** : `--lowered`
+  n'exécute que les passes `EPassKind::Lowering`, or `InsertFinalizeCalls` est
+  un post-walk *dans* `TypeChecker` (`Analysis`). Les `.lowered.golden` des
+  samples RAII sont donc inchangés par la Phase 3 — ils ne sont **pas** un
+  filet pour cette phase. Le seul vrai oracle reste `volt build --emit ir` +
+  l'exécution + valgrind. (À reconsidérer en Phase 6 : le filet promis par la
+  Phase 0 ne couvre pas ce qu'on croyait.)
+- **Inspecter l'IR** : `volt build -i F.vl --emit ir -o F.ll`, puis chercher
+  `@_V6String8finalize` / `begin.ensure` dans la fonction concernée. C'est ce
+  qui a confirmé que la forme émise pour `s = "aa".dup` est correcte.
+- **Piège de test** : `volt build … && ./bin; echo $?` renvoie le code du
+  *build* si le build échoue. Plusieurs faux « exit 134 » ont été lus ainsi
+  sur des binaires périmés. Toujours `rm -f *.bin` et tester le build et le
+  run séparément.
+- `volt build --stdin` existe et évite de créer des fichiers temporaires.
+- Métriques déjà exploitables : `volt check --metrics -i F.vl` imprime
+  `RaiiTemporaries`, `RaiiOwnedCreated`, `RaiiMoves`, `RaiiFinalizes`,
+  `RaiiCleanupPaths`. L'identité comptable de §L'invariant central n'est
+  **pas encore** vérifiée par le pass (`RaiiOwnedWithoutCleanup` /
+  `RaiiExplicitEscapes` / `RaiiUnsupportedExits` restent à 0 sans être
+  calculés).
+
+---
+
 ### Phase 4 — `finalize` sur les types génériques *(cause 2)*
 
 Lever `Generics.IsEmpty()` dans `FinalizeSynthesis` et `FieldCascade`. Un champ
