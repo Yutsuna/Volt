@@ -1,2 +1,209 @@
-
---- exit 139 ---
+Program 'samples/Sema/MixinGenerics.vl'
+├─ Mixin 'Boxed' [T] @5:1
+│  └─ body
+│     ├─ Method 'get' abstract @6:12
+│     │  └─ return_type
+│     │     └─ TypeRef 'T' @6:23
+│     ├─ Method 'get_twice' @8:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'T' @8:20
+│     │  └─ body
+│     │     └─ ExprStmt @9:5
+│     │        └─ expr
+│     │           └─ Identifier 'get' @9:5
+│     └─ Method 'convert' [U] @12:3
+│        ├─ params
+│        │  └─ Param 'block' is_block @12:19
+│        │     └─ decl_type
+│        │        └─ FuncType @12:28
+│        │           ├─ return
+│        │           │  └─ TypeRef 'U' @12:33
+│        │           └─ params
+│        │              └─ TypeRef 'T' @12:28
+│        ├─ return_type
+│        │  └─ TypeRef 'Array' @12:40
+│        │     └─ generics
+│        │        └─ TypeRef 'U' @12:46
+│        └─ body
+│           ├─ ExprStmt @13:5
+│           │  └─ expr
+│           │     └─ Assign '=' @13:12
+│           │        ├─ target
+│           │        │  └─ Identifier 'result' @13:5
+│           │        └─ value
+│           │           └─ Member 'new' @13:22
+│           │              └─ object
+│           │                 └─ GenericInst @13:19
+│           │                    ├─ base
+│           │                    │  └─ Identifier 'Array' @13:14
+│           │                    └─ args
+│           │                       └─ TypeRef 'U' @13:20
+│           ├─ ExprStmt @14:5
+│           │  └─ expr
+│           │     └─ Call @14:16
+│           │        ├─ callee
+│           │        │  └─ Member 'push' @14:11
+│           │        │     └─ object
+│           │        │        └─ Identifier 'result' @14:5
+│           │        └─ args
+│           │           └─ Call @14:28
+│           │              ├─ callee
+│           │              │  └─ Member 'call' @14:23
+│           │              │     └─ object
+│           │              │        └─ Identifier 'block' @14:18
+│           │              └─ args
+│           │                 └─ Identifier 'get' @14:30
+│           └─ ExprStmt @15:5
+│              └─ expr
+│                 └─ Identifier 'result' @15:5
+├─ Struct 'Holder' @19:1
+│  └─ body
+│     ├─ Include @20:3
+│     │  └─ target
+│     │     └─ TypeRef 'Boxed' @20:11
+│     │        └─ generics
+│     │           └─ TypeRef 'Int32' @20:17
+│     ├─ Field 'value' getter @22:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @22:18
+│     ├─ Method 'initialize' @24:3
+│     │  ├─ params
+│     │  │  └─ Param 'value' @24:19
+│     │  │     ├─ decl_type
+│     │  │     │  └─ TypeRef 'Int32' @24:27
+│     │  │     └─ default
+│     │  │        └─ IntLiteral '0' @24:35
+│     │  └─ body
+│     │     └─ ExprStmt @25:5
+│     │        └─ expr
+│     │           └─ Assign '=' @25:12
+│     │              ├─ target
+│     │              │  └─ InstanceVar '@value' @25:5
+│     │              └─ value
+│     │                 └─ Identifier 'value' @25:14
+│     └─ Method 'get' @28:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @28:14
+│        └─ body
+│           └─ ExprStmt @29:5
+│              └─ expr
+│                 └─ InstanceVar '@value' @29:5
+├─ Method 'mixin_generics' @33:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @33:23
+│  └─ body
+│     ├─ ExprStmt @34:3
+│     │  └─ expr
+│     │     └─ Assign '=' @34:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'h' @34:3
+│     │        └─ value
+│     │           └─ Member 'new' @34:13
+│     │              └─ object
+│     │                 └─ Identifier 'Holder' @34:7
+│     ├─ LocalDecl 'same' @35:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Int32' @35:10
+│     │  └─ init
+│     │     └─ Member 'get_twice' @35:19
+│     │        └─ object
+│     │           └─ Identifier 'h' @35:18
+│     ├─ LocalDecl 'mapped' @36:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Array' @36:12
+│     │  │     └─ generics
+│     │  │        └─ TypeRef 'Bool' @36:18
+│     │  └─ init
+│     │     └─ Call @36:36
+│     │        ├─ callee
+│     │        │  └─ Member 'convert' @36:27
+│     │        │     └─ object
+│     │        │        └─ Identifier 'h' @36:26
+│     │        └─ block_arg
+│     │           └─ Block @36:36
+│     │              ├─ params
+│     │              │  └─ Param 'value'
+│     │              └─ body
+│     │                 └─ ExprStmt @36:49
+│     │                    └─ expr
+│     │                       └─ Binary '>' @36:55
+│     │                          ├─ lhs
+│     │                          │  └─ Identifier 'value' @36:49
+│     │                          └─ rhs
+│     │                             └─ IntLiteral '1' @36:57
+│     └─ LocalDecl 'flag' @37:3
+│        ├─ decl_type
+│        │  └─ TypeRef 'Bool' @37:10
+│        └─ init
+│           └─ Member 'pop' @37:23
+│              └─ object
+│                 └─ Identifier 'mapped' @37:17
+└─ Method 'stdlib_enumerable' @40:1
+   ├─ return_type
+   │  └─ TypeRef 'Void' @40:26
+   └─ body
+      ├─ ExprStmt @41:3
+      │  └─ expr
+      │     └─ Assign '=' @41:9
+      │        ├─ target
+      │        │  └─ Identifier 'items' @41:3
+      │        └─ value
+      │           └─ ArrayLit @41:11
+      │              └─ elements
+      │                 ├─ IntLiteral '1' @41:13
+      │                 ├─ IntLiteral '2' @41:16
+      │                 └─ IntLiteral '3' @41:19
+      ├─ LocalDecl 'flags' @42:3
+      │  ├─ decl_type
+      │  │  └─ TypeRef 'Array' @42:11
+      │  │     └─ generics
+      │  │        └─ TypeRef 'Bool' @42:17
+      │  └─ init
+      │     └─ Call @42:35
+      │        ├─ callee
+      │        │  └─ Member 'map' @42:30
+      │        │     └─ object
+      │        │        └─ Identifier 'items' @42:25
+      │        └─ block_arg
+      │           └─ Block @42:35
+      │              ├─ params
+      │              │  └─ Param 'item'
+      │              └─ body
+      │                 └─ ExprStmt @42:47
+      │                    └─ expr
+      │                       └─ Binary '>' @42:52
+      │                          ├─ lhs
+      │                          │  └─ Identifier 'item' @42:47
+      │                          └─ rhs
+      │                             └─ IntLiteral '1' @42:54
+      ├─ LocalDecl 'kept' @43:3
+      │  ├─ decl_type
+      │  │  └─ TypeRef 'Array' @43:10
+      │  │     └─ generics
+      │  │        └─ TypeRef 'Int32' @43:16
+      │  └─ init
+      │     └─ Call @43:38
+      │        ├─ callee
+      │        │  └─ Member 'filter' @43:30
+      │        │     └─ object
+      │        │        └─ Identifier 'items' @43:25
+      │        └─ block_arg
+      │           └─ Block @43:38
+      │              ├─ params
+      │              │  └─ Param 'item'
+      │              └─ body
+      │                 └─ ExprStmt @43:50
+      │                    └─ expr
+      │                       └─ Binary '>' @43:55
+      │                          ├─ lhs
+      │                          │  └─ Identifier 'item' @43:50
+      │                          └─ rhs
+      │                             └─ IntLiteral '1' @43:57
+      └─ LocalDecl 'total' @44:3
+         ├─ decl_type
+         │  └─ TypeRef 'UInt64' @44:11
+         └─ init
+            └─ Member 'count' @44:25
+               └─ object
+                  └─ Identifier 'items' @44:20
+--- exit 0 ---
