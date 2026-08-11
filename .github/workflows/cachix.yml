@@ -3,6 +3,9 @@ name: "Build & Push to Cachix"
 on:
   push:
     branches: [ main ]
+# NOTE: test purposes
+#  pull_request:
+#    branches: [ main ]
 
 jobs:
   build:
