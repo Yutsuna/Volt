@@ -1,6 +1,11 @@
 {
   description = "Volt is a compiled and interpreted programming language";
 
+  nixConfig = {
+    extra-substituters = [ "https://yutsuna.cachix.org" ];
+    extra-trusted-public-keys = [ "yutsuna.cachix.org-1:zKFPrNQ4xW03bvgLY49cUDL4xC37Mju1yHGsRK6s+Ug=" ];
+  };
+
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
   };
