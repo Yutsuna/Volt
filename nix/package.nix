@@ -21,12 +21,9 @@ gccStdenv.mkDerivation {
     "-Ddefault_library=static"
   ];
 
-  installPhase = ''
-    runHook preInstall
-    meson install --no-rebuild
+  postInstall = ''
     mkdir -p $out/share/volt/Lib
     cp -r $src/source/Lib/. $out/share/volt/Lib/
-    runHook postInstall
   '';
 
   meta = with pkgs.lib; {
