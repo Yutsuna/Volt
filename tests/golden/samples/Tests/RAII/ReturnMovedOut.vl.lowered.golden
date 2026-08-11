@@ -1,0 +1,170 @@
+Program 'samples/Tests/RAII/ReturnMovedOut.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/RAII/ReturnMovedOut.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
+├─ Class 'Counter' @9:1
+│  └─ body
+│     ├─ Field 'cursor' @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Pointer' @10:12
+│     │        └─ generics
+│     │           └─ TypeRef 'Int32' @10:20
+│     ├─ Method 'initialize' @12:3
+│     │  └─ params
+│     │     └─ Param 'cursor' instance_var @12:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Pointer' @12:29
+│     │              └─ generics
+│     │                 └─ TypeRef 'Int32' @12:37
+│     └─ Method 'finalize' @14:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @14:19
+│        └─ body
+│           └─ ExprStmt @15:5
+│              └─ expr
+│                 └─ Assign '=' @15:14
+│                    ├─ target
+│                    │  └─ Deref @15:5
+│                    │     └─ operand
+│                    │        └─ InstanceVar '@cursor' @15:6
+│                    └─ value
+│                       └─ Binary '+' @15:25
+│                          ├─ lhs
+│                          │  └─ Deref @15:16
+│                          │     └─ operand
+│                          │        └─ InstanceVar '@cursor' @15:17
+│                          └─ rhs
+│                             └─ IntLiteral '1' @15:27
+├─ Method 'make_and_return' @19:1
+│  ├─ params
+│  │  └─ Param 'cursor' @19:22
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Pointer' @19:31
+│  │           └─ generics
+│  │              └─ TypeRef 'Int32' @19:39
+│  ├─ return_type
+│  │  └─ TypeRef 'Counter' @19:51
+│  └─ body
+│     ├─ ExprStmt @20:3
+│     │  └─ expr
+│     │     └─ Assign '=' @20:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @20:3
+│     │        └─ value
+│     │           └─ Call @20:18
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @20:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Counter' @20:7
+│     │              └─ args
+│     │                 └─ Identifier 'cursor' @20:20
+│     └─ Return @21:3
+│        └─ value
+│           └─ Identifier 'c' @21:10
+├─ Method 'use_and_drop' @24:1
+│  ├─ params
+│  │  └─ Param 'cursor' @24:19
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Pointer' @24:28
+│  │           └─ generics
+│  │              └─ TypeRef 'Int32' @24:36
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @24:48
+│  └─ body
+│     └─ ExprStmt @25:3
+│        └─ expr
+│           └─ Assign '=' @25:10
+│              ├─ target
+│              │  └─ Identifier 'result' @25:3
+│              └─ value
+│                 └─ Call @25:27
+│                    ├─ callee
+│                    │  └─ Identifier 'make_and_return' @25:12
+│                    └─ args
+│                       └─ Identifier 'cursor' @25:29
+├─ ExprStmt @28:1
+│  └─ expr
+│     └─ Assign '=' @28:8
+│        ├─ target
+│        │  └─ Identifier 'cursor' @28:1
+│        └─ value
+│           └─ Call @28:31
+│              ├─ callee
+│              │  └─ Member 'malloc' @28:24
+│              │     └─ object
+│              │        └─ GenericInst @28:17
+│              │           ├─ base
+│              │           │  └─ Identifier 'Pointer' @28:10
+│              │           └─ args
+│              │              └─ TypeRef 'Int32' @28:18
+│              └─ args
+│                 └─ IntLiteral '1' @28:33
+├─ ExprStmt @29:1
+│  └─ expr
+│     └─ Assign '=' @29:9
+│        ├─ target
+│        │  └─ Deref @29:1
+│        │     └─ operand
+│        │        └─ Identifier 'cursor' @29:2
+│        └─ value
+│           └─ IntLiteral '0' @29:11
+├─ ExprStmt @31:1
+│  └─ expr
+│     └─ Call @31:13
+│        ├─ callee
+│        │  └─ Identifier 'use_and_drop' @31:1
+│        └─ args
+│           └─ Identifier 'cursor' @31:15
+├─ ExprStmt @33:1
+│  └─ expr
+│     └─ Call @33:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @33:1
+│        └─ args
+│           └─ Binary '==' @33:18
+│              ├─ lhs
+│              │  └─ Deref @33:10
+│              │     └─ operand
+│              │        └─ Identifier 'cursor' @33:11
+│              └─ rhs
+│                 └─ IntLiteral '1' @33:21
+└─ ExprStmt @35:1
+   └─ expr
+      └─ Member 'free' @35:7
+         └─ object
+            └─ Identifier 'cursor' @35:1
+--- exit 0 ---
