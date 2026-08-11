@@ -28,7 +28,9 @@ pkgs.mkShell.override { stdenv = ccacheStdenv; } {
     export CCACHE_SLOPPINESS="pch_defines,time_macros,file_stat_matches,file_macro"
     export CC="ccache gcc"
     export CXX="ccache g++"
-    export NIX_CFLAGS_LINK="-fuse-ld=mold"
+    ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+      export NIX_CFLAGS_LINK="-fuse-ld=mold"
+    ''}
 
     if [ ! -d ".venv" ]; then
       echo ">> initializing virtual environment"

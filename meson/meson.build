@@ -58,7 +58,8 @@ foreach opt, name : sanitizers
 endforeach
 
 mold = find_program('mold', required : false)
-common_link_args += mold.found() ? ['-fuse-ld=mold', '-Wl,--icf=all'] : []
+is_linux = host_machine.system() == 'linux'
+common_link_args += (mold.found() and is_linux) ? ['-fuse-ld=mold', '-Wl,--icf=all'] : []
 
 if get_option('enable_lto') and buildtype == 'release'
   add_project_arguments('-flto=auto', language : 'cpp')
