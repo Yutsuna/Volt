@@ -126,6 +126,29 @@ namespace Sema
         // into the *declaring* unit's AST, which a cross-unit `Member` may
         // not share with the unit doing the construction.
         std::int64_t EnumOrdinal = 0;
+        // Does calling this member hand the caller a value the caller now
+        // *owns* — a fresh aggregate nobody else will finalize — rather than
+        // a view onto something the receiver still holds?
+        //
+        // Derived, never annotated: `Raii::InferReturnOwnership` computes it
+        // by a monotone fixpoint over every declared body at the serial
+        // Driver seam, and records it here for exactly the reason
+        // `bConstructs`/`bIndirect` are recorded on a resolution — the
+        // decision is taken once, where the information is, and every later
+        // consumer reads rather than re-derives it
+        // (rules/zero-hardcode.md's "record it on the resolution"). A fourth
+        // annotation was never an option; the closed list stays closed.
+        //
+        // It lives on `Member` rather than on `CalleeEntry` because it is a
+        // property of the *callee's declaration*, not of any one call site,
+        // and because `Member` is the only RAII-relevant record that crosses
+        // a unit boundary: `String#+` is resolved inside whichever unit calls
+        // it, whose `TypeChecker` never sees the stdlib's AST.
+        //
+        // `false` is the safe default and the fixpoint's initial value, so an
+        // unprovable case (a recursive cycle, an unresolvable callee) leaves
+        // the result `Borrowed` — a measured leak, never a double free.
+        bool bReturnsOwned = false;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
@@ -272,6 +295,26 @@ namespace Sema
         // signature phase can fill in what the declaration phase could not yet
         // resolve. A DeclId is unique within its unit, so matching both Unit and
         // Decl is exact even across units.
+        // Every member `Id` declares, mutable — the seam-time counterpart of
+        // `Type( Id ).Members`. Same contract as `MemberByDecl` just below:
+        // the store is only writable *before* it freezes for the parallel
+        // sema phase, and both exist so a serial seam pass can fill in a fact
+        // the declaration phase could not yet know (`Raii::
+        // InferReturnOwnership`'s fixpoint is the second such pass).
+        [[nodiscard]] std::span<Member> MutableMembers ( NominalId Id )
+        {
+            return Types.Get( Id ).Members;
+        }
+
+        // The same, for the free functions a `module` (or a bare top-level
+        // `def`) binds — they are members too, and a fixpoint over call
+        // targets must reach them or `MathUtils.build_name( … )` resolves to
+        // nothing at all.
+        [[nodiscard]] std::span<Member> MutableFreeFunctions ()
+        {
+            return Functions;
+        }
+
         [[nodiscard]] Member *MemberByDecl ( NominalId Id, std::uint32_t Unit, Frontend::DeclId Decl )
         {
             for ( Member &Entry : Types.Get( Id ).Members )
