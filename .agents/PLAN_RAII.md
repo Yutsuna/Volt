@@ -227,7 +227,7 @@ RaiiNestedExpressionExits · RaiiUnsupportedExits · RaiiRuntimeOwnershipFlags
 > (`rules/build-performance.md`). Un seul build à la fois, séquentiel — y compris
 > si des sous-agents sont employés : **ne déléguer aucune étape qui builde.**
 
-### Phase 0 — Filet de sécurité *(aucun changement de comportement)*
+### Phase 0 — Filet de sécurité *(aucun changement de comportement)* (DONE)
 
 Baseline valgrind en JSON (`--json-report`), puis générer les `.lowered.golden`
 manquants des 12 samples `samples/Tests/RAII/` (`ninja -C build golden-update`).
@@ -239,14 +239,14 @@ existants sont des dumps `parse`, en amont du lowering).
 Ajouter les 11 `.expected` manquants (`exit=0`, cf. `FieldCascade.vl.expected`)
 pour que la suite `samples` exécute les 12 de bout en bout.
 
-### Phase 1 — Régression `Proc` *(cause 3, isolée, ~20 lignes)*
+### Phase 1 — Régression `Proc` *(cause 3, isolée, ~20 lignes)* (DONE)
 
 `ContainerElementType` gate sur la revendication de node-kind `ArrayLit`
 (mécanisme sanctionné par `rules/zero-hardcode.md`, identique à
 `NilLiteral`/`PointerType`/`FuncType`/`HashLit` — **aucun nom de type Volt en
 C++**). Débloque `Curry.vl` et `PointFree.vl`, qui servent ensuite de fixtures.
 
-### Phase 2 — Extraction modulaire *(aucun changement de comportement)*
+### Phase 2 — Extraction modulaire *(aucun changement de comportement)* (DONE)
 
 Découpage selon l'arborescence ci-dessus, à comportement **strictement
 identique** : `.lowered.golden` et rapport valgrind bit-à-bit inchangés. Le
