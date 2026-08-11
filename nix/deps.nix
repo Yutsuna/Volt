@@ -10,6 +10,7 @@ in
     ninja
     pkg-config
     ccache
+  ] ++ lib.optionals pkgs.stdenv.isLinux [
     mold
   ];
 
