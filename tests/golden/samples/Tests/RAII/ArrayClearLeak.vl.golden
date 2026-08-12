@@ -1,0 +1,71 @@
+Program 'samples/Tests/RAII/ArrayClearLeak.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
+├─ Method 'test_array_clear' @7:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @7:25
+│  └─ body
+│     ├─ ExprStmt @8:3
+│     │  └─ expr
+│     │     └─ Assign '=' @8:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'arr' @8:3
+│     │        └─ value
+│     │           └─ Member 'new' @8:22
+│     │              └─ object
+│     │                 └─ GenericInst @8:14
+│     │                    ├─ base
+│     │                    │  └─ Identifier 'Array' @8:9
+│     │                    └─ args
+│     │                       └─ TypeRef 'String' @8:15
+│     ├─ ExprStmt @9:3
+│     │  └─ expr
+│     │     └─ Binary '<<' @9:7
+│     │        ├─ lhs
+│     │        │  └─ Identifier 'arr' @9:3
+│     │        └─ rhs
+│     │           └─ Member 'dup' @9:29
+│     │              └─ object
+│     │                 └─ StringLiteral 'hello_leak_test_1' @9:10
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Binary '<<' @10:7
+│     │        ├─ lhs
+│     │        │  └─ Identifier 'arr' @10:3
+│     │        └─ rhs
+│     │           └─ Member 'dup' @10:29
+│     │              └─ object
+│     │                 └─ StringLiteral 'hello_leak_test_2' @10:10
+│     └─ ExprStmt @11:3
+│        └─ expr
+│           └─ Member 'clear' @11:6
+│              └─ object
+│                 └─ Identifier 'arr' @11:3
+└─ ExprStmt @14:1
+   └─ expr
+      └─ Identifier 'test_array_clear' @14:1
+--- exit 0 ---

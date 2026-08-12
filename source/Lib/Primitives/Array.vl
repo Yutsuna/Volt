@@ -92,6 +92,13 @@ struct Array<T>
   end
 
   def clear -> Void
+    if not trivially_destructible? T
+      i = 0_u64
+      while i < @size
+        ( *( @buffer + i ) ).finalize
+        i += 1
+      end
+    end
     @size = 0
   end
 end
