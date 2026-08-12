@@ -27,13 +27,13 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v8
 
       - name: Meson setup
-        run: meson setup build
+        run: nix develop --command meson setup build
 
       - name: Meson Build
-        run: meson compile -C build
+        run: nix develop --command meson compile -C build
 
       - name: Meson tests
-        run: meson compile -C build tests
+        run: nix develop --command meson compile -C build tests
 
       - name: Valgrind tests
-        run: python3 scripts/valgrind_check.py
+        run: nix develop --command python3 scripts/valgrind_check.py
