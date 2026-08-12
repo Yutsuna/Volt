@@ -51,6 +51,25 @@ namespace
     // *callee*'s id; `Binary`/`Unary` record against their own, because
     // `MemberType` is handed the operator node itself (ExprInferencer.cpp).
     // Nothing else resolves a callee at all.
+    //
+    // **Known gap, measured, deliberately left open.** A paren-less
+    // invocation is a bare `Member`, not a `Call` — `a.dup2 + b` parses as
+    // `Binary( Member( a, dup2 ), b )` — so a paren-less call in a *nested*
+    // position is not resolvable here, never provably owned, and never
+    // released: `d.full_id == s`, `s.trim + t`, and the `x.to_string` an
+    // interpolation lowers to all leak their result. Binding one to a name
+    // (`s = d.full_id`) is unaffected, because ScopeCleanup finalizes a local
+    // on its *type* and needs no resolution at all — which is why the gap is
+    // narrow and was not visible earlier.
+    //
+    // Simply adding `Member` to the second group is **wrong, and was tried**:
+    // it turns 8 leaks into 6 double frees. A `Member` is also how a *place*
+    // is read, and an owned value reaching a field through anything the
+    // `Moved` marking below does not cover is then released twice —
+    // `Exception#capture_backtrace` stores its String into a field, and
+    // `Exception#finalize` frees it after this pass already did. Closing the
+    // gap needs `Member` classified into invocation vs. place read, which is
+    // ownership-model work, not a widened predicate here.
     [[nodiscard]] const Resolution *ResolutionOf ( TypeCheckerContext &Context, const Frontend::ExprId Id )
     {
         const Frontend::ExprNode &Node = Context.Ctx.Ast.Expr( Id );

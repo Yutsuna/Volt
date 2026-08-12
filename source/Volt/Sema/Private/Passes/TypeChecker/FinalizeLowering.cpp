@@ -46,9 +46,16 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             TopBody.PushBack( Id );
         }
 
-        const bool bTopCleanup = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] ), TopBody );
-        static_cast<void>( Lifetime::RunTemporaries( Context, TopBody ) );
-        if ( bTopCleanup )
+        // Same order, and the same write-back condition, as the Method loop
+        // below. Gating the write-back on the cleanup result alone drops
+        // every temporary region at a top level that has no scope-local
+        // candidate of its own — `"a" + b` evaluated directly under the unit
+        // init is the common shape, and its buffer then leaks with nothing
+        // to show for it, since the rewrite really did happen and was
+        // discarded here.
+        const bool bTopCleanup     = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] ), TopBody );
+        const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody );
+        if ( bTopCleanup or bTopTemporaries )
         {
             Ast.TopStmts.clear();
             for ( const Frontend::StmtId Id : TopBody )
