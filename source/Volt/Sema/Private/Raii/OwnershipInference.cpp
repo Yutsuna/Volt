@@ -627,7 +627,7 @@ namespace
         // NOTE: noinline because to avoid:
         // c++/16.1.0/variant:524:22: error: potential null pointer dereference
         // return this->_M_index != __index_type(variant_npos);
-        template <typename NodeVariant> __attribute__ ( ( noinline ) ) void WalkFields ( const NodeVariant &Variant )
+        template <typename NodeVariant> __attribute__( ( noinline ) ) void WalkFields ( const NodeVariant &Variant )
         {
             std::visit(
                 [&] ( const auto &Node )
