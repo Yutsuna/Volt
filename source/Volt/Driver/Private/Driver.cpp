@@ -491,7 +491,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         // and before any signature is resolved: synthesize an empty
         // `finalize` for every non-generic Struct/Class that declares none
         // of its own but has a cascade-candidate field
-        // (.agents/CASCADE_FINALIZE.md item 3 — SynthesizeFinalizeStubs's
+        // (rules/raii-ownership.md — SynthesizeFinalizeStubs's
         // own doc comment has the full contract). Needs a *mutable* AST per
         // unit (it splices a new Method Decl into a type's own Body), unlike
         // ResolveStructLayouts' read-only UnitAsts above — built the same
@@ -549,7 +549,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         // become, and every question it asks of one would have to be answered
         // by guessing what that node will lower to — which is precisely how a
         // Volt method spelling once ended up hardcoded in this analysis
-        // (.agents/CASCADE_FINALIZE.md's own guardrail). Move the question,
+        // (rules/raii-ownership.md's own guardrail). Move the question,
         // never teach it a spelling.
         //
         // `UnitAsts` (the read-only view built above) is what it wants:

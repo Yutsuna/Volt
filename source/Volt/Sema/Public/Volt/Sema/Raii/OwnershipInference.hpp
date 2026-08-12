@@ -63,7 +63,7 @@ SEMA_EXPORT void InferReturnOwnership ( std::span<const Frontend::AstContext *co
 // caller's full-expression region owns the temporary, `Array<T>#push` stores
 // it, and the array's own element cascade frees it a second time. That is why
 // this runs before anything classifies a `Member` as an invocation
-// (`.agents/CASCADE_FINALIZE.md` item 1) — the widening is only safe once the
+// (rules/raii-ownership.md) — the widening is only safe once the
 // callee can say it borrows.
 SEMA_EXPORT void InferParameterEscape ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store );
 

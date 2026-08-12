@@ -1324,7 +1324,7 @@ namespace Sema
             // `finalize` whatever its arguments turn out to be, so candidacy
             // is answerable here and the stub is owed. The field loop below
             // skips bare parameters by name, which is the one case left
-            // undecidable (CASCADE_FINALIZE.md item 2's residual wall).
+            // undecidable (rules/raii-ownership.md).
 
             Core::SourceRange Loc;
             std::visit(

@@ -57,7 +57,7 @@ namespace Sema
     /// exactly like a hand-written one — for every non-generic `Struct`/
     /// `Class` that declares no `finalize` of its own but has at least one
     /// field whose *resolved* type is an Aggregate-layout, finalize-declaring
-    /// candidate (.agents/CASCADE_FINALIZE.md item 3's "no own finalize"
+    /// candidate (rules/raii-ownership.md's "no own finalize"
     /// half). Needs field *layouts*, which is why this cannot run any
     /// earlier than ResolveStructLayouts, and needs the member to be visible
     /// to ResolveUnitSignatures' own `Store.MemberByDecl` lookup and to

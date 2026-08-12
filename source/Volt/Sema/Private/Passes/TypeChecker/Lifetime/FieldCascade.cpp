@@ -34,7 +34,7 @@ namespace
     // get their own dedicated SynthesizedFunctions table rather than an
     // ordinary Decl append at this pass's own late stage — a Decl added here
     // would never be visible to TypeBinder's member table or the backend's own
-    // per-type emission walk). CASCADE_FINALIZE.md tracks that half separately.
+    // per-type emission walk). rules/raii-ownership.md tracks that half separately.
     //
     // Generic types are *not* excluded (they were, until Phase 4): a field
     // written `Array<HashEntry<K,V>>` names a head nominal that declares
@@ -152,7 +152,7 @@ namespace
     // `K`/`V` resolve through `UnitSink::Param` with no binding, i.e. to an
     // invalid id: the ordinary deferred-typing convention every generic body
     // already uses (core-ast.md §"Generic definition bodies"), and no bound is
-    // required (CASCADE_FINALIZE.md item 2, applied one level up).
+    // required (rules/raii-ownership.md, applied one level up).
     //
     // A field whose written type is a *bare* parameter (`HashEntry<K,V>::key :
     // K`) therefore resolves to an invalid id and is skipped — it is not a
@@ -263,7 +263,7 @@ namespace
     // on the receiver, InferExpr for the Member/Call, and the same
     // BuildFinalizeCallOnReceiver element cascade when @field's own type is
     // itself Array-shaped over a finalize-candidate element — .agents/
-    // CASCADE_FINALIZE.md item 2 needed no bound at all: the cascade is driven
+    // rules/raii-ownership.md needed no bound at all: the cascade is driven
     // structurally, off the field's element type declaring `finalize`, exactly
     // like every other candidacy check in this file), but the receiver is an
     // InstanceVar rather than an Identifier: field access needs no scope
@@ -384,7 +384,7 @@ void RunFieldCascade ( TypeCheckerContext &Context )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
-    // Field cascade (.agents/CASCADE_FINALIZE.md item 3) — runs first, over
+    // Field cascade (rules/raii-ownership.md) — runs first, over
     // every Struct/Class Decl, so a type's own `finalize` (if it has one)
     // already carries its field-cascade epilogue by the time the ordinary
     // per-Method loop below instruments it. Never adds a Decl (only

@@ -137,7 +137,7 @@ struct TypeCheckerContext
     // The one thing `Member::bReturnsOwned` structurally cannot cover: a call
     // *through a callable* resolves to the `FuncType` claimant's `abstract
     // call`, which has no body, so ownership of its result is unprovable in
-    // general (.agents/CASCADE_FINALIZE.md item 3). It stops being unprovable
+    // general (rules/raii-ownership.md). It stops being unprovable
     // exactly when the callee is a literal standing in the call's own callee
     // slot — the shape every desugared composition and pipeline produces
     // (`x |> (&.trim) >> (&.downcase)` lowers to nested

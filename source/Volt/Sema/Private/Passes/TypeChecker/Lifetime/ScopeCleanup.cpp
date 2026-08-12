@@ -1001,7 +1001,7 @@ namespace
     // declaring write is known to precede.
     //
     // "Known to precede" is deliberately the cheap, sound approximation
-    // `.agents/CASCADE_FINALIZE.md` item 2 specifies: the declaration must
+    // rules/raii-ownership.md specifies: the declaration must
     // have been passed *in this list or one enclosing it*, never in a sibling
     // branch. A declaration inside an `if` and a reassignment after it is
     // therefore skipped — the local may be uninitialized there, and releasing

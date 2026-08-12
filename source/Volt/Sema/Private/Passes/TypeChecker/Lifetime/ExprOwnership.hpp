@@ -20,7 +20,7 @@
 // decides whether an unnamed value owns itself) must not drift: they are the
 // two halves of one rule.
 //
-// **`Owned` is proven, never presumed** (.agents/CASCADE_FINALIZE.md). Two
+// **`Owned` is proven, never presumed** (rules/raii-ownership.md). Two
 // proofs are accepted and no third — a construction, and a callee the
 // seam-time fixpoint read a body for. Everything else reads as `Borrowed`,
 // which costs a counted leak instead of a double free.
@@ -79,7 +79,7 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
 //     storage its real owner still holds, so releasing it is a double free.
 //     The discriminator is what the resolution found — a `Method` runs a
 //     body, a `Field` names storage — never the node kind, which cannot tell
-//     them apart. This is the split `.agents/CASCADE_FINALIZE.md` item 1
+//     them apart. This is the split rules/raii-ownership.md
 //     called for.
 //  2. **Does that invocation hand back a value nobody else holds?** Two
 //     proofs are accepted:
@@ -146,8 +146,7 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
     // An indirect call goes through a callable *value*; the member it
     // resolves to is the `FuncType` claimant's abstract contract, which has
     // no body and so was never proven to return owned. Reading the flag
-    // handles that without a special case — and is the whole of
-    // `.agents/CASCADE_FINALIZE.md` item 3's first half: through a function
+    // handles that without a special case (rules/raii-ownership.md): through a function
     // pointer the body is genuinely unknown, so the result stays `Borrowed`.
     return Found->bConstructs or ( Found->Decl != nullptr and Found->Decl->bReturnsOwned );
 }

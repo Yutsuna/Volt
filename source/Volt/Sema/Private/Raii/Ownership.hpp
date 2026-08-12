@@ -72,7 +72,7 @@ enum class EOwnership : std::uint8_t
 // asking; whether destroying the value *does* anything is. A field never
 // needs substitution here, since a generic field's own nominal never attaches
 // a Layout in the first place — so this returns false for it automatically,
-// which is the wall `.agents/CASCADE_FINALIZE.md` item 2 documents.
+// which is the wall rules/raii-ownership.md documents.
 [[nodiscard]] bool IsFinalizeCandidateNominal ( const TypeStore &Store, NominalId Id );
 
 // The same candidacy against a receiver's own (possibly generic-argument
