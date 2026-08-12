@@ -1,5 +1,6 @@
 #include "Volt/Frontend/AST/PointFreeLowering.hpp"
 
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
@@ -97,24 +98,58 @@ BuildSectionBody ( Frontend::AstContext &Context, Frontend::ExprId SectionId, Fr
     return BodyExpr;
 }
 
-[[nodiscard]] Frontend::ExprId
-BuildCompositionBody ( Frontend::AstContext &Context, Frontend::ExprId CompId, Frontend::ExprId ParamRef )
+[[nodiscard]] Frontend::ExprId BuildCompositionBody ( Frontend::AstContext &Context,
+                                                      Frontend::ExprId CompId,
+                                                      Frontend::ExprId ParamRef,
+                                                      std::vector<Frontend::ExprId> &Consumed );
+
+// Applies one step of a chain (a `Section`, a nested `Composition`, or an
+// ordinary callee such as a named `def`) to `ArgExpr`.
+//
+// A `Section`/`Composition` step is inlined directly — its own body is built
+// against `ArgExpr` in place, never through a `Call`— rather than wrapped in
+// a `Lambda` and invoked. Every step this pass touches is applied to its
+// argument exactly once, at the exact point this function returns to, so
+// inlining duplicates no evaluation; it only removes indirection. This is
+// what keeps `(&.to_string) >> (&.data) >> libc_puts` one flat expression,
+// with one full-expression cleanup region, instead of three separately
+// closure-lifted functions each finalizing their own temporaries before
+// returning — which is what silently freed the `String` `&.to_string`
+// allocated before `libc_puts` ever read the `Pointer<UInt8>` `&.data`
+// aliased into it (a temporary is only safe past the call that produced it
+// while it and its consumer share one region; splitting the chain across
+// closures put them in different ones). An ordinary callee (a named
+// function, or a hand-written closure value) is genuinely invoked instead —
+// `Call{ Callee = StepId, Args = [ ArgExpr ] }`, exactly as before.
+[[nodiscard]] Frontend::ExprId BuildStep (
+    Frontend::AstContext &Context, Frontend::ExprId StepId, Frontend::ExprId ArgExpr, std::vector<Frontend::ExprId> &Consumed )
+{
+    const Frontend::ExprKind Kind = Frontend::KindOf( Context.Expr( StepId ) );
+    if ( Kind == Frontend::ExprKind::Section )
+    {
+        Consumed.push_back( StepId );
+        return BuildSectionBody( Context, StepId, ArgExpr );
+    }
+    if ( Kind == Frontend::ExprKind::Composition )
+    {
+        Consumed.push_back( StepId );
+        return BuildCompositionBody( Context, StepId, ArgExpr, Consumed );
+    }
+
+    Frontend::Call Cal;
+    Cal.Loc    = Frontend::LocOf( Context.Expr( StepId ) );
+    Cal.Callee = StepId;
+    Cal.Args.PushBack( ArgExpr );
+    Cal.ArgNames.PushBack( Core::Symbol{} );
+    return Context.Add( Cal );
+}
+
+[[nodiscard]] Frontend::ExprId BuildCompositionBody (
+    Frontend::AstContext &Context, Frontend::ExprId CompId, Frontend::ExprId ParamRef, std::vector<Frontend::ExprId> &Consumed )
 {
     const Frontend::Composition Comp = std::get<Frontend::Composition>( Context.Expr( CompId ) );
-
-    Frontend::Call InnerCall;
-    InnerCall.Loc    = Comp.Loc;
-    InnerCall.Callee = Comp.Lhs;
-    InnerCall.Args.PushBack( ParamRef );
-    InnerCall.ArgNames.PushBack( Core::Symbol{} );
-    const Frontend::ExprId InnerExpr = Context.Add( InnerCall );
-
-    Frontend::Call OuterCall;
-    OuterCall.Loc    = Comp.Loc;
-    OuterCall.Callee = Comp.Rhs;
-    OuterCall.Args.PushBack( InnerExpr );
-    OuterCall.ArgNames.PushBack( Core::Symbol{} );
-    return Context.Add( OuterCall );
+    const Frontend::ExprId InnerExpr = BuildStep( Context, Comp.Lhs, ParamRef, Consumed );
+    return BuildStep( Context, Comp.Rhs, InnerExpr, Consumed );
 }
 
 // A composition's result type is whatever its rightmost step returns, never
@@ -222,8 +257,15 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         ParamUse.Name             = ParamName;
         const ExprId ParamUseExpr = Context.Add( ParamUse );
 
+        // Every nested Section/Composition this recursion inlines (never
+        // wraps in a Lambda) is collected here rather than left for Sema's
+        // FunctionalLowering sweep to find — that sweep still scans the
+        // whole arena by index regardless of reachability, so an orphaned
+        // one left as-is would get needlessly closure-lifted into dead code
+        // nobody calls, same reasoning as `ValId`/`AssignExprId` below.
+        std::vector<ExprId> Consumed;
         const ExprId BodyExpr = ValueKind == ExprKind::Section ? BuildSectionBody( Context, ValId, ParamUseExpr )
-                                                               : BuildCompositionBody( Context, ValId, ParamUseExpr );
+                                                               : BuildCompositionBody( Context, ValId, ParamUseExpr, Consumed );
 
         // `ValId` and `AssignExprId` are dead weight now — nothing will
         // reference either again once the Assign is dropped from TopStmts
@@ -235,6 +277,10 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         // orphan nothing ever types, exactly as if this pass never ran.
         Context.Expr( ValId )        = NilLiteral{ .Loc = Loc };
         Context.Expr( AssignExprId ) = NilLiteral{ .Loc = Loc };
+        for ( const ExprId ConsumedId : Consumed )
+        {
+            Context.Expr( ConsumedId ) = NilLiteral{ .Loc = Loc };
+        }
 
         ExprStmt TailStmt;
         TailStmt.Loc  = Loc;
