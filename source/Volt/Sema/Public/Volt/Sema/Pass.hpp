@@ -177,6 +177,22 @@ namespace Sema
     // Same, restricted to the passes of one Kind (manifest order preserved).
     SEMA_EXPORT std::size_t RunPasses ( PassContext &Context, EPassKind Only );
 
+    // Same, restricted to the half-open Order window `[Begin, End)`. Splitting
+    // the per-unit run *by Order* rather than by Kind is the point: the
+    // manifest interleaves the two (`ScopeResolver` sits at 10, between two
+    // lowerings), and running all of one Kind before all of the other would
+    // silently reorder passes that depend on each other.
+    SEMA_EXPORT std::size_t RunPasses ( PassContext &Context, int OrderBegin, int OrderEnd );
+
+    // The Order at which the per-unit sema run can be cut in two so a serial,
+    // whole-program analysis may read a **lowered** AST before anything types
+    // it — the Driver's ownership seam (`Raii::InferReturnOwnership`).
+    //
+    // Derived from the manifest, never written down twice: it is one past the
+    // last `Lowering` pass, so adding a lowering moves the seam with it and
+    // nothing in the Driver ever names a pass.
+    [[nodiscard]] SEMA_EXPORT int LoweredSeamOrder ();
+
 } // namespace Sema
 
 } // namespace Volt
