@@ -184,7 +184,9 @@ namespace
 // the cache key hashes stdlib *sources*, which did not change either, so
 // nothing else would have invalidated it and every build would keep reading
 // a store whose member tables predate the synthesis.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453036ULL; // "VOLTFE06"
+// Bumped to 07 when `Sema::Member` gained `ParamEscapes`: a new serialised
+// field, so the same byte-shift reasoning as 05 applies.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453037ULL; // "VOLTFE07"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -490,6 +492,11 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         // read-only view built above) is what it wants: nothing here mutates
         // an AST, only the store's own `Member` records.
         Sema::Raii::InferReturnOwnership( UnitAsts, Types );
+        // The mirror question, same seam and same reasons: whether a callee
+        // keeps what it is handed. Independent of the fixpoint above — one
+        // reasons about results, the other about arguments — so the order
+        // between the two is free.
+        Sema::Raii::InferParameterEscape( UnitAsts, Types );
 
         Diagnostics.Merge( std::move( SeamBag ) );
 
