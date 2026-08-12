@@ -91,16 +91,23 @@ already correct for these — `If::Then`/`Else` are ordinary `StmtList`s — so
 only discovery had been missing. `samples/Tests/RAII/ExpressionPositionReturn.vl`
 and `ExpressionPositionBreakNext.vl` are the fixtures.
 
-Two things the sweep still does **not** own, both leaks rather than
-corruption, and both recorded in `.agents/CASCADE_FINALIZE.md` with the
-measurement: a paren-less call in nested position (`d.full_id == s`), and
-reassignment of a local that already owns a value (`result = f( result )`
-abandons the old buffer). The first one's `Member`-into-invocation-vs-place
-split has since landed (`Lifetime/ExprOwnership.hpp`), but its leaks are still
-open for an unrelated reason — the ownership fixpoint runs before the lowering
-passes and so cannot read a body written as an interpolation; the second still
-needs per-local flow-sensitive ownership. The naive widening of either
-produces double frees, which the model ranks strictly worse than the leak.
+The sweep no longer stops at a scope-local. Two more sweeps sit beside it in
+the same orchestrator, both rewriting an **expression slot** rather than a
+`StmtList`, so they compose with the above by construction:
+
+- `RunTemporaries` gives a statement's unnamed values full-expression
+  lifetime — and runs again inside `Sema::ReinstantiateBody`, per
+  instantiation, because a generic body defers every type and so is
+  unclassifiable where it is declared.
+- `RunDropOnReassign` releases what a local held when it is written a second
+  time (`result = n.digit_char + result`), which no exit path ever names.
+
+Whether a value is *owned* at all is decided by `Lifetime/ExprOwnership.hpp`
+from the resolution, never from the node kind, and the facts it reads are
+derived at a serial seam that sits **between** the lowering passes and
+`TypeChecker` (`Sema::LoweredSeamOrder()`) — so the analysis reads the core
+AST rather than guessing at what sugar will become. See [`rules/raii-ownership.md`](raii-ownership.md)
+for the full model and ownership contract.
 
 ## The 25 core nodes
 
@@ -122,7 +129,7 @@ and settled once per instantiation by `Sema::ReinstantiateBody`. The predicate
 exists so a container can release its elements in ordinary Volt without paying
 for a `T` that has nothing to release — the compiler used to synthesize that
 loop itself, which meant knowing what a sequence is
-(`.agents/CASCADE_FINALIZE.md`).
+([`rules/raii-ownership.md`](raii-ownership.md)).
 
 `Lambda`/`Block` are gone from this table — see "Closures are gone" below.
 `FuncAddr` is new here: it denotes a resolved callable's address as a value,
