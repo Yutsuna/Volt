@@ -11,6 +11,7 @@
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 #include "Volt/Sema/Raii/OwnershipInference.hpp"
 
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -926,6 +927,18 @@ void AnalyzeClosureLiteralsImpl ( TypeCheckerContext &Context )
         }
     }
 
+    // A closure literal materialises a fresh callable — its environment is
+    // allocated on the spot and nobody else holds it — so as a *value* it is
+    // owned, exactly like any other literal. That is what lets the fixpoint
+    // below read `( x ) => ( y ) => x + y`: the outer closure's body is the
+    // inner literal, and a body that hands back a fresh value returns owned.
+    // Who releases that environment is a separate question, answered by
+    // `Temporaries`' construction guard and by `Proc#finalize`.
+    for ( const Frontend::ExprId Id : Literals )
+    {
+        Context.OwnedExprSites.insert( Id.Value );
+    }
+
     for ( std::size_t Round = 0; Round <= Literals.size(); ++Round )
     {
         bool bChanged = false;
@@ -952,6 +965,60 @@ void AnalyzeClosureLiteralsImpl ( TypeCheckerContext &Context )
     for ( const Frontend::ExprId Id : Literals )
     {
         Context.ClosureParamEscapes[Id.Value] = Sema::Raii::ClosureParameterEscape( Context.Ctx.Ast, Context.Ctx.Types, Id );
+    }
+
+    // A call *through a name* is opaque only if the name is.
+    //
+    // A local whose every write is a closure literal already proven above is
+    // not: `f = ( x : Int32 ) => ( y : Int32 ) => x + y` makes `f( 20 )`
+    // exactly as knowable as invoking that literal in place. Every write must
+    // qualify — one that does not means the name may hold a closure whose body
+    // was never read, and releasing that result would be a double free rather
+    // than the leak this model always prefers.
+    //
+    // Recorded against the *callee occurrence*, which is what
+    // `ProducesOwnedValue` keys on, so the two answers cannot drift.
+    const Frontend::AstContext &Ast = Context.Ctx.Ast;
+    std::unordered_map<const Sema::Binding *, bool> NameHoldsProvenClosure;
+    for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        const auto *AssignNode = std::get_if<Frontend::Assign>( &Ast.Expr( Id ) );
+        if ( AssignNode == nullptr or not AssignNode->Target.IsValid() )
+        {
+            continue;
+        }
+        const Sema::Binding *Bound = Context.Ctx.Scopes.BindingOf( AssignNode->Target );
+        if ( Bound == nullptr )
+        {
+            continue;
+        }
+        const bool bProven  = AssignNode->Value.IsValid() and Context.OwnedClosureLiterals.contains( AssignNode->Value.Value );
+        const auto Existing = NameHoldsProvenClosure.find( Bound );
+        NameHoldsProvenClosure[Bound] = bProven and ( Existing == NameHoldsProvenClosure.end() or Existing->second );
+    }
+
+    for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        const auto *CallNode = std::get_if<Frontend::Call>( &Ast.Expr( Id ) );
+        if ( CallNode == nullptr or not CallNode->Callee.IsValid() )
+        {
+            continue;
+        }
+        if ( not std::holds_alternative<Frontend::Identifier>( Ast.Expr( CallNode->Callee ) ) )
+        {
+            continue;
+        }
+        const Sema::Binding *Bound = Context.Ctx.Scopes.BindingOf( CallNode->Callee );
+        if ( Bound == nullptr )
+        {
+            continue;
+        }
+        if ( const auto Found = NameHoldsProvenClosure.find( Bound ); Found != NameHoldsProvenClosure.end() and Found->second )
+        {
+            Context.OwnedClosureLiterals.insert( CallNode->Callee.Value );
+        }
     }
 }
 

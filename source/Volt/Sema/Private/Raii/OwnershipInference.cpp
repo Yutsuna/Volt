@@ -158,6 +158,52 @@ namespace
                                        const LocalOwnership &Locals,
                                        Frontend::ExprId Id );
 
+    // `receiver.name` used as an invocation: does the member it names hand
+    // back an owned value?
+    //
+    // Shared by the two spellings of one call. `x.dup()` reaches it as a
+    // `Call`'s callee; `x.dup` — the paren-less form Volt writes far more
+    // often, and the one every stdlib one-liner body ends on — reaches it as a
+    // bare `Member` standing in value position. Answering them differently is
+    // how `def mk( x ) -> String; x.dup; end` came to be classified as
+    // borrowing while `def mk( x ) -> String; x.dup(); end` was not.
+    [[nodiscard]] bool MemberInvocationReturnsOwned ( const Frontend::AstContext &Ast,
+                                                      const TypeStore &Store,
+                                                      const NameIndex &Index,
+                                                      const Body &Owner,
+                                                      const Frontend::Member &MemberNode )
+    {
+        const std::string_view Name = Ast.Text( MemberNode.Name );
+
+        // A construction always yields fresh storage — the one case that needs
+        // no proof at all, and the same fact `Resolution::bConstructs` records
+        // at a call site.
+        if ( Name == ConstructorCall )
+        {
+            return true;
+        }
+
+        // `String.owned( … )` / `self.helper( … )`: an exact receiver, so
+        // resolve on it rather than through the name index.
+        NominalId Receiver = StaticReceiverNominal( Ast, Store, MemberNode.Object );
+        if ( not Receiver.IsValid() and MemberNode.Object.IsValid() and
+             std::holds_alternative<Frontend::SelfExpr>( Ast.Expr( MemberNode.Object ) ) )
+        {
+            Receiver = Owner.Self;
+        }
+        if ( Receiver.IsValid() )
+        {
+            const TypeStore::MemberRef Found = Store.LookupMember( Receiver, Name );
+            if ( Found.Decl != nullptr )
+            {
+                // A field is a *place*, never an invocation: reading it hands
+                // back a view its owner still holds.
+                return Found.Decl->Kind == EMemberKind::Method and Found.Decl->bReturnsOwned;
+            }
+        }
+        return AllNamedReturnOwned( Index, Name );
+    }
+
     // A body's value on some path out of it — its own last expression
     // statement. Anything else (a trailing `while`, an empty body) yields
     // nothing and is treated as not-owned.
@@ -218,6 +264,16 @@ namespace
             return Locals.Owned.contains( Ident->Name.Value );
         }
 
+        // A paren-less invocation, `x.dup` — the same node kind a *place* read
+        // uses, which is why the resolved member's `Kind` is the discriminator
+        // rather than the syntax (`Lifetime/ExprOwnership.hpp` draws the
+        // identical line one phase later, from the resolution). A field read
+        // falls through to `false`, which is the safe answer for it anyway.
+        if ( const auto *MemberNode = std::get_if<Frontend::Member>( &Node ) )
+        {
+            return MemberInvocationReturnsOwned( Ast, Store, Index, Owner, *MemberNode );
+        }
+
         if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
         {
             if ( not CallNode->Callee.IsValid() )
@@ -243,34 +299,7 @@ namespace
 
             if ( const auto *MemberNode = std::get_if<Frontend::Member>( &Callee ) )
             {
-                const std::string_view Name = Ast.Text( MemberNode->Name );
-
-                // A construction always yields fresh storage — the one case
-                // that needs no proof at all, and the same fact
-                // `Resolution::bConstructs` records at a call site.
-                if ( Name == ConstructorCall )
-                {
-                    return true;
-                }
-
-                // `String.owned( … )` / `self.helper( … )`: an exact
-                // receiver, so resolve on it rather than through the name
-                // index.
-                NominalId Receiver = StaticReceiverNominal( Ast, Store, MemberNode->Object );
-                if ( not Receiver.IsValid() and MemberNode->Object.IsValid() and
-                     std::holds_alternative<Frontend::SelfExpr>( Ast.Expr( MemberNode->Object ) ) )
-                {
-                    Receiver = Owner.Self;
-                }
-                if ( Receiver.IsValid() )
-                {
-                    const TypeStore::MemberRef Found = Store.LookupMember( Receiver, Name );
-                    if ( Found.Decl != nullptr )
-                    {
-                        return Found.Decl->bReturnsOwned;
-                    }
-                }
-                return AllNamedReturnOwned( Index, Name );
+                return MemberInvocationReturnsOwned( Ast, Store, Index, Owner, *MemberNode );
             }
             if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Callee ) )
             {

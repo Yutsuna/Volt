@@ -64,23 +64,32 @@ namespace
         }
         const Sema::SemaTypeId Type = Context.Ctx.Values.ExprType( Id );
 
-        // A callable's environment is *not* a full-expression value. A
-        // capturing closure's env holds the enclosing frame's own locals
-        // (`ClosureLifting` rewrites every use of a captured variable, on
-        // both sides, into a load through that env), so releasing it at the
-        // end of the statement that built the closure frees storage the
-        // enclosing scope keeps reading — `arr.each do |i| total = total + i
-        // end` then reads `total` through freed memory.
+        // A callable this region *built* is not this region's to release.
         //
-        // Identified by the type claiming the `FuncType` node kind, never by
-        // a Volt type name (rules/zero-hardcode.md). Skipping it costs a
-        // counted leak for a capture-free closure, which is the safe side of
-        // this pass's standing arbitration; giving env its real lifetime (the
-        // scope of what it captures) is scope-level work, not
-        // full-expression work.
+        // `ClosureLifting` already owns that environment's lifetime: it holds
+        // the enclosing frame's own locals (every use of a captured variable
+        // is rewritten, on both sides, into a load through it), and the region
+        // that pass builds around the construction is what releases it —
+        // `arr.each do |i| total = total + i end` reads `total` through that
+        // env for the whole call. Releasing it here as well is a double free,
+        // and releasing it *early* frees storage the enclosing scope keeps
+        // reading.
+        //
+        // A callable this region merely *received* — the result of `f( 1 )` in
+        // `f( 1 )( 2 )` — is a different value entirely: nobody built it here,
+        // nobody else names it, and its environment dies with the expression.
+        // The discriminator is therefore "did this site construct it", not
+        // "is it callable"; the callable test only says which values the
+        // question is worth asking about. Identified by the type claiming the
+        // `FuncType` node kind, never by a Volt type name
+        // (rules/zero-hardcode.md).
         if ( IsCallableType( Context, Type ) )
         {
-            return false;
+            const Resolution *Built = ResolutionOf( Context, Id );
+            if ( Built == nullptr or Built->bConstructs )
+            {
+                return false;
+            }
         }
 
         return Sema::Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, Type );
@@ -105,8 +114,12 @@ namespace
     //     regions of their own, and are recursed into as such — a temporary
     //     created inside a loop body must be released once per iteration,
     //     not once per enclosing statement.
-    void CollectOwnedSubExprs (
-        TypeCheckerContext &Context, Frontend::ExprId Id, bool bMoved, bool bIsRoot, std::vector<Frontend::ExprId> &Out )
+    void CollectOwnedSubExprs ( TypeCheckerContext &Context,
+                                Frontend::ExprId Id,
+                                bool bMoved,
+                                bool bIsRoot,
+                                std::vector<Frontend::ExprId> &Out,
+                                std::unordered_set<std::uint32_t> &CalleeSites )
     {
         if ( not Id.IsValid() )
         {
@@ -209,16 +222,40 @@ namespace
 
         if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
         {
-            // A callee is a *designation*, not a value the statement owns.
-            // Materializing it would also break the backend, which keys the
-            // resolution on `Call::Callee`'s own id
-            // (BackendLLVM/.../ExprCallEmitter.cpp) — detaching that slot
-            // moves the entry out from under it. Descent continues, so a
-            // receiver hidden inside the callee (`( a + b ).trim`) is still
-            // collected on its own account.
+            // A callee is almost always a *designation* — a name, a member,
+            // a naked type — and a designation owns nothing. Worse, asking:
+            // `T.new( … )`'s callee is a `Member` carrying the construction's
+            // own resolution, so it answers "owned" while the value it
+            // describes belongs to the `Call` above it. Those stay `Moved`,
+            // exactly as before.
+            //
+            // A callee that is itself a **call** is the one exception, and not
+            // an exception to the rule but an instance of it: `f( 1 )( 2 )`
+            // evaluates `f( 1 )` to a value, and that value is as much this
+            // region's to release as any other unnamed one. It is recorded
+            // rather than collected outright because it needs one thing an
+            // ordinary site does not — the resolution keyed on that slot
+            // belongs to the *parent* call (ExprCallEmitter.cpp looks the
+            // callee's id up to emit the call), so it must stay put.
             if ( CallNode->Callee.IsValid() )
             {
-                MovedChildren.insert( CallNode->Callee.Value );
+                if ( std::holds_alternative<Frontend::Call>( Context.Ctx.Ast.Expr( CallNode->Callee ) ) )
+                {
+                    CalleeSites.insert( CallNode->Callee.Value );
+                }
+                else
+                {
+                    MovedChildren.insert( CallNode->Callee.Value );
+                }
+            }
+
+            // A trailing block is handed to the callee, and the region
+            // `ClosureLifting` built around this very call is what releases
+            // its environment. Claiming it here too would release the same
+            // buffer twice.
+            if ( CallNode->BlockArg.IsValid() )
+            {
+                MovedChildren.insert( CallNode->BlockArg.Value );
             }
 
             // An argument is this region's to release only when the callee
@@ -257,27 +294,28 @@ namespace
                 using T = std::remove_cvref_t<decltype( Inner )>;
                 if constexpr ( not std::is_same_v<T, std::monostate> )
                 {
-                    Meta::ForEachField(
-                        Inner,
-                        [&] ( const char *, const auto &Field )
-                        {
-                            using F = std::remove_cvref_t<decltype( Field )>;
-                            if constexpr ( std::is_same_v<F, Frontend::ExprId> )
-                            {
-                                CollectOwnedSubExprs( Context, Field, MovedChildren.contains( Field.Value ), false, Out );
-                            }
-                            else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
-                            {
-                                for ( const Frontend::ExprId Child : Field )
-                                {
-                                    CollectOwnedSubExprs( Context, Child, MovedChildren.contains( Child.Value ), false, Out );
-                                }
-                            }
-                            else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
-                            {
-                                static_cast<void>( ProcessStmtList( Context, Field ) );
-                            }
-                        } );
+                    Meta::ForEachField( Inner,
+                                        [&] ( const char *, const auto &Field )
+                                        {
+                                            using F = std::remove_cvref_t<decltype( Field )>;
+                                            if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                                            {
+                                                CollectOwnedSubExprs( Context, Field, MovedChildren.contains( Field.Value ),
+                                                                      false, Out, CalleeSites );
+                                            }
+                                            else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                                            {
+                                                for ( const Frontend::ExprId Child : Field )
+                                                {
+                                                    CollectOwnedSubExprs( Context, Child, MovedChildren.contains( Child.Value ),
+                                                                          false, Out, CalleeSites );
+                                                }
+                                            }
+                                            else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                            {
+                                                static_cast<void>( ProcessStmtList( Context, Field ) );
+                                            }
+                                        } );
                 }
             },
             Node );
@@ -305,11 +343,12 @@ namespace
     // scope binding on the *original* slot is invisible to a backend that
     // followed the redirect, which is exactly how a materialized temporary
     // once reached codegen with no binding at all.
-    [[nodiscard]] Frontend::ExprId PlaceInSlot ( TypeCheckerContext &Context, const Frontend::ExprId Slot, Frontend::ExprNode Content )
+    [[nodiscard]] Frontend::ExprId
+    PlaceInSlot ( TypeCheckerContext &Context, const Frontend::ExprId Slot, Frontend::ExprNode Content )
     {
         if ( Context.Redirects != nullptr )
         {
-            const Frontend::ExprId NewId         = Context.Ctx.Ast.Add( std::move( Content ) );
+            const Frontend::ExprId NewId       = Context.Ctx.Ast.Add( std::move( Content ) );
             ( *Context.Redirects )[Slot.Value] = NewId;
             return NewId;
         }
@@ -339,7 +378,7 @@ namespace
     // id rather than by a callee's — its callee resolution. The original key
     // is erased, because `Slot` is about to hold something else entirely and
     // a stale resolution on it would tell a backend to emit a call.
-    [[nodiscard]] Frontend::ExprId DetachSlot ( TypeCheckerContext &Context, const Frontend::ExprId Slot )
+    [[nodiscard]] Frontend::ExprId DetachSlot ( TypeCheckerContext &Context, const Frontend::ExprId Slot, const bool bIsCallee )
     {
         Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -348,6 +387,19 @@ namespace
         if ( Type.IsValid() )
         {
             Context.Ctx.Values.SetExprType( Moved, Type );
+        }
+
+        // A slot standing in a call's callee position is the *parent* call's
+        // key, not its own: what sits at `CalleeResolution[Slot]` describes the
+        // call being made *through* this value, and the parent still points
+        // here. Moving it would leave the parent with no resolution at all,
+        // which is exactly the "call at expression N carries no callee
+        // resolution" this pass hit the first time it tried. The detached copy
+        // needs nothing: its own resolution is keyed on its own callee, an id
+        // this rewrite never touches.
+        if ( bIsCallee )
+        {
+            return Moved;
         }
 
         if ( const auto Found = Context.CalleeResolution.find( Slot.Value ); Found != Context.CalleeResolution.end() )
@@ -435,7 +487,8 @@ namespace
         }
 
         std::vector<Frontend::ExprId> Sites;
-        CollectOwnedSubExprs( Context, Root, /*bMoved=*/false, /*bIsRoot=*/true, Sites );
+        std::unordered_set<std::uint32_t> CalleeSites;
+        CollectOwnedSubExprs( Context, Root, /*bMoved=*/false, /*bIsRoot=*/true, Sites, CalleeSites );
         if ( MovedChild.IsValid() )
         {
             std::erase( Sites, MovedChild );
@@ -463,7 +516,7 @@ namespace
         for ( const Frontend::ExprId Site : Sites )
         {
             const Sema::SemaTypeId Type  = Context.Ctx.Values.ExprType( Site );
-            const Frontend::ExprId Value = DetachSlot( Context, Site );
+            const Frontend::ExprId Value = DetachSlot( Context, Site, CalleeSites.contains( Site.Value ) );
             const Temporary Temp         = DeclareTemporary( Context, RegionScope, Loc, Value, Type, RegionBody );
 
             // The slot the parent still points at now reads the temporary —
@@ -484,7 +537,7 @@ namespace
         // to a slot of its own either way; when the root is itself owned and
         // discarded, it goes through a temporary first so the boundary has a
         // name to release.
-        const Frontend::ExprId Detached = DetachSlot( Context, Root );
+        const Frontend::ExprId Detached = DetachSlot( Context, Root, /*bIsCallee=*/false );
         Frontend::ExprId Tail           = Detached;
         if ( bOwnRoot )
         {
