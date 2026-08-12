@@ -75,3 +75,34 @@ std::size_t Volt::Sema::RunPasses ( PassContext &Context, EPassKind Only )
     }
     return Ran;
 }
+
+std::size_t Volt::Sema::RunPasses ( PassContext &Context, const int OrderBegin, const int OrderEnd )
+{
+    std::size_t Ran = 0;
+    for ( const PassInfo &Pass : PassRegistry() )
+    {
+        if ( Pass.Order >= OrderBegin and Pass.Order < OrderEnd )
+        {
+            Pass.Run( Context );
+            ++Ran;
+        }
+    }
+    return Ran;
+}
+
+int Volt::Sema::LoweredSeamOrder ()
+{
+    static const int Seam = []
+    {
+        int Last = 0;
+        for ( const PassInfo &Pass : PassRegistry() )
+        {
+            if ( Pass.Kind == EPassKind::Lowering )
+            {
+                Last = std::max( Last, Pass.Order );
+            }
+        }
+        return Last + 1;
+    }();
+    return Seam;
+}
