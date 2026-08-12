@@ -48,4 +48,38 @@ namespace Volt::Sema::Raii
 // no metric can undo.
 SEMA_EXPORT void InferReturnOwnership ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store );
 
+// Stamps `Member::ParamEscapes` across the whole store — the mirror question,
+// asked of an *argument* rather than of a result: does the callee keep what it
+// is handed?
+//
+// Same seam, same `Units` convention, same arbitration, opposite starting
+// point. Ownership of a result must be *proven* before the caller releases it,
+// so `bReturnsOwned` starts `false`; escape of an argument must be *disproven*
+// before the caller releases it, so every slot starts `true` and only ever
+// flips to `false`. Both fixpoints are therefore monotone and terminate, and
+// both leave an unprovable case on the leak side of the arbitration.
+//
+// Without it, `arr.push( "x".dup )` is a double free rather than a leak: the
+// caller's full-expression region owns the temporary, `Array<T>#push` stores
+// it, and the array's own element cascade frees it a second time. That is why
+// this runs before anything classifies a `Member` as an invocation
+// (`.agents/CASCADE_FINALIZE.md` item 1) — the widening is only safe once the
+// callee can say it borrows.
+SEMA_EXPORT void InferParameterEscape ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store );
+
+// The single reader of the bit above, for the positional argument at `Index`.
+//
+// Positional, so `&block` slots are skipped: a block parameter binds through a
+// call's trailing `do ... end`, never through the argument list
+// (`Member::ParamIsBlock`). Reads `true` — escaping, therefore not the
+// caller's to release — for an index past the end and for a member whose
+// `ParamEscapes` was never sized. Both readers stay here rather than at their
+// call sites so the skip rule cannot drift from the bit it reads.
+[[nodiscard]] bool ParameterEscapes ( const Member &Decl, std::size_t Index );
+
+// The same question for the `&block` slot itself — what a trailing
+// `do ... end` binds to, and therefore what decides whether the closure
+// environment built for it can be released once the call returns.
+[[nodiscard]] bool BlockParameterEscapes ( const Member &Decl );
+
 } // namespace Volt::Sema::Raii

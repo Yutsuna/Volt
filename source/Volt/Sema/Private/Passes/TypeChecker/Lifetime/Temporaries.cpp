@@ -2,12 +2,14 @@
 
 #include "../MemberResolver.hpp"
 #include "CleanupRegion.hpp"
+#include "ExprOwnership.hpp"
 #include "FinalizeCallBuilder.hpp"
 #include "Raii/Ownership.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
+#include "Volt/Sema/Raii/OwnershipInference.hpp"
 
 #include <cstdint>
 #include <type_traits>
@@ -47,82 +49,9 @@ namespace
 
     // --- Ownership classification ----------------------------------------
 
-    // Where a node's callee resolution is keyed. `Call` records against its
-    // *callee*'s id; `Binary`/`Unary` record against their own, because
-    // `MemberType` is handed the operator node itself (ExprInferencer.cpp).
-    // Nothing else resolves a callee at all.
-    //
-    // **Known gap, measured, deliberately left open.** A paren-less
-    // invocation is a bare `Member`, not a `Call` — `a.dup2 + b` parses as
-    // `Binary( Member( a, dup2 ), b )` — so a paren-less call in a *nested*
-    // position is not resolvable here, never provably owned, and never
-    // released: `d.full_id == s`, `s.trim + t`, and the `x.to_string` an
-    // interpolation lowers to all leak their result. Binding one to a name
-    // (`s = d.full_id`) is unaffected, because ScopeCleanup finalizes a local
-    // on its *type* and needs no resolution at all — which is why the gap is
-    // narrow and was not visible earlier.
-    //
-    // Simply adding `Member` to the second group is **wrong, and was tried**:
-    // it turns 8 leaks into 6 double frees. A `Member` is also how a *place*
-    // is read, and an owned value reaching a field through anything the
-    // `Moved` marking below does not cover is then released twice —
-    // `Exception#capture_backtrace` stores its String into a field, and
-    // `Exception#finalize` frees it after this pass already did. Closing the
-    // gap needs `Member` classified into invocation vs. place read, which is
-    // ownership-model work, not a widened predicate here.
-    [[nodiscard]] const Resolution *ResolutionOf ( TypeCheckerContext &Context, const Frontend::ExprId Id )
-    {
-        const Frontend::ExprNode &Node = Context.Ctx.Ast.Expr( Id );
-
-        std::uint32_t Key = Id.Value;
-        if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
-        {
-            if ( not CallNode->Callee.IsValid() )
-            {
-                return nullptr;
-            }
-            Key = CallNode->Callee.Value;
-        }
-        else if ( not std::holds_alternative<Frontend::Binary>( Node ) and not std::holds_alternative<Frontend::Unary>( Node ) )
-        {
-            return nullptr;
-        }
-
-        const auto Found = Context.CalleeResolution.find( Key );
-        return Found != Context.CalleeResolution.end() ? &Found->second : nullptr;
-    }
-
-    // Does evaluating `Id` *produce* a value whose release is now this
-    // region's responsibility?
-    //
-    // Two proofs are accepted, and no third:
-    //
-    //   - `bConstructs` — `T.new( … )` allocates the storage it hands back.
-    //     Certain by construction, no inference involved.
-    //   - `Member::bReturnsOwned` — derived by the seam-time fixpoint in
-    //     `Raii::InferReturnOwnership`, which read the callee's own body.
-    //
-    // A bare `Identifier`/`InstanceVar`/`Member`/`Deref` reads a place
-    // somebody else owns and never reaches here at all, because it resolves
-    // to no callee. That is the same reasoning `ScopeCleanup`'s alias-init
-    // guard already applies to `a2 = a1`, one level down.
-    [[nodiscard]] bool ProducesOwnedValue ( TypeCheckerContext &Context, const Frontend::ExprId Id )
-    {
-        const Resolution *Found = ResolutionOf( Context, Id );
-        if ( Found == nullptr )
-        {
-            return false;
-        }
-        if ( Found->bConstructs )
-        {
-            return true;
-        }
-        // An indirect call goes through a callable *value*; the member it
-        // resolves to is the `FuncType` claimant's abstract contract, which
-        // has no body and so was never proven to return owned. Reading the
-        // flag handles that without a special case.
-        return Found->Decl != nullptr and Found->Decl->bReturnsOwned;
-    }
+    // `ResolutionOf` / `ProducesOwnedValue` live in Lifetime/ExprOwnership.hpp
+    // — shared with `ScopeCleanup`, which asks the identical question of a
+    // local's initializer.
 
     // Owned *and* worth materializing: a value nobody would finalize anyway
     // (an `Int32`, a `Pointer<T>`) is left exactly where it is, so ordinary
@@ -223,6 +152,26 @@ namespace
             }
         }
 
+        // Does the callee keep the value handed to positional argument
+        // `Index`? Unknown callee, named arguments (which this positional
+        // mapping cannot follow), and a construction all answer yes — the
+        // side of the arbitration that leaks rather than corrupts.
+        const auto ArgumentEscapes = [&] ( const Resolution *Callee, const Frontend::SymbolList &ArgNames, std::size_t Index )
+        {
+            if ( bConstructing or Callee == nullptr or Callee->Decl == nullptr )
+            {
+                return true;
+            }
+            for ( const Core::Symbol Name : ArgNames )
+            {
+                if ( Name.IsValid() )
+                {
+                    return true;
+                }
+            }
+            return Sema::Raii::ParameterEscapes( *Callee->Decl, Index );
+        };
+
         if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
         {
             // A callee is a *designation*, not a value the statement owns.
@@ -237,23 +186,33 @@ namespace
                 MovedChildren.insert( CallNode->Callee.Value );
             }
 
-            // Arguments are Moved whenever the callee is not *known* to leave
-            // them alone: a construction stores them into the object it
-            // builds, and a call whose resolution carries no declaration at
-            // all (a synthesized invocation — the shape a lowered section's
-            // bound argument reaches, on its way into a closure env) cannot
-            // be proven to borrow. Both are the same conservative side: a
-            // counted leak, never a value released under a live user.
+            // An argument is this region's to release only when the callee
+            // was *proven* to borrow it (`Member::ParamEscapes`, derived at
+            // the Driver seam by `Raii::InferParameterEscape`). Without that
+            // proof `arr.push( s.dup )` is a double free rather than a leak:
+            // the region releases the temporary, `Array<T>#push` stored it,
+            // and the array's own element cascade releases it again.
             const Resolution *CallRes = ResolutionOf( Context, Id );
-            if ( bConstructing or CallRes == nullptr or CallRes->Decl == nullptr )
+            for ( std::size_t Arg = 0; Arg < CallNode->Args.Size(); ++Arg )
             {
-                for ( const Frontend::ExprId Arg : CallNode->Args )
+                const Frontend::ExprId Child = CallNode->Args[Arg];
+                if ( Child.IsValid() and ArgumentEscapes( CallRes, CallNode->ArgNames, Arg ) )
                 {
-                    if ( Arg.IsValid() )
-                    {
-                        MovedChildren.insert( Arg.Value );
-                    }
+                    MovedChildren.insert( Child.Value );
                 }
+            }
+        }
+
+        // An operator on a non-primitive receiver *is* a member call
+        // (rules/core-ast.md's operator contract), so its right-hand side is
+        // that member's first positional argument and answers to the same
+        // question. The receiver never does: `( a + b ).trim` must still
+        // release `a + b` once `trim` has returned.
+        if ( const auto *BinaryNode = std::get_if<Frontend::Binary>( &Node ) )
+        {
+            if ( BinaryNode->Rhs.IsValid() and ArgumentEscapes( ResolutionOf( Context, Id ), {}, 0 ) )
+            {
+                MovedChildren.insert( BinaryNode->Rhs.Value );
             }
         }
 

@@ -43,7 +43,8 @@ namespace
         NominalId Self;
     };
 
-    // Every member in the store that spells `Name`, whatever declares it.
+    // Every member in the store that spells `Name` and could actually *be*
+    // the callee.
     //
     // The fallback when a call's receiver type is not syntactically knowable
     // — which is most calls, since this seam runs before any expression has
@@ -53,6 +54,19 @@ namespace
     // approximation **sound** — never a false `Owned` — at the cost of
     // precision: one borrowing `to_string` in the corpus demotes every
     // `to_string` call to `Borrowed`, i.e. to a counted leak.
+    //
+    // An `abstract def` is deliberately excluded, and that exclusion is what
+    // makes the device usable at all rather than a precision detail. A
+    // contract has no body, so nothing can ever prove it and it drags every
+    // spelling it names down with it — `mixin Arithmetic`'s `abstract def +`
+    // alone demoted *every* `+` in the corpus, `String#+` included, which is
+    // the single most common owned-producing expression there is. It is also
+    // never the callee: a contract is answered either by a concrete member
+    // (which is in this index on its own account) or, on a primitive/pointer
+    // layout, by the backend — and no machine scalar is a finalize candidate,
+    // so the answer cannot matter there. An `@[External]` member stays in:
+    // it *is* a real implementation, just one with no body to read, so it
+    // must keep demoting its spelling.
     using NameIndex = std::unordered_map<std::string_view, std::vector<const Member *>>;
 
     [[nodiscard]] NameIndex BuildNameIndex ( TypeStore &Store )
@@ -63,7 +77,7 @@ namespace
             const NominalId Id{ static_cast<NominalId::ValueType>( TypeIdx ) };
             for ( const Member &Entry : Store.MutableMembers( Id ) )
             {
-                if ( Entry.Kind == EMemberKind::Method )
+                if ( Entry.Kind == EMemberKind::Method and not Entry.bAbstract )
                 {
                     Index[Store.Text( Entry.Name )].push_back( &Entry );
                 }
@@ -71,7 +85,10 @@ namespace
         }
         for ( const Member &Entry : Store.MutableFreeFunctions() )
         {
-            Index[Store.Text( Entry.Name )].push_back( &Entry );
+            if ( not Entry.bAbstract )
+            {
+                Index[Store.Text( Entry.Name )].push_back( &Entry );
+            }
         }
         return Index;
     }
@@ -454,36 +471,437 @@ namespace
         return bAnyPath and bAllOwned;
     }
 
+    // --- Parameter escape --------------------------------------------------
+
+    // Every member answering to `Name`, or nothing at all. The same
+    // all-or-nothing device `AllNamedReturnOwned` uses, in the opposite
+    // direction: an argument is proven borrowed only when *every* member that
+    // could answer to that spelling borrows it, so the actual callee
+    // (necessarily one of them) does too.
+    [[nodiscard]] bool AllNamedBorrowParam ( const NameIndex &Index, const std::string_view Name, const std::size_t Positional )
+    {
+        const auto It = Index.find( Name );
+        if ( It == Index.end() or It->second.empty() )
+        {
+            return false;
+        }
+        for ( const Member *Entry : It->second )
+        {
+            if ( ParameterEscapes( *Entry, Positional ) )
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // The spelling a callee expression names, when it names one. A `Member`
+    // callee (`arr.push( … )`) and a bare `Identifier` callee (an
+    // implicit-`self` method or a top-level `def`) are the only two shapes
+    // that reach a declared parameter list; anything else — an indirect call
+    // through a value, a callee still buried in un-lowered sugar — names
+    // nothing and leaves its arguments escaping.
+    [[nodiscard]] std::string_view CalleeSpelling ( const Frontend::AstContext &Ast, const Frontend::ExprId Callee )
+    {
+        if ( not Callee.IsValid() )
+        {
+            return {};
+        }
+        const Frontend::ExprNode &Node = Ast.Expr( Callee );
+        if ( const auto *MemberNode = std::get_if<Frontend::Member>( &Node ) )
+        {
+            return Ast.Text( MemberNode->Name );
+        }
+        if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Node ) )
+        {
+            return Ast.Text( Ident->Name );
+        }
+        return {};
+    }
+
+    // One body's escape analysis: which of its own parameters it can be seen
+    // to keep.
+    //
+    // The walk carries a single bit per child slot — "may a value read here
+    // stay behind after the call" — and the default is **no**. Only the
+    // positions listed in `WalkExpr` grant it, so a parameter reaching any
+    // node this file does not model (un-lowered sugar included: this runs at
+    // the Driver seam, before `EPassKind::Lowering`) is reported as escaping
+    // rather than silently borrowed.
+    struct EscapeScan
+    {
+        const Frontend::AstContext &Ast;
+        const NameIndex &Index;
+        // Parameter name -> its slot in `Member::Params`, by AST spelling —
+        // the same by-name device the return-ownership fixpoint above uses,
+        // since no ScopeTable exists at this seam.
+        std::unordered_map<std::uint32_t, std::size_t> ByName;
+        std::vector<bool> &Escapes;
+
+        void Mark ( const Core::Symbol Name )
+        {
+            if ( const auto Found = ByName.find( Name.Value ); Found != ByName.end() )
+            {
+                Escapes[Found->second] = true;
+            }
+        }
+
+        void WalkBody ( const Frontend::StmtList &Body )
+        {
+            for ( const Frontend::StmtId Id : Body )
+            {
+                WalkStmt( Id );
+            }
+        }
+
+        // Every child of a node this walk has no rule for, at the default —
+        // nothing here grants a borrow. Written once with `Meta::ForEachField`
+        // so a node added to `Nodes.inl` is covered on the safe side with no
+        // edit (rules/meta-first.md).
+        template <typename NodeVariant> void WalkFields ( const NodeVariant &Variant )
+        {
+            std::visit(
+                [&] ( const auto &Node )
+                {
+                    using T = std::remove_cvref_t<decltype( Node )>;
+                    if constexpr ( not std::is_same_v<T, std::monostate> )
+                    {
+                        Meta::ForEachField( Node,
+                                            [&] ( const char *, const auto &Field )
+                                            {
+                                                using F = std::remove_cvref_t<decltype( Field )>;
+                                                if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                                                {
+                                                    WalkExpr( Field, false );
+                                                }
+                                                else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                                                {
+                                                    for ( const Frontend::ExprId Child : Field )
+                                                    {
+                                                        WalkExpr( Child, false );
+                                                    }
+                                                }
+                                                else if constexpr ( std::is_same_v<F, Frontend::StmtId> )
+                                                {
+                                                    WalkStmt( Field );
+                                                }
+                                                else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                                {
+                                                    WalkBody( Field );
+                                                }
+                                            } );
+                    }
+                },
+                Variant );
+        }
+
+        void WalkStmt ( const Frontend::StmtId Id )
+        {
+            if ( not Id.IsValid() )
+            {
+                return;
+            }
+            const Frontend::StmtNode &Node = Ast.Stmt( Id );
+
+            // A name written to is a name this by-spelling analysis can no
+            // longer follow: after `p = something_else`, an occurrence of `p`
+            // is not the parameter. Refusing the whole slot is the cheap safe
+            // answer, and reassigning a parameter is rare enough that the
+            // precision is not missed.
+            if ( const auto *Local = std::get_if<Frontend::LocalDecl>( &Node ) )
+            {
+                Mark( Local->Name );
+            }
+
+            WalkFields( Node );
+        }
+
+        // `bBorrowOk` is true when a value read at this slot cannot outlive
+        // the enclosing call — a receiver, a dereferenced pointer, an
+        // argument the callee was itself proven to borrow.
+        void WalkExpr ( const Frontend::ExprId Id, const bool bBorrowOk )
+        {
+            if ( not Id.IsValid() )
+            {
+                return;
+            }
+            const Frontend::ExprNode &Node = Ast.Expr( Id );
+
+            if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Node ) )
+            {
+                if ( not bBorrowOk )
+                {
+                    Mark( Ident->Name );
+                }
+                return;
+            }
+
+            // A receiver is read, never kept — the one documented coarseness
+            // here: a method that stores its own `self` somewhere would defeat
+            // it. Nothing in the corpus does, and modelling `self` escape is
+            // its own analysis.
+            if ( const auto *MemberNode = std::get_if<Frontend::Member>( &Node ) )
+            {
+                WalkExpr( MemberNode->Object, true );
+                return;
+            }
+            if ( const auto *DerefNode = std::get_if<Frontend::Deref>( &Node ) )
+            {
+                WalkExpr( DerefNode->Operand, true );
+                return;
+            }
+
+            // `( x : Int32 )` states a type and hands the value straight on,
+            // so it takes the position it stands in.
+            if ( const auto *TypedNode = std::get_if<Frontend::TypedExpr>( &Node ) )
+            {
+                WalkExpr( TypedNode->Value, bBorrowOk );
+                return;
+            }
+            if ( const auto *UnaryNode = std::get_if<Frontend::Unary>( &Node ) )
+            {
+                WalkExpr( UnaryNode->Operand, true );
+                return;
+            }
+            if ( const auto *BinaryNode = std::get_if<Frontend::Binary>( &Node ) )
+            {
+                // An operator on a non-primitive receiver *is* a member call
+                // (rules/core-ast.md's operator contract), so its right-hand
+                // side is that member's first positional argument.
+                WalkExpr( BinaryNode->Lhs, true );
+                WalkExpr( BinaryNode->Rhs, AllNamedBorrowParam( Index, Frontend::TokenSpelling( BinaryNode->Op ), 0 ) );
+                return;
+            }
+
+            // A branch hands its own value to whatever position the branch
+            // itself occupies, so the arms inherit rather than reset.
+            if ( const auto *TernaryNode = std::get_if<Frontend::Ternary>( &Node ) )
+            {
+                WalkExpr( TernaryNode->Cond, true );
+                WalkExpr( TernaryNode->Then, bBorrowOk );
+                WalkExpr( TernaryNode->Else, bBorrowOk );
+                return;
+            }
+
+            if ( const auto *AssignNode = std::get_if<Frontend::Assign>( &Node ) )
+            {
+                // Writing *through* a place reads the place; the value
+                // written is what stays behind.
+                WalkExpr( AssignNode->Target, true );
+                WalkExpr( AssignNode->Value, false );
+                return;
+            }
+
+            if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
+            {
+                WalkExpr( CallNode->Callee, true );
+
+                const std::string_view Name = CalleeSpelling( Ast, CallNode->Callee );
+                // A construction keeps everything it is given, by definition
+                // — the same fact `Resolution::bConstructs` records at a call
+                // site. A named argument is refused outright rather than
+                // matched: positional index is the only mapping onto
+                // `Member::Params` this seam can make without the resolution
+                // the parallel TypeChecker has not built yet.
+                const bool bConstructing = Name == ConstructorCall;
+                bool bNamed              = false;
+                for ( const Core::Symbol ArgName : CallNode->ArgNames )
+                {
+                    bNamed = bNamed or ArgName.IsValid();
+                }
+
+                for ( std::size_t Arg = 0; Arg < CallNode->Args.Size(); ++Arg )
+                {
+                    const bool bBorrows =
+                        not bConstructing and not bNamed and not Name.empty() and AllNamedBorrowParam( Index, Name, Arg );
+                    WalkExpr( CallNode->Args[Arg], bBorrows );
+                }
+                // A trailing block is a callable value handed to the callee's
+                // own `&block` slot. Left escaping: the slot is not
+                // positional, and no parameter in the corpus is ever passed
+                // into one.
+                WalkExpr( CallNode->BlockArg, false );
+                return;
+            }
+
+            // Everything else — an `If`/`CaseExpr`/`BeginExpr` in expression
+            // position, a `RaiseExpr`, and every sugar node still standing at
+            // this seam — grants nothing.
+            WalkFields( Node );
+        }
+    };
+
+    // Every member in the store whose body this build can actually see.
+    //
+    // A cache-hit stdlib slot is deliberately absent: its flags arrived with
+    // the cache, and re-deriving them would need an AST that was never
+    // parsed. Shared by both fixpoints below — they analyse the same set of
+    // bodies, only the question differs.
+    [[nodiscard]] std::vector<Body> CollectBodies ( TypeStore &Store, const std::span<const Frontend::AstContext *const> Units )
+    {
+        std::vector<Body> Bodies;
+        for ( std::size_t TypeIdx = 0; TypeIdx < Store.TypeCount(); ++TypeIdx )
+        {
+            const NominalId Id{ static_cast<NominalId::ValueType>( TypeIdx ) };
+            for ( Member &Entry : Store.MutableMembers( Id ) )
+            {
+                if ( Entry.Kind != EMemberKind::Method or Entry.Unit >= Units.size() or Units[Entry.Unit] == nullptr )
+                {
+                    continue;
+                }
+                Bodies.push_back( Body{ .Owner = &Entry, .Ast = Units[Entry.Unit], .Self = Id } );
+            }
+        }
+        for ( Member &Entry : Store.MutableFreeFunctions() )
+        {
+            if ( Entry.Unit >= Units.size() or Units[Entry.Unit] == nullptr )
+            {
+                continue;
+            }
+            Bodies.push_back( Body{ .Owner = &Entry, .Ast = Units[Entry.Unit], .Self = NominalId{} } );
+        }
+        return Bodies;
+    }
+
+    // Which of `Owner`'s parameters this round can see escaping. Recomputed
+    // from scratch each round: a callee flipping to "borrows" can only ever
+    // clear an escape, never add one.
+    [[nodiscard]] std::vector<bool> ScanParamEscape ( const NameIndex &Index, const Body &Owner )
+    {
+        const Frontend::AstContext &Ast = *Owner.Ast;
+        const std::size_t Count         = Owner.Owner->Params.Size();
+
+        std::vector<bool> Escapes( Count, true );
+
+        const auto *MethodNode = std::get_if<Frontend::Method>( &Ast.Decl( Owner.Owner->Decl ) );
+        if ( MethodNode == nullptr or MethodNode->bAbstract or MethodNode->bExternal or MethodNode->Params.Size() != Count )
+        {
+            return Escapes;
+        }
+
+        // Nothing seen yet: assume borrowed, then let the walk contradict it.
+        // An empty body contradicts nothing, which is correct — a parameter
+        // no statement mentions cannot be kept.
+        Escapes.assign( Count, false );
+
+        EscapeScan Scan{ .Ast = Ast, .Index = Index, .ByName = {}, .Escapes = Escapes };
+        for ( std::size_t Slot = 0; Slot < Count; ++Slot )
+        {
+            const Frontend::Param &ParamNode = Ast.GetParam( MethodNode->Params[Slot] );
+            // `def initialize( @x : T )` stores its argument into the field
+            // without a statement to show for it, so no walk can ever see the
+            // escape. Marked here, at the one place the shorthand is visible.
+            if ( ParamNode.bInstanceVar )
+            {
+                Escapes[Slot] = true;
+                continue;
+            }
+            Scan.ByName[ParamNode.Name.Value] = Slot;
+        }
+        Scan.WalkBody( MethodNode->Body );
+        return Escapes;
+    }
+
 } // namespace
 
-void InferReturnOwnership ( const std::span<const Frontend::AstContext *const> Units, TypeStore &Store )
+bool ParameterEscapes ( const Member &Decl, const std::size_t Index )
+{
+    std::size_t Positional = 0;
+    for ( std::size_t Slot = 0; Slot < Decl.Params.Size(); ++Slot )
+    {
+        if ( Slot < Decl.ParamIsBlock.Size() and Decl.ParamIsBlock[Slot] )
+        {
+            continue;
+        }
+        if ( Positional == Index )
+        {
+            return Slot >= Decl.ParamEscapes.Size() or Decl.ParamEscapes[Slot];
+        }
+        ++Positional;
+    }
+    // Past the end: a default-valued slot the call did not fill, or an arity
+    // this analysis cannot match. Nothing to release either way.
+    return true;
+}
+
+bool BlockParameterEscapes ( const Member &Decl )
+{
+    for ( std::size_t Slot = 0; Slot < Decl.Params.Size(); ++Slot )
+    {
+        if ( Slot < Decl.ParamIsBlock.Size() and Decl.ParamIsBlock[Slot] )
+        {
+            return Slot >= Decl.ParamEscapes.Size() or Decl.ParamEscapes[Slot];
+        }
+    }
+    return true;
+}
+
+void InferParameterEscape ( const std::span<const Frontend::AstContext *const> Units, TypeStore &Store )
 {
     const NameIndex Index = BuildNameIndex( Store );
 
-    // Every member whose body this build can actually see. A cache-hit
-    // stdlib slot is deliberately absent: its flag arrived with the cache,
-    // and re-deriving it would need an AST that was never parsed.
-    std::vector<Body> Bodies;
+    // Size every slot that has never been sized, to all-escaping. A cache-hit
+    // member is already sized and keeps the answer that arrived with the
+    // cache — its body was never parsed, so re-deriving is not an option.
+    const auto Initialize = [] ( Member &Entry )
+    {
+        if ( Entry.ParamEscapes.Size() == Entry.Params.Size() )
+        {
+            return;
+        }
+        Entry.ParamEscapes.Clear();
+        for ( std::size_t Slot = 0; Slot < Entry.Params.Size(); ++Slot )
+        {
+            Entry.ParamEscapes.PushBack( true );
+        }
+    };
+
     for ( std::size_t TypeIdx = 0; TypeIdx < Store.TypeCount(); ++TypeIdx )
     {
         const NominalId Id{ static_cast<NominalId::ValueType>( TypeIdx ) };
         for ( Member &Entry : Store.MutableMembers( Id ) )
         {
-            if ( Entry.Kind != EMemberKind::Method or Entry.Unit >= Units.size() or Units[Entry.Unit] == nullptr )
-            {
-                continue;
-            }
-            Bodies.push_back( Body{ .Owner = &Entry, .Ast = Units[Entry.Unit], .Self = Id } );
+            Initialize( Entry );
         }
     }
     for ( Member &Entry : Store.MutableFreeFunctions() )
     {
-        if ( Entry.Unit >= Units.size() or Units[Entry.Unit] == nullptr )
-        {
-            continue;
-        }
-        Bodies.push_back( Body{ .Owner = &Entry, .Ast = Units[Entry.Unit], .Self = NominalId{} } );
+        Initialize( Entry );
     }
+
+    const std::vector<Body> Bodies = CollectBodies( Store, Units );
+
+    // Monotone downward: a slot only ever goes true -> false, every predicate
+    // read is monotone in those flags, so the count of `true`s strictly
+    // decreases each round until it stops. The bound mirrors
+    // `InferReturnOwnership`'s, for the same belt-and-braces reason.
+    for ( std::size_t Round = 0; Round <= Bodies.size(); ++Round )
+    {
+        bool bChanged = false;
+        for ( const Body &Entry : Bodies )
+        {
+            const std::vector<bool> Scanned = ScanParamEscape( Index, Entry );
+            for ( std::size_t Slot = 0; Slot < Scanned.size() and Slot < Entry.Owner->ParamEscapes.Size(); ++Slot )
+            {
+                if ( Entry.Owner->ParamEscapes[Slot] and not Scanned[Slot] )
+                {
+                    Entry.Owner->ParamEscapes[Slot] = false;
+                    bChanged                        = true;
+                }
+            }
+        }
+        if ( not bChanged )
+        {
+            break;
+        }
+    }
+}
+
+void InferReturnOwnership ( const std::span<const Frontend::AstContext *const> Units, TypeStore &Store )
+{
+    const NameIndex Index = BuildNameIndex( Store );
+
+    const std::vector<Body> Bodies = CollectBodies( Store, Units );
 
     // Monotone: a flag only ever goes false -> true, and every predicate
     // above is monotone in the flags it reads, so the number of `true`s

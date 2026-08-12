@@ -3,6 +3,7 @@
 #include "../ExprInferencer.hpp"
 #include "CleanupRegion.hpp"
 #include "ExitPaths.hpp"
+#include "ExprOwnership.hpp"
 #include "FinalizeCallBuilder.hpp"
 #include "Raii/Ownership.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
@@ -10,6 +11,7 @@
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
+#include "Volt/Sema/Raii/OwnershipInference.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -72,35 +74,31 @@ namespace
         return Sema::Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, LocalType );
     }
 
-    // Does `Candidate`'s own Binding appear, by bare name, as a positional
-    // argument to a *constructor* call (`Type.new( x )`, `Resolution::bConstructs`)
-    // anywhere in this file? Volt has no move/borrow system (the alias-init
-    // guard just above already documents this same limitation for `a2 = a1`) —
-    // passing an Aggregate local into `Type.new( x )` is a struct-copy exactly
-    // like an assignment is, and when the constructor stores the parameter into
-    // a field via the `@x` shorthand (the overwhelmingly common shape), that
-    // field now aliases the caller's own local. Two independent finalizes of the
-    // same buffer is a double free (confirmed empirically: `arr = Array<String>.
-    // new; arr << "x"; b = Bag.new( arr )` — `arr` finalizes its buffer, then
-    // `b.finalize`'s field cascade frees the identical pointer again).
+    // Does `Candidate`'s own Binding appear, by bare name, as an argument the
+    // callee *keeps* — anywhere in this file?
     //
-    // Scoped to constructors only, not every call: an ordinary function
-    // (`drain_event_queue( events )`, ControlFlow/WhileLoop.vl) reads its
-    // argument transiently and returns, so its own local is correctly still
-    // live and must still be finalized — the false positive this scoping avoids
-    // (`WhileLoop.vl` started leaking `pending_events` when this checked every
-    // call, not just `bConstructs` ones). Within *that* scope this is still
-    // coarser than checking whether the matched parameter actually carries the
-    // `@` shorthand: resolving a callee that lives in another unit would need
-    // that unit's own AstContext, not just the frozen TypeStore's `Member`
-    // (a signature, not which parameter is instance-var-backed). Treating every
-    // bare-name constructor argument as a possible escape trades a narrower
-    // false positive (a constructor that reads its argument transiently, never
-    // storing it, now leaks that argument instead of double-freeing) for safety
-    // — leaking is item 1's own already-accepted gap, corruption is not.
-    // `BindingOf` resolves each argument's own Binding, so a shadowed name in a
-    // nested scope can never be confused with this candidate's.
-    [[nodiscard]] bool EscapesAsConstructorArgument ( TypeCheckerContext &Context, const Sema::Binding &CandidateBinding )
+    // Volt has no move/borrow system (the alias-init guard just above already
+    // documents this same limitation for `a2 = a1`), so passing an Aggregate
+    // local to a method is a struct copy exactly like an assignment is. When
+    // the callee stores that copy — a constructor's `@x` shorthand, an
+    // `Array<T>#push` writing it through `@buffer` — the callee's own cleanup
+    // will free the identical pointer this local's would. Two independent
+    // finalizes of one buffer is a double free (confirmed empirically:
+    // `arr = Array<String>.new; arr << "x"; b = Bag.new( arr )`).
+    //
+    // Which arguments those are is no longer guessed. It used to be scoped to
+    // constructors, because widening it to *every* call cost `WhileLoop.vl`'s
+    // `pending_events` a leak: `drain_event_queue( events )` reads its
+    // argument and returns, so the local was still live and still had to be
+    // finalized. `Member::ParamEscapes` answers precisely that — derived per
+    // parameter at the Driver seam (`Raii::InferParameterEscape`) — so the
+    // scoping is gone and the narrower question is asked instead. A
+    // construction still escapes unconditionally: `bConstructs` is certain
+    // where the derived bit is only a proof attempt.
+    //
+    // `BindingOf` resolves each argument's own Binding, so a shadowed name in
+    // a nested scope can never be confused with this candidate's.
+    [[nodiscard]] bool EscapesAsCallArgument ( TypeCheckerContext &Context, const Sema::Binding &CandidateBinding )
     {
         const Frontend::AstContext &Ast = Context.Ctx.Ast;
         for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
@@ -112,17 +110,21 @@ namespace
                 continue;
             }
             const auto ResolutionIt = Context.CalleeResolution.find( CallNode->Callee.Value );
-            if ( ResolutionIt == Context.CalleeResolution.end() or not ResolutionIt->second.bConstructs )
+            const bool bConstructs  = ResolutionIt != Context.CalleeResolution.end() and ResolutionIt->second.bConstructs;
+            const Member *Callee    = ResolutionIt != Context.CalleeResolution.end() ? ResolutionIt->second.Decl : nullptr;
+
+            for ( std::size_t Arg = 0; Arg < CallNode->Args.Size(); ++Arg )
             {
-                continue;
-            }
-            for ( const Frontend::ExprId ArgId : CallNode->Args )
-            {
+                const Frontend::ExprId ArgId = CallNode->Args[Arg];
                 if ( not ArgId.IsValid() or not std::holds_alternative<Frontend::Identifier>( Ast.Expr( ArgId ) ) )
                 {
                     continue;
                 }
-                if ( Context.Ctx.Scopes.BindingOf( ArgId ) == &CandidateBinding )
+                if ( Context.Ctx.Scopes.BindingOf( ArgId ) != &CandidateBinding )
+                {
+                    continue;
+                }
+                if ( bConstructs or Callee == nullptr or Sema::Raii::ParameterEscapes( *Callee, Arg ) )
                 {
                     return true;
                 }
@@ -227,21 +229,30 @@ namespace
             // Volt has no move/borrow system (a documented, accepted limitation
             // — see the move-out exemption below, which already treats a bare
             // `return x` conservatively for the same reason): a local whose own
-            // initializer is a bare `Identifier`/`InstanceVar` read is, by
-            // construction, never a fresh value — it is a struct-copy *alias* of
-            // whatever `x`/`@x` already holds (Aggregate locals are copy
-            // semantics, not reference semantics — rules/backend-machine-only.md
-            // via .agents/backend/abi.md). Finalizing it here as well as the
-            // thing it aliases is a double free, confirmed empirically
-            // (`a2 = a1; ...` on an `Array<T>` crashes with
-            // "double free detected in tcache" without this guard). A
-            // Call-initialized local (`x = f(...)`) is not excluded — an
-            // ordinary function returning an owned value (the move-out exemption
-            // on the *producing* side is what makes that safe) is a distinct,
-            // legitimate, already-tested shape (see ReturnMovedOut.vl) — only a
-            // *bare* read of an existing binding is refused here.
-            if ( InitId.IsValid() and ( std::holds_alternative<Frontend::Identifier>( Ast.Expr( InitId ) ) or
-                                        std::holds_alternative<Frontend::InstanceVar>( Ast.Expr( InitId ) ) ) )
+            // initializer *reads a place* is, by construction, never a fresh
+            // value — it is a struct-copy *alias* of whatever that place holds
+            // (Aggregate locals are copy semantics, not reference semantics —
+            // rules/backend-machine-only.md via .agents/backend/abi.md).
+            // Finalizing it here as well as the thing it aliases is a double
+            // free, confirmed empirically (`a2 = a1; ...` on an `Array<T>`
+            // crashes with "double free detected in tcache" without this
+            // guard).
+            //
+            // The three node kinds that can read a place are exactly the three
+            // that can also be a paren-less *invocation*
+            // (Lifetime/ExprOwnership.hpp), so the test is not syntactic: it is
+            // the same proof `Temporaries` demands of an unnamed value. `s =
+            // d.full_id` keeps its candidacy because `full_id` was proven to
+            // return owned; `s = d.serial` loses it because a getter hands back
+            // a field the receiver still owns and whose cascade will free it.
+            // A Call-initialized local (`x = f(...)`) is not filtered here at
+            // all — an ordinary function returning an owned value is a
+            // distinct, legitimate, already-tested shape (see ReturnMovedOut.vl).
+            if ( InitId.IsValid() and
+                 ( std::holds_alternative<Frontend::Identifier>( Ast.Expr( InitId ) ) or
+                   std::holds_alternative<Frontend::InstanceVar>( Ast.Expr( InitId ) ) or
+                   std::holds_alternative<Frontend::Member>( Ast.Expr( InitId ) ) ) and
+                 not ProducesOwnedValue( Context, InitId ) )
             {
                 continue;
             }
@@ -252,7 +263,7 @@ namespace
                 continue;
             }
 
-            if ( EscapesAsConstructorArgument( Context, Entry ) )
+            if ( EscapesAsCallArgument( Context, Entry ) )
             {
                 continue;
             }

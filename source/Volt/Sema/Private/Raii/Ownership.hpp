@@ -10,11 +10,16 @@
 //
 // Nothing here knows about control flow, statements, lifetimes or cleanup
 // boundaries — those live in `Passes/TypeChecker/Raii/`. This header answers
-// exactly three questions, all of them about a type:
+// exactly two questions, both of them about a type:
 //
-//   - does a value of this type need finalizing at all?
-//   - if it is a sequence, what does it hold?
+//   - does destroying a value of this type do anything at all?
 //   - what ownership state does a value carry?
+//
+// It used to answer a third — "if it is a sequence, what does it hold?" — and
+// that question is gone on purpose. It was the one place the compiler claimed
+// to know what a container *is*, and it paid for the claim with a node-kind
+// gate and a synthesized `.size`/`[]` loop. A container releases its own
+// elements in Volt now; see `FinalizeCallBuilder`.
 //
 // Keeping them here is what lets the Driver seam (`FinalizeSynthesis`, which
 // runs before signatures resolve) and the in-`TypeChecker` sweeps share one
@@ -58,25 +63,21 @@ enum class EOwnership : std::uint8_t
     Moved,
 };
 
-// Aggregate-layout and declaring `FinalizeName`, against a bare `NominalId`.
+// Aggregate-layout, and non-trivially destructible — `NominalType::
+// bTrivialFinalize`, settled once at the serial seam by
+// `SynthesizeFinalizeStubs`.
 //
-// A field never needs substitution here, since a generic field's own nominal
-// never attaches a Layout in the first place — so this returns false for it
-// automatically, which is the wall `.agents/CASCADE_FINALIZE.md` item 2
-// documents.
+// Every type has a `finalize` (the seam defaults one in wherever the source
+// does not write it), so "declares finalize" is no longer a question worth
+// asking; whether destroying the value *does* anything is. A field never
+// needs substitution here, since a generic field's own nominal never attaches
+// a Layout in the first place — so this returns false for it automatically,
+// which is the wall `.agents/CASCADE_FINALIZE.md` item 2 documents.
 [[nodiscard]] bool IsFinalizeCandidateNominal ( const TypeStore &Store, NominalId Id );
 
 // The same candidacy against a receiver's own (possibly generic-argument
-// bearing) `SemaTypeId`, so an inherited `finalize` and a generic
-// instantiation both resolve. `Values` is non-const because `LookupMemberOn`
-// instantiates the member signature it finds.
+// bearing) `SemaTypeId`. `Values` is non-const to keep the signature stable
+// for callers that hold a mutable `UnitTypes`.
 [[nodiscard]] bool IsFinalizeCandidateType ( const TypeStore &Store, UnitTypes &Values, SemaTypeId Type );
-
-// The element type a *sequence* receiver cascades into, or an invalid id when
-// the receiver is not a sequence, or holds nothing that needs finalizing.
-//
-// "Has a generic argument that declares finalize" is deliberately NOT the
-// test — see the implementation for the two ways that misfires.
-[[nodiscard]] SemaTypeId ContainerElementType ( const TypeStore &Store, UnitTypes &Values, SemaTypeId Type );
 
 } // namespace Volt::Sema::Raii

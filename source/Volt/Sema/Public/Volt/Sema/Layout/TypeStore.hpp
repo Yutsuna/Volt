@@ -92,6 +92,25 @@ namespace Sema
         // through the positional argument list, so callers matching Params
         // against Args must skip it.
         Core::SmallVec<bool, 4> ParamIsBlock;
+        // Parallel to Params: does this method keep the argument handed to
+        // that slot past the call — store it in a field, hand it to a
+        // constructor, return it — rather than merely reading it?
+        //
+        // Derived by `Raii::InferParameterEscape`, never annotated, at the
+        // same serial Driver seam and for the same reason `bReturnsOwned` is
+        // (see its own comment below). It answers the one question a caller's
+        // full-expression region cannot answer for itself: whether releasing
+        // an owned temporary after the call frees a buffer the callee is
+        // still pointing at. `arr.push( "x".dup )` is exactly that shape, and
+        // without this bit it is a double free rather than a leak.
+        //
+        // `true` is the safe default and the fixpoint's initial value: an
+        // unanalysable callee (external, abstract, a cache-hit slot with no
+        // AST) leaves its arguments unreleased, which is a counted leak. A
+        // wrong `false` would be corruption, so nothing sets one without a
+        // proof. Empty means "not yet sized" and reads as `true` everywhere —
+        // see `Raii::ParameterEscapes`, the single reader.
+        Core::SmallVec<bool, 4> ParamEscapes;
         // How many of the parameter space's slots belong to the method
         // rather than to the declaring type. A signature resolves against
         // the two concatenated — type generics first, method generics after
@@ -186,6 +205,25 @@ namespace Sema
         // turns one of these into the concrete parent.
         SigTypeId Super;
         Core::SmallVec<SigTypeId, 2> Includes;
+
+        // Does destroying a value of this type do nothing at all?
+        //
+        // `finalize` is universal: every declared type has one, synthesized
+        // empty when the source does not write it, exactly as C++ gives every
+        // class a defaulted destructor. That makes `x.finalize` resolvable on
+        // *anything*, which is what lets a container release its elements in
+        // ordinary Volt (`Array<T>` loops and calls it) instead of having the
+        // middle-end synthesize a `.size`/`[]` loop it could only build by
+        // knowing what a sequence is.
+        //
+        // Universality costs nothing only because of this bit, the exact
+        // counterpart of `std::is_trivially_destructible`: a defaulted
+        // `finalize` with no field to cascade and no ancestor that writes one
+        // does nothing, so no region has to inject a call to it. Set by
+        // `SynthesizeFinalizeStubs` at the serial seam, read by
+        // `Raii::IsFinalizeCandidateNominal` — which is now the *only*
+        // question the RAII sweeps ask about a type.
+        bool bTrivialFinalize = true;
 
         // Per generic parameter, the AST field names feeding it when a node
         // kind is lowered to this type. Empty = the default convention (the
@@ -304,6 +342,27 @@ namespace Sema
         [[nodiscard]] std::span<Member> MutableMembers ( NominalId Id )
         {
             return Types.Get( Id ).Members;
+        }
+
+        // The whole record, mutable, under the identical contract: a serial
+        // seam pass settling a fact the declaration phase could not know.
+        // `SynthesizeFinalizeStubs` uses it for `bTrivialFinalize`.
+        [[nodiscard]] NominalType &MutableType ( NominalId Id )
+        {
+            return Types.Get( Id );
+        }
+
+        // Does destroying a value of `Id` do nothing at all — the answer
+        // `trivially_destructible? T` materialises. See
+        // `NominalType::bTrivialFinalize`.
+        //
+        // An unresolved nominal answers *no*: a caller that cannot see the
+        // type must run the destructor rather than skip it, which costs time
+        // and never correctness. That is the same direction every other
+        // unprovable case in the ownership model takes.
+        [[nodiscard]] bool IsTriviallyDestructible ( NominalId Id ) const
+        {
+            return Id.IsValid() and Types.Get( Id ).bTrivialFinalize;
         }
 
         // The same, for the free functions a `module` (or a bare top-level

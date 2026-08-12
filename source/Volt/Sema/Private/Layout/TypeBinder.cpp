@@ -1224,6 +1224,30 @@ namespace Sema
             }
             Done[Id.Value] = true;
 
+            // Settle everything this type can inherit a `finalize` from
+            // before asking whether it has one. Same memoized-by-attachment
+            // discipline the field loop below already uses, and needed for
+            // the same reason: the outer `TypeCount()` sweep may reach a
+            // subclass first, and a subclass that answered "nothing above me"
+            // too early would synthesize an empty stub that *shadows* the
+            // parent destructor synthesized a moment later. Copied out of the
+            // store first — the recursion calls `AddMember` (rules/ast-
+            // rewrite.md's discipline: never a live reference across a
+            // reallocating write).
+            {
+                const SigTypeId Super = Store.Type( Id ).Super;
+                Core::SmallVec<SigTypeId, 2> Includes;
+                for ( const SigTypeId Mixin : Store.Type( Id ).Includes )
+                {
+                    Includes.PushBack( Mixin );
+                }
+                EnsureFinalizeStub( Units, Store, Store.BaseOf( Super ), Done, Depth + 1 );
+                for ( const SigTypeId Mixin : Includes )
+                {
+                    EnsureFinalizeStub( Units, Store, Store.BaseOf( Mixin ), Done, Depth + 1 );
+                }
+            }
+
             const NominalType &Type = Store.Type( Id );
 
             // A generic type is *not* excluded. Its field types are indeed
@@ -1235,11 +1259,21 @@ namespace Sema
             // skips bare parameters by name, which is the one case left
             // undecidable (CASCADE_FINALIZE.md item 2's residual wall).
 
-            // A user-declared `finalize` already exists: nothing to
-            // synthesize. TypeChecker's own `AppendFieldCascade` appends the
-            // field-cascade epilogue to it exactly as it already does today.
-            if ( Store.OwnMember( Id, FinalizeName ) != nullptr )
+            // Anything in this type's own chain — its body, a mixin it
+            // includes, an ancestor — already answers `finalize`, so there is
+            // nothing to synthesize and, crucially, nothing to *shadow*: an
+            // empty stub added here would hide an inherited destructor and
+            // silently stop it running. `LookupMember` walks that whole
+            // chain, which is exactly the reach this question needs;
+            // `OwnMember` (what this used to ask) does not.
+            //
+            // A finalize that was written rather than defaulted always does
+            // something, so the type is non-trivial before any field is even
+            // looked at.
+            const bool bInherited = Store.LookupMember( Id, FinalizeName ).Decl != nullptr;
+            if ( bInherited )
             {
+                Store.MutableType( Id ).bTrivialFinalize = false;
                 return;
             }
 
@@ -1347,10 +1381,13 @@ namespace Sema
                     break;
                 }
             }
-            if ( not bHasCandidateField )
-            {
-                return; // silent default: nothing to cascade, nothing synthesized.
-            }
+            // A type with nothing to cascade still gets its `finalize` — that
+            // is the whole of "universal, like a defaulted destructor". What
+            // it does *not* get is a reason for anyone to call it: the
+            // triviality bit is what keeps every region's injection set
+            // exactly what it was, while making the member itself resolvable
+            // on any receiver at all.
+            Store.MutableType( Id ).bTrivialFinalize = not bHasCandidateField;
 
             // An empty `finalize -> Void` — `ReturnType` stays invalid, which
             // is exactly what a hand-written `-> Void` itself resolves to
