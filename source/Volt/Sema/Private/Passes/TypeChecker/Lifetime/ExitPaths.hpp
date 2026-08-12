@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <unordered_set>
+#include <vector>
 
 // How control leaves a region.
 //
@@ -19,15 +20,25 @@
 namespace Volt::Sema::TypeCheckerPass::Lifetime
 {
 
-// Does `Body` contain a `Return`/`Break`/`Next` this pass's structural
-// recursion cannot reach — i.e. one hiding inside an *expression-position*
-// `If`/`CaseExpr`/`BeginExpr` (`x = if c then return 1 else 2 end`)?
+// Every `If`/`CaseExpr`/`BeginExpr` occurrence reachable from the statement
+// `Id` through *expression* fields — that is, every nested `StmtList` the
+// statement owns, wherever it sits.
 //
-// A hit currently makes the caller leave the whole method untouched rather
-// than risk emitting a partial set of finalize calls. That bail-out is the
-// blind spot `.agents/CASCADE_FINALIZE.md` tracks: a method shaped this way
-// gets no cleanup at all, silently.
-[[nodiscard]] bool ContainsUnstructuredExit ( const Frontend::AstContext &Ast, const Frontend::StmtList &Body );
+// This is what makes an exit in expression position ordinary rather than
+// special. `x = if c then return 1 else 2 end` puts a `StmtList` under an
+// `Assign`'s value; `f( begin ... end )` puts one under a `Call` argument.
+// Statement position is not a distinct case, only the shallowest one: an
+// `ExprStmt` whose expression *is* the `If` is found by the same walk, at
+// depth zero.
+//
+// Only the **outermost** construct of any subtree is reported. Descending
+// further would be double work and, worse, double instrumentation: the
+// caller recurses into the branch bodies it is handed, and each statement
+// there is put through this same walk.
+//
+// Encounter order, and by value — the caller rewrites arena slots as it goes
+// (rules/ast-rewrite.md), so nothing may be held as a reference across it.
+[[nodiscard]] std::vector<Frontend::ExprId> CollectNestedBlockExprs ( const Frontend::AstContext &Ast, Frontend::StmtId Id );
 
 // Every name that could be the value handed back to the caller on *some*
 // path out of the expression `Id` — the move-out exemption's input.
