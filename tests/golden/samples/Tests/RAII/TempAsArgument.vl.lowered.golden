@@ -1,0 +1,366 @@
+Program 'samples/Tests/RAII/TempAsArgument.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/RAII/TempAsArgument.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
+├─ Class 'Tracked' @21:1
+│  └─ body
+│     ├─ Field 'id' @22:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @22:8
+│     ├─ Field 'log' @23:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Pointer' @23:9
+│     │        └─ generics
+│     │           └─ TypeRef 'Int32' @23:17
+│     ├─ Field 'cursor' @24:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Pointer' @24:12
+│     │        └─ generics
+│     │           └─ TypeRef 'Int32' @24:20
+│     ├─ Method 'initialize' @26:3
+│     │  └─ params
+│     │     ├─ Param 'id' instance_var @26:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @26:25
+│     │     ├─ Param 'log' instance_var @26:32
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Pointer' @26:39
+│     │     │        └─ generics
+│     │     │           └─ TypeRef 'Int32' @26:47
+│     │     └─ Param 'cursor' instance_var @26:55
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Pointer' @26:65
+│     │              └─ generics
+│     │                 └─ TypeRef 'Int32' @26:73
+│     ├─ Method '+' @28:3
+│     │  ├─ params
+│     │  │  └─ Param 'other' @28:10
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Tracked' @28:18
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Tracked' @28:31
+│     │  └─ body
+│     │     └─ ExprStmt @29:5
+│     │        └─ expr
+│     │           └─ Call @29:16
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @29:12
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Tracked' @29:5
+│     │              └─ args
+│     │                 ├─ Binary '+' @29:22
+│     │                 │  ├─ lhs
+│     │                 │  │  └─ InstanceVar '@id' @29:18
+│     │                 │  └─ rhs
+│     │                 │     └─ Member 'id' @29:29
+│     │                 │        └─ object
+│     │                 │           └─ Identifier 'other' @29:24
+│     │                 ├─ InstanceVar '@log' @29:34
+│     │                 └─ InstanceVar '@cursor' @29:40
+│     └─ Method 'finalize' @32:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @32:19
+│        └─ body
+│           ├─ ExprStmt @33:5
+│           │  └─ expr
+│           │     └─ Assign '=' @33:10
+│           │        ├─ target
+│           │        │  └─ Identifier 'slot' @33:5
+│           │        └─ value
+│           │           └─ Deref @33:12
+│           │              └─ operand
+│           │                 └─ InstanceVar '@cursor' @33:13
+│           ├─ ExprStmt @34:5
+│           │  └─ expr
+│           │     └─ Assign '=' @34:22
+│           │        ├─ target
+│           │        │  └─ Deref @34:5
+│           │        │     └─ operand
+│           │        │        └─ Binary '+' @34:13
+│           │        │           ├─ lhs
+│           │        │           │  └─ InstanceVar '@log' @34:8
+│           │        │           └─ rhs
+│           │        │              └─ Identifier 'slot' @34:15
+│           │        └─ value
+│           │           └─ InstanceVar '@id' @34:24
+│           └─ ExprStmt @35:5
+│              └─ expr
+│                 └─ Assign '=' @35:14
+│                    ├─ target
+│                    │  └─ Deref @35:5
+│                    │     └─ operand
+│                    │        └─ InstanceVar '@cursor' @35:6
+│                    └─ value
+│                       └─ Binary '+' @35:21
+│                          ├─ lhs
+│                          │  └─ Identifier 'slot' @35:16
+│                          └─ rhs
+│                             └─ IntLiteral '1' @35:23
+├─ Method 'consume' @40:1
+│  ├─ params
+│  │  └─ Param 't' @40:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Tracked' @40:18
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @40:31
+│  └─ body
+│     └─ ExprStmt @41:3
+│        └─ expr
+│           └─ Member 'id' @41:4
+│              └─ object
+│                 └─ Identifier 't' @41:3
+├─ Method 'apply' @44:1
+│  ├─ params
+│  │  ├─ Param 'f' @44:12
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Proc' @44:16
+│  │  │        └─ generics
+│  │  │           ├─ TypeRef 'Int32' @44:21
+│  │  │           └─ TypeRef 'Int32' @44:28
+│  │  └─ Param 'v' @44:36
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @44:40
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @44:51
+│  └─ body
+│     └─ ExprStmt @45:3
+│        └─ expr
+│           └─ Call @45:4
+│              ├─ callee
+│              │  └─ Identifier 'f' @45:3
+│              └─ args
+│                 └─ Identifier 'v' @45:6
+├─ Method 'argument_temp' @48:1
+│  ├─ params
+│  │  ├─ Param 'log' @48:20
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Pointer' @48:26
+│  │  │        └─ generics
+│  │  │           └─ TypeRef 'Int32' @48:34
+│  │  └─ Param 'cursor' @48:42
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Pointer' @48:51
+│  │           └─ generics
+│  │              └─ TypeRef 'Int32' @48:59
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @48:71
+│  └─ body
+│     ├─ ExprStmt @49:3
+│     │  └─ expr
+│     │     └─ Assign '=' @49:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @49:3
+│     │        └─ value
+│     │           └─ Call @49:18
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @49:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Tracked' @49:7
+│     │              └─ args
+│     │                 ├─ IntLiteral '1' @49:20
+│     │                 ├─ Identifier 'log' @49:23
+│     │                 └─ Identifier 'cursor' @49:28
+│     ├─ ExprStmt @50:3
+│     │  └─ expr
+│     │     └─ Assign '=' @50:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @50:3
+│     │        └─ value
+│     │           └─ Call @50:18
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @50:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Tracked' @50:7
+│     │              └─ args
+│     │                 ├─ IntLiteral '2' @50:20
+│     │                 ├─ Identifier 'log' @50:23
+│     │                 └─ Identifier 'cursor' @50:28
+│     ├─ ExprStmt @52:3
+│     │  └─ expr
+│     │     └─ Assign '=' @52:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'n' @52:3
+│     │        └─ value
+│     │           └─ Call @52:14
+│     │              ├─ callee
+│     │              │  └─ Identifier 'consume' @52:7
+│     │              └─ args
+│     │                 └─ Binary '+' @52:18
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'a' @52:16
+│     │                    └─ rhs
+│     │                       └─ Identifier 'b' @52:20
+│     ├─ ExprStmt @56:3
+│     │  └─ expr
+│     │     └─ Call @56:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @56:3
+│     │        └─ args
+│     │           └─ Binary '==' @56:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'n' @56:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '3' @56:17
+│     ├─ ExprStmt @57:3
+│     │  └─ expr
+│     │     └─ Call @57:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @57:3
+│     │        └─ args
+│     │           └─ Binary '==' @57:20
+│     │              ├─ lhs
+│     │              │  └─ Deref @57:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'cursor' @57:13
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1' @57:23
+│     ├─ ExprStmt @58:3
+│     │  └─ expr
+│     │     └─ Call @58:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @58:3
+│     │        └─ args
+│     │           └─ Binary '==' @58:25
+│     │              ├─ lhs
+│     │              │  └─ Deref @58:12
+│     │              │     └─ operand
+│     │              │        └─ Binary '+' @58:19
+│     │              │           ├─ lhs
+│     │              │           │  └─ Identifier 'log' @58:15
+│     │              │           └─ rhs
+│     │              │              └─ IntLiteral '0' @58:21
+│     │              └─ rhs
+│     │                 └─ IntLiteral '3' @58:28
+│     └─ ExprStmt @60:3
+│        └─ expr
+│           └─ Identifier 'n' @60:3
+├─ ExprStmt @63:1
+│  └─ expr
+│     └─ Assign '=' @63:8
+│        ├─ target
+│        │  └─ Identifier 'cursor' @63:1
+│        └─ value
+│           └─ Call @63:31
+│              ├─ callee
+│              │  └─ Member 'malloc' @63:24
+│              │     └─ object
+│              │        └─ GenericInst @63:17
+│              │           ├─ base
+│              │           │  └─ Identifier 'Pointer' @63:10
+│              │           └─ args
+│              │              └─ TypeRef 'Int32' @63:18
+│              └─ args
+│                 └─ IntLiteral '1' @63:33
+├─ ExprStmt @64:1
+│  └─ expr
+│     └─ Assign '=' @64:9
+│        ├─ target
+│        │  └─ Deref @64:1
+│        │     └─ operand
+│        │        └─ Identifier 'cursor' @64:2
+│        └─ value
+│           └─ IntLiteral '0' @64:11
+├─ ExprStmt @65:1
+│  └─ expr
+│     └─ Assign '=' @65:5
+│        ├─ target
+│        │  └─ Identifier 'log' @65:1
+│        └─ value
+│           └─ Call @65:28
+│              ├─ callee
+│              │  └─ Member 'malloc' @65:21
+│              │     └─ object
+│              │        └─ GenericInst @65:14
+│              │           ├─ base
+│              │           │  └─ Identifier 'Pointer' @65:7
+│              │           └─ args
+│              │              └─ TypeRef 'Int32' @65:15
+│              └─ args
+│                 └─ IntLiteral '8' @65:30
+├─ ExprStmt @67:1
+│  └─ expr
+│     └─ Call @67:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @67:1
+│        └─ args
+│           └─ Binary '==' @67:39
+│              ├─ lhs
+│              │  └─ Call @67:23
+│              │     ├─ callee
+│              │     │  └─ Identifier 'argument_temp' @67:10
+│              │     └─ args
+│              │        ├─ Identifier 'log' @67:25
+│              │        └─ Identifier 'cursor' @67:30
+│              └─ rhs
+│                 └─ IntLiteral '3' @67:42
+├─ ExprStmt @70:1
+│  └─ expr
+│     └─ Call @70:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @70:1
+│        └─ args
+│           └─ Binary '==' @70:46
+│              ├─ lhs
+│              │  └─ Call @70:15
+│              │     ├─ callee
+│              │     │  └─ Identifier 'apply' @70:10
+│              │     └─ args
+│              │        ├─ Lambda @70:17
+│              │        │  ├─ params
+│              │        │  │  └─ Param 'x' @70:19
+│              │        │  │     └─ decl_type
+│              │        │  │        └─ TypeRef 'Int32' @70:23
+│              │        │  └─ body
+│              │        │     └─ Binary '*' @70:36
+│              │        │        ├─ lhs
+│              │        │        │  └─ Identifier 'x' @70:34
+│              │        │        └─ rhs
+│              │        │           └─ IntLiteral '2' @70:38
+│              │        └─ IntLiteral '21' @70:41
+│              └─ rhs
+│                 └─ IntLiteral '42' @70:49
+├─ ExprStmt @72:1
+│  └─ expr
+│     └─ Member 'free' @72:4
+│        └─ object
+│           └─ Identifier 'log' @72:1
+└─ ExprStmt @73:1
+   └─ expr
+      └─ Member 'free' @73:7
+         └─ object
+            └─ Identifier 'cursor' @73:1
+--- exit 0 ---

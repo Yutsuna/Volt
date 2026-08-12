@@ -1,0 +1,54 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture: the generic cascade of Phase 4, exercised end to end.
+#
+# `Hash<K, V>` is a generic type, so before Phase 4 it got no synthesized
+# `finalize` at all and its `@entries : Array<HashEntry<K, V>>` was never freed
+# — the 512-byte leak ForLoop.vl showed. The cascade needs no bound on K or V:
+# `Array<T>` declares `finalize` whatever `T` is, so `@entries.finalize` types
+# under the same deferred-typing convention every generic body already uses.
+#
+# This is a behavioural sample rather than a leak assertion — the leak itself
+# is what scripts/valgrind_check.py measures. What it pins here is that adding
+# the cascade did not break ordinary generic use of a String-valued Hash, whose
+# values themselves own buffers.
+
+hash = Hash<String, String>.new
+
+assert!( hash.empty? )
+assert!( hash.size == 0_u64 )
+
+hash[ "one" ] = "premier"
+hash[ "two" ] = "second"
+hash[ "three" ] = "troisieme"
+
+assert!( not hash.empty? )
+assert!( hash.size == 3_u64 )
+
+assert!( hash[ "one" ] == "premier" )
+assert!( hash[ "two" ] == "second" )
+assert!( hash[ "three" ] == "troisieme" )
+
+assert!( hash.contains?( "one" ) )
+assert!( not hash.contains?( "four" ) )
+
+# Overwriting an existing key replaces in place: the bucket chain already holds
+# the slot, so `[]=` reuses it rather than appending a second entry.
+hash[ "two" ] = "deuxieme"
+assert!( hash[ "two" ] == "deuxieme" )
+assert!( hash.size == 3_u64 )
+
+hash.delete( "two" )
+assert!( not hash.contains?( "two" ) )
+assert!( hash.size == 2_u64 )
+
+count = 0
+hash.each do |_k, _v|
+  count = count + 1
+end
+assert!( count == 2 )

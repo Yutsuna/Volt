@@ -1,0 +1,73 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture, shape 2: an rvalue passed as a call argument.
+#
+# The temporary is never bound to a name, so it has no entry in Scope.Order —
+# the exact blind spot cause 1 describes. It is owned by the caller's
+# full-expression region and must be finalized once the call has returned, not
+# by the callee (whose parameter only borrows it).
+#
+# Second half: a `Proc` rvalue in the same position. `Proc` declares finalize,
+# and the element-cascade used to fire on any Aggregate with a generic
+# argument, synthesizing a `.size`/`[]` loop on it — the cause-3 regression
+# that stopped Curry.vl/PointFree.vl from compiling. A Proc temporary passed as
+# an argument is the shape that broke; this keeps it compiling.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def +( other : Tracked ) -> Tracked
+    Tracked.new( @id + other.id, @log, @cursor )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+# The parameter borrows: consume must not finalize what it was handed.
+def consume( t : Tracked ) -> Int32
+  t.id
+end
+
+def apply( f : Proc<Int32, Int32>, v : Int32 ) -> Int32
+  f( v )
+end
+
+def argument_temp( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  a = Tracked.new( 1, log, cursor )
+  b = Tracked.new( 2, log, cursor )
+
+  n = consume( a + b )
+
+  # The callee borrowed it and the caller freed it: exactly once, after the
+  # call. Were the parameter treated as owned this would read 2.
+  assert!( n == 3 )
+  assert!( *cursor == 1 )
+  assert!( *( log + 0 ) == 3 )
+
+  n
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 8 )
+
+assert!( argument_temp( log, cursor ) == 3 )
+
+# A Proc rvalue in argument position — no element cascade may be synthesized.
+assert!( apply( ( x : Int32 ) => x * 2, 21 ) == 42 )
+
+log.free
+cursor.free

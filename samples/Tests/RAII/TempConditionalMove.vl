@@ -1,0 +1,66 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture, shape 4: a conditional move.
+#
+# `x = if c then <rvalue> else <rvalue> end` — each branch materializes its own
+# temporary and moves it into `x`. The plan's locked design resolves ownership
+# per outgoing edge, from the CFG, rather than falling back to a synthesized
+# runtime `__t0_owned` flag: on either edge exactly one temporary exists and it
+# is moved, so nothing is finalized at the merge.
+#
+# The counter is what makes that observable — a runtime-flag fallback that got
+# the flag wrong, or a merge that finalized the moved value, would both show up
+# as a non-zero cursor here.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def +( other : Tracked ) -> Tracked
+    Tracked.new( @id + other.id, @log, @cursor )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def conditional_move( flag : Bool, log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  a = Tracked.new( 1, log, cursor )
+  b = Tracked.new( 2, log, cursor )
+  c = Tracked.new( 4, log, cursor )
+
+  x = if flag
+    a + b
+  else
+    a + c
+  end
+
+  # Whichever edge was taken, its temporary is now `x` and the other was never
+  # constructed. Nothing is dead yet.
+  assert!( *cursor == 0 )
+
+  x.id
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 8 )
+
+assert!( conditional_move( true, log, cursor ) == 3 )
+
+*cursor = 0
+assert!( conditional_move( false, log, cursor ) == 5 )
+
+log.free
+cursor.free

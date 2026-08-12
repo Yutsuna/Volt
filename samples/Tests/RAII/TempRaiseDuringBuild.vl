@@ -1,0 +1,76 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture, shape 7: an exception raised while temporaries are being
+# built.
+#
+# `sink( a + b, boom( true ) )` constructs the first argument's temporary, then
+# raises while evaluating the second. The already-constructed temporary must
+# cross the full-expression cleanup boundary on the unwind path — this is the
+# case the wrap-in-BeginExpr mechanism exists for, as opposed to the splice
+# used for return/break/next, and the one a "finalize at the end of the
+# statement" design silently gets wrong, since the end of the statement is
+# never reached.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def +( other : Tracked ) -> Tracked
+    Tracked.new( @id + other.id, @log, @cursor )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def boom( flag : Bool ) -> Int32
+  if flag
+    raise "boom"
+  end
+  0
+end
+
+def sink( t : Tracked, n : Int32 ) -> Int32
+  t.id + n
+end
+
+def raise_mid_build( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  a = Tracked.new( 1, log, cursor )
+  b = Tracked.new( 2, log, cursor )
+
+  caught = 0
+  begin
+    sink( a + b, boom( true ) )
+  rescue e : Exception
+    caught = 1
+  end
+
+  assert!( caught == 1 )
+
+  # The temporary `a + b` (id 3) was live when the raise happened, and was
+  # finalized while unwinding — not leaked past the rescue.
+  assert!( *cursor == 1 )
+  assert!( *( log + 0 ) == 3 )
+
+  caught
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 8 )
+
+assert!( raise_mid_build( log, cursor ) == 1 )
+
+log.free
+cursor.free
