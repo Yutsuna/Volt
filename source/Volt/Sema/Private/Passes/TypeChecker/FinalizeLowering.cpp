@@ -53,9 +53,16 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
         // init is the common shape, and its buffer then leaks with nothing
         // to show for it, since the rewrite really did happen and was
         // discarded here.
-        const bool bTopCleanup     = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] ), TopBody );
+        const Sema::ScopeId TopScope = Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] );
+        // Drop-on-reassign first: it rewrites an assignment's own expression
+        // slot into a sequence, so running it before the two sweeps below lets
+        // them instrument what it produced exactly as they would hand-written
+        // source — and its `__old` copy is refused candidacy by the ordinary
+        // alias-init guard, with no rule of its own.
+        const bool bTopDrops       = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
+        const bool bTopCleanup     = Lifetime::RunScopeCleanup( Context, TopScope, TopBody );
         const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody );
-        if ( bTopCleanup or bTopTemporaries )
+        if ( bTopDrops or bTopCleanup or bTopTemporaries )
         {
             Ast.TopStmts.clear();
             for ( const Frontend::StmtId Id : TopBody )
@@ -96,9 +103,11 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
         // scoped against the body it was actually written in; Temporaries
         // then only ever rewrites expression slots, never a StmtList, so it
         // cannot disturb the cleanup already placed.
-        const bool bCleanup     = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Node.Body[0] ), Node.Body );
-        const bool bTemporaries = Lifetime::RunTemporaries( Context, Node.Body );
-        if ( bTemporaries or bCleanup )
+        const Sema::ScopeId MethodScope = Context.Ctx.Scopes.ScopeOf( Node.Body[0] );
+        const bool bDrops               = Lifetime::RunDropOnReassign( Context, MethodScope, Node.Body );
+        const bool bCleanup             = Lifetime::RunScopeCleanup( Context, MethodScope, Node.Body );
+        const bool bTemporaries         = Lifetime::RunTemporaries( Context, Node.Body );
+        if ( bTemporaries or bCleanup or bDrops )
         {
             Ast.Decl( Id ) = Frontend::DeclNode{ std::move( Node ) };
         }

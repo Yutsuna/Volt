@@ -33,4 +33,16 @@ void LowerClosureLit ( TypeCheckerContext &Context, Frontend::ExprId Id );
 // (LiteralLowering.hpp).
 void LowerClosureLits ( TypeCheckerContext &Context );
 
+// Reads every closure literal's body and records the two ownership facts a
+// callable's single declared member — the `FuncType` claimant's bodyless
+// `abstract call` — structurally cannot carry: whether invoking it hands back
+// an owned value, and which of its parameters it keeps
+// (`TypeCheckerContext::OwnedClosureLiterals` / `ClosureParamEscapes`).
+//
+// Must run *before* any literal is lifted, because both are keyed by the
+// literal's own expression id — which stays the slot the parent calls through
+// once the literal has become a `Proc.new`. Called by `LowerClosureLits`, and
+// separately by `Sema::ReinstantiateBody`, which lifts literals one at a time.
+void AnalyzeClosureLiterals ( TypeCheckerContext &Context );
+
 } // namespace Volt::Sema::TypeCheckerPass
