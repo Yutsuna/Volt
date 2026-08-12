@@ -853,7 +853,7 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 const SemaTypeId Else = TrailingType( Context, Expr.Else );
                 return Context.UnifyBranchTypes( Then, Else );
             },
-            [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Context, Expr ); },
+            [&] ( const Frontend::Call &Expr ) -> SemaTypeId { return CallType( Context, Id, Expr ); },
             [&] ( const Frontend::GenericInst &Expr ) -> SemaTypeId { return GenericInstType( Context, Id, Expr ); },
             // No Frontend::DotCall branch: DotCallLowering (order 23) rewrites
             // every one into `self.method( ... )` before TypeChecker (order 30)
@@ -909,7 +909,8 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
         Node );
 }
 
-Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContext &Context, const Frontend::Call &Expr )
+Volt::Sema::SemaTypeId
+Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Frontend::Call &Expr )
 {
     if ( IsLambdaExpr( Context.Ctx.Ast, Expr.Callee ) and not Expr.Args.IsEmpty() and not Context.ExpectedClosure.IsValid() )
     {
@@ -968,6 +969,26 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::CallType ( TypeCheckerContex
     }
 
     Resolution &Found = It->second;
+
+    // A getter field reached through explicit call syntax (`value.data()`)
+    // is the same read as the paren-less `value.data` — a `getter` field
+    // never synthesizes a real `Method` (TypeBinder records it as a plain
+    // `EMemberKind::Field` Member), so nothing downstream could ever define
+    // the symbol a genuine call would need. Rewritten away here, before any
+    // of the Method-shaped logic below (arg binding, block typing) runs —
+    // "no sugar survives lowering" (rules/core-ast.md) applies just as much
+    // to a Call this shape as it does to Section/Composition, so a backend
+    // never has to learn a second way a `Call` node can mean "read a place."
+    if ( Found.Decl != nullptr and Found.Decl->Kind == EMemberKind::Field )
+    {
+        if ( not Expr.Args.IsEmpty() or Expr.BlockArg.IsValid() )
+        {
+            Context.Report( Expr.Loc,
+                            "field '" + std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) } + "' is not callable" );
+        }
+        Context.Ctx.Ast.Expr( Id ) = Context.Ctx.Ast.Expr( Expr.Callee );
+        return Found.Result;
+    }
 
     // Arguments are bound before being checked: a method generic appearing
     // in a parameter has to learn its type from the actual argument first,

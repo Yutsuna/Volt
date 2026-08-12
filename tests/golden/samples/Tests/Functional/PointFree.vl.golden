@@ -39,65 +39,82 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @9:29
 │        └─ expr
-│           └─ Call @9:29
-│              ├─ callee
-│              │  └─ Section operator '*' '*' @9:34
-│              │     └─ args
-│              │        └─ IntLiteral '2' @9:38
-│              └─ args
-│                 └─ Call @9:29
-│                    ├─ callee
-│                    │  └─ Section operator '+' '+' @9:20
-│                    │     └─ args
-│                    │        └─ IntLiteral '10' @9:24
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_0' @9:29
+│           └─ Binary '*' @9:34
+│              ├─ lhs
+│              │  └─ Binary '+' @9:20
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'fn_tmp_0' @9:29
+│              │     └─ rhs
+│              │        └─ IntLiteral '10' @9:24
+│              └─ rhs
+│                 └─ IntLiteral '2' @9:38
 ├─ Method 'clean_pointfree' [T_3] @18:16
 │  ├─ params
 │  │  └─ Param 'fn_tmp_2' @18:16
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_3' @18:16
 │  ├─ return_type
-│  │  └─ TypeRef 'T_3' @18:16
+│  │  └─ TypeRef 'String' @18:20
 │  └─ body
 │     └─ ExprStmt @18:16
 │        └─ expr
-│           └─ Call @18:16
+│           └─ Call @18:20
 │              ├─ callee
-│              │  └─ Section instance_method 'prefix' @18:20
-│              │     └─ args
-│              │        └─ StringLiteral '[user]: ' @18:29
+│              │  └─ Member 'prefix' @18:20
+│              │     └─ object
+│              │        └─ Call @17:20
+│              │           └─ callee
+│              │              └─ Member 'downcase' @17:20
+│              │                 └─ object
+│              │                    └─ Call @16:20
+│              │                       └─ callee
+│              │                          └─ Member 'trim' @16:20
+│              │                             └─ object
+│              │                                └─ Identifier 'fn_tmp_2' @18:16
 │              └─ args
-│                 └─ Call @18:16
-│                    ├─ callee
-│                    │  └─ Composition @17:16
-│                    │     ├─ lhs
-│                    │     │  └─ Section instance_method 'trim' @16:20
-│                    │     └─ rhs
-│                    │        └─ Section instance_method 'downcase' @17:20
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_2' @18:16
+│                 └─ StringLiteral '[user]: ' @18:29
 ├─ Method 'transform' [T_5] @32:24
 │  ├─ params
 │  │  └─ Param 'fn_tmp_4' @32:24
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_5' @32:24
 │  ├─ return_type
-│  │  └─ TypeRef 'T_5' @32:24
+│  │  └─ TypeRef 'String' @32:29
 │  └─ body
 │     └─ ExprStmt @32:24
 │        └─ expr
-│           └─ Call @32:24
+│           └─ Call @32:29
 │              ├─ callee
-│              │  └─ Section instance_method 'prefix' @32:29
-│              │     └─ args
-│              │        └─ StringLiteral 'usr_' @32:39
+│              │  └─ Member 'prefix' @32:29
+│              │     └─ object
+│              │        └─ Call @32:15
+│              │           └─ callee
+│              │              └─ Member 'trim' @32:15
+│              │                 └─ object
+│              │                    └─ Identifier 'fn_tmp_4' @32:24
 │              └─ args
-│                 └─ Call @32:24
-│                    ├─ callee
-│                    │  └─ Section instance_method 'trim' @32:15
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_4' @32:24
+│                 └─ StringLiteral 'usr_' @32:39
+├─ Method 'no_type_pointfree' [T_7] @41:37
+│  ├─ params
+│  │  └─ Param 'fn_tmp_6' @41:37
+│  │     └─ decl_type
+│  │        └─ TypeRef 'T_7' @41:37
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @41:42
+│  └─ body
+│     └─ ExprStmt @41:37
+│        └─ expr
+│           └─ Call @41:42
+│              ├─ callee
+│              │  └─ Member 'prefix' @41:42
+│              │     └─ object
+│              │        └─ Call @41:23
+│              │           └─ callee
+│              │              └─ Member 'to_string' @41:23
+│              │                 └─ object
+│              │                    └─ Identifier 'fn_tmp_6' @41:37
+│              └─ args
+│                 └─ StringLiteral 'Value: ' @41:52
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
@@ -343,19 +360,98 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │        └─ IntLiteral '0' @37:22
 │              └─ rhs
 │                 └─ StringLiteral 'usr_alice' @37:28
-└─ ExprStmt @38:1
+├─ ExprStmt @38:1
+│  └─ expr
+│     └─ Call @38:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @38:1
+│        └─ args
+│           └─ Binary '==' @38:25
+│              ├─ lhs
+│              │  └─ Index @38:21
+│              │     ├─ object
+│              │     │  └─ Identifier 'clean_users' @38:10
+│              │     └─ args
+│              │        └─ IntLiteral '1' @38:22
+│              └─ rhs
+│                 └─ StringLiteral 'usr_bob' @38:28
+├─ ExprStmt @42:1
+│  └─ expr
+│     └─ Call @42:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @42:1
+│        └─ args
+│           └─ Binary '==' @42:34
+│              ├─ lhs
+│              │  └─ Call @42:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @42:10
+│              │     └─ args
+│              │        └─ IntLiteral '42' @42:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: 42' @42:37
+├─ ExprStmt @43:1
+│  └─ expr
+│     └─ Call @43:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @43:1
+│        └─ args
+│           └─ Binary '==' @43:36
+│              ├─ lhs
+│              │  └─ Call @43:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @43:10
+│              │     └─ args
+│              │        └─ FloatLiteral '3.14' @43:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: 3.140000' @43:39
+├─ ExprStmt @44:1
+│  └─ expr
+│     └─ Call @44:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @44:1
+│        └─ args
+│           └─ Binary '==' @44:36
+│              ├─ lhs
+│              │  └─ Call @44:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @44:10
+│              │     └─ args
+│              │        └─ BoolLiteral true @44:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: true' @44:39
+├─ ExprStmt @45:1
+│  └─ expr
+│     └─ Call @45:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @45:1
+│        └─ args
+│           └─ Binary '==' @45:41
+│              ├─ lhs
+│              │  └─ Call @45:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @45:10
+│              │     └─ args
+│              │        └─ ArrayLit @45:29
+│              │           └─ elements
+│              │              ├─ IntLiteral '1' @45:30
+│              │              ├─ IntLiteral '2' @45:33
+│              │              └─ IntLiteral '3' @45:36
+│              └─ rhs
+│                 └─ StringLiteral 'Value: [1, 2, 3]' @45:44
+└─ ExprStmt @46:1
    └─ expr
-      └─ Call @38:8
+      └─ Call @46:8
          ├─ callee
-         │  └─ Identifier 'assert!' @38:1
+         │  └─ Identifier 'assert!' @46:1
          └─ args
-            └─ Binary '==' @38:25
+            └─ Binary '==' @46:38
                ├─ lhs
-               │  └─ Index @38:21
-               │     ├─ object
-               │     │  └─ Identifier 'clean_users' @38:10
+               │  └─ Call @46:27
+               │     ├─ callee
+               │     │  └─ Identifier 'no_type_pointfree' @46:10
                │     └─ args
-               │        └─ IntLiteral '1' @38:22
+               │        └─ StringLiteral 'Volt' @46:29
                └─ rhs
-                  └─ StringLiteral 'usr_bob' @38:28
+                  └─ StringLiteral 'Value: Volt' @46:41
 --- exit 0 ---

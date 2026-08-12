@@ -152,6 +152,7 @@ bool Volt::Backend::Llvm::LinkerDriver::LinkExecutable ( std::string_view Object
             Args.emplace_back( std::move( Flag ) );
         }
     }
+    Args.emplace_back( "-lm" );
 
     std::string ErrorMessage;
     bool bExecutionFailed = false;

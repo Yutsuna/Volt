@@ -1,11 +1,13 @@
 #include "Volt/Frontend/AST/PointFreeLowering.hpp"
 
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/AST/Type.hpp"
 
 #include <cstdio>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -96,24 +98,200 @@ BuildSectionBody ( Frontend::AstContext &Context, Frontend::ExprId SectionId, Fr
     return BodyExpr;
 }
 
-[[nodiscard]] Frontend::ExprId
-BuildCompositionBody ( Frontend::AstContext &Context, Frontend::ExprId CompId, Frontend::ExprId ParamRef )
+[[nodiscard]] Frontend::ExprId BuildCompositionBody ( Frontend::AstContext &Context,
+                                                      Frontend::ExprId CompId,
+                                                      Frontend::ExprId ParamRef,
+                                                      std::vector<Frontend::ExprId> &Consumed );
+
+// Applies one step of a chain (a `Section`, a nested `Composition`, or an
+// ordinary callee such as a named `def`) to `ArgExpr`.
+//
+// A `Section`/`Composition` step is inlined directly — its own body is built
+// against `ArgExpr` in place, never through a `Call`— rather than wrapped in
+// a `Lambda` and invoked. Every step this pass touches is applied to its
+// argument exactly once, at the exact point this function returns to, so
+// inlining duplicates no evaluation; it only removes indirection. This is
+// what keeps `(&.to_string) >> (&.data) >> libc_puts` one flat expression,
+// with one full-expression cleanup region, instead of three separately
+// closure-lifted functions each finalizing their own temporaries before
+// returning — which is what silently freed the `String` `&.to_string`
+// allocated before `libc_puts` ever read the `Pointer<UInt8>` `&.data`
+// aliased into it (a temporary is only safe past the call that produced it
+// while it and its consumer share one region; splitting the chain across
+// closures put them in different ones). An ordinary callee (a named
+// function, or a hand-written closure value) is genuinely invoked instead —
+// `Call{ Callee = StepId, Args = [ ArgExpr ] }`, exactly as before.
+[[nodiscard]] Frontend::ExprId BuildStep ( Frontend::AstContext &Context,
+                                           Frontend::ExprId StepId,
+                                           Frontend::ExprId ArgExpr,
+                                           std::vector<Frontend::ExprId> &Consumed )
+{
+    const Frontend::ExprKind Kind = Frontend::KindOf( Context.Expr( StepId ) );
+    if ( Kind == Frontend::ExprKind::Section )
+    {
+        Consumed.push_back( StepId );
+        return BuildSectionBody( Context, StepId, ArgExpr );
+    }
+    if ( Kind == Frontend::ExprKind::Composition )
+    {
+        Consumed.push_back( StepId );
+        return BuildCompositionBody( Context, StepId, ArgExpr, Consumed );
+    }
+
+    Frontend::Call Cal;
+    Cal.Loc    = Frontend::LocOf( Context.Expr( StepId ) );
+    Cal.Callee = StepId;
+    Cal.Args.PushBack( ArgExpr );
+    Cal.ArgNames.PushBack( Core::Symbol{} );
+    return Context.Add( Cal );
+}
+
+[[nodiscard]] Frontend::ExprId BuildCompositionBody ( Frontend::AstContext &Context,
+                                                      Frontend::ExprId CompId,
+                                                      Frontend::ExprId ParamRef,
+                                                      std::vector<Frontend::ExprId> &Consumed )
 {
     const Frontend::Composition Comp = std::get<Frontend::Composition>( Context.Expr( CompId ) );
+    const Frontend::ExprId InnerExpr = BuildStep( Context, Comp.Lhs, ParamRef, Consumed );
+    return BuildStep( Context, Comp.Rhs, InnerExpr, Consumed );
+}
 
-    Frontend::Call InnerCall;
-    InnerCall.Loc    = Comp.Loc;
-    InnerCall.Callee = Comp.Lhs;
-    InnerCall.Args.PushBack( ParamRef );
-    InnerCall.ArgNames.PushBack( Core::Symbol{} );
-    const Frontend::ExprId InnerExpr = Context.Add( InnerCall );
+// A composition's result type is whatever its rightmost step returns, never
+// the input type `T` — `(&.to_string) >> (&.data) >> libc_puts` yields
+// `Int32`, not the `String` it started from. That rightmost step is the
+// composition's own `Rhs` (parsed left-associative, so `Comp.Rhs` is already
+// the last one applied); recurse through it when it is itself a nested
+// Composition, and stop at a bare `Identifier` naming a top-level `def` in
+// this same file, whose declared `-> T` is read back verbatim — no type
+// resolution, just the same TypeId the callee itself declared. A Section (or
+// any other shape) has no statically-known result without evaluating a
+// receiver type, so it falls back to the caller's default of `T`.
+[[nodiscard]] std::optional<Frontend::TypeId> TryResolveChainReturnType ( Frontend::AstContext &Context, Frontend::ExprId Id )
+{
+    if ( const auto *Comp = std::get_if<Frontend::Composition>( &Context.Expr( Id ) ) )
+    {
+        return TryResolveChainReturnType( Context, Comp->Rhs );
+    }
 
-    Frontend::Call OuterCall;
-    OuterCall.Loc    = Comp.Loc;
-    OuterCall.Callee = Comp.Rhs;
-    OuterCall.Args.PushBack( InnerExpr );
-    OuterCall.ArgNames.PushBack( Core::Symbol{} );
-    return Context.Add( OuterCall );
+    if ( const auto *Sec = std::get_if<Frontend::Section>( &Context.Expr( Id ) ) )
+    {
+        if ( Sec->bNegated )
+        {
+            Frontend::TypeRef TRef;
+            TRef.Loc = Sec->Loc;
+            TRef.Path.PushBack( Context.Strings().Intern( "Bool" ) );
+            return Context.Add( TRef );
+        }
+
+        if ( Sec->Kind == Frontend::ESectionKind::StaticCapture )
+        {
+            return TryResolveChainReturnType( Context, Sec->TargetExpr );
+        }
+
+        if ( Sec->Kind == Frontend::ESectionKind::Operator )
+        {
+            if ( Sec->Op == Frontend::TokenKind::EqEq or Sec->Op == Frontend::TokenKind::NotEq or
+                 Sec->Op == Frontend::TokenKind::Lt or Sec->Op == Frontend::TokenKind::Le or Sec->Op == Frontend::TokenKind::Gt or
+                 Sec->Op == Frontend::TokenKind::Ge )
+            {
+                Frontend::TypeRef TRef;
+                TRef.Loc = Sec->Loc;
+                TRef.Path.PushBack( Context.Strings().Intern( "Bool" ) );
+                return Context.Add( TRef );
+            }
+            return std::nullopt;
+        }
+
+        if ( Sec->Kind == Frontend::ESectionKind::InstanceMethod )
+        {
+            const std::string Name = std::string{ Context.Text( Sec->Target ) };
+            if ( Name == "to_string" or Name == "prefix" or Name == "trim" or Name == "downcase" or Name == "upcase" or
+                 Name == "inspect" or Name == "concat" or Name == "to_s" )
+            {
+                Frontend::TypeRef TRef;
+                TRef.Loc = Sec->Loc;
+                TRef.Path.PushBack( Context.Strings().Intern( "String" ) );
+                return Context.Add( TRef );
+            }
+            if ( Name == "data" )
+            {
+                Frontend::TypeRef TRef;
+                TRef.Loc = Sec->Loc;
+                TRef.Path.PushBack( Context.Strings().Intern( "Pointer" ) );
+                Frontend::TypeRef ArgTRef;
+                ArgTRef.Loc = Sec->Loc;
+                ArgTRef.Path.PushBack( Context.Strings().Intern( "UInt8" ) );
+                TRef.Generics.PushBack( Context.Add( ArgTRef ) );
+                return Context.Add( TRef );
+            }
+            if ( Name == "empty?" or Name == "nil?" or Name == "zero?" or Name == "valid?" )
+            {
+                Frontend::TypeRef TRef;
+                TRef.Loc = Sec->Loc;
+                TRef.Path.PushBack( Context.Strings().Intern( "Bool" ) );
+                return Context.Add( TRef );
+            }
+            if ( Name == "length" or Name == "size" or Name == "count" or Name == "hash" )
+            {
+                Frontend::TypeRef TRef;
+                TRef.Loc = Sec->Loc;
+                TRef.Path.PushBack( Context.Strings().Intern( "Int32" ) );
+                return Context.Add( TRef );
+            }
+        }
+    }
+
+    const auto *Ident = std::get_if<Frontend::Identifier>( &Context.Expr( Id ) );
+    if ( Ident == nullptr )
+    {
+        return std::nullopt;
+    }
+
+    auto FindInDecls = [&] ( auto &SelfRef, const std::vector<Frontend::DeclId> &Decls ) -> std::optional<Frontend::TypeId>
+    {
+        for ( const Frontend::DeclId DeclId : Decls )
+        {
+            if ( not DeclId.IsValid() )
+            {
+                continue;
+            }
+            const auto &Node = Context.Decl( DeclId );
+            if ( const auto *Def = std::get_if<Frontend::Method>( &Node ) )
+            {
+                if ( Def->Name == Ident->Name and Def->ReturnType.IsValid() )
+                {
+                    return Def->ReturnType;
+                }
+            }
+            else if ( const auto *Cls = std::get_if<Frontend::Class>( &Node ) )
+            {
+                std::vector<Frontend::DeclId> BodyDecls{ Cls->Body.begin(), Cls->Body.end() };
+                if ( const auto Res = SelfRef( SelfRef, BodyDecls ) )
+                {
+                    return Res;
+                }
+            }
+            else if ( const auto *Str = std::get_if<Frontend::Struct>( &Node ) )
+            {
+                std::vector<Frontend::DeclId> BodyDecls{ Str->Body.begin(), Str->Body.end() };
+                if ( const auto Res = SelfRef( SelfRef, BodyDecls ) )
+                {
+                    return Res;
+                }
+            }
+            else if ( const auto *Mix = std::get_if<Frontend::Mixin>( &Node ) )
+            {
+                std::vector<Frontend::DeclId> BodyDecls{ Mix->Body.begin(), Mix->Body.end() };
+                if ( const auto Res = SelfRef( SelfRef, BodyDecls ) )
+                {
+                    return Res;
+                }
+            }
+        }
+        return std::nullopt;
+    };
+
+    return FindInDecls( FindInDecls, Context.TopDecls );
 }
 
 } // namespace
@@ -146,6 +324,8 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         const Core::SourceRange Loc = ValueKind == ExprKind::Section ? std::get<Section>( Context.Expr( ValId ) ).Loc
                                                                      : std::get<Composition>( Context.Expr( ValId ) ).Loc;
 
+        const std::optional<TypeId> ResolvedReturnType = TryResolveChainReturnType( Context, ValId );
+
         const Core::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
         const Core::Symbol TSym      = Context.MakeUniqueSymbol( "T" );
 
@@ -154,10 +334,21 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         ParamTRef.Path.PushBack( TSym );
         const TypeId ParamTId = Context.Add( ParamTRef );
 
-        TypeRef ReturnTRef;
-        ReturnTRef.Loc = Loc;
-        ReturnTRef.Path.PushBack( TSym );
-        const TypeId ReturnTId = Context.Add( ReturnTRef );
+        TypeId ReturnTId;
+        if ( ResolvedReturnType.has_value() )
+        {
+            // The rightmost step's own declared return TypeId, reused as-is —
+            // Type nodes are immutable after parsing, so sharing the Id
+            // across two decls' signatures is safe.
+            ReturnTId = *ResolvedReturnType;
+        }
+        else
+        {
+            TypeRef ReturnTRef;
+            ReturnTRef.Loc = Loc;
+            ReturnTRef.Path.PushBack( TSym );
+            ReturnTId = Context.Add( ReturnTRef );
+        }
 
         Param ParamNode;
         ParamNode.Loc          = Loc;
@@ -171,8 +362,15 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         ParamUse.Name             = ParamName;
         const ExprId ParamUseExpr = Context.Add( ParamUse );
 
+        // Every nested Section/Composition this recursion inlines (never
+        // wraps in a Lambda) is collected here rather than left for Sema's
+        // FunctionalLowering sweep to find — that sweep still scans the
+        // whole arena by index regardless of reachability, so an orphaned
+        // one left as-is would get needlessly closure-lifted into dead code
+        // nobody calls, same reasoning as `ValId`/`AssignExprId` below.
+        std::vector<ExprId> Consumed;
         const ExprId BodyExpr = ValueKind == ExprKind::Section ? BuildSectionBody( Context, ValId, ParamUseExpr )
-                                                               : BuildCompositionBody( Context, ValId, ParamUseExpr );
+                                                               : BuildCompositionBody( Context, ValId, ParamUseExpr, Consumed );
 
         // `ValId` and `AssignExprId` are dead weight now — nothing will
         // reference either again once the Assign is dropped from TopStmts
@@ -184,6 +382,10 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         // orphan nothing ever types, exactly as if this pass never ran.
         Context.Expr( ValId )        = NilLiteral{ .Loc = Loc };
         Context.Expr( AssignExprId ) = NilLiteral{ .Loc = Loc };
+        for ( const ExprId ConsumedId : Consumed )
+        {
+            Context.Expr( ConsumedId ) = NilLiteral{ .Loc = Loc };
+        }
 
         ExprStmt TailStmt;
         TailStmt.Loc  = Loc;

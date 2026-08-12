@@ -36,3 +36,11 @@ clean_users = raw_users
   .map( &transform )
 assert!( clean_users[0] == "usr_alice" )
 assert!( clean_users[1] == "usr_bob" )
+
+
+no_type_pointfree = ( &.to_string ) >> ( &.prefix( "Value: " ) )
+assert!( no_type_pointfree( 42 ) == "Value: 42" )
+assert!( no_type_pointfree( 3.14 ) == "Value: 3.140000" )
+assert!( no_type_pointfree( true ) == "Value: true" )
+assert!( no_type_pointfree( [1, 2, 3] ) == "Value: [1, 2, 3]" )
+assert!( no_type_pointfree( "Volt" ) == "Value: Volt" )
