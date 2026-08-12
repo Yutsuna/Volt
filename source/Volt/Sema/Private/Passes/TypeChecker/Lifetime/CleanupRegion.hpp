@@ -80,4 +80,15 @@ void EmitBoundaryInto ( Frontend::AstContext &Ast,
 [[nodiscard]] Frontend::ExprId EmitSequence (
     Frontend::AstContext &Ast, UnitTypes &Values, Core::SourceRange Loc, Frontend::StmtList Body, SemaTypeId ResultType );
 
+// The same, written *into* an existing slot — `EmitBoundaryInto` is to
+// `EmitBoundary` what this is to `EmitSequence`, and for the same reason: a
+// rewrite that lands in the slot its parent already points at never has to
+// rebuild the tree above it (rules/ast-rewrite.md).
+void EmitSequenceInto ( Frontend::AstContext &Ast,
+                        UnitTypes &Values,
+                        Frontend::ExprId Slot,
+                        Core::SourceRange Loc,
+                        Frontend::StmtList Body,
+                        SemaTypeId ResultType );
+
 } // namespace Volt::Sema::TypeCheckerPass::Lifetime

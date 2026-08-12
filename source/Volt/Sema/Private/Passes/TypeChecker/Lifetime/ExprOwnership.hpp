@@ -70,24 +70,65 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
 // Does evaluating `Id` *produce* a value whose release is now the enclosing
 // region's responsibility?
 //
-// Two proofs are accepted:
+// Exactly two questions, in this order, and no third:
 //
-//   - `bConstructs` — `T.new( … )` allocates the storage it hands back.
-//     Certain by construction, no inference involved.
-//   - `Member::bReturnsOwned` — derived by the seam-time fixpoint in
-//     `Raii::InferReturnOwnership`, which read the callee's own body.
+//  1. **Is this occurrence an invocation, or a place read?** `Call`,
+//     `Binary` and `Unary` are invocations by construction — none of them can
+//     name storage. `Member` and `Identifier` are the two spellings that mean
+//     *either*, and the model must not confuse them: a place read borrows
+//     storage its real owner still holds, so releasing it is a double free.
+//     The discriminator is what the resolution found — a `Method` runs a
+//     body, a `Field` names storage — never the node kind, which cannot tell
+//     them apart. This is the split `.agents/CASCADE_FINALIZE.md` item 1
+//     called for.
+//  2. **Does that invocation hand back a value nobody else holds?** Two
+//     proofs are accepted:
+//       - `bConstructs` — `T.new( … )` allocates the storage it returns.
+//         Certain by construction, no inference involved.
+//       - `Member::bReturnsOwned` — derived by the seam-time fixpoint in
+//         `Raii::InferReturnOwnership`, which read the callee's own body.
+//     Anything else reads as `Borrowed`, which costs a counted leak instead
+//     of a double free.
 //
-// The `Member`/`Identifier` arm is the split `.agents/CASCADE_FINALIZE.md`
-// item 1 called for. Those two node kinds mean *either* a paren-less
-// invocation *or* a place read, and the model must not confuse them: a place
-// read borrows storage its real owner still holds, so releasing it is a
-// double free. The discriminator is what the resolution found — a `Method` is
-// an invocation, a `Field` is a place — never the node kind, which cannot
-// tell them apart. `bConstructs` is not accepted on this arm either: a
-// `T.new` spelling resolves on the `Member` standing in callee position, and
-// the value it constructs belongs to the `Call` above it, not to that node.
+// **Callee position is not this function's business.** `T.new` spelled
+// without parentheses *is* the construction; spelled with them, the same
+// resolution also sits on the `Member` standing in the `Call`'s callee slot,
+// and the value belongs to the `Call`. Discriminating those here would take a
+// parent pointer the value AST does not have — and does not need to, because
+// a callee is reached only through `Call::Callee`, which both callers already
+// treat as `Moved` for an unrelated and stronger reason (the backend keys the
+// resolution on that very id). Whoever asks must therefore never ask about a
+// callee, and neither of the two does.
 [[nodiscard]] inline bool ProducesOwnedValue ( TypeCheckerContext &Context, const Frontend::ExprId Id )
 {
+    if ( not Id.IsValid() )
+    {
+        return false;
+    }
+
+    // A construction the middle-end performed itself, whose shape no longer
+    // shows it (`TypeCheckerContext::OwnedExprSites` — a lowered `[ … ]` or
+    // `{ … }`, whose slot is a `BeginExpr` ending on a name).
+    if ( Context.OwnedExprSites.contains( Id.Value ) )
+    {
+        return true;
+    }
+
+    // A third proof, and the only one that is not a fact about a *declaration*:
+    // the callee is a closure literal whose body this unit read
+    // (`TypeCheckerContext::OwnedClosureLiterals`). It has to be keyed by the
+    // callee's site rather than recorded on a `Member`, because a callable's
+    // only member is the `FuncType` claimant's bodyless `abstract call` — one
+    // declaration standing for every closure in the program, which can carry
+    // no per-closure fact at all.
+    if ( const auto *CallNode = std::get_if<Frontend::Call>( &Context.Ctx.Ast.Expr( Id ) ) )
+    {
+        if ( CallNode->Callee.IsValid() and Context.OwnedClosureLiterals.contains( CallNode->Callee.Value ) )
+        {
+            return true;
+        }
+    }
+
     const Resolution *Found = ResolutionOf( Context, Id );
     if ( Found == nullptr )
     {
@@ -95,22 +136,20 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
     }
 
     const Frontend::ExprNode &Node = Context.Ctx.Ast.Expr( Id );
-    if ( std::holds_alternative<Frontend::Member>( Node ) or std::holds_alternative<Frontend::Identifier>( Node ) )
+    const bool bMayNamePlace =
+        std::holds_alternative<Frontend::Member>( Node ) or std::holds_alternative<Frontend::Identifier>( Node );
+    if ( bMayNamePlace and ( Found->Decl == nullptr or Found->Decl->Kind != EMemberKind::Method ) )
     {
-        return Found->Decl != nullptr and Found->Decl->Kind == EMemberKind::Method and Found->Decl->bReturnsOwned;
+        return false;
     }
 
-    if ( Found->bConstructs )
-    {
-        return true;
-    }
     // An indirect call goes through a callable *value*; the member it
     // resolves to is the `FuncType` claimant's abstract contract, which has
     // no body and so was never proven to return owned. Reading the flag
     // handles that without a special case — and is the whole of
     // `.agents/CASCADE_FINALIZE.md` item 3's first half: through a function
     // pointer the body is genuinely unknown, so the result stays `Borrowed`.
-    return Found->Decl != nullptr and Found->Decl->bReturnsOwned;
+    return Found->bConstructs or ( Found->Decl != nullptr and Found->Decl->bReturnsOwned );
 }
 
 } // namespace Volt::Sema::TypeCheckerPass::Lifetime

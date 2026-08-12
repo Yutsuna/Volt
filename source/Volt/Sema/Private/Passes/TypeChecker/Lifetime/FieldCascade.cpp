@@ -186,6 +186,56 @@ namespace
         return Result;
     }
 
+    // Every type this one destroys *through* — the written `< Parent` and each
+    // `include`d mixin — whose own `finalize` does something.
+    //
+    // Resolved off the written type expression, exactly like a field's, and
+    // filtered by exactly the same predicate: a parent is a cascade target for
+    // the same reason a field is, and neither is a special case of the other.
+    // A trivial parent is skipped for the same reason a trivial field is —
+    // calling it would be a no-op, and `bTrivialFinalize` exists to say so.
+    [[nodiscard]] std::vector<Sema::SemaTypeId> CollectCascadeParents ( TypeCheckerContext &Context,
+                                                                        const Frontend::DeclList &Body,
+                                                                        std::span<const Frontend::Symbol> Generics,
+                                                                        Frontend::TypeId SuperWritten )
+    {
+        const Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+        const auto Resolve = [&] ( const Frontend::TypeId Written ) -> Sema::SemaTypeId
+        {
+            if ( not Written.IsValid() )
+            {
+                return Sema::SemaTypeId{};
+            }
+            Sema::UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Sema::SemaTypeId{}, .Bindings = {} };
+            return Sema::ResolveTypeExpr( Ast, Context.Ctx.Types, Generics, Sink, Written );
+        };
+
+        std::vector<Sema::SemaTypeId> Result;
+        const auto Consider = [&] ( const Frontend::TypeId Written )
+        {
+            const Sema::SemaTypeId Resolved = Resolve( Written );
+            if ( Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, Resolved ) )
+            {
+                Result.push_back( Resolved );
+            }
+        };
+
+        Consider( SuperWritten );
+        for ( const Frontend::DeclId Id : Body )
+        {
+            if ( not Id.IsValid() )
+            {
+                continue;
+            }
+            if ( const auto *Included = std::get_if<Frontend::Include>( &Ast.Decl( Id ) ) )
+            {
+                Consider( Included->Target );
+            }
+        }
+        return Result;
+    }
+
     // The Struct/Class's own `finalize`, if directly declared in Body — a plain
     // AST scan, not a TypeStore lookup: answering "is one of Body's own
     // elements a Method named finalize" needs no member-resolution machinery.
@@ -247,16 +297,48 @@ namespace
         return BuildFinalizeCallOnReceiver( Context, Loc, MakeReadId, FieldType );
     }
 
-    // Appends one `@field.finalize()` ExprStmt per cascade-candidate field to
-    // the end of an *existing*, user-declared `finalize` method's own Body.
-    // Reverse field declaration order (last-declared, first-finalized),
-    // matching every other finalize ordering this pass already produces. Runs
-    // before InsertFinalizeCalls' own per-Method loop, so the ordinary
-    // candidate/wrap machinery (ProcessBlock) sees the cascade calls as part of
-    // the body it instruments, exactly like a hand-written tail.
+    // `( self as Parent ).finalize()` — the delegation a destructor owes every
+    // type it destroys *through*, and the exact counterpart of C++ running a
+    // base destructor after the derived one's body.
+    //
+    // The receiver is a plain `SelfExpr` carrying the *parent's* type, which
+    // is all it takes: a subclass's storage **is** one of its base
+    // (`EnsureStructLayout` splices the base's fields in first, flat), so the
+    // very same pointer is a valid receiver one level up, and `MemberType`
+    // then resolves `finalize` on the parent exactly as a hand-written call
+    // would. Typing the node here rather than letting `InferExpr` derive it is
+    // both necessary — `Context.SelfValue` is not ambient in this per-Decl
+    // sweep — and the whole mechanism: `self` typed as the parent is what
+    // distinguishes delegation from unbounded self-recursion.
+    [[nodiscard]] Frontend::ExprId
+    BuildParentFinalizeCall ( TypeCheckerContext &Context, Core::SourceRange Loc, Sema::SemaTypeId ParentType )
+    {
+        auto MakeReadId = [&] () -> Frontend::ExprId
+        {
+            const Frontend::ExprId SelfId = Context.Ctx.Ast.Add( Frontend::ExprNode{ Frontend::SelfExpr{ .Loc = Loc } } );
+            Context.Ctx.Values.SetExprType( SelfId, ParentType );
+            return SelfId;
+        };
+
+        return BuildFinalizeCallOnReceiver( Context, Loc, MakeReadId, ParentType );
+    }
+
+    // Appends the compiler-owed epilogue to a `finalize` method's own Body:
+    // one `@field.finalize()` per cascade-candidate field, then one
+    // `( self as Parent ).finalize()` per non-trivial parent.
+    //
+    // That order is C++'s, and for C++'s reason: a type's own members die
+    // before the base subobject they were declared alongside. Fields go in
+    // reverse declaration order (last-declared, first-finalized), matching
+    // every other finalize ordering this pass already produces.
+    //
+    // Runs before InsertFinalizeCalls' own per-Method loop, so the ordinary
+    // candidate/wrap machinery (ProcessBlock) sees these calls as part of the
+    // body it instruments, exactly like a hand-written tail.
     void AppendFieldCascade ( TypeCheckerContext &Context,
                               Frontend::DeclId FinalizeMethodId,
-                              const std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> &Fields )
+                              const std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> &Fields,
+                              const std::vector<Sema::SemaTypeId> &Parents )
     {
         Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -287,6 +369,11 @@ namespace
             const Frontend::ExprId CallId = BuildFieldFinalizeCall( Context, Loc, It->first, It->second );
             Node.Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
         }
+        for ( const Sema::SemaTypeId ParentType : Parents )
+        {
+            const Frontend::ExprId CallId = BuildParentFinalizeCall( Context, Loc, ParentType );
+            Node.Body.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+        }
 
         Ast.Decl( FinalizeMethodId ) = Frontend::DeclNode{ std::move( Node ) };
     }
@@ -314,6 +401,7 @@ void RunFieldCascade ( TypeCheckerContext &Context )
         // `AppendFieldCascade` below `Add()`s into it (rules/ast-rewrite.md).
         const Frontend::DeclList *BodyPtr = nullptr;
         std::span<const Frontend::Symbol> Generics;
+        Frontend::TypeId SuperWritten;
         if ( const auto *StructNode = std::get_if<Frontend::Struct>( &Ast.Decl( Id ) ) )
         {
             BodyPtr  = &StructNode->Body;
@@ -321,8 +409,9 @@ void RunFieldCascade ( TypeCheckerContext &Context )
         }
         else if ( const auto *ClassNode = std::get_if<Frontend::Class>( &Ast.Decl( Id ) ) )
         {
-            BodyPtr  = &ClassNode->Body;
-            Generics = std::span<const Frontend::Symbol>{ ClassNode->Generics.begin(), ClassNode->Generics.Size() };
+            BodyPtr      = &ClassNode->Body;
+            Generics     = std::span<const Frontend::Symbol>{ ClassNode->Generics.begin(), ClassNode->Generics.Size() };
+            SuperWritten = ClassNode->Super;
         }
         if ( BodyPtr == nullptr )
         {
@@ -339,10 +428,7 @@ void RunFieldCascade ( TypeCheckerContext &Context )
             continue;
         }
         std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Fields = CollectCascadeFields( Context, *Body, Generics );
-        if ( Fields.empty() )
-        {
-            continue;
-        }
+        const std::vector<Sema::SemaTypeId> Parents = CollectCascadeParents( Context, *Body, Generics, SuperWritten );
 
         // A user-written `finalize` may already call `@field.finalize`
         // itself (the only correct way to write one before this cascade
@@ -364,12 +450,12 @@ void RunFieldCascade ( TypeCheckerContext &Context )
                            const Core::Symbol AtName = Ast.Strings().Intern( "@" + std::string( Ast.Text( Entry.first ) ) );
                            return HandFinalized.contains( AtName.Value );
                        } );
-        if ( Fields.empty() )
+        if ( Fields.empty() and Parents.empty() )
         {
             continue;
         }
 
-        AppendFieldCascade( Context, *FinalizeId, Fields );
+        AppendFieldCascade( Context, *FinalizeId, Fields, Parents );
     }
 }
 

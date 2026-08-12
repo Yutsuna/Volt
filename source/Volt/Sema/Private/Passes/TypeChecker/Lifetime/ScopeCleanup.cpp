@@ -831,7 +831,363 @@ namespace
         return false;
     }
 
+    // --- Drop on reassign -------------------------------------------------
+    //
+    // A local that owns a value and is then written again abandons what it
+    // held: `result = n.digit_char + result` allocates a new buffer every turn
+    // of the loop and strands the previous one. Scope cleanup releases the
+    // *last* value only, because that is the only one still named when the
+    // scope ends.
+    //
+    // The release is expressed with nothing new — a sequence in the
+    // assignment's own expression slot:
+    //
+    //     __old = L          # a struct copy: same buffer, second handle
+    //     L = <the original assignment, untouched>
+    //     __old.finalize()   # releases what L held before the store
+    //     L                  # an assignment's value is what was assigned
+    //
+    // Order is the whole design. The copy is taken *before* the store and
+    // released *after* it, so the right-hand side may read `L` freely — which
+    // the shape this exists for always does. And the release is a statement of
+    // the sequence rather than an `ensure`: on an unwind the store never
+    // happened, so `L` still holds the old buffer and scope cleanup will
+    // release it; releasing it here as well would be a double free.
+
+    // Every write to `Binding` this body performs, and whether the analysis
+    // can see all of them clearly enough to act.
+    struct WriteSet
+    {
+        // Statement-position `Assign` expressions targeting the local, by
+        // expression id.
+        std::unordered_set<std::uint32_t> Assigns;
+        // Every write hands over a value nobody else holds. One that does not
+        // — an alias copy, an unprovable call — means the local may not own
+        // what it currently holds, and releasing that is a double free.
+        bool bAllOwned = true;
+        // A write this pass cannot place: nested inside an expression, so
+        // there is no statement to sequence a release against.
+        bool bOpaqueWrite = false;
+    };
+
+    [[nodiscard]] WriteSet CollectWrites ( TypeCheckerContext &Context, const Sema::Binding &Local )
+    {
+        const Frontend::AstContext &Ast = Context.Ctx.Ast;
+
+        // Which `Assign` expressions stand directly under an `ExprStmt` — the
+        // only position a release can be sequenced around.
+        std::unordered_set<std::uint32_t> StatementAssigns;
+        for ( std::size_t Index = 0; Index < Ast.StmtCount(); ++Index )
+        {
+            const Frontend::StmtId Id{ static_cast<Frontend::StmtId::ValueType>( Index ) };
+            if ( const auto *ExprStmtNode = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Id ) ) )
+            {
+                if ( ExprStmtNode->Expr.IsValid() )
+                {
+                    StatementAssigns.insert( ExprStmtNode->Expr.Value );
+                }
+            }
+        }
+
+        WriteSet Out;
+        for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
+        {
+            const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+            const auto *AssignNode = std::get_if<Frontend::Assign>( &Ast.Expr( Id ) );
+            if ( AssignNode == nullptr or not AssignNode->Target.IsValid() )
+            {
+                continue;
+            }
+            if ( not std::holds_alternative<Frontend::Identifier>( Ast.Expr( AssignNode->Target ) ) )
+            {
+                continue;
+            }
+            if ( Context.Ctx.Scopes.BindingOf( AssignNode->Target ) != &Local )
+            {
+                continue;
+            }
+            Out.bAllOwned = Out.bAllOwned and ProducesOwnedValue( Context, AssignNode->Value );
+            if ( StatementAssigns.contains( Id.Value ) )
+            {
+                Out.Assigns.insert( Id.Value );
+            }
+            else
+            {
+                Out.bOpaqueWrite = true;
+            }
+        }
+        return Out;
+    }
+
+    // The local's own declaring write, as an expression id — the `Assign`
+    // whose `Target` *is* the binding site. A local declared by `x : T = init`
+    // binds a `StmtId` instead and has no such expression; it simply never
+    // matches, and its later writes then find no declaration to be dominated
+    // by, which is the safe answer.
+    [[nodiscard]] std::uint32_t DeclaringWriteOf ( const Sema::Binding &Local )
+    {
+        const auto *Site = std::get_if<Frontend::ExprId>( &Local.Site );
+        return Site != nullptr and Site->IsValid() ? Site->Value : 0xFFFFFFFFU;
+    }
+
+    // Rewrites one reassignment into the sequence above.
+    void EmitDropBeforeStore ( TypeCheckerContext &Context,
+                               const Sema::Binding &Local,
+                               const Core::Symbol LocalName,
+                               const Sema::SemaTypeId LocalType,
+                               const Frontend::ExprId AssignId )
+    {
+        Frontend::AstContext &Ast   = Context.Ctx.Ast;
+        const Core::SourceRange Loc = std::get<Frontend::Assign>( Ast.Expr( AssignId ) ).Loc;
+
+        // Parent-less, like every other synthesized region scope: `__old` is
+        // never looked up by name, only reached through the Binding captured
+        // here (Temporaries' own `RegionScope` comment).
+        const Sema::ScopeId RegionScope = Context.Ctx.Scopes.PushScope( Sema::ScopeId{}, Sema::EScopeKind::Branch );
+        const Core::Symbol OldName      = Ast.MakeUniqueSymbol( "__old" );
+
+        const auto ReadLocal = [&] ( const bool bRead )
+        {
+            const Frontend::ExprId Id = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = LocalName } } );
+            Context.Ctx.Scopes.BindUse( Id, Local, bRead );
+            Context.Ctx.Values.SetExprType( Id, LocalType );
+            return Id;
+        };
+
+        const Frontend::ExprId OldTarget = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = OldName } } );
+        Context.Ctx.Scopes.Declare( RegionScope, OldName, Sema::BindingSite{ OldTarget } );
+        const Sema::Binding *OldBound = Context.Ctx.Scopes.Resolve( RegionScope, OldName );
+        if ( OldBound != nullptr )
+        {
+            Context.Ctx.Scopes.BindUse( OldTarget, *OldBound, false );
+        }
+        Context.Ctx.Values.SetExprType( OldTarget, LocalType );
+        Context.Ctx.Values.SetSiteType( Sema::BindingSite{ OldTarget }, LocalType );
+        Context.LocalTypes[Sema::BindingSite{ OldTarget }] = LocalType;
+
+        const Frontend::ExprId SaveId =
+            Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = Loc, .Target = OldTarget, .Value = ReadLocal( true ) } } );
+        Context.Ctx.Values.SetExprType( SaveId, LocalType );
+
+        // The original assignment, moved to a slot of its own so the slot it
+        // came from can hold the sequence that now wraps it.
+        const Frontend::ExprId StoreId = Ast.Add( Frontend::ExprNode{ Ast.Expr( AssignId ) } );
+        Context.Ctx.Values.SetExprType( StoreId, LocalType );
+
+        const Frontend::ExprId ReleaseId = BuildFinalizeCallOnReceiver(
+            Context, Loc,
+            [&]
+            {
+                const Frontend::ExprId Id = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = OldName } } );
+                if ( OldBound != nullptr )
+                {
+                    Context.Ctx.Scopes.BindUse( Id, *OldBound, true );
+                }
+                Context.Ctx.Values.SetExprType( Id, LocalType );
+                return Id;
+            },
+            LocalType );
+
+        Frontend::StmtList RegionBody;
+        RegionBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = SaveId } } ) );
+        RegionBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = StoreId } } ) );
+        RegionBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = ReleaseId } } ) );
+        RegionBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = ReadLocal( true ) } } ) );
+
+        EmitSequenceInto( Ast, Context.Ctx.Values, AssignId, Loc, std::move( RegionBody ), LocalType );
+    }
+
+    // Walks `Body` in execution order, rewriting every reassignment the
+    // declaring write is known to precede.
+    //
+    // "Known to precede" is deliberately the cheap, sound approximation
+    // `.agents/CASCADE_FINALIZE.md` item 2 specifies: the declaration must
+    // have been passed *in this list or one enclosing it*, never in a sibling
+    // branch. A declaration inside an `if` and a reassignment after it is
+    // therefore skipped — the local may be uninitialized there, and releasing
+    // uninitialized storage is exactly the corruption this model never trades
+    // a leak for. Returns whether anything was rewritten.
+    bool DropWalkList ( TypeCheckerContext &Context,
+                        const Sema::Binding &Local,
+                        Core::Symbol LocalName,
+                        Sema::SemaTypeId LocalType,
+                        const WriteSet &Writes,
+                        std::uint32_t DeclaringWrite,
+                        const Frontend::StmtList &Body,
+                        bool &bDeclared );
+
+    void DropWalkStmt ( TypeCheckerContext &Context,
+                        const Sema::Binding &Local,
+                        const Core::Symbol LocalName,
+                        const Sema::SemaTypeId LocalType,
+                        const WriteSet &Writes,
+                        const std::uint32_t DeclaringWrite,
+                        const Frontend::StmtId Id,
+                        bool &bDeclared,
+                        bool &bChanged )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        // Copied out: the rewrite below `Add()`s into both arenas
+        // (rules/ast-rewrite.md).
+        const Frontend::StmtNode Node = Context.Ctx.Ast.Stmt( Id );
+
+        if ( const auto *ExprStmtNode = std::get_if<Frontend::ExprStmt>( &Node ) )
+        {
+            const Frontend::ExprId Root = ExprStmtNode->Expr;
+            if ( Root.IsValid() and Writes.Assigns.contains( Root.Value ) )
+            {
+                const auto &AssignNode = std::get<Frontend::Assign>( Context.Ctx.Ast.Expr( Root ) );
+                if ( AssignNode.Target.Value == DeclaringWrite )
+                {
+                    bDeclared = true;
+                    return;
+                }
+                if ( bDeclared )
+                {
+                    EmitDropBeforeStore( Context, Local, LocalName, LocalType, Root );
+                    bChanged = true;
+                }
+                return;
+            }
+        }
+
+        // Every nested body, at the visibility this statement was reached
+        // with. A branch's own `bDeclared` never travels back out: two sibling
+        // arms are not on one path.
+        std::visit(
+            [&] ( const auto &Inner )
+            {
+                using T = std::remove_cvref_t<decltype( Inner )>;
+                if constexpr ( not std::is_same_v<T, std::monostate> )
+                {
+                    Meta::ForEachField( Inner,
+                                        [&] ( const char *, const auto &Field )
+                                        {
+                                            using F = std::remove_cvref_t<decltype( Field )>;
+                                            if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                            {
+                                                bool bNested = bDeclared;
+                                                bChanged     = DropWalkList( Context, Local, LocalName, LocalType, Writes,
+                                                                             DeclaringWrite, Field, bNested ) or
+                                                           bChanged;
+                                            }
+                                        } );
+                }
+            },
+            Node );
+
+        // A nested *expression* may hold statements too — an `If`/`CaseExpr`/
+        // `BeginExpr` standing in expression position. `ExitPaths` already
+        // finds those by where they sit rather than by what encloses them.
+        for ( const Frontend::ExprId BlockId : CollectNestedBlockExprs( Context.Ctx.Ast, Id ) )
+        {
+            const Frontend::ExprNode BlockNode = Context.Ctx.Ast.Expr( BlockId );
+            std::visit(
+                [&] ( const auto &Inner )
+                {
+                    using T = std::remove_cvref_t<decltype( Inner )>;
+                    if constexpr ( not std::is_same_v<T, std::monostate> )
+                    {
+                        Meta::ForEachField( Inner,
+                                            [&] ( const char *, const auto &Field )
+                                            {
+                                                using F = std::remove_cvref_t<decltype( Field )>;
+                                                if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                                {
+                                                    bool bNested = bDeclared;
+                                                    bChanged     = DropWalkList( Context, Local, LocalName, LocalType, Writes,
+                                                                                 DeclaringWrite, Field, bNested ) or
+                                                               bChanged;
+                                                }
+                                            } );
+                    }
+                },
+                BlockNode );
+        }
+    }
+
+    bool DropWalkList ( TypeCheckerContext &Context,
+                        const Sema::Binding &Local,
+                        const Core::Symbol LocalName,
+                        const Sema::SemaTypeId LocalType,
+                        const WriteSet &Writes,
+                        const std::uint32_t DeclaringWrite,
+                        const Frontend::StmtList &Body,
+                        bool &bDeclared )
+    {
+        bool bChanged = false;
+        // Copied out: `EmitDropBeforeStore` never rewrites a `StmtList`, but it
+        // does `Add()` into the Stmt arena, and this list may live in one.
+        const Frontend::StmtList Snapshot = Body;
+        for ( const Frontend::StmtId Id : Snapshot )
+        {
+            DropWalkStmt( Context, Local, LocalName, LocalType, Writes, DeclaringWrite, Id, bDeclared, bChanged );
+        }
+        return bChanged;
+    }
+
 } // namespace
+
+bool RunDropOnReassign ( TypeCheckerContext &Context, const Sema::ScopeId Scope, const Frontend::StmtList &Body )
+{
+    if ( not Scope.IsValid() or Body.IsEmpty() )
+    {
+        return false;
+    }
+
+    bool bChanged               = false;
+    const Sema::Scope &ScopeRef = Context.Ctx.Scopes.Get( Scope );
+    // Copied out: declaring `__old` below pushes a scope, which may reallocate
+    // the scope table and invalidate `ScopeRef` (rules/ast-rewrite.md's
+    // discipline, applied to the other arena this pass writes).
+    const std::vector<Core::Symbol> Names{ ScopeRef.Order.begin(), ScopeRef.Order.end() };
+
+    for ( const Core::Symbol Name : Names )
+    {
+        const Sema::Scope &Live = Context.Ctx.Scopes.Get( Scope );
+        const auto BindingIt    = Live.Bindings.find( Name );
+        if ( BindingIt == Live.Bindings.end() )
+        {
+            continue;
+        }
+        const Sema::Binding &Local       = BindingIt->second;
+        const Sema::SemaTypeId LocalType = Context.Ctx.Values.SiteType( Local.Site );
+        if ( not IsFinalizeCandidateType( Context, LocalType ) )
+        {
+            continue;
+        }
+
+        const std::uint32_t DeclaringWrite = DeclaringWriteOf( Local );
+        if ( DeclaringWrite == 0xFFFFFFFFU )
+        {
+            continue;
+        }
+
+        const WriteSet Writes = CollectWrites( Context, Local );
+        // Three refusals, each on the leak side of the model's standing
+        // arbitration: a write whose value is not provably owned means the
+        // local may be holding a borrow; a write this pass cannot place means
+        // there are stores it would not sequence a release against; and an
+        // escaping local has a second owner that will release the same buffer.
+        if ( Writes.Assigns.size() < 2 or not Writes.bAllOwned or Writes.bOpaqueWrite )
+        {
+            continue;
+        }
+        if ( EscapesAsCallArgument( Context, Local ) )
+        {
+            continue;
+        }
+
+        bool bDeclared = false;
+        bChanged       = DropWalkList( Context, Local, Name, LocalType, Writes, DeclaringWrite, Body, bDeclared ) or bChanged;
+    }
+
+    return bChanged;
+}
 
 bool RunScopeCleanup ( TypeCheckerContext &Context, const Sema::ScopeId Scope, Frontend::StmtList &Body )
 {

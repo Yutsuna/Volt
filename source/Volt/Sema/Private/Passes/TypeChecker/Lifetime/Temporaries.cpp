@@ -119,6 +119,18 @@ namespace
         // across that is the exact hazard that file documents.
         const Frontend::ExprNode Node = Context.Ctx.Ast.Expr( Id );
 
+        // A closure literal's body is not part of this statement. It becomes a
+        // function of its own, swept on its own account, and its parameters
+        // exist only inside it — materializing one of its sub-expressions into
+        // *this* region emits code in the enclosing function that reads a slot
+        // only the closure has. Ordinarily the literal is already gone by now;
+        // under a re-instantiation it is still standing, because lifting it
+        // there records a redirect rather than overwriting the slot.
+        if ( std::holds_alternative<Frontend::Lambda>( Node ) or std::holds_alternative<Frontend::Block>( Node ) )
+        {
+            return;
+        }
+
         const bool bConstructing = [&]
         {
             const Resolution *Found = ResolutionOf( Context, Id );
@@ -156,9 +168,20 @@ namespace
         // `Index`? Unknown callee, named arguments (which this positional
         // mapping cannot follow), and a construction all answer yes — the
         // side of the arbitration that leaks rather than corrupts.
-        const auto ArgumentEscapes = [&] ( const Resolution *Callee, const Frontend::SymbolList &ArgNames, std::size_t Index )
+        //
+        // `CalleeSite` is the expression standing in the call's callee slot,
+        // and it is consulted first because a *closure literal* there answers
+        // the question far better than any declaration can: the one member a
+        // callable has is the `FuncType` claimant's `abstract call`, which
+        // declares no parameters at all, so `ParameterEscapes` would read
+        // every argument of every indirect call as kept — and a desugared
+        // composition (`g( f( x ) )`) would leak its intermediate by
+        // construction. `LowerClosureLits` recorded the literal's own answer
+        // under that slot's id before rewriting it.
+        const auto ArgumentEscapes = [&] ( const Frontend::ExprId CalleeSite, const Resolution *Callee,
+                                           const Frontend::SymbolList &ArgNames, std::size_t Index )
         {
-            if ( bConstructing or Callee == nullptr or Callee->Decl == nullptr )
+            if ( bConstructing )
             {
                 return true;
             }
@@ -168,6 +191,18 @@ namespace
                 {
                     return true;
                 }
+            }
+            if ( CalleeSite.IsValid() )
+            {
+                if ( const auto Found = Context.ClosureParamEscapes.find( CalleeSite.Value );
+                     Found != Context.ClosureParamEscapes.end() )
+                {
+                    return Index >= Found->second.Size() or Found->second[Index];
+                }
+            }
+            if ( Callee == nullptr or Callee->Decl == nullptr )
+            {
+                return true;
             }
             return Sema::Raii::ParameterEscapes( *Callee->Decl, Index );
         };
@@ -196,7 +231,7 @@ namespace
             for ( std::size_t Arg = 0; Arg < CallNode->Args.Size(); ++Arg )
             {
                 const Frontend::ExprId Child = CallNode->Args[Arg];
-                if ( Child.IsValid() and ArgumentEscapes( CallRes, CallNode->ArgNames, Arg ) )
+                if ( Child.IsValid() and ArgumentEscapes( CallNode->Callee, CallRes, CallNode->ArgNames, Arg ) )
                 {
                     MovedChildren.insert( Child.Value );
                 }
@@ -210,7 +245,7 @@ namespace
         // release `a + b` once `trim` has returned.
         if ( const auto *BinaryNode = std::get_if<Frontend::Binary>( &Node ) )
         {
-            if ( BinaryNode->Rhs.IsValid() and ArgumentEscapes( ResolutionOf( Context, Id ), {}, 0 ) )
+            if ( BinaryNode->Rhs.IsValid() and ArgumentEscapes( Frontend::ExprId{}, ResolutionOf( Context, Id ), {}, 0 ) )
             {
                 MovedChildren.insert( BinaryNode->Rhs.Value );
             }
@@ -254,6 +289,33 @@ namespace
     }
 
     // --- Materialization --------------------------------------------------
+
+    // Puts `Content` where `Slot`'s parent will look for it, and returns the
+    // id that ends up holding it.
+    //
+    // In an ordinary unit that is the slot itself. Under a re-instantiation
+    // (`Sema::ReinstantiateBody`) it is a fresh node recorded in
+    // `Context.Redirects`, because the slot belongs to a *generic* body: one
+    // shared AST node, walked again by every other instantiation, so
+    // overwriting it would give `Array<Int32>`'s regions to `Array<String>`.
+    // Identical discipline, and identical reason, to `ClosureLifting`'s own
+    // `RewriteSlot`.
+    //
+    // The returned id is the one every side table must be keyed against — a
+    // scope binding on the *original* slot is invisible to a backend that
+    // followed the redirect, which is exactly how a materialized temporary
+    // once reached codegen with no binding at all.
+    [[nodiscard]] Frontend::ExprId PlaceInSlot ( TypeCheckerContext &Context, const Frontend::ExprId Slot, Frontend::ExprNode Content )
+    {
+        if ( Context.Redirects != nullptr )
+        {
+            const Frontend::ExprId NewId         = Context.Ctx.Ast.Add( std::move( Content ) );
+            ( *Context.Redirects )[Slot.Value] = NewId;
+            return NewId;
+        }
+        Context.Ctx.Ast.Expr( Slot ) = std::move( Content );
+        return Slot;
+    }
 
     [[nodiscard]] Core::SourceRange LocOf ( const Frontend::ExprNode &Node )
     {
@@ -407,12 +469,13 @@ namespace
             // The slot the parent still points at now reads the temporary —
             // which is what makes this a rewrite of one node rather than of
             // the whole tree above it.
-            Ast.Expr( Site ) = Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Temp.Name } };
+            const Frontend::ExprId Read =
+                PlaceInSlot( Context, Site, Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Temp.Name } } );
             if ( Temp.Bound != nullptr )
             {
-                Context.Ctx.Scopes.BindUse( Site, *Temp.Bound, true );
+                Context.Ctx.Scopes.BindUse( Read, *Temp.Bound, true );
             }
-            Context.Ctx.Values.SetExprType( Site, Type );
+            Context.Ctx.Values.SetExprType( Read, Type );
 
             Owned.push_back( Temp );
         }
@@ -441,7 +504,13 @@ namespace
             CleanupBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
         }
 
-        EmitBoundaryInto( Ast, Context.Ctx.Values, Root, Loc, std::move( RegionBody ), std::move( CleanupBody ), RootType );
+        const Frontend::ExprId Region =
+            EmitBoundary( Ast, Context.Ctx.Values, Loc, std::move( RegionBody ), std::move( CleanupBody ), RootType );
+        const Frontend::ExprId Placed = PlaceInSlot( Context, Root, Frontend::ExprNode{ Ast.Expr( Region ) } );
+        if ( RootType.IsValid() )
+        {
+            Context.Ctx.Values.SetExprType( Placed, RootType );
+        }
 
         Context.Ctx.Stats.RaiiTemporaries += Owned.size();
         Context.Ctx.Stats.RaiiOwnedCreated += Owned.size();

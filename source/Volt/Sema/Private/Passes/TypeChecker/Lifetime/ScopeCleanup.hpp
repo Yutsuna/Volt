@@ -31,4 +31,14 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
 // ordinary code.
 [[nodiscard]] bool RunScopeCleanup ( TypeCheckerContext &Context, Sema::ScopeId Scope, Frontend::StmtList &Body );
 
+// Releases what a local held when it is written a second time.
+//
+// The scope regions above answer "what does this body still own when it
+// ends"; this answers the one question they structurally cannot — what it
+// owned *in between*. `result = n.digit_char + result` allocates a fresh
+// buffer per iteration and strands the previous one, and no exit path ever
+// names it. Rewrites the assignment's own expression slot, never a
+// `StmtList`, so it composes with everything else here by construction.
+[[nodiscard]] bool RunDropOnReassign ( TypeCheckerContext &Context, Sema::ScopeId Scope, const Frontend::StmtList &Body );
+
 } // namespace Volt::Sema::TypeCheckerPass::Lifetime

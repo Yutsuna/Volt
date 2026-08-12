@@ -71,4 +71,14 @@ Frontend::ExprId EmitSequence ( Frontend::AstContext &Ast,
     return MakeBeginNode( Ast, Values, Loc, std::move( Body ), Frontend::StmtList{}, ResultType );
 }
 
+void EmitSequenceInto ( Frontend::AstContext &Ast,
+                        UnitTypes &Values,
+                        const Frontend::ExprId Slot,
+                        const Core::SourceRange Loc,
+                        Frontend::StmtList Body,
+                        const SemaTypeId ResultType )
+{
+    EmitBoundaryInto( Ast, Values, Slot, Loc, std::move( Body ), Frontend::StmtList{}, ResultType );
+}
+
 } // namespace Volt::Sema::TypeCheckerPass::Lifetime
