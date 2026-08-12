@@ -3,10 +3,12 @@
 A backend is written by declarative pattern-matching over a **core AST**. This
 file is that contract: what a backend may be handed, and what it may assume.
 Counting only the nodes this file tracks (it does not yet cover `TypedExpr`/
-`If`, added by unrelated work — see below), `Nodes.inl` declares **24 core,
-13 sugar** (was 25/11; `Lambda` and `Block` both moved to sugar once their
-construction protocol was fully lowered into ordinary AST, and `FuncAddr` was
-added as a new core node in the same effort — see "Closures are gone" below).
+`If`, added by unrelated work — see below), `Nodes.inl` declares **25 core,
+13 sugar** (was 24/13, and 25/11 before that; `Lambda` and `Block` both moved
+to sugar once their construction protocol was fully lowered into ordinary AST,
+and `FuncAddr` was added as a new core node in the same effort — see "Closures
+are gone" below. `TypeTrait`, the compile-time type predicate `SizeOf`'s
+arrival is modelled on, is the most recent core addition).
 
 Two invariants make the contract mechanical rather than aspirational, and
 `AstInvariant` (order 40) checks both on every build:
@@ -91,14 +93,16 @@ and `ExpressionPositionBreakNext.vl` are the fixtures.
 
 Two things the sweep still does **not** own, both leaks rather than
 corruption, and both recorded in `.agents/CASCADE_FINALIZE.md` with the
-measurement: a paren-less call in nested position (`d.full_id == s` — a bare
-`Member`, so never provably owned), and reassignment of a local that already
-owns a value (`result = f( result )` abandons the old buffer). Both need
-`Member` split into invocation vs. place read, and per-local flow-sensitive
-ownership; the naive widening of either produces double frees, which the
-model ranks strictly worse than the leak.
+measurement: a paren-less call in nested position (`d.full_id == s`), and
+reassignment of a local that already owns a value (`result = f( result )`
+abandons the old buffer). The first one's `Member`-into-invocation-vs-place
+split has since landed (`Lifetime/ExprOwnership.hpp`), but its leaks are still
+open for an unrelated reason — the ownership fixpoint runs before the lowering
+passes and so cannot read a body written as an interpolation; the second still
+needs per-local flow-sensitive ownership. The naive widening of either
+produces double frees, which the model ranks strictly worse than the leak.
 
-## The 24 core nodes
+## The 25 core nodes
 
 | Category | Nodes | What a backend does with it |
 |---|---|---|
@@ -107,7 +111,18 @@ model ranks strictly worse than the leak.
 | Operations (3) | `Call` `Assign` `Ternary` | call through `CalleeResolution`, store, select/branch |
 | Operators (2) | `Binary` `Unary` | see below |
 | Control (3) | `CaseExpr` `BeginExpr` `RaiseExpr` | test chain / jump table; EH |
-| Inert (3) | `GenericInst` `SizeOf` `FuncAddr` | carry no runtime value beyond an address: read `Values.Get( Id )` (resp. the layout size, resp. the resolved callable's address) and **never descend into them** |
+| Inert (4) | `GenericInst` `SizeOf` `FuncAddr` `TypeTrait` | carry no runtime value beyond an address: read `Values.Get( Id )` (resp. the layout size, resp. the resolved callable's address, resp. one settled bit of the type record) and **never descend into them** |
+
+`TypeTrait` is `SizeOf`'s sibling: `trivially_destructible? T` names a type
+rather than a value, TypeChecker publishes the *resolved* operand type on the
+node's own site, and the backend materialises a constant from it — for
+`SizeOf` a width from `LayoutEngine`, for `TypeTrait` an `i1` from
+`TypeStore::IsTriviallyDestructible`. Inside a generic body both are deferred
+and settled once per instantiation by `Sema::ReinstantiateBody`. The predicate
+exists so a container can release its elements in ordinary Volt without paying
+for a `T` that has nothing to release — the compiler used to synthesize that
+loop itself, which meant knowing what a sequence is
+(`.agents/CASCADE_FINALIZE.md`).
 
 `Lambda`/`Block` are gone from this table — see "Closures are gone" below.
 `FuncAddr` is new here: it denotes a resolved callable's address as a value,
