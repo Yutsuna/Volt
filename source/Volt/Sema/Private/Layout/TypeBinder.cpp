@@ -371,7 +371,9 @@ namespace Sema
                                     NominalId Id,
                                     const Frontend::AstContext &Ast,
                                     const Frontend::Enum &Type,
-                                    std::uint32_t Depth );
+                                    std::uint32_t Depth,
+                                    std::vector<NominalId> &ActiveStack,
+                                    Core::DiagEngine::Bag *Diags );
 
         // A non-generic `SigType` wrapping a plain nominal — no ParamIndex,
         // no Base's own generic arguments threaded through. Used for
@@ -398,7 +400,9 @@ namespace Sema
         LayoutId EnsureStructLayout ( std::span<const Frontend::AstContext *const> Units,
                                       TypeStore &Store,
                                       NominalId Id,
-                                      std::uint32_t Depth )
+                                      std::uint32_t Depth,
+                                      std::vector<NominalId> &ActiveStack,
+                                      Core::DiagEngine::Bag *Diags )
         {
             if ( not Id.IsValid() or Depth > MaxLayoutDepth )
             {
@@ -412,6 +416,32 @@ namespace Sema
                 // aggregate a sibling recursion already built.
                 return Type.Layout;
             }
+
+            if ( std::find( ActiveStack.begin(), ActiveStack.end(), Id ) != ActiveStack.end() )
+            {
+                if ( Diags != nullptr and Type.Unit < Units.size() and Units[Type.Unit] != nullptr )
+                {
+                    const Frontend::AstContext &Ast = *Units[Type.Unit];
+                    const std::string_view TypeName = Store.Text( Type.Name );
+                    Diags->Report( Core::Diagnostic{ .Severity = Core::ESeverity::Error,
+                                                     .Range    = Frontend::LocOf( Ast.Decl( Type.Decl ) ).Head(),
+                                                     .Message  = "recursive type '" + std::string( TypeName ) +
+                                                                "' has infinite size (layout cycle detected)",
+                                                     .Notes = {} } );
+                }
+                return LayoutId{};
+            }
+
+            ActiveStack.push_back( Id );
+            struct StackGuard
+            {
+                std::vector<NominalId> &Stack;
+                ~StackGuard ()
+                {
+                    Stack.pop_back();
+                }
+            } Guard{ ActiveStack };
+
             if ( Type.Unit >= Units.size() or Units[Type.Unit] == nullptr )
             {
                 return LayoutId{};
@@ -429,7 +459,7 @@ namespace Sema
             // inheritance-splicing shape below.
             if ( const auto *EnumType = std::get_if<Frontend::Enum>( &Ast.Decl( Type.Decl ) ) )
             {
-                return EnsureEnumLayout( Units, Store, Id, Ast, *EnumType, Depth );
+                return EnsureEnumLayout( Units, Store, Id, Ast, *EnumType, Depth, ActiveStack, Diags );
             }
 
             Aggregate Agg;
@@ -445,7 +475,7 @@ namespace Sema
             // write 40 bytes into a zero-byte frame slot.
             if ( const std::optional<NominalId> Parent = FieldTypeNominal( Ast, Store, TypeSuperOf( Ast, Type.Decl ) ) )
             {
-                const LayoutId Inherited = EnsureStructLayout( Units, Store, *Parent, Depth + 1 );
+                const LayoutId Inherited = EnsureStructLayout( Units, Store, *Parent, Depth + 1, ActiveStack, Diags );
                 if ( const auto *Base = Inherited.IsValid() ? std::get_if<Aggregate>( &Store.Get( Inherited ) ) : nullptr;
                      Base != nullptr )
                 {
@@ -467,7 +497,7 @@ namespace Sema
                 LayoutId FieldType;
                 if ( const std::optional<NominalId> Named = FieldTypeNominal( Ast, Store, Field->DeclType ) )
                 {
-                    FieldType = EnsureStructLayout( Units, Store, *Named, Depth + 1 );
+                    FieldType = EnsureStructLayout( Units, Store, *Named, Depth + 1, ActiveStack, Diags );
                 }
                 if ( not FieldType.IsValid() )
                 {
@@ -502,10 +532,13 @@ namespace Sema
                                     NominalId Id,
                                     const Frontend::AstContext &Ast,
                                     const Frontend::Enum &Type,
-                                    std::uint32_t Depth )
+                                    std::uint32_t Depth,
+                                    std::vector<NominalId> &ActiveStack,
+                                    Core::DiagEngine::Bag *Diags )
         {
             const std::optional<NominalId> TagNominal = EnumTagNominal( Ast, Store, Type );
-            const LayoutId TagLayout = TagNominal ? EnsureStructLayout( Units, Store, *TagNominal, Depth + 1 ) : LayoutId{};
+            const LayoutId TagLayout =
+                TagNominal ? EnsureStructLayout( Units, Store, *TagNominal, Depth + 1, ActiveStack, Diags ) : LayoutId{};
 
             if ( not TagLayout.IsValid() )
             {
@@ -560,7 +593,7 @@ namespace Sema
                     LayoutId FieldType;
                     if ( const std::optional<NominalId> Named = FieldTypeNominal( Ast, Store, ParamNode.DeclType ) )
                     {
-                        FieldType = EnsureStructLayout( Units, Store, *Named, Depth + 1 );
+                        FieldType = EnsureStructLayout( Units, Store, *Named, Depth + 1, ActiveStack, Diags );
                     }
                     if ( not FieldType.IsValid() )
                     {
@@ -1179,12 +1212,14 @@ namespace Sema
         return Step.Resolved;
     }
 
-    void ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store )
+    void
+    ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store, Core::DiagEngine::Bag *Diags )
     {
+        std::vector<NominalId> ActiveStack;
         for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
         {
             const NominalId Id{ static_cast<NominalId::ValueType>( Index ) };
-            static_cast<void>( EnsureStructLayout( Units, Store, Id, 0 ) );
+            static_cast<void>( EnsureStructLayout( Units, Store, Id, 0, ActiveStack, Diags ) );
         }
     }
 

@@ -49,7 +49,9 @@ namespace Sema
     /// B share, cannot do that. `Units` is indexed by the same discovery
     /// ordinal `BindUnitTypes`/`ResolveUnitSignatures` were called with; a
     /// null entry is skipped (a unit with no types needs no slot filled).
-    SEMA_EXPORT void ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store );
+    SEMA_EXPORT void ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units,
+                                            TypeStore &Store,
+                                            Core::DiagEngine::Bag *Diags = nullptr );
 
     /// Fourth serial phase, right after ResolveStructLayouts and still before
     /// ResolveUnitSignatures: synthesize an empty `finalize` Method — spliced
