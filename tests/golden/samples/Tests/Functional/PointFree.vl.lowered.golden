@@ -121,6 +121,27 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │                    └─ Identifier 'fn_tmp_4' @32:24
 │              └─ args
 │                 └─ StringLiteral 'usr_' @32:39
+├─ Method 'no_type_pointfree' [T_7] @41:37
+│  ├─ params
+│  │  └─ Param 'fn_tmp_6' @41:37
+│  │     └─ decl_type
+│  │        └─ TypeRef 'T_7' @41:37
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @41:42
+│  └─ body
+│     └─ ExprStmt @41:37
+│        └─ expr
+│           └─ Call @41:42
+│              ├─ callee
+│              │  └─ Member 'prefix' @41:42
+│              │     └─ object
+│              │        └─ Call @41:23
+│              │           └─ callee
+│              │              └─ Member 'to_string' @41:23
+│              │                 └─ object
+│              │                    └─ Identifier 'fn_tmp_6' @41:37
+│              └─ args
+│                 └─ StringLiteral 'Value: ' @41:52
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
@@ -267,17 +288,17 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              └─ block_arg
 │                 └─ Lambda @25:35
 │                    ├─ params
-│                    │  └─ Param 'fn_tmp_8' @25:35
+│                    │  └─ Param 'fn_tmp_10' @25:35
 │                    └─ body
 │                       └─ Call @25:35
 │                          ├─ callee
 │                          │  └─ Lambda @25:40
 │                          │     ├─ params
-│                          │     │  └─ Param 'fn_tmp_7' @25:40
+│                          │     │  └─ Param 'fn_tmp_9' @25:40
 │                          │     └─ body
 │                          │        └─ Binary '*' @25:40
 │                          │           ├─ lhs
-│                          │           │  └─ Identifier 'fn_tmp_7' @25:40
+│                          │           │  └─ Identifier 'fn_tmp_9' @25:40
 │                          │           └─ rhs
 │                          │              └─ IntLiteral '2' @25:44
 │                          └─ args
@@ -285,15 +306,15 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │                                ├─ callee
 │                                │  └─ Lambda @25:26
 │                                │     ├─ params
-│                                │     │  └─ Param 'fn_tmp_6' @25:26
+│                                │     │  └─ Param 'fn_tmp_8' @25:26
 │                                │     └─ body
 │                                │        └─ Binary '+' @25:26
 │                                │           ├─ lhs
-│                                │           │  └─ Identifier 'fn_tmp_6' @25:26
+│                                │           │  └─ Identifier 'fn_tmp_8' @25:26
 │                                │           └─ rhs
 │                                │              └─ IntLiteral '10' @25:30
 │                                └─ args
-│                                   └─ Identifier 'fn_tmp_8' @25:35
+│                                   └─ Identifier 'fn_tmp_10' @25:35
 ├─ ExprStmt @27:1
 │  └─ expr
 │     └─ Call @27:8
@@ -374,7 +395,7 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │           └─ block_arg
 │              │              └─ Lambda @35:13
 │              │                 ├─ params
-│              │                 │  └─ Param 'fn_tmp_9' @35:13
+│              │                 │  └─ Param 'fn_tmp_11' @35:13
 │              │                 └─ body
 │              │                    └─ Unary '!' @35:13
 │              │                       └─ operand
@@ -382,17 +403,17 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │                             └─ callee
 │              │                                └─ Member 'empty?' @35:13
 │              │                                   └─ object
-│              │                                      └─ Identifier 'fn_tmp_9' @35:13
+│              │                                      └─ Identifier 'fn_tmp_11' @35:13
 │              └─ block_arg
 │                 └─ Lambda @36:9
 │                    ├─ params
-│                    │  └─ Param 'fn_tmp_10' @36:9
+│                    │  └─ Param 'fn_tmp_12' @36:9
 │                    └─ body
 │                       └─ Call @36:9
 │                          ├─ callee
 │                          │  └─ Identifier 'transform' @36:10
 │                          └─ args
-│                             └─ Identifier 'fn_tmp_10' @36:9
+│                             └─ Identifier 'fn_tmp_12' @36:9
 ├─ ExprStmt @37:1
 │  └─ expr
 │     └─ Call @37:8
@@ -410,21 +431,100 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │        └─ IntLiteral '0' @37:22
 │              └─ rhs
 │                 └─ StringLiteral 'usr_alice' @37:28
-└─ ExprStmt @38:1
+├─ ExprStmt @38:1
+│  └─ expr
+│     └─ Call @38:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @38:1
+│        └─ args
+│           └─ Binary '==' @38:25
+│              ├─ lhs
+│              │  └─ Call @38:21
+│              │     ├─ callee
+│              │     │  └─ Member '[]' @38:21
+│              │     │     └─ object
+│              │     │        └─ Identifier 'clean_users' @38:10
+│              │     └─ args
+│              │        └─ IntLiteral '1' @38:22
+│              └─ rhs
+│                 └─ StringLiteral 'usr_bob' @38:28
+├─ ExprStmt @42:1
+│  └─ expr
+│     └─ Call @42:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @42:1
+│        └─ args
+│           └─ Binary '==' @42:34
+│              ├─ lhs
+│              │  └─ Call @42:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @42:10
+│              │     └─ args
+│              │        └─ IntLiteral '42' @42:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: 42' @42:37
+├─ ExprStmt @43:1
+│  └─ expr
+│     └─ Call @43:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @43:1
+│        └─ args
+│           └─ Binary '==' @43:36
+│              ├─ lhs
+│              │  └─ Call @43:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @43:10
+│              │     └─ args
+│              │        └─ FloatLiteral '3.14' @43:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: 3.140000' @43:39
+├─ ExprStmt @44:1
+│  └─ expr
+│     └─ Call @44:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @44:1
+│        └─ args
+│           └─ Binary '==' @44:36
+│              ├─ lhs
+│              │  └─ Call @44:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @44:10
+│              │     └─ args
+│              │        └─ BoolLiteral true @44:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: true' @44:39
+├─ ExprStmt @45:1
+│  └─ expr
+│     └─ Call @45:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @45:1
+│        └─ args
+│           └─ Binary '==' @45:41
+│              ├─ lhs
+│              │  └─ Call @45:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @45:10
+│              │     └─ args
+│              │        └─ ArrayLit @45:29
+│              │           └─ elements
+│              │              ├─ IntLiteral '1' @45:30
+│              │              ├─ IntLiteral '2' @45:33
+│              │              └─ IntLiteral '3' @45:36
+│              └─ rhs
+│                 └─ StringLiteral 'Value: [1, 2, 3]' @45:44
+└─ ExprStmt @46:1
    └─ expr
-      └─ Call @38:8
+      └─ Call @46:8
          ├─ callee
-         │  └─ Identifier 'assert!' @38:1
+         │  └─ Identifier 'assert!' @46:1
          └─ args
-            └─ Binary '==' @38:25
+            └─ Binary '==' @46:38
                ├─ lhs
-               │  └─ Call @38:21
+               │  └─ Call @46:27
                │     ├─ callee
-               │     │  └─ Member '[]' @38:21
-               │     │     └─ object
-               │     │        └─ Identifier 'clean_users' @38:10
+               │     │  └─ Identifier 'no_type_pointfree' @46:10
                │     └─ args
-               │        └─ IntLiteral '1' @38:22
+               │        └─ StringLiteral 'Volt' @46:29
                └─ rhs
-                  └─ StringLiteral 'usr_bob' @38:28
+                  └─ StringLiteral 'Value: Volt' @46:41
 --- exit 0 ---
