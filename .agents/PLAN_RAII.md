@@ -681,6 +681,226 @@ en fin de phase**, `tidy` **une fois en fin d'épopée** (`rules/cpp-style.md`).
 
 ---
 
+## Phase 7 — Le RAII n'a aucun cas particulier *(en cours)*
+
+> **La règle, énoncée par le propriétaire du dépôt et qui prime sur tout ce
+> qui précède :** le RAII prend un objet et se moque complètement de son type.
+> À sa naissance il appelle le constructeur (`initialize`), à sa mort le
+> destructeur (`finalize`). **C'est tout.** Aucun cas particulier, jamais —
+> ni pour un token, ni pour un type, ni pour un nœud. C'est purement
+> algorithmique, et ça doit être optimisé.
+
+Cette phase est née d'une **faute commise pendant la Phase 6** : pour prouver
+qu'une méthode dont le corps est une interpolation rend une valeur possédée,
+`OwnershipInference.cpp` s'était vu ajouter `constexpr std::string_view
+StringifyMethod = "to_string"`. Un **nom de méthode Volt écrit en dur dans le
+middle-end** — exactement ce que `rules/zero-hardcode.md` interdit. Supprimé
+immédiatement. Mais la faute a révélé la cause racine, qui est structurelle et
+qui est le sujet de cette phase.
+
+### La cause racine : le seam est au mauvais endroit
+
+`InferReturnOwnership` / `InferParameterEscape` tournent au seam Driver
+sérial, **avant** les passes `EPassKind::Lowering`. Elles voient donc du sucre
+(`Interp`, `Index`, `DotCall`, `Pipeline`, `Section`, `Composition`) et
+n'ont **aucune** `CalleeResolution`. Pour dire quoi que ce soit, elles sont
+condamnées à deviner par orthographe :
+
+- `AllNamedReturnOwned( Index, Frontend::TokenSpelling( Bin->Op ) )` — un
+  *token* traduit en nom de membre ;
+- un index par nom, tout-ou-rien, sur les orthographes du store ;
+- `constexpr ConstructorCall = "new"` ;
+- et, dès qu'on veut lire à travers le sucre, un nom de méthode en dur.
+
+**C'est cette position dans le pipeline qui fabrique le hardcode.** Tant
+qu'elle n'est pas corrigée, chaque gain de précision se paiera en noms
+écrits en C++.
+
+#### Road A — déplacer le seam après le lowering (À FAIRE, non commencé)
+
+Scinder la phase sema parallèle en deux, avec le point fixe entre les deux :
+
+```
+ForEachUnitParallel( passes d'ordre < TypeChecker )   // lowering + ScopeResolver
+    seam sérial : InferReturnOwnership + InferParameterEscape
+ForEachUnitParallel( passes d'ordre >= TypeChecker )  // TypeChecker, Unused, AstInvariant
+```
+
+`RunPasses` gagne une variante bornée par `Order` (`PassRegistry.cpp`, ~10 l.)
+et `Driver::RunSemaOne` se scinde en deux étapes (~30 l.). Ce que ça
+**supprime** :
+
+- tout `Frontend::TokenSpelling` du RAII (la résolution donne le `Member*`) ;
+- l'index par nom et son `AllNamed*` tout-ou-rien ;
+- `ConstructorCall = "new"` (remplacé par `Resolution::bConstructs`) ;
+- `StaticReceiverNominal` ;
+- **tout** bras de sucre : l'AST vu par le point fixe est le core AST, donc
+  de la syntaxe pure.
+
+Points à vérifier avant : `ResolveUnitSignatures` reste avant les deux phases
+(les `Member::Decl` restent valides, un lowering réécrit un corps en place) ;
+le préfixe stdlib en cache-hit est sauté par les deux phases ; l'écriture du
+cache frontend reste après la seconde.
+
+### La décision d'architecture : `finalize` universel
+
+Prise pendant cette phase, et elle est le pendant exact de C++ :
+
+> Chaque objet a un constructeur et un destructeur, même non explicités.
+> Appeler `finalize` sur un type qui n'en déclare pas est un **no-op**,
+> comme un `= default` en C++.
+
+Conséquence directe : **la cascade d'éléments écrite en C++ disparaît**.
+`libstdc++` fait déjà exactement ce que Volt doit faire —
+`std::vector::~vector` appelle `std::_Destroy`, qui itère et appelle le
+destructeur de chaque élément — et n'évite le coût du cas trivial que grâce à
+`is_trivially_destructible_v<T>`, une **propriété du type exposée au langage**.
+Volt ne l'exposait pas ; c'est le seul chaînon qui manquait.
+
+#### `trivially_destructible?` — un mot-clé compile-time, comme `sizeof`
+
+| Prédicat | Signification | Règle de dérivation |
+|---|---|---|
+| `trivially_destructible? T` | `free` direct sûr | pas de `finalize` explicite dans la chaîne, et aucun champ non-trivial |
+| `trivially_copyable? T` | `memcpy` sûr | *(à venir)* pas de copie custom, pas de `def =` custom, tous les champs `trivially_copyable?` |
+| `trivial? T` | les deux | *(à venir)* |
+
+Seul le premier est implémenté : c'est le seul qui a un consommateur
+aujourd'hui, et les deux autres ne deviennent *distincts* du premier que le
+jour où Volt aura une copie personnalisable (`def =` / copy-init). Les
+ajouter coûtera alors **une ligne dans `TokenKind.inl`, un label sur le bras
+du parser, une dérivation** — le nœud est déjà générique (il porte le token,
+comme `Binary` porte son opérateur).
+
+En attendant les macros compile-time (`macro when` / `macro def` / `macro if`,
+syntaxe non arrêtée), le branchement est écrit **au runtime** dans la stdlib ;
+comme le prédicat est une constante après monomorphisation, l'optimiseur plie
+la branche et la boucle disparaît :
+
+```volt
+def finalize -> Void
+  if not trivially_destructible? T
+    i = 0_u64
+    while i < @size
+      ( *( @buffer + i ) ).finalize
+      i += 1
+    end
+  end
+  @buffer.free
+end
+```
+
+La même forme s'appliquera ensuite à `Hash`, `StringBuilder`, `String`, et au
+`push`/realloc via `trivially_copyable?`.
+
+### État exact du working tree
+
+**Mesuré vert** (build + `valgrind_check.py` 57/65 + `meson test` 298/298,
+c'est-à-dire *baseline inchangée*) :
+
+| Fichier | Changement |
+|---|---|
+| `TypeStore.hpp` | `Member::ParamEscapes` (`SmallVec<bool,4>`, parallèle à `Params`) |
+| `Raii/OwnershipInference.{hpp,cpp}` | `InferParameterEscape` : point fixe **décroissant** (tout échappe, on prouve le contraire), + les lecteurs `ParameterEscapes` / `BlockParameterEscapes` |
+| `Driver.cpp` | appel au seam ; `FrontendCacheMagic` → `VOLTFE07` |
+| `Lifetime/ExprOwnership.hpp` | **nouveau** : `ResolutionOf` / `ProducesOwnedValue`, partagés par `Temporaries` et `ScopeCleanup` — c'est le split *invocation vs lecture d'emplacement* de l'item 1 |
+| `Lifetime/Temporaries.cpp` | argument `Moved` **par paramètre** au lieu de « tout ou rien » ; idem pour le `Rhs` d'un `Binary` |
+| `Lifetime/ScopeCleanup.cpp` | `EscapesAsConstructorArgument` → `EscapesAsCallArgument` (précis, plus limité aux constructeurs) ; le garde alias-init teste `ProducesOwnedValue` au lieu de la forme syntaxique |
+
+Gain déjà acquis : un **double free préexistant** est corrigé —
+`arr.push( "x".dup() )` libérait le buffer deux fois (la région + la cascade
+d'éléments du tableau). Vérifié avant/après.
+
+**Écrit et compile, PAS ENCORE MESURÉ** (le build passe, aucun
+`valgrind_check.py` ni `meson test` n'a tourné dessus) :
+
+| Fichier | Changement |
+|---|---|
+| `TypeStore.hpp` | `NominalType::bTrivialFinalize` + `MutableType()` + `IsTriviallyDestructible()` |
+| `Layout/TypeBinder.cpp` | `EnsureFinalizeStub` synthétise pour **tout** struct/class ; teste `LookupMember` (chaîne complète) au lieu de `OwnMember` pour ne jamais masquer un destructeur hérité ; règle la chaîne d'héritage/mixins **avant** de conclure ; pose `bTrivialFinalize` |
+| `Raii/Ownership.{hpp,cpp}` | `IsFinalizeCandidate*` = « Aggregate et non trivial » ; **`ContainerElementType` supprimé** |
+| `Lifetime/FinalizeCallBuilder.hpp` | 184 → ~60 lignes : la boucle `.size`/`[]` et le gate `LookupNodeKind( "ArrayLit" )` sont **supprimés**, il ne reste que `receiver.finalize()` |
+| `Lexer.cpp` | la table de mots-clés est consultée **après** le suffixe `?`/`!` — un mot-clé peut donc être un prédicat |
+| `TokenKind.inl`, `Nodes.inl`, `Expr.hpp`, `ParseExpr.cpp` | le nœud `TypeTrait` (core, inerte, comme `SizeOf`) et le mot-clé |
+| `ExprInferencer.cpp` | bras `TypeTrait` : publie le type résolu sur le *site*, type via la revendication `BoolLiteral` |
+| `ExprLiteralEmitter.cpp` + dispatch | `EmitTypeTrait` : lit le bit et matérialise un `i1`, exactement comme `EmitSizeOf` lit une taille de layout |
+| `source/Lib/Primitives/Array.vl` | `finalize` itère sur les éléments, sous `if not trivially_destructible? T` |
+
+### Risques connus à mesurer en priorité à la reprise
+
+1. **`WhileLoop.vl` peut refuir.** `EscapeScan` avait gagné des bras
+   `Index`/`Interp` pour que `events[ i ]` ne fasse pas passer `events` pour
+   échappant ; ces bras étaient des cas particuliers de sucre et ont été
+   **retirés**. Le vrai correctif est Road A, pas un bras. Si `WhileLoop`
+   refuit, c'est attendu et c'est Road A qui le ferme.
+2. **`BuildNameIndex` saute désormais les membres `abstract`** (ajouté, non
+   mesuré). Justification : un contrat n'a pas de corps, ne peut donc jamais
+   être prouvé, et démolissait toute orthographe qu'il nomme (`abstract def +`
+   d'`Arithmetic` démolissait `String#+`) ; et il n'est jamais le callee réel
+   — soit un membre concret répond (il est dans l'index à son compte), soit
+   c'est le backend sur un layout primitif, et aucun scalaire machine n'est
+   candidat au finalize. Disparaît entièrement avec Road A.
+3. **Un `enum` ne reçoit pas de stub** (`EnsureFinalizeStub` ne traite que
+   struct/class). `Array<UnEnum>` ne résoudra donc pas `.finalize` — erreur de
+   compilation bruyante, pas un silence. À traiter si un sample le déclenche.
+4. **Coût runtime du cas trivial en `-O0`.** La branche `trivially_destructible?`
+   est une constante, mais rien ne la plie avant l'optimiseur LLVM.
+5. `IsFinalizeCandidateType` ne passe plus par `LookupMemberOn`, donc
+   n'instancie plus la signature du membre trouvé. À surveiller sur les
+   génériques.
+
+### Ce qui reste des trois items de `CASCADE_FINALIZE.md`
+
+- **Item 1 (appel sans parenthèses)** — l'infrastructure est là (le split
+  invocation/emplacement, l'échappement par paramètre), mais **aucune fuite
+  n'est encore fermée** : `bReturnsOwned` ne sait pas prouver un corps qui est
+  une interpolation, faute de voir l'AST abaissé. C'est Road A qui débloque,
+  pas un bras de sucre de plus.
+- **Item 2 (réaffectation d'une locale possédante)** — conçu, non implémenté.
+  Insérer `L.finalize()` entre la matérialisation de la nouvelle valeur et
+  l'`Assign`, sous quatre conditions : type candidat ; *toutes* les écritures
+  vers `L` prouvées possédées ; `L` n'échappe jamais (valeur d'un `Assign`, ou
+  argument à une position échappante) ; et l'assignation est **dominée** par le
+  site déclarant (approximation sûre : le site est un statement d'une
+  `StmtList` englobante, à un index strictement inférieur sur le chemin
+  courant). Le `return`/tail ne disqualifie pas — il rend la *dernière* valeur,
+  les précédentes ont bien été droppées.
+- **Item 3 (appel indirect + env de closure)** — l'env d'une closure en
+  position de **bloc** est le gros morceau et il est *sûr* : `ClosureLifting`
+  construit lui-même `BeginExpr{ Body: [ __env = malloc, copies-in, appel ],
+  Ensure: [ copies-back ] }`, donc ajouter `__env.free` **à la fin de cet
+  `EnsureBody`** est correctement ordonné sur les deux chemins (normal et
+  unwind), et se garde avec `BlockParameterEscapes` sur la résolution de
+  l'appel parent. Ça ferme les env de `ForLoop` (×4), `GenericHashCascade`,
+  `BreakNext`, `Composition` (×2), `PointFree` (×2-3). Ne **pas** retirer le
+  garde `IsCallableType` de `Temporaries` : une composition
+  (`(&.trim) >> (&.downcase)`) capture les Proc internes *par valeur dans son
+  propre env*, donc finaliser le Proc intermédiaire libère l'env que la
+  composition lit encore. Le résultat d'un appel indirect reste un mur réel.
+
+### Mesures de référence (avant Phase 7, à comparer)
+
+`valgrind_check.py` : 57/65, 0 corruption. Les 8 restants, par cause :
+
+| Sample | Octets | Cause |
+|---|---|---|
+| `FullOOP` | 87 / 6 blocs | interpolation (item 1) + `Stringable#to_string` (item 2) |
+| `Mixins` | 8 | `full_id`, interpolation (item 1) |
+| `Composition` | 92 / 5 | env `map`/`filter` (item 3) + `trim` dans closures |
+| `Curry` | 8 | env d'une closure retournée (appel indirect, item 3) |
+| `PointFree` | 177 + 192 | appels indirects + env (item 3) |
+| `GenericHashCascade` | 8 | env de `hash.each do … end` (item 3) |
+| `ForLoop` | 32 / 4 | 4 env de `for … in` (item 3) |
+| `BreakNext` | 40 / 2 | env (item 3) + 32 o. d'`ArrayLit` temporaire |
+
+Le dernier — un `ArrayLit` abaissé (`for x in [ 10, 20, 30 ]`) devenu
+`BeginExpr` dont la valeur n'appartient à personne — n'est dans aucun des
+trois items. `LowerArrayLits` ne pose pas de `CalleeResolution` sur le slot
+abaissé (contrairement à `LowerStringLits`), donc `ResolutionOf` ne peut rien
+en dire. À traiter séparément.
+
+---
+
 ## Vérification
 
 Séquentiellement après chaque phase, jamais en parallèle :
