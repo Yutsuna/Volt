@@ -82,4 +82,23 @@ SEMA_EXPORT void InferParameterEscape ( std::span<const Frontend::AstContext *co
 // environment built for it can be released once the call returns.
 [[nodiscard]] bool BlockParameterEscapes ( const Member &Decl );
 
+// The same question, asked of a closure *literal* instead of a declared
+// member: which of its own parameters does its body keep?
+//
+// A callable has exactly one member — the `FuncType` claimant's bodyless
+// `abstract call`, which declares no parameters at all (a Proc's arity lives
+// in its type arguments). So every argument of every indirect call reads as
+// escaping, and a desugared composition — `g( f( x ) )`, where `f( x )` is a
+// fresh buffer nobody else will ever hold — leaks its intermediate by
+// construction. The declaration cannot carry the answer for the same reason it
+// cannot carry `bReturnsOwned`: one declaration stands for every closure in
+// the program.
+//
+// So it is asked of the literal, with the identical walk `InferParameterEscape`
+// runs over a method body, and the identical arbitration: a slot is `true`
+// unless the walk disproves it. `Id` must name a `Lambda` or `Block`; anything
+// else yields an empty result, which every reader treats as "escaping".
+[[nodiscard]] SEMA_EXPORT Core::SmallVec<bool, 4>
+ClosureParameterEscape ( const Frontend::AstContext &Ast, const TypeStore &Store, Frontend::ExprId Id );
+
 } // namespace Volt::Sema::Raii
