@@ -165,6 +165,15 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexIdentifier ( std::size_t Start )
     if ( Peek() == '?' or Peek() == '!' )
     {
         ++Pos;
+        // The keyword table is consulted *after* the suffix, not instead of
+        // it: a predicate keyword reads the way every other predicate in the
+        // language does (`trivially_destructible? T`), and an ordinary
+        // `admin?` still falls through to Identifier because no manifest row
+        // spells it. One lookup, no per-keyword knowledge here.
+        if ( const TokenKind Suffixed = KeywordLookup( Source.substr( Start, Pos - Start ) ); Suffixed != TokenKind::Identifier )
+        {
+            return Make( Suffixed, Start );
+        }
         return MakeText( TokenKind::Identifier, Start );
     }
 
