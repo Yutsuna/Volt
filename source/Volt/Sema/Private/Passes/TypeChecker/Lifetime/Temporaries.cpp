@@ -1,5 +1,6 @@
 #include "Temporaries.hpp"
 
+#include "../MemberResolver.hpp"
 #include "CleanupRegion.hpp"
 #include "FinalizeCallBuilder.hpp"
 #include "Raii/Ownership.hpp"
@@ -8,11 +9,7 @@
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 
-#include "Volt/Core/Diagnostics/SourceManager.hpp"
-
 #include <cstdint>
-#include <cstdlib>
-#include <print>
 #include <type_traits>
 #include <unordered_set>
 #include <utility>
@@ -117,7 +114,28 @@ namespace
         {
             return false;
         }
-        return Sema::Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, Context.Ctx.Values.ExprType( Id ) );
+        const Sema::SemaTypeId Type = Context.Ctx.Values.ExprType( Id );
+
+        // A callable's environment is *not* a full-expression value. A
+        // capturing closure's env holds the enclosing frame's own locals
+        // (`ClosureLifting` rewrites every use of a captured variable, on
+        // both sides, into a load through that env), so releasing it at the
+        // end of the statement that built the closure frees storage the
+        // enclosing scope keeps reading — `arr.each do |i| total = total + i
+        // end` then reads `total` through freed memory.
+        //
+        // Identified by the type claiming the `FuncType` node kind, never by
+        // a Volt type name (rules/zero-hardcode.md). Skipping it costs a
+        // counted leak for a capture-free closure, which is the safe side of
+        // this pass's standing arbitration; giving env its real lifetime (the
+        // scope of what it captures) is scope-level work, not
+        // full-expression work.
+        if ( IsCallableType( Context, Type ) )
+        {
+            return false;
+        }
+
+        return Sema::Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, Type );
     }
 
     // --- Region discovery -------------------------------------------------
@@ -160,9 +178,55 @@ namespace
         }();
 
         std::unordered_set<std::uint32_t> MovedChildren;
-        if ( bConstructing )
+
+        // `raise e` hands `e` to the unwind mechanism, which carries it to
+        // whichever `rescue` catches it — that frame releases it. It is a
+        // move out of this region, exactly like a `return`, and finalizing it
+        // here would free the in-flight exception under its own handler.
+        if ( const auto *RaiseNode = std::get_if<Frontend::RaiseExpr>( &Node ) )
         {
-            if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
+            if ( RaiseNode->Exception.IsValid() )
+            {
+                MovedChildren.insert( RaiseNode->Exception.Value );
+            }
+        }
+
+        // An assignment hands its value to the place it writes — a local, a
+        // field, or the memory behind a `Deref` (which is how a closure's env
+        // is filled). Whoever owns that place releases it; this region must
+        // not. True at any depth, not only when the assignment happens to be
+        // the statement's own root.
+        if ( const auto *AssignNode = std::get_if<Frontend::Assign>( &Node ) )
+        {
+            if ( AssignNode->Value.IsValid() )
+            {
+                MovedChildren.insert( AssignNode->Value.Value );
+            }
+        }
+
+        if ( const auto *CallNode = std::get_if<Frontend::Call>( &Node ) )
+        {
+            // A callee is a *designation*, not a value the statement owns.
+            // Materializing it would also break the backend, which keys the
+            // resolution on `Call::Callee`'s own id
+            // (BackendLLVM/.../ExprCallEmitter.cpp) — detaching that slot
+            // moves the entry out from under it. Descent continues, so a
+            // receiver hidden inside the callee (`( a + b ).trim`) is still
+            // collected on its own account.
+            if ( CallNode->Callee.IsValid() )
+            {
+                MovedChildren.insert( CallNode->Callee.Value );
+            }
+
+            // Arguments are Moved whenever the callee is not *known* to leave
+            // them alone: a construction stores them into the object it
+            // builds, and a call whose resolution carries no declaration at
+            // all (a synthesized invocation — the shape a lowered section's
+            // bound argument reaches, on its way into a closure env) cannot
+            // be proven to borrow. Both are the same conservative side: a
+            // counted leak, never a value released under a live user.
+            const Resolution *CallRes = ResolutionOf( Context, Id );
+            if ( bConstructing or CallRes == nullptr or CallRes->Decl == nullptr )
             {
                 for ( const Frontend::ExprId Arg : CallNode->Args )
                 {
@@ -351,18 +415,6 @@ namespace
         // is never looked up by name, only ever reached through the
         // `Binding` captured at declaration.
         const Sema::ScopeId RegionScope = Context.Ctx.Scopes.PushScope( Sema::ScopeId{}, Sema::EScopeKind::Branch );
-
-        if ( std::getenv( "VOLT_RAII_TRACE" ) != nullptr and Context.Ctx.Sources != nullptr )
-        {
-            const Core::LineColumn Where = Context.Ctx.Sources->Resolve( Loc.File, Loc.Begin );
-            std::println( stderr, "[raii] {}:{} root={} kind={} ownroot={}", Context.Ctx.Sources->PathOf( Loc.File ), Where.Line,
-                          Root.Value, Ast.Expr( Root ).index(), bOwnRoot );
-            for ( const Frontend::ExprId Site : Sites )
-            {
-                std::println( stderr, "[raii]    site={} kind={} callee-res={}", Site.Value, Ast.Expr( Site ).index(),
-                              Context.CalleeResolution.contains( Site.Value ) );
-            }
-        }
 
         Frontend::StmtList RegionBody;
         std::vector<Temporary> Owned;
