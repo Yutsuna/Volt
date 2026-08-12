@@ -1,5 +1,3 @@
-name: CI
-
 on:
   push:
     branches: [ main ]
@@ -27,3 +25,15 @@ jobs:
 
       - name: Magic Nix Cache
         uses: DeterminateSystems/magic-nix-cache-action@v8
+
+      - name: Meson setup
+        run: nix develop --command meson setup build
+
+      - name: Meson Build
+        run: nix develop --command meson compile -C build
+
+      - name: Meson tests
+        run: nix develop --command meson compile -C build tests
+
+      - name: Valgrind tests
+        run: nix develop --command python3 scripts/valgrind_check.py

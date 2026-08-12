@@ -19,6 +19,7 @@
 
 #include "ClosureInferencer.hpp"
 #include "ClosureLifting.hpp"
+#include "Lifetime/Temporaries.hpp"
 #include "LiteralInferencer.hpp"
 #include "TypeCheckerContext.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
@@ -252,6 +253,8 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     // below is walked again, unchanged, by every other instantiation of this
     // generic method (ast-rewrite.md's sweep discipline — the arena is
     // bounded before the first Add() this loop causes).
+    TypeCheckerPass::AnalyzeClosureLiterals( Context );
+
     const std::size_t OriginalExprCount = Ast.ExprCount();
     for ( std::size_t ExprIndex = 0; ExprIndex < OriginalExprCount; ++ExprIndex )
     {
@@ -266,6 +269,46 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
             continue;
         }
         TypeCheckerPass::LowerClosureLit( Context, CandidateId );
+    }
+
+    // Full-expression temporaries, for this instantiation only.
+    //
+    // The declaring unit's own pass could not do this: inside a generic body
+    // every type is deferred, so nothing there is classifiable as owned and
+    // the sweep is a no-op by construction. Here every binding is concrete, so
+    // it is the same sweep asking the same questions and getting answers —
+    // and, exactly like `LowerClosureLit` above, it lands in
+    // `Context.Redirects` rather than in the shared slot, because the next
+    // instantiation of this body must still see the original.
+    //
+    // Its sibling `RunScopeCleanup` is deliberately not run: it rewrites
+    // `StmtList`s, and a statement list is not something the redirect map can
+    // express. A named local of a generic body is therefore still released
+    // only where the shared pass could see it — a counted leak, and the one
+    // half of this that is still open.
+    // Every body swept here is copied out of the arena first, and that is not
+    // a precaution: the loop above just `Add()`ed a `Method` Decl per lifted
+    // closure, so `MethodNode` — read before it ran — already points into a
+    // reallocated arena, and every sweep below `Add()`s again
+    // (rules/ast-rewrite.md). Only the *lists* are copied; the sweeps rewrite
+    // expression slots, never a `StmtList`, so the copies stay faithful.
+    std::vector<Frontend::StmtList> Bodies;
+    Bodies.push_back( std::get<Frontend::Method>( Ast.Decl( Entry.Decl ) ).Body );
+    // Every closure this instantiation just lifted is a function too, and owns
+    // its own temporaries — the composed body of `(&.trim) >> (&.downcase)`
+    // holds the intermediate `trim` result and nothing else ever will. In an
+    // ordinary unit `InsertFinalizeCalls` reaches these through the Decl arena
+    // sweep; here they were created a moment ago, so they are swept directly.
+    for ( const SynthesizedFunction &Synth : Result.Synth.All() )
+    {
+        if ( const auto *SynthNode = std::get_if<Frontend::Method>( &Ast.Decl( Synth.Decl ) ) )
+        {
+            Bodies.push_back( SynthNode->Body );
+        }
+    }
+    for ( const Frontend::StmtList &Swept : Bodies )
+    {
+        static_cast<void>( TypeCheckerPass::Lifetime::RunTemporaries( Context, Swept ) );
     }
 
     // Snapshot the resolutions this walk collected — the same final step

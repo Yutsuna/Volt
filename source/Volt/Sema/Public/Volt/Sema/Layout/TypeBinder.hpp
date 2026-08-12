@@ -51,6 +51,23 @@ namespace Sema
     /// null entry is skipped (a unit with no types needs no slot filled).
     SEMA_EXPORT void ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store );
 
+    /// Fourth serial phase, right after ResolveStructLayouts and still before
+    /// ResolveUnitSignatures: synthesize an empty `finalize` Method — spliced
+    /// into the AST `Body` and registered as an ordinary `TypeStore` member,
+    /// exactly like a hand-written one — for every non-generic `Struct`/
+    /// `Class` that declares no `finalize` of its own but has at least one
+    /// field whose *resolved* type is an Aggregate-layout, finalize-declaring
+    /// candidate (rules/raii-ownership.md's "no own finalize"
+    /// half). Needs field *layouts*, which is why this cannot run any
+    /// earlier than ResolveStructLayouts, and needs the member to be visible
+    /// to ResolveUnitSignatures' own `Store.MemberByDecl` lookup and to
+    /// TypeChecker's existing `AppendFieldCascade`/`FindOwnFinalizeMethod`
+    /// (Sema/Private/Passes/TypeChecker/FinalizeLowering.cpp — unchanged),
+    /// which is why it cannot run any later. `Units` is indexed the same way
+    /// ResolveStructLayouts' own is; a null entry (a cache-hit stdlib slot,
+    /// already resolved and cached with its stub in place) is skipped.
+    SEMA_EXPORT void SynthesizeFinalizeStubs ( std::span<Frontend::AstContext *const> Units, TypeStore &Store );
+
 } // namespace Sema
 
 } // namespace Volt

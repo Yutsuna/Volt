@@ -1,0 +1,24 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+struct Bag
+  getter items : Array<String>
+
+  def initialize( @items : Array<String> )
+  end
+end
+
+def use_bag -> UInt64
+  arr = Array<String>.new
+  arr << "hello"
+  arr << "world"
+  b = Bag.new( arr )
+  b.items.size
+end
+
+assert!( use_bag == 2_u64 )

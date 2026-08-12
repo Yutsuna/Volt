@@ -11,7 +11,7 @@ navigate the compiler without re-reading every file.
   new pass, moved files), run:
 
   ```sh
-  graphify update .        # AST-only re-extract, no API cost
+  python3 scripts/graphify/update_graphify.py        # AST-only re-extract, no API cost
   ```
 
   This refreshes `graph.json` + `GRAPH_REPORT.md`. Do it as part of finishing the

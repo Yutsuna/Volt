@@ -17,6 +17,7 @@ jobs:
             os: ubuntu-latest
           - system: aarch64-linux
             os: ubuntu-24.04-arm
+         # NOTE: clang++ is not up to date for C++26 reflection => skip build
          #- system: aarch64-darwin
          #  os: macos-latest
 
@@ -38,4 +39,3 @@ jobs:
 
       - name: Build devShell (pour cacher aussi les deps du shell)
         run: nix build -L .#devShells.${{ matrix.system }}.default
-

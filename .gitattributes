@@ -1,5 +1,6 @@
 *.{c,h,inc} diff=c
-*.{volt,vl} text diff=volt
-*.cr text diff=crystal
+*.{cpp,hpp,inl} diff=cpp
+*.{volt,vl,vlx} text diff=volt
+*.{py} text diff=python
 *.bash text diff=bash
 *.nix text diff=nix

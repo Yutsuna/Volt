@@ -95,6 +95,13 @@ void Volt::Sema::TypeCheckerPass::LowerArrayLit ( TypeCheckerContext &Context,
     // performs has already happened.
     Ast.Expr( Id ) =
         Frontend::ExprNode{ Frontend::BeginExpr{ .Loc = {}, .Body = std::move( Body ), .RescueClauses = {}, .EnsureBody = {} } };
+
+    // This slot now *is* a construction, but nothing about its shape says so
+    // any more — a `BeginExpr` ending on a name reads as a place, and the
+    // `bConstructs` a caller would look for sits on the inner `T.new` call
+    // rather than here. Say it, so the surrounding region releases what this
+    // just built (`for x in [ 10, 20, 30 ]` otherwise strands its array).
+    Context.OwnedExprSites.insert( Id.Value );
 }
 
 void Volt::Sema::TypeCheckerPass::LowerArrayLits ( TypeCheckerContext &Context )
@@ -217,6 +224,9 @@ void Volt::Sema::TypeCheckerPass::LowerHashLit (
 
     Ast.Expr( Id ) =
         Frontend::ExprNode{ Frontend::BeginExpr{ .Loc = {}, .Body = std::move( Body ), .RescueClauses = {}, .EnsureBody = {} } };
+
+    // Same fact, same reason as `LowerArrayLit`'s own note above.
+    Context.OwnedExprSites.insert( Id.Value );
 }
 
 void Volt::Sema::TypeCheckerPass::LowerHashLits ( TypeCheckerContext &Context )

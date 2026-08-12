@@ -1,0 +1,35 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+class Counter
+  cursor : Pointer<Int32>
+
+  def initialize( @cursor : Pointer<Int32> ) end
+
+  def finalize -> Void
+    *@cursor = *@cursor + 1
+  end
+end
+
+def make_and_return( cursor : Pointer<Int32> ) -> Counter
+  c = Counter.new( cursor )
+  return c
+end
+
+def use_and_drop( cursor : Pointer<Int32> ) -> Void
+  result = make_and_return( cursor )
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+
+use_and_drop( cursor )
+
+assert!( *cursor == 1 )
+
+cursor.free

@@ -1,0 +1,63 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture, shape 1: a chained rvalue `a + b + c`.
+#
+# `Tracked#+` returns a construction, so OwnershipInference derives
+# bReturnsOwned on it and Temporaries classifies both intermediate results as
+# Owned. Two temporaries are materialized; the *inner* one (`a + b`) is dead
+# once the outer `+` has consumed it, and must be finalized at the end of the
+# full expression — the outer one is moved into `sum` and must not be.
+#
+# The assertion is placed inside the function, immediately after the statement,
+# rather than at top level: it pins the temporary's lifetime to the
+# full-expression boundary specifically. Asserting after the function returned
+# would also pass if the temporary had merely leaked into scope cleanup.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def +( other : Tracked ) -> Tracked
+    Tracked.new( @id + other.id, @log, @cursor )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def chained( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  a = Tracked.new( 1, log, cursor )
+  b = Tracked.new( 2, log, cursor )
+  c = Tracked.new( 4, log, cursor )
+
+  sum = a + b + c
+
+  # Exactly one finalize has run: the inner temporary `a + b`, id 3. The outer
+  # temporary was moved into `sum` and is still live.
+  assert!( *cursor == 1 )
+  assert!( *( log + 0 ) == 3 )
+
+  sum.id
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 8 )
+
+result = chained( log, cursor )
+
+assert!( result == 7 )
+
+log.free
+cursor.free

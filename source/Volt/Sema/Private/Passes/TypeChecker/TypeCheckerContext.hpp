@@ -117,6 +117,47 @@ struct TypeCheckerContext
     // second lookup.
     std::unordered_map<std::uint32_t, Resolution> CalleeResolution{};
 
+    // Expression sites the middle-end *built* rather than found, and which
+    // therefore hand the surrounding region a value it now owns.
+    //
+    // A construction normally announces itself through
+    // `Resolution::bConstructs` on the `Call` that performs it — which is why
+    // `LowerStringLit` needs no entry here: it rewrites its slot into exactly
+    // that `Call`. `LowerArrayLit`/`LowerHashLit` cannot, because building an
+    // aggregate literal takes a *sequence* (construct, then one append per
+    // element), so the slot becomes a `BeginExpr` whose value is a name — and
+    // a name reads as a place, never as a construction. The fact is not
+    // recoverable from the shape afterwards, so it is recorded by the only
+    // code that has it.
+    std::unordered_set<std::uint32_t> OwnedExprSites{};
+
+    // Closure literals whose body was read and proven to hand back an owned
+    // value, keyed by the literal's own expression id.
+    //
+    // The one thing `Member::bReturnsOwned` structurally cannot cover: a call
+    // *through a callable* resolves to the `FuncType` claimant's `abstract
+    // call`, which has no body, so ownership of its result is unprovable in
+    // general (rules/raii-ownership.md). It stops being unprovable
+    // exactly when the callee is a literal standing in the call's own callee
+    // slot — the shape every desugared composition and pipeline produces
+    // (`x |> (&.trim) >> (&.downcase)` lowers to nested
+    // `Call( Lambda, … )`) — because then the body is right there to read.
+    //
+    // Filled by `LowerClosureLits` before it rewrites anything, so the id
+    // survives the rewrite (the literal's slot becomes the `Proc.new` the
+    // parent still calls through), and read by
+    // `Lifetime/ExprOwnership.hpp`'s `ProducesOwnedValue`.
+    std::unordered_set<std::uint32_t> OwnedClosureLiterals{};
+
+    // Per closure literal, which of its own parameters its body keeps —
+    // `Raii::ClosureParameterEscape`'s answer, cached at the literal's own
+    // expression id and read back by `Lifetime/Temporaries.cpp` when it has to
+    // decide whether an argument of an *indirect* call is the caller's to
+    // release. Filled by `LowerClosureLits` alongside `OwnedClosureLiterals`,
+    // and for the same reason: the callable's one declared member speaks for
+    // every closure in the program, so it can hold neither answer.
+    std::unordered_map<std::uint32_t, Core::SmallVec<bool, 4>> ClosureParamEscapes{};
+
     // The `&block` slot the call currently being typed expects, handed
     // down to the trailing block's parameters. Set by CallType around
     // the BlockArg and consumed — once — by BindClosureParams, so a

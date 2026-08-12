@@ -52,6 +52,19 @@ namespace Frontend
     using ParamList  = NodeList<ParamId>;
     using SymbolList = NodeList<Symbol>;
 
+    // `<T, U : Bound>`: one generic parameter list, parsed once and reused by
+    // every declaration shape that opens one (class/struct/mixin/enum/method).
+    // `Bounds` is parallel to `Names` — an invalid TypeId at index `i` means
+    // parameter `i` has no bound. Kept as a plain aggregate (not a NodeList
+    // element) since it is a parser-side return value, never stored in an
+    // arena of its own.
+    struct GenericParamList
+    {
+
+        SymbolList Names;
+        TypeList Bounds;
+    };
+
     /// Accessor kind for a Field declaration (`getter`/`setter`/`property`/plain ivar).
     enum class EAccessor
     {

@@ -1,0 +1,120 @@
+Program 'samples/Tests/RAII/NoFinalizeDeclared.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
+├─ Struct 'Plain' @9:1
+│  └─ body
+│     ├─ Field 'tag' getter @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @10:16
+│     └─ Method 'initialize' @12:3
+│        └─ params
+│           └─ Param 'tag' instance_var @12:19
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @12:26
+├─ Method 'use_plain' @16:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @16:18
+│  └─ body
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Assign '=' @17:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'p' @17:3
+│     │        └─ value
+│     │           └─ Call @17:16
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @17:12
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Plain' @17:7
+│     │              └─ args
+│     │                 └─ IntLiteral '42' @17:18
+│     └─ ExprStmt @18:3
+│        └─ expr
+│           └─ Member 'tag' @18:4
+│              └─ object
+│                 └─ Identifier 'p' @18:3
+├─ Struct 'Holder' @23:1
+│  └─ body
+│     ├─ Field 'label' getter @24:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @24:18
+│     └─ Method 'initialize' @26:3
+│        └─ params
+│           └─ Param 'label' instance_var @26:19
+│              └─ decl_type
+│                 └─ TypeRef 'String' @26:28
+├─ Method 'use_holder' @30:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @30:19
+│  └─ body
+│     ├─ ExprStmt @31:3
+│     │  └─ expr
+│     │     └─ Assign '=' @31:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'h' @31:3
+│     │        └─ value
+│     │           └─ Call @31:17
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @31:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Holder' @31:7
+│     │              └─ args
+│     │                 └─ Binary '+' @31:28
+│     │                    ├─ lhs
+│     │                    │  └─ StringLiteral 'hello-' @31:19
+│     │                    └─ rhs
+│     │                       └─ StringLiteral 'world' @31:30
+│     └─ ExprStmt @32:3
+│        └─ expr
+│           └─ Member 'size' @32:10
+│              └─ object
+│                 └─ Member 'label' @32:4
+│                    └─ object
+│                       └─ Identifier 'h' @32:3
+├─ ExprStmt @35:1
+│  └─ expr
+│     └─ Call @35:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @35:1
+│        └─ args
+│           └─ Binary '==' @35:20
+│              ├─ lhs
+│              │  └─ Identifier 'use_plain' @35:10
+│              └─ rhs
+│                 └─ IntLiteral '42' @35:23
+└─ ExprStmt @36:1
+   └─ expr
+      └─ Call @36:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @36:1
+         └─ args
+            └─ Binary '==' @36:21
+               ├─ lhs
+               │  └─ Identifier 'use_holder' @36:10
+               └─ rhs
+                  └─ IntLiteral '11_u64' @36:24
+--- exit 0 ---

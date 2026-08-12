@@ -34,6 +34,10 @@ struct Proc<R>
   # signature off the receiver rather than off this declaration.
   abstract def call -> R
 
+  def finalize -> Void
+    @env.free if @env.to_address != 0_u64
+  end
+
   def to_string -> String
     "Proc(#{@code}, #{@env})"
   end

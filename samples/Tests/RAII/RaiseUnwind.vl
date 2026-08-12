@@ -1,0 +1,45 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def build_and_raise( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Void
+  first = Tracked.new( 1, log, cursor )
+  second = Tracked.new( 2, log, cursor )
+  third = Tracked.new( 3, log, cursor )
+  raise "boom"
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 3 )
+
+begin
+  build_and_raise( log, cursor )
+rescue e : Exception
+end
+
+assert!( *cursor == 3 )
+assert!( *( log + 0 ) == 3 )
+assert!( *( log + 1 ) == 2 )
+assert!( *( log + 2 ) == 1 )
+
+log.free
+cursor.free

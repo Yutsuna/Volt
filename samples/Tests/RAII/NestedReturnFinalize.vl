@@ -1,0 +1,45 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def nested_return( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  outer = Tracked.new( 1, log, cursor )
+  if true
+    inner = Tracked.new( 2, log, cursor )
+    return 99
+  end
+  after = Tracked.new( 3, log, cursor )
+  0
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 2 )
+
+result = nested_return( log, cursor )
+
+assert!( result == 99 )
+assert!( *cursor == 2 )
+assert!( *( log + 0 ) == 2 )
+assert!( *( log + 1 ) == 1 )
+
+log.free
+cursor.free

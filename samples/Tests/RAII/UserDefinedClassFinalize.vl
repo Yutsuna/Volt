@@ -1,0 +1,27 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+class Buffer
+  getter data : Pointer<UInt8>
+  getter length : UInt64
+
+  def initialize( @length : UInt64 )
+    @data = Pointer<UInt8>.malloc( @length )
+  end
+
+  def finalize -> Void
+    @data.free
+  end
+end
+
+def use_buffer -> UInt64
+  buf = Buffer.new( 16 )
+  buf.length
+end
+
+assert!( use_buffer == 16 )

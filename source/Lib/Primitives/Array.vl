@@ -12,6 +12,30 @@ struct Array<T>
     @buffer = Pointer<T>.malloc( @capacity )
   end
 
+  # An array owns its elements, so destroying it destroys them first — the
+  # same body `std::vector::~vector` has, and for the same reason.
+  #
+  # It is written here, in Volt, rather than synthesized by the compiler: the
+  # middle-end injects `finalize` at region exits and knows nothing else — not
+  # what a sequence is, not that `size` and `[]` exist. `finalize` resolves on
+  # any `T` at all because every type has one, defaulted to empty when the
+  # source does not write it, exactly as C++ gives every class a destructor.
+  #
+  # And the loop costs nothing for a `T` that has nothing to destroy:
+  # `trivially_destructible?` is a compile-time predicate, so the guard folds
+  # to a constant at instantiation and the whole loop disappears — which is
+  # precisely what `is_trivially_destructible_v<T>` buys `_Destroy`.
+  def finalize -> Void
+    if not trivially_destructible? T
+      i = 0_u64
+      while i < @size
+        ( *( @buffer + i ) ).finalize
+        i += 1
+      end
+    end
+    @buffer.free
+  end
+
   def empty? -> Bool
     @size == 0
   end
@@ -68,6 +92,13 @@ struct Array<T>
   end
 
   def clear -> Void
+    if not trivially_destructible? T
+      i = 0_u64
+      while i < @size
+        ( *( @buffer + i ) ).finalize
+        i += 1
+      end
+    end
     @size = 0
   end
 end

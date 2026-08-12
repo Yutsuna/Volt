@@ -14,21 +14,34 @@ find_prog = find_program('find')
 
 # -----------------------------------------------------------------------------
 
-reflection_flag = {'gcc' : ['-freflection']}
-uninit_warn_flag = {'gcc' : ['-Wno-maybe-uninitialized']}
+reflection_flag = {'gcc': ['-freflection']}
+uninit_warn_flag = {'gcc': ['-Wno-maybe-uninitialized']}
 
 common_cpp_args = reflection_flag.get(cxx.get_id(), [])
 common_cpp_args += [
-  '-Wall', '-Wextra', '-Wpedantic', '-Wshadow', '-Wnon-virtual-dtor',
-  '-Wold-style-cast', '-Wcast-align', '-Wunused', '-Woverloaded-virtual',
-  '-Wconversion', '-Wsign-conversion', '-Wnull-dereference',
-  '-Wdouble-promotion', '-Wformat=2', '-Wimplicit-fallthrough',
-  '-Wno-missing-braces', '-Werror',
-  '-fvisibility=hidden', '-fvisibility-inlines-hidden',
-  '-MMD',
+    '-Wall',
+    '-Wextra',
+    '-Wpedantic',
+    '-Wshadow',
+    '-Wnon-virtual-dtor',
+    '-Wold-style-cast',
+    '-Wcast-align',
+    '-Wunused',
+    '-Woverloaded-virtual',
+    '-Wconversion',
+    '-Wsign-conversion',
+    '-Wnull-dereference',
+    '-Wdouble-promotion',
+    '-Wformat=2',
+    '-Wimplicit-fallthrough',
+    '-Wno-missing-braces',
+    '-Werror',
+    '-fvisibility=hidden',
+    '-fvisibility-inlines-hidden',
+    '-MMD',
 ]
 common_cpp_args += cxx.get_supported_arguments(
-  uninit_warn_flag.get(cxx.get_id(), ['-Wno-uninitialized']),
+    uninit_warn_flag.get(cxx.get_id(), ['-Wno-uninitialized']),
 )
 
 common_link_args = []
@@ -37,24 +50,35 @@ debug_gflag = debug_full ? '-g3' : '-g1'
 debug_opt_flags = ['-Og', debug_gflag, '-fno-omit-frame-pointer']
 common_cpp_args += buildtype == 'debug' ? debug_opt_flags : []
 
-common_cpp_args += (is_gnu and is_debuglike) ? ['-gsplit-dwarf', '-fdebug-types-section'] : []
+common_cpp_args += (is_gnu and is_debuglike) ? [
+    '-gsplit-dwarf',
+    '-fdebug-types-section',
+] : []
 common_link_args += (is_gnu and is_debuglike) ? ['-Wl,--gdb-index'] : []
-common_cpp_args += is_debuglike ? ['-DDEBUG=1', '-DVOLT_DEBUG=1', '-DDEBUG_NO_STATIC_ASSERT=1'] : ['-DNDEBUG=1']
+common_cpp_args += is_debuglike ? [
+    '-DDEBUG=1',
+    '-DVOLT_DEBUG=1',
+    '-DDEBUG_NO_STATIC_ASSERT=1',
+] : [
+    '-DNDEBUG=1',
+]
 
 common_cpp_args += get_option('checked_ids') ? ['-DVOLT_CHECKED_IDS=1'] : []
 
 # ---------------------------------------------------------------------------
 
 sanitizers = {
-  'enable_asan' : 'address',
-  'enable_ubsan' : 'undefined',
-  'enable_tsan' : 'thread',
+    'enable_asan': 'address',
+    'enable_ubsan': 'undefined',
+    'enable_tsan': 'thread',
 }
 foreach opt, name : sanitizers
-  active = get_option(opt) and is_debuglike
-  common_cpp_args += active ? ['-fsanitize=@0@'.format(name)] : []
-  common_link_args += active ? ['-fsanitize=@0@'.format(name)] : []
-  common_cpp_args += (active and name != 'undefined') ? ['-fno-omit-frame-pointer'] : []
+    active = get_option(opt) and is_debuglike
+    common_cpp_args += active ? ['-fsanitize=@0@'.format(name)] : []
+    common_link_args += active ? ['-fsanitize=@0@'.format(name)] : []
+    common_cpp_args += (active and name != 'undefined') ? [
+        '-fno-omit-frame-pointer',
+    ] : []
 endforeach
 
 mold = find_program('mold', required : false)
@@ -62,8 +86,8 @@ is_linux = host_machine.system() == 'linux'
 common_link_args += (mold.found() and is_linux) ? ['-fuse-ld=mold', '-Wl,--icf=all'] : []
 
 if get_option('enable_lto') and buildtype == 'release'
-  add_project_arguments('-flto=auto', language : 'cpp')
-  add_project_link_arguments('-flto=auto', language : 'cpp')
+    add_project_arguments('-flto=auto', language: 'cpp')
+    add_project_link_arguments('-flto=auto', language: 'cpp')
 endif
 
 # ---------------------------------------------------------------------------
@@ -71,9 +95,9 @@ endif
 volt_inc = include_directories('../source/Volt')
 
 compile_options_dep = declare_dependency(
-  compile_args : common_cpp_args,
-  link_args : common_link_args,
-  include_directories : volt_inc,
+    compile_args: common_cpp_args,
+    link_args: common_link_args,
+    include_directories: volt_inc,
 )
 
 export_template = files('export_template.hpp.inl')
@@ -83,15 +107,28 @@ llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 
 
 # ---------------------------------------------------------------------------
 
-clang_format = find_program('clang-format', required : false)
+clang_format = find_program('clang-format', required: false)
 if clang_format.found()
-  format_find = run_command(
-    find_prog, meson.project_source_root() / 'source' / 'Volt', '-type', 'f',
-    '(', '-name', '*.cpp', '-o', '-name', '*.hpp', '-o', '-name', '*.inl', ')',
-    check : true
-  )
-  format_files = format_find.stdout().strip().split('\n')
-  run_target('format',
-    command : [clang_format, '-i', '-style=file'] + format_files,
-  )
+    format_find = run_command(
+        find_prog,
+        meson.project_source_root() / 'source' / 'Volt',
+        '-type',
+        'f',
+        '(',
+        '-name',
+        '*.cpp',
+        '-o',
+        '-name',
+        '*.hpp',
+        '-o',
+        '-name',
+        '*.inl',
+        ')',
+        check: true,
+    )
+    format_files = format_find.stdout().strip().split('\n')
+    run_target(
+        'format',
+        command: [clang_format, '-i', '-style=file'] + format_files,
+    )
 endif

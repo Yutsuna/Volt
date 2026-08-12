@@ -1,0 +1,183 @@
+Program 'samples/Tests/RAII/FieldCascade.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/RAII/FieldCascade.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
+├─ Class 'Pair' @13:1
+│  └─ body
+│     ├─ Field 'a' getter @14:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @14:14
+│     ├─ Field 'b' getter @15:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @15:14
+│     ├─ Method 'initialize' @17:3
+│     │  └─ params
+│     │     ├─ Param 'a' instance_var @17:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'String' @17:24
+│     │     └─ Param 'b' instance_var @17:32
+│     │        └─ decl_type
+│     │           └─ TypeRef 'String' @17:37
+│     └─ Method 'finalize' @22:3
+│        └─ return_type
+│           └─ TypeRef 'Void' @22:19
+├─ Class 'Logger' @26:1
+│  └─ body
+│     ├─ Field 'tag' getter @27:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @27:16
+│     ├─ Field 'count' @28:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @28:11
+│     ├─ Method 'initialize' @30:3
+│     │  ├─ params
+│     │  │  └─ Param 'tag' instance_var @30:19
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'String' @30:26
+│     │  └─ body
+│     │     └─ ExprStmt @31:5
+│     │        └─ expr
+│     │           └─ Assign '=' @31:12
+│     │              ├─ target
+│     │              │  └─ InstanceVar '@count' @31:5
+│     │              └─ value
+│     │                 └─ IntLiteral '0' @31:14
+│     └─ Method 'finalize' @35:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @35:19
+│        └─ body
+│           └─ ExprStmt @36:5
+│              └─ expr
+│                 └─ Assign '=' @36:12
+│                    ├─ target
+│                    │  └─ InstanceVar '@count' @36:5
+│                    └─ value
+│                       └─ Unary '-' @36:14
+│                          └─ operand
+│                             └─ IntLiteral '1' @36:15
+├─ Method 'use_pair' @40:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @40:17
+│  └─ body
+│     ├─ ExprStmt @41:3
+│     │  └─ expr
+│     │     └─ Assign '=' @41:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'p' @41:3
+│     │        └─ value
+│     │           └─ Call @41:15
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @41:11
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Pair' @41:7
+│     │              └─ args
+│     │                 ├─ Binary '+' @41:26
+│     │                 │  ├─ lhs
+│     │                 │  │  └─ StringLiteral 'hello-' @41:17
+│     │                 │  └─ rhs
+│     │                 │     └─ StringLiteral 'world' @41:28
+│     │                 └─ Binary '+' @41:44
+│     │                    ├─ lhs
+│     │                    │  └─ StringLiteral 'foo-' @41:37
+│     │                    └─ rhs
+│     │                       └─ StringLiteral 'bar' @41:46
+│     └─ ExprStmt @42:3
+│        └─ expr
+│           └─ Binary '+' @42:12
+│              ├─ lhs
+│              │  └─ Member 'size' @42:6
+│              │     └─ object
+│              │        └─ Member 'a' @42:4
+│              │           └─ object
+│              │              └─ Identifier 'p' @42:3
+│              └─ rhs
+│                 └─ Member 'size' @42:17
+│                    └─ object
+│                       └─ Member 'b' @42:15
+│                          └─ object
+│                             └─ Identifier 'p' @42:14
+├─ Method 'use_logger' @45:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @45:19
+│  └─ body
+│     ├─ ExprStmt @46:3
+│     │  └─ expr
+│     │     └─ Assign '=' @46:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'l' @46:3
+│     │        └─ value
+│     │           └─ Call @46:17
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @46:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Logger' @46:7
+│     │              └─ args
+│     │                 └─ Binary '+' @46:29
+│     │                    ├─ lhs
+│     │                    │  └─ StringLiteral 'prefix-' @46:19
+│     │                    └─ rhs
+│     │                       └─ StringLiteral 'suffix' @46:31
+│     └─ ExprStmt @47:3
+│        └─ expr
+│           └─ Member 'size' @47:8
+│              └─ object
+│                 └─ Member 'tag' @47:4
+│                    └─ object
+│                       └─ Identifier 'l' @47:3
+├─ ExprStmt @50:1
+│  └─ expr
+│     └─ Call @50:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @50:1
+│        └─ args
+│           └─ Binary '==' @50:19
+│              ├─ lhs
+│              │  └─ Identifier 'use_pair' @50:10
+│              └─ rhs
+│                 └─ IntLiteral '18_u64' @50:22
+└─ ExprStmt @51:1
+   └─ expr
+      └─ Call @51:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @51:1
+         └─ args
+            └─ Binary '==' @51:21
+               ├─ lhs
+               │  └─ Identifier 'use_logger' @51:10
+               └─ rhs
+                  └─ IntLiteral '13_u64' @51:24
+--- exit 0 ---

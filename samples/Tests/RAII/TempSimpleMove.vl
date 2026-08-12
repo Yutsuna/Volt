@@ -1,0 +1,77 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture, shape 3: a simple move, then a bare-name return.
+#
+# Two transitions, both of which must happen or the program is wrong in
+# opposite directions:
+#
+#   - `x = a + b` moves the temporary into `x`. Finalizing it at the end of the
+#     full expression would hand the scope a dangling buffer.
+#   - `return x` hands ownership to the caller. Finalizing `x` at scope exit
+#     would do the same to the caller.
+#
+# The move-out exemption is applied per exit site, so `x` is skipped *here*
+# while `a` and `b` are still finalized on the same path.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def +( other : Tracked ) -> Tracked
+    Tracked.new( @id + other.id, @log, @cursor )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def moved_out( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Tracked
+  a = Tracked.new( 1, log, cursor )
+  b = Tracked.new( 2, log, cursor )
+
+  x = a + b
+
+  # The temporary became `x`; nothing has been finalized yet.
+  assert!( *cursor == 0 )
+
+  x
+end
+
+# The moved-out value is received in a function scope, not at top level, on
+# purpose: a top-level local is finalized at end of program, i.e. *after* the
+# `free` calls below, and `Tracked#finalize` writes through the very buffers
+# they release.
+def receive( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  result = moved_out( log, cursor )
+
+  # `a` and `b` were finalized leaving moved_out; `result` was not — reading
+  # its id here is only valid because ownership moved out with it.
+  assert!( *cursor == 2 )
+  assert!( result.id == 3 )
+
+  result.id
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 8 )
+
+assert!( receive( log, cursor ) == 3 )
+
+# Ownership stopped in `receive`'s scope, which finalized it exactly once.
+assert!( *cursor == 3 )
+assert!( *( log + 2 ) == 3 )
+
+log.free
+cursor.free

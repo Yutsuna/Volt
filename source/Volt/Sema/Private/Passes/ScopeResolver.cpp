@@ -222,6 +222,20 @@ private:
                     {
                         DeclareOrReport( RescueScope, Node.VarName, BindingSite{ Id }, Node.Loc );
                     }
+                    // Overrides the generic SetScopeOf( Id, Current ) above:
+                    // unlike every other node with a StmtList body (While,
+                    // If's Then/Else, BeginExpr's own Body/EnsureBody), a
+                    // RescueClause declares a binding *of its own* directly
+                    // in RescueScope, not just for its children — so
+                    // ScopeOf( Id ) must resolve to the scope that actually
+                    // owns that binding, or a StmtId-sited BindingSite{Id}
+                    // consumer (BackendLLVM's SlotFor, which classifies
+                    // unit-scope vs frame-local storage purely from
+                    // ScopeOf( Site )) misreads a top-level `rescue e` as a
+                    // module global — a real, previously-latent bug, only
+                    // exposed once something first reads `e` inside a
+                    // top-level clause body.
+                    Context.Scopes.SetScopeOf( Id, RescueScope );
                     for ( const Frontend::StmtId Child : Node.Body )
                     {
                         WalkStmt( Child, RescueScope );

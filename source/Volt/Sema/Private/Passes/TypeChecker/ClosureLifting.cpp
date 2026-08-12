@@ -1,6 +1,7 @@
 #include "ClosureLifting.hpp"
 
 #include "ExprInferencer.hpp"
+#include "Lifetime/ExprOwnership.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
@@ -8,7 +9,10 @@
 #include "Volt/Sema/Layout/ClosureFrame.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
+#include "Volt/Sema/Raii/OwnershipInference.hpp"
 
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace
@@ -705,14 +709,47 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
         RewriteSlot( Context, Id, CtorCallId );
 
         const auto &OrigCall             = std::get<Frontend::Call>( Ast.Expr( ParentCallId ) );
-        const Frontend::ExprId NewCallId = Ast.Add( Frontend::ExprNode{ Frontend::Call{ .Loc      = OrigCall.Loc,
-                                                                                        .Callee   = OrigCall.Callee,
-                                                                                        .Args     = OrigCall.Args,
-                                                                                        .ArgNames = OrigCall.ArgNames,
-                                                                                        .BlockArg = Id } } );
+        const Frontend::ExprId CalleeId  = OrigCall.Callee;
+        const Frontend::ExprId NewCallId = Ast.Add( Frontend::ExprNode{ Frontend::Call{
+            .Loc = OrigCall.Loc, .Callee = CalleeId, .Args = OrigCall.Args, .ArgNames = OrigCall.ArgNames, .BlockArg = Id } } );
         InferExpr( Context, NewCallId );
 
         OuterBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = NewCallId } } ) );
+
+        // The environment dies with the call it was built for.
+        //
+        // A block is the one closure shape whose lifetime this pass already
+        // knows exactly: it is handed to `NewCallId` and nothing else, and the
+        // region above is a boundary this pass built itself, so the release is
+        // correctly ordered on both the normal and the unwind path with no new
+        // machinery. It goes *after* the copy-backs, which read through the
+        // very storage being released.
+        //
+        // Guarded on the one fact that could make that false — `&block` being
+        // stored somewhere the call outlives — asked of the callee's own
+        // resolution through the same per-parameter escape analysis every
+        // ordinary argument goes through (`Raii::InferParameterEscape`). No
+        // proof, no release: a leak, never a use-after-free.
+        //
+        // `free` is the symmetric half of the `Pointer<T>.malloc` this same
+        // function emitted a few lines up, and reaches the backend as the
+        // ordinary member call that is (rules/backend-machine-only.md).
+        const auto ParentResolution = Context.CalleeResolution.find( CalleeId.Value );
+        const bool bBlockBorrowed   = ParentResolution != Context.CalleeResolution.end() and
+                                    ParentResolution->second.Decl != nullptr and
+                                    not Sema::Raii::BlockParameterEscapes( *ParentResolution->second.Decl );
+        if ( bBlockBorrowed )
+        {
+            const Frontend::ExprId FreeEnvUse =
+                Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = TmpName } } );
+            if ( TmpBound != nullptr )
+            {
+                Context.Ctx.Scopes.BindUse( FreeEnvUse, *TmpBound, true );
+            }
+            Context.Ctx.Values.SetExprType( FreeEnvUse, BytePtr );
+            const Frontend::ExprId FreeCallId = CallMember( Context, FreeEnvUse, "free", {} );
+            EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = FreeCallId } } ) );
+        }
 
         const SemaTypeId ParentCallType = Context.Ctx.Values.ExprType( ParentCallId );
 
@@ -742,19 +779,266 @@ void Volt::Sema::TypeCheckerPass::LowerClosureLit ( TypeCheckerContext &Context,
     }
 }
 
+namespace
+{
+
+// Is `Id` a closure literal this pass is going to lift?
+[[nodiscard]] bool IsClosureLiteral ( const TypeCheckerContext &Context, const Frontend::ExprId Id )
+{
+    if ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] )
+    {
+        return false;
+    }
+    const Frontend::ExprNode &Node = Context.Ctx.Ast.Expr( Id );
+    return std::holds_alternative<Frontend::Lambda>( Node ) or std::holds_alternative<Frontend::Block>( Node );
+}
+
+// Does any statement reachable from `Body` exit through a `return`?
+//
+// Deliberately over-approximating — it descends into nested closure literals
+// too, whose `return` belongs to them rather than to this body. A false
+// positive costs a refusal, which costs a counted leak; distinguishing them
+// would buy nothing this corpus can show.
+[[nodiscard]] bool ContainsReturn ( const Frontend::AstContext &Ast, Frontend::StmtId Id );
+[[nodiscard]] bool ContainsReturnExpr ( const Frontend::AstContext &Ast, Frontend::ExprId Id );
+
+template <typename NodeVariant>
+[[nodiscard]] bool AnyFieldContainsReturn ( const Frontend::AstContext &Ast, const NodeVariant &Variant )
+{
+    bool bFound = false;
+    std::visit(
+        [&] ( const auto &Node )
+        {
+            using T = std::remove_cvref_t<decltype( Node )>;
+            if constexpr ( not std::is_same_v<T, std::monostate> )
+            {
+                Meta::ForEachField( Node,
+                                    [&] ( const char *, const auto &Field )
+                                    {
+                                        using F = std::remove_cvref_t<decltype( Field )>;
+                                        if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                                        {
+                                            bFound = bFound or ContainsReturnExpr( Ast, Field );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                                        {
+                                            for ( const Frontend::ExprId Child : Field )
+                                            {
+                                                bFound = bFound or ContainsReturnExpr( Ast, Child );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtId> )
+                                        {
+                                            bFound = bFound or ContainsReturn( Ast, Field );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                        {
+                                            for ( const Frontend::StmtId Child : Field )
+                                            {
+                                                bFound = bFound or ContainsReturn( Ast, Child );
+                                            }
+                                        }
+                                    } );
+            }
+        },
+        Variant );
+    return bFound;
+}
+
+bool ContainsReturn ( const Frontend::AstContext &Ast, const Frontend::StmtId Id )
+{
+    if ( not Id.IsValid() )
+    {
+        return false;
+    }
+    const Frontend::StmtNode &Node = Ast.Stmt( Id );
+    return std::holds_alternative<Frontend::Return>( Node ) or AnyFieldContainsReturn( Ast, Node );
+}
+
+bool ContainsReturnExpr ( const Frontend::AstContext &Ast, const Frontend::ExprId Id )
+{
+    return Id.IsValid() and AnyFieldContainsReturn( Ast, Ast.Expr( Id ) );
+}
+
+// Does invoking this closure hand its caller a value the caller now owns?
+//
+// The same question `Raii::InferReturnOwnership` asks of a declared member,
+// asked of a literal that has no declaration to record it on — and asked here,
+// rather than at the Driver seam, because only here is it *precise*: every
+// call inside the body already carries the resolution `TypeChecker` recorded
+// for it.
+//
+// A body with any `return` in it is refused outright: proving one path owned
+// says nothing about the others, and the shapes this exists for
+// (`(&.trim)`, `f >> g`, `x |> f`) are single-expression bodies.
+//
+// A `Lambda` states its body as one expression, a `Block` as a statement list
+// whose last expression is its value (FinalizeLowering's own hard-won rule) —
+// the only difference between the two arms below.
+[[nodiscard]] bool ClosureReturnsOwned ( TypeCheckerContext &Context, const Frontend::ExprId Id )
+{
+    const Frontend::AstContext &Ast = Context.Ctx.Ast;
+    return std::visit(
+        Meta::Overloaded{
+            [&] ( const Frontend::Lambda &Node ) -> bool
+            {
+                return Node.Body.IsValid() and not ContainsReturnExpr( Ast, Node.Body ) and
+                       Volt::Sema::TypeCheckerPass::Lifetime::ProducesOwnedValue( Context, Node.Body );
+            },
+            [&] ( const Frontend::Block &Node ) -> bool
+            {
+                if ( Node.Body.IsEmpty() )
+                {
+                    return false;
+                }
+                for ( const Frontend::StmtId Child : Node.Body )
+                {
+                    if ( ContainsReturn( Ast, Child ) )
+                    {
+                        return false;
+                    }
+                }
+                const auto *Tail = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Node.Body[Node.Body.Size() - 1] ) );
+                return Tail != nullptr and Volt::Sema::TypeCheckerPass::Lifetime::ProducesOwnedValue( Context, Tail->Expr );
+            },
+            [] ( const auto & ) -> bool { return false; },
+        },
+        Ast.Expr( Id ) );
+}
+
+// Records every closure literal whose body was proven to return owned, before
+// a single one is rewritten — the ids have to be the literals' own, because
+// that is the slot a parent `Call` keeps calling through once the literal has
+// become a `Proc.new`.
+//
+// A fixpoint, because closures nest: `f >> g` lowers to a lambda whose body
+// calls the lambda `f` lowered to, so the outer one's answer depends on the
+// inner one's. Monotone (a literal only ever moves absent -> present), hence
+// bounded by the number of literals.
+void AnalyzeClosureLiteralsImpl ( TypeCheckerContext &Context )
+{
+    std::vector<Frontend::ExprId> Literals;
+    for ( std::size_t Index = 0; Index < Context.Ctx.Ast.ExprCount(); ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        if ( IsClosureLiteral( Context, Id ) )
+        {
+            Literals.push_back( Id );
+        }
+    }
+
+    // A closure literal materialises a fresh callable — its environment is
+    // allocated on the spot and nobody else holds it — so as a *value* it is
+    // owned, exactly like any other literal. That is what lets the fixpoint
+    // below read `( x ) => ( y ) => x + y`: the outer closure's body is the
+    // inner literal, and a body that hands back a fresh value returns owned.
+    // Who releases that environment is a separate question, answered by
+    // `Temporaries`' construction guard and by `Proc#finalize`.
+    for ( const Frontend::ExprId Id : Literals )
+    {
+        Context.OwnedExprSites.insert( Id.Value );
+    }
+
+    for ( std::size_t Round = 0; Round <= Literals.size(); ++Round )
+    {
+        bool bChanged = false;
+        for ( const Frontend::ExprId Id : Literals )
+        {
+            if ( Context.OwnedClosureLiterals.contains( Id.Value ) )
+            {
+                continue;
+            }
+            if ( ClosureReturnsOwned( Context, Id ) )
+            {
+                Context.OwnedClosureLiterals.insert( Id.Value );
+                bChanged = true;
+            }
+        }
+        if ( not bChanged )
+        {
+            break;
+        }
+    }
+
+    // The mirror question, asked once per literal — it depends on nothing this
+    // fixpoint computes, so it needs no rounds of its own.
+    for ( const Frontend::ExprId Id : Literals )
+    {
+        Context.ClosureParamEscapes[Id.Value] = Sema::Raii::ClosureParameterEscape( Context.Ctx.Ast, Context.Ctx.Types, Id );
+    }
+
+    // A call *through a name* is opaque only if the name is.
+    //
+    // A local whose every write is a closure literal already proven above is
+    // not: `f = ( x : Int32 ) => ( y : Int32 ) => x + y` makes `f( 20 )`
+    // exactly as knowable as invoking that literal in place. Every write must
+    // qualify — one that does not means the name may hold a closure whose body
+    // was never read, and releasing that result would be a double free rather
+    // than the leak this model always prefers.
+    //
+    // Recorded against the *callee occurrence*, which is what
+    // `ProducesOwnedValue` keys on, so the two answers cannot drift.
+    const Frontend::AstContext &Ast = Context.Ctx.Ast;
+    std::unordered_map<const Sema::Binding *, bool> NameHoldsProvenClosure;
+    for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        const auto *AssignNode = std::get_if<Frontend::Assign>( &Ast.Expr( Id ) );
+        if ( AssignNode == nullptr or not AssignNode->Target.IsValid() )
+        {
+            continue;
+        }
+        const Sema::Binding *Bound = Context.Ctx.Scopes.BindingOf( AssignNode->Target );
+        if ( Bound == nullptr )
+        {
+            continue;
+        }
+        const bool bProven  = AssignNode->Value.IsValid() and Context.OwnedClosureLiterals.contains( AssignNode->Value.Value );
+        const auto Existing = NameHoldsProvenClosure.find( Bound );
+        NameHoldsProvenClosure[Bound] = bProven and ( Existing == NameHoldsProvenClosure.end() or Existing->second );
+    }
+
+    for ( std::size_t Index = 0; Index < Ast.ExprCount(); ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        const auto *CallNode = std::get_if<Frontend::Call>( &Ast.Expr( Id ) );
+        if ( CallNode == nullptr or not CallNode->Callee.IsValid() )
+        {
+            continue;
+        }
+        if ( not std::holds_alternative<Frontend::Identifier>( Ast.Expr( CallNode->Callee ) ) )
+        {
+            continue;
+        }
+        const Sema::Binding *Bound = Context.Ctx.Scopes.BindingOf( CallNode->Callee );
+        if ( Bound == nullptr )
+        {
+            continue;
+        }
+        if ( const auto Found = NameHoldsProvenClosure.find( Bound ); Found != NameHoldsProvenClosure.end() and Found->second )
+        {
+            Context.OwnedClosureLiterals.insert( CallNode->Callee.Value );
+        }
+    }
+}
+
+} // namespace
+
+void Volt::Sema::TypeCheckerPass::AnalyzeClosureLiterals ( TypeCheckerContext &Context )
+{
+    AnalyzeClosureLiteralsImpl( Context );
+}
+
 void Volt::Sema::TypeCheckerPass::LowerClosureLits ( TypeCheckerContext &Context )
 {
+    AnalyzeClosureLiterals( Context );
+
     const std::size_t OriginalCount = Context.Ctx.Ast.ExprCount();
     for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
     {
         const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
 
-        if ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] )
-        {
-            continue;
-        }
-        if ( not std::holds_alternative<Frontend::Lambda>( Context.Ctx.Ast.Expr( Id ) ) and
-             not std::holds_alternative<Frontend::Block>( Context.Ctx.Ast.Expr( Id ) ) )
+        if ( not IsClosureLiteral( Context, Id ) )
         {
             continue;
         }

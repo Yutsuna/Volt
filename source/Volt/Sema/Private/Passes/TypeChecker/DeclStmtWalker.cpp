@@ -135,7 +135,10 @@ void Volt::Sema::TypeCheckerPass::EnterMethod ( TypeCheckerContext &Context, con
     OuterUninitializedLocals.swap( Context.UninitializedLocals );
     const SemaTypeId OuterReturnType = Context.CurrentMethodReturnType;
 
-    UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+    UnitSink Sink{ .Values   = Context.Ctx.Values,
+                   .Self     = Context.SelfValue,
+                   .Bindings = Context.GenericBindings(),
+                   .Diags    = &Context.Ctx.Diags };
     Context.CurrentMethodReturnType =
         ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.ReturnType );
 
@@ -301,7 +304,10 @@ void Volt::Sema::TypeCheckerPass::WalkStmt ( TypeCheckerContext &Context, Fronte
         Meta::Overloaded{
             [&] ( const Frontend::LocalDecl &Node )
             {
-                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                UnitSink Sink{ .Values   = Context.Ctx.Values,
+                               .Self     = Context.SelfValue,
+                               .Bindings = Context.GenericBindings(),
+                               .Diags    = &Context.Ctx.Diags };
                 const SemaTypeId Written =
                     ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.DeclType );
                 if ( Written.IsValid() and Node.Init.IsValid() )

@@ -206,6 +206,35 @@ namespace Frontend
         TypeId Type;
     };
 
+    // A compile-time question about a type: `trivially_destructible? T`.
+    //
+    // `SizeOf`'s sibling in every respect — it names a type rather than a
+    // value, nothing descends into it, and its answer is a constant the
+    // operand's *resolved* type determines. Inside a generic body the operand
+    // is deferred exactly as `sizeof T` in `Pointer<T>#malloc` is, and
+    // `Sema::ReinstantiateBody` settles it once per instantiation; the answer
+    // is materialised where the width of a `sizeof` is, from the type record
+    // the middle-end already published on this node's own site.
+    //
+    // Which question is the token itself, exactly as `Binary`/`Unary` carry
+    // their operator — so a second predicate is one row in TokenKind.inl, one
+    // label on the parser's arm and one derivation, with no new node.
+    //
+    // Why the language needs it at all: without it a container cannot release
+    // its elements without paying for types that have nothing to release, and
+    // the only alternative is for the compiler to synthesize the loop itself
+    // — which means the compiler knowing what a sequence is. This keyword is
+    // what buys `rules/zero-hardcode.md` back, the same way
+    // `std::is_trivially_destructible` is what lets `std::vector` be written
+    // in the library rather than in the compiler.
+    struct TypeTrait
+    {
+
+        Core::SourceRange Loc;
+        TokenKind Trait = TokenKind::Eof;
+        TypeId Type;
+    };
+
     // The address of a resolved Method, as a value — never written by the
     // parser; only a lowering pass (ClosureLifting) synthesizes this, to name
     // a function it has just lifted without going through ordinary member/

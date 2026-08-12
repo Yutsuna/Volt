@@ -1,0 +1,75 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 6 fixture, shape 6: `break` and `next` in expression position.
+#
+# The companion to ExpressionPositionReturn. `break`/`next` differ from
+# `return` in what they unwind: they leave only the innermost enclosing loop,
+# so the ambient candidate list is reset at each `While::Body` boundary rather
+# than carried through. Both bypass the ensure path in the backend, so their
+# finalize calls are spliced directly before the exit.
+#
+# Before Phase 5 the enclosing method was refused wholesale — `step` never
+# reached a finalize on either the `next` or the `break` edge.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def loop_exits( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  total = 0
+  i = 0
+  while i < 4
+    step = Tracked.new( i + 10, log, cursor )
+
+    # `next` on i == 1, `break` on i == 2 — both hidden inside an `if` in
+    # expression position, the shape the old bail-out could not reach.
+    add = if i == 1
+      i = i + 1
+      next
+    else
+      if i == 2
+        break
+      else
+        step.id
+      end
+    end
+
+    total = total + add
+    i = i + 1
+  end
+  total
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 8 )
+
+result = loop_exits( log, cursor )
+
+# i=0 falls through (step 10, total 10), i=1 takes `next`, i=2 takes `break`.
+assert!( result == 10 )
+
+# Every iteration finalized its own `step`, including the two that left through
+# an expression-position exit.
+assert!( *cursor == 3 )
+assert!( *( log + 0 ) == 10 )
+assert!( *( log + 1 ) == 11 )
+assert!( *( log + 2 ) == 12 )
+
+log.free
+cursor.free

@@ -56,6 +56,7 @@ Type binding (`Sema::BindUnitTypes`, `Layout/TypeBinder.cpp`) executes **before*
 - **Operators**: `MemberType` records resolution in `CalleeResolution` for `Binary`/`Unary` as well as `Member` — for primitive/pointer memory layouts, the backend emits a machine instruction; otherwise it emits a method call. Zero extra passes, zero extra AST nodes. An operator exempt from a body must **still** be declared.
 - `Nil` (`@[Literal( NilLiteral )]`) is assignable to any `Pointer`; `T?` (`NilableType`) is **loudly refused** (`nilable types are not implemented`).
 - Arity validation, instance vs static member contexts (`bStaticContext`), free function resolutions.
+- **RAII & Finalization Sweep (`InsertFinalizeCalls`)**: Runs post-walk inside `TypeChecker` using core AST (desugared at `Sema::LoweredSeamOrder()`). Manages scope cleanup, temporaries, drop-on-reassign, and exit unwinding with zero hardcoded Volt types or method names. See [`rules/raii-ownership.md`](rules/raii-ownership.md).
 
 ### 3. Order 40 — `AstInvariant`
 The safety check that makes "Zero Debt" **structural** rather than transient. Creates zero AST nodes (the only way to run after `TypeChecker` without breaking structural invariants). Performs two checks, both producing hard errors:

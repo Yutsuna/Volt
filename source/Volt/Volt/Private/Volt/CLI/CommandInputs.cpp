@@ -22,13 +22,12 @@ Volt::CLI::FTempInputGuard::~FTempInputGuard ()
     }
 }
 
-Volt::CLI::FTempInputGuard::FTempInputGuard ( FTempInputGuard &&Other ) noexcept
-    : Path( std::move( Other.Path ) )
+Volt::CLI::FTempInputGuard::FTempInputGuard ( FTempInputGuard &&Other ) noexcept : Path( std::move( Other.Path ) )
 {
     Other.Path.reset();
 }
 
-Volt::CLI::FTempInputGuard &Volt::CLI::FTempInputGuard::operator= ( FTempInputGuard &&Other ) noexcept
+Volt::CLI::FTempInputGuard &Volt::CLI::FTempInputGuard::operator=( FTempInputGuard &&Other ) noexcept
 {
     if ( this != &Other )
     {
@@ -60,8 +59,8 @@ std::vector<Volt::CLI::FOption> Volt::CLI::GetInputOptions ( FInputFlags &Flags,
 }
 
 std::optional<Volt::CLI::FInputResolution> Volt::CLI::ResolveInput ( const FInputFlags &Flags,
-                                                                       const CommandParser::FParsedArgs &ParsedArgs,
-                                                                       const FInputResolveOptions &Options )
+                                                                     const CommandParser::FParsedArgs &ParsedArgs,
+                                                                     const FInputResolveOptions &Options )
 {
     const std::string_view LogTag = Options.CommandName;
 

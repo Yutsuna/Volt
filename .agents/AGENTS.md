@@ -16,13 +16,13 @@ This project maintains a Graphify knowledge graph located at `graphify-out/`.
 ### Mandatory Rules:
 - Before answering architecture or codebase questions, read `graphify-out/GRAPH_REPORT.md` for god nodes and community structure.
 - If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
-- After modifying code files in a session, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- After modifying code files in a session, run `python3 scripts/graphify/update_graphify.py` to keep the graph current (AST-only, no API cost).
 - When applicable, prefer using `clion-index MCP tools` for `code navigation` and `refactoring`.
 
 ## Two Reflexes on Every Change
 
 1. **Build & Format, through the IDE.** Build and test through the IDE (CLion) — never "run" a module configuration: a module (`Core`, `Frontend`, `Sema`, `Driver`, `BackendLLVM`, …) is a library target (`.so`/`.a`), not an executable. Run an executable or test configuration instead (e.g. `meson test`), which builds every dependency first. The build is `-Werror`; warnings are treated as failures. Run the `format` configuration (Allman style, `SpacesInParens`, column 170) once, at the **end of a phase** — not mid-phase, since it reformats every touched file in one pass and re-running it early wastes time. Run the `tidy` configuration only at the **end of an epic** (once every phase is complete): it is expensive and, under C++26, occasionally flags things that are not actually a problem — prefer the IDE's own diagnostics while iterating. See [`rules/cpp-style.md`](rules/cpp-style.md).
-2. **Keep the Map Current.** After a significant architecture change, run `graphify update .` (AST-only, no API cost) so `graphify-out/` reflects the modified code. See [`rules/graphify.md`](rules/graphify.md).
+2. **Keep the Map Current.** After a significant architecture change, run `python3 scripts/graphify/update_graphify.py` (AST-only, no API cost) so `graphify-out/` reflects the modified code. See [`rules/graphify.md`](rules/graphify.md).
 
 ## The Meta-First Bet
 
@@ -38,4 +38,5 @@ Volt's foundational principle is that **adding a feature should take ~10 lines, 
 - **Unreal C++ Style, C++26, `Public/Private`, `-Werror`.** See [`rules/cpp-style.md`](rules/cpp-style.md).
 - **The `volt` CLI Surface Contract.** Subcommands (`run`, `repl`, `parse`, `check`, `version`, `help`, `circuit`, `build`, `format`) and their options are specified once in [`rules/cli-surface.md`](rules/cli-surface.md); `Main.cpp` remains a thin command table routing to `Driver`.
 - **Export Symbols Across `.so` Boundaries.** Modules compile with `-fvisibility=hidden`. Anything invoked by a *different* shared module requires the generated `<MODULE>_EXPORT` macro; otherwise `VOLT_BUILD_SHARED=ON` link builds will fail with mold `undefined symbol` errors. See [`rules/shared-lib-exports.md`](rules/shared-lib-exports.md).
-- **Dual-Mode Build Performance Strategy.** Non-unity builds by default for instant 1s incremental local edits; `unity` flag enabled for clean CI/Release builds. See [`rules/build-performance.md`](rules/build-performance.md).
+- **RAII & Ownership Model.** Universal `finalize` (`= default` rule), compile-time `trivially_destructible? T` trait, proven ownership (`EOwnership`), seam after lowering, zero hardcoding of Volt type/method names in lifetime sweeps, single `CleanupRegion` boundary per region, and drop-on-reassign sequencing. See [`rules/raii-ownership.md`](rules/raii-ownership.md).
+- **Build Commands & Concurrency Strategy.** `ninja -C build` for Debug (g3), `ninja -C build-asan` for ASAN+Debug. **NE JAMAIS LANCER PLUSIEURS BUILDS EN MÊME TEMPS (JAMAIS).** See [`rules/build-performance.md`](rules/build-performance.md).

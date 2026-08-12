@@ -137,9 +137,9 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseDeclaration ()
     }
 }
 
-Volt::Frontend::SymbolList Volt::Frontend::Parser::ParseGenericParams ()
+Volt::Frontend::GenericParamList Volt::Frontend::Parser::ParseGenericParams ()
 {
-    SymbolList Generics;
+    GenericParamList Params;
     // `class Vector<T> < Base`: the first `<` is glued to the class name
     // and opens the parameter list, the second is spaced and introduces
     // the superclass. AtGenericOpen is what keeps the two apart.
@@ -148,11 +148,20 @@ Volt::Frontend::SymbolList Volt::Frontend::Parser::ParseGenericParams ()
         Advance(); // '<'
         do
         {
-            Generics.PushBack( InternText( Expect( TokenKind::Constant, "as a generic parameter" ) ) );
+            Params.Names.PushBack( InternText( Expect( TokenKind::Constant, "as a generic parameter" ) ) );
+            // `T : Bound` — a single bound, checked at each concrete
+            // instantiation (Sema::CheckGenericBounds). Invalid TypeId when
+            // omitted; a plain `T` is unbounded exactly as before.
+            TypeId Bound;
+            if ( Accept( TokenKind::Colon ) )
+            {
+                Bound = ParseType();
+            }
+            Params.Bounds.PushBack( Bound );
         } while ( Accept( TokenKind::Comma ) );
         ExpectGenericClose( "to close generic parameters" );
     }
-    return Generics;
+    return Params;
 }
 
 void Volt::Frontend::Parser::ParseDeclBlock ( DeclList &Out )
@@ -211,8 +220,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseClass ()
     Expect( TokenKind::KwClass, "to begin a class" );
 
     Class Node;
-    Node.Name     = InternText( Expect( TokenKind::Constant, "as a class name" ) );
-    Node.Generics = ParseGenericParams();
+    Node.Name                       = InternText( Expect( TokenKind::Constant, "as a class name" ) );
+    const GenericParamList Generics = ParseGenericParams();
+    Node.Generics                   = Generics.Names;
+    Node.GenericBounds              = Generics.Bounds;
     if ( Accept( TokenKind::Lt ) )
     {
         Node.Super = ParseType();
@@ -230,8 +241,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseStruct ()
     Expect( TokenKind::KwStruct, "to begin a struct" );
 
     Struct Node;
-    Node.Name     = InternText( Expect( TokenKind::Constant, "as a struct name" ) );
-    Node.Generics = ParseGenericParams();
+    Node.Name                       = InternText( Expect( TokenKind::Constant, "as a struct name" ) );
+    const GenericParamList Generics = ParseGenericParams();
+    Node.Generics                   = Generics.Names;
+    Node.GenericBounds              = Generics.Bounds;
     SkipTerminators();
     ParseDeclBlock( Node.Body );
     Expect( TokenKind::KwEnd, "to close struct" );
@@ -246,7 +259,7 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseEnum ()
 
     Enum Node;
     Node.Name     = InternText( Expect( TokenKind::Constant, "as an enum name" ) );
-    Node.Generics = ParseGenericParams();
+    Node.Generics = ParseGenericParams().Names; // enum generic bounds: not yet plumbed, see AST Decl.hpp
     if ( Accept( TokenKind::Colon ) )
     {
         Node.Underlying = ParseType();
@@ -318,8 +331,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMixin ()
     Expect( TokenKind::KwMixin, "to begin a mixin" );
 
     Mixin Node;
-    Node.Name     = InternText( Expect( TokenKind::Constant, "as a mixin name" ) );
-    Node.Generics = ParseGenericParams();
+    Node.Name                       = InternText( Expect( TokenKind::Constant, "as a mixin name" ) );
+    const GenericParamList Generics = ParseGenericParams();
+    Node.Generics                   = Generics.Names;
+    Node.GenericBounds              = Generics.Bounds;
     SkipTerminators();
     ParseDeclBlock( Node.Body );
     Expect( TokenKind::KwEnd, "to close mixin" );
@@ -414,7 +429,7 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, boo
     // After the name, so an operator method is safe: `def <( other )` has
     // already consumed its `<` as the name by the time we look for one
     // opening a parameter list.
-    Node.Generics = ParseGenericParams();
+    Node.Generics = ParseGenericParams().Names; // method generic bounds: not yet plumbed, see AST Decl.hpp
 
     if ( Accept( TokenKind::LParen ) )
     {

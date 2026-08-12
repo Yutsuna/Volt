@@ -4,6 +4,7 @@
 #include "TypeChecker/ClosureLifting.hpp"
 #include "TypeChecker/DeclStmtWalker.hpp"
 #include "TypeChecker/EnumCaseLowering.hpp"
+#include "TypeChecker/FinalizeLowering.hpp"
 #include "TypeChecker/LiteralInferencer.hpp"
 #include "TypeChecker/LiteralLowering.hpp"
 #include "TypeChecker/TypeCheckerContext.hpp"
@@ -82,6 +83,13 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     // rewrite lands, so this must run after the literal lowerings above but
     // still under the same "final type only" discipline.
     TypeCheckerPass::LowerClosureLits( State );
+
+    // Sixth post-walk sweep, same "final type only" discipline: a scope-local
+    // whose type declares `finalize` gets an automatic call synthesized at
+    // its method's fall-through exit (Phase 1 — see FinalizeLowering.hpp).
+    // Must run before the snapshot loop below so its synthesized Calls'
+    // CalleeResolution entries are captured into Context.Callees too.
+    TypeCheckerPass::InsertFinalizeCalls( State );
 
     // Snapshot the settled resolutions into the unit before the pass-local
     // state dies — inference refines entries in place, so only the final map

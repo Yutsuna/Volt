@@ -372,3 +372,41 @@ llvm::Value *Volt::Backend::Llvm::EmitSizeOf ( BodyEmitter &Emitter, Frontend::E
     }
     return llvm::ConstantInt::get( Width, ( *Emitter.Services().Layouts )->Of( Shape ).Size );
 }
+
+llvm::Value *Volt::Backend::Llvm::EmitTypeTrait ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::TypeTrait &Node )
+{
+    FunctionFrame &Frame = Emitter.Frame();
+
+    // Exactly `sizeof`'s shape one line up: the operand is a *spelling*,
+    // TypeChecker published the type it resolves to on this node's own site,
+    // and all that is left is to read a settled fact off the type record and
+    // materialise it. Nothing is decided here — deciding what
+    // `trivially_destructible?` means is the seam's job
+    // (`SynthesizeFinalizeStubs`), read back through one accessor.
+    const Sema::SemaTypeId Operand = Frame.Values->SiteType( Sema::BindingSite{ Id } );
+
+    llvm::Type *Shape = Emitter.TypeOfExpr( Id );
+    if ( Shape == nullptr or not Shape->isIntegerTy() )
+    {
+        static_cast<void>(
+            Emitter.Fail( "llvm: type predicate at expression " + std::to_string( Id.Value ) + " has no integer layout" ) );
+        return nullptr;
+    }
+
+    const Sema::TypeStore &Store = *Emitter.Services().Build->Types;
+
+    bool Answer = false;
+    switch ( Node.Trait )
+    {
+    case Frontend::TokenKind::KwTriviallyDestructible:
+        Answer = Operand.IsValid() and Frame.Values->Has( Operand ) and
+                 Store.IsTriviallyDestructible( Frame.Values->Get( Operand ).Base );
+        break;
+    default:
+        static_cast<void>( Emitter.Fail( "llvm: type predicate at expression " + std::to_string( Id.Value ) +
+                                         " names a trait this target does not answer" ) );
+        return nullptr;
+    }
+
+    return llvm::ConstantInt::get( Shape, static_cast<std::uint64_t>( Answer ) );
+}

@@ -13,14 +13,30 @@ struct String
   include Comparable
   include Hashable
 
-  getter data : Pointer<UInt8>
-  getter size : UInt64
+  getter data  : Pointer<UInt8>
+  getter size  : UInt64
+  owns_buffer  : Bool
 
-  def initialize( @data : Pointer<UInt8>, @size : UInt64 )
+  def initialize( @data : Pointer<UInt8>, @size : UInt64, @owns_buffer : Bool = false )
+  end
+
+  def self.owned( data : Pointer<UInt8>, size : UInt64 ) -> String
+    String.new( data, size, true )
+  end
+
+  def finalize -> Void
+    @data.free if @owns_buffer
   end
 
   def self.from_c_string( ptr : Pointer<UInt8> ) -> String
     String.new( ptr, libc_strlen( ptr ) )
+  end
+
+  def dup -> String
+    buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+    libc_memcpy( buf, @data, @size )
+    *( buf + @size ) = 0_u8
+    String.owned( buf, @size )
   end
 
   def empty? -> Bool
@@ -55,7 +71,7 @@ struct String
     libc_memcpy( buf, @data, @size )
     libc_memcpy( buf + @size, other.data, other.size )
     *( buf + total ) = 0_u8
-    String.new( buf, total )
+    String.owned( buf, total )
   end
 
   def hash -> UInt64
@@ -91,7 +107,7 @@ struct String
     buf = Pointer<UInt8>.malloc( len + 1_u64 )
     libc_memcpy( buf, @data + start, len )
     *( buf + len ) = 0_u8
-    String.new( buf, len )
+    String.owned( buf, len )
   end
 
   def downcase -> String
@@ -107,7 +123,7 @@ struct String
       i += 1
     end
     *( buf + @size ) = 0_u8
-    String.new( buf, @size )
+    String.owned( buf, @size )
   end
 
   def upcase -> String
@@ -123,7 +139,7 @@ struct String
       i += 1
     end
     *( buf + @size ) = 0_u8
-    String.new( buf, @size )
+    String.owned( buf, @size )
   end
 
   def prefix( pre : String ) -> String

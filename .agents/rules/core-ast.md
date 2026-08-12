@@ -3,10 +3,12 @@
 A backend is written by declarative pattern-matching over a **core AST**. This
 file is that contract: what a backend may be handed, and what it may assume.
 Counting only the nodes this file tracks (it does not yet cover `TypedExpr`/
-`If`, added by unrelated work — see below), `Nodes.inl` declares **24 core,
-13 sugar** (was 25/11; `Lambda` and `Block` both moved to sugar once their
-construction protocol was fully lowered into ordinary AST, and `FuncAddr` was
-added as a new core node in the same effort — see "Closures are gone" below).
+`If`, added by unrelated work — see below), `Nodes.inl` declares **25 core,
+13 sugar** (was 24/13, and 25/11 before that; `Lambda` and `Block` both moved
+to sugar once their construction protocol was fully lowered into ordinary AST,
+and `FuncAddr` was added as a new core node in the same effort — see "Closures
+are gone" below. `TypeTrait`, the compile-time type predicate `SizeOf`'s
+arrival is modelled on, is the most recent core addition).
 
 Two invariants make the contract mechanical rather than aspirational, and
 `AstInvariant` (order 40) checks both on every build:
@@ -46,7 +48,68 @@ pre-`TypeChecker` seam would race across units' parallel `TypeChecker` runs
 top-level declaration), and an unannotated closure parameter
 (`arr.each do |i| … end`) has no type before `TypeChecker` assigns one either.
 
-## The 24 core nodes
+A sixth post-walk sweep, `InsertFinalizeCalls`
+(`Sema/.../TypeChecker/FinalizeLowering.cpp`), runs last, right after
+`ClosureLifting` and before `TypeChecker`'s own `Context.Callees` snapshot
+loop. It does not lower a sugar node — every node it touches is already core
+— so it introduces no new `VOLT_EXPR_SUGAR` entry; it is here because it
+needs the same "final type only" guarantee the other five sweeps do. A
+scope-local whose resolved type has `LayoutKind::Aggregate` and declares a
+member named `finalize` gets a synthesized `Call` to it inserted at every
+exit from the `StmtList` it is declared directly in — the method or closure
+body itself, or any nested `If`/`While`/`CaseExpr`-clause/`BeginExpr` body,
+processed recursively, innermost first. Two exit shapes, both expressible
+with ordinary nodes a backend already knows:
+
+- **Fall-through, an unhandled `raise`, or a non-local `break`** — the
+  `StmtList` is wrapped in a synthetic `BeginExpr{ Body, EnsureBody }`;
+  `EmitBegin` already threads all three through `EnsureBody` with no new
+  backend node.
+- **`return`, and a loop-owned `break`/`next`** — all three bypass `Ensure`
+  entirely (`EmitReturn`/`EmitBreak`/`EmitNext` in `StmtReturnBreakNext.cpp`
+  branch directly, no ensure-stack lookup), so the finalize `Call`s are
+  spliced directly before the exit statement instead, covering not just that
+  `StmtList`'s own candidates but every enclosing scope's candidates the exit
+  is also unwinding past (an "ambient" candidate list threaded down through
+  the recursion — reset at each `While::Body` boundary for `break`/`next`,
+  which only unwind to their own innermost loop, but carried unbounded for
+  `return`, which unwinds the whole call).
+
+A local whose exit hands it back by bare `Identifier` name is exempted at
+that exit site only (ownership moves to the caller's scope).
+
+An exit hiding inside an *expression-position* control construct
+(`x = if c then return 1 else 2 end`, reachable only because `If`/`CaseExpr`/
+`BeginExpr` are core *expression* nodes, not just statement-position sugar)
+used to make the sweep leave the whole method untouched, rather than risk
+emitting a partial set of finalize calls. It no longer does. The bail-out is
+gone: the sweep finds a nested block through `CollectNestedBlockExprs`, which
+follows a node's *expression* fields reflectively and reports every
+`If`/`CaseExpr`/`BeginExpr` it reaches at any depth, so discovery is by where
+the block sits rather than by which statement encloses it. Insertion was
+already correct for these — `If::Then`/`Else` are ordinary `StmtList`s — so
+only discovery had been missing. `samples/Tests/RAII/ExpressionPositionReturn.vl`
+and `ExpressionPositionBreakNext.vl` are the fixtures.
+
+The sweep no longer stops at a scope-local. Two more sweeps sit beside it in
+the same orchestrator, both rewriting an **expression slot** rather than a
+`StmtList`, so they compose with the above by construction:
+
+- `RunTemporaries` gives a statement's unnamed values full-expression
+  lifetime — and runs again inside `Sema::ReinstantiateBody`, per
+  instantiation, because a generic body defers every type and so is
+  unclassifiable where it is declared.
+- `RunDropOnReassign` releases what a local held when it is written a second
+  time (`result = n.digit_char + result`), which no exit path ever names.
+
+Whether a value is *owned* at all is decided by `Lifetime/ExprOwnership.hpp`
+from the resolution, never from the node kind, and the facts it reads are
+derived at a serial seam that sits **between** the lowering passes and
+`TypeChecker` (`Sema::LoweredSeamOrder()`) — so the analysis reads the core
+AST rather than guessing at what sugar will become. See [`rules/raii-ownership.md`](raii-ownership.md)
+for the full model and ownership contract.
+
+## The 25 core nodes
 
 | Category | Nodes | What a backend does with it |
 |---|---|---|
@@ -55,7 +118,18 @@ top-level declaration), and an unannotated closure parameter
 | Operations (3) | `Call` `Assign` `Ternary` | call through `CalleeResolution`, store, select/branch |
 | Operators (2) | `Binary` `Unary` | see below |
 | Control (3) | `CaseExpr` `BeginExpr` `RaiseExpr` | test chain / jump table; EH |
-| Inert (3) | `GenericInst` `SizeOf` `FuncAddr` | carry no runtime value beyond an address: read `Values.Get( Id )` (resp. the layout size, resp. the resolved callable's address) and **never descend into them** |
+| Inert (4) | `GenericInst` `SizeOf` `FuncAddr` `TypeTrait` | carry no runtime value beyond an address: read `Values.Get( Id )` (resp. the layout size, resp. the resolved callable's address, resp. one settled bit of the type record) and **never descend into them** |
+
+`TypeTrait` is `SizeOf`'s sibling: `trivially_destructible? T` names a type
+rather than a value, TypeChecker publishes the *resolved* operand type on the
+node's own site, and the backend materialises a constant from it — for
+`SizeOf` a width from `LayoutEngine`, for `TypeTrait` an `i1` from
+`TypeStore::IsTriviallyDestructible`. Inside a generic body both are deferred
+and settled once per instantiation by `Sema::ReinstantiateBody`. The predicate
+exists so a container can release its elements in ordinary Volt without paying
+for a `T` that has nothing to release — the compiler used to synthesize that
+loop itself, which meant knowing what a sequence is
+([`rules/raii-ownership.md`](raii-ownership.md)).
 
 `Lambda`/`Block` are gone from this table — see "Closures are gone" below.
 `FuncAddr` is new here: it denotes a resolved callable's address as a value,

@@ -92,6 +92,25 @@ namespace Sema
         // through the positional argument list, so callers matching Params
         // against Args must skip it.
         Core::SmallVec<bool, 4> ParamIsBlock;
+        // Parallel to Params: does this method keep the argument handed to
+        // that slot past the call — store it in a field, hand it to a
+        // constructor, return it — rather than merely reading it?
+        //
+        // Derived by `Raii::InferParameterEscape`, never annotated, at the
+        // same serial Driver seam and for the same reason `bReturnsOwned` is
+        // (see its own comment below). It answers the one question a caller's
+        // full-expression region cannot answer for itself: whether releasing
+        // an owned temporary after the call frees a buffer the callee is
+        // still pointing at. `arr.push( "x".dup )` is exactly that shape, and
+        // without this bit it is a double free rather than a leak.
+        //
+        // `true` is the safe default and the fixpoint's initial value: an
+        // unanalysable callee (external, abstract, a cache-hit slot with no
+        // AST) leaves its arguments unreleased, which is a counted leak. A
+        // wrong `false` would be corruption, so nothing sets one without a
+        // proof. Empty means "not yet sized" and reads as `true` everywhere —
+        // see `Raii::ParameterEscapes`, the single reader.
+        Core::SmallVec<bool, 4> ParamEscapes;
         // How many of the parameter space's slots belong to the method
         // rather than to the declaring type. A signature resolves against
         // the two concatenated — type generics first, method generics after
@@ -126,6 +145,29 @@ namespace Sema
         // into the *declaring* unit's AST, which a cross-unit `Member` may
         // not share with the unit doing the construction.
         std::int64_t EnumOrdinal = 0;
+        // Does calling this member hand the caller a value the caller now
+        // *owns* — a fresh aggregate nobody else will finalize — rather than
+        // a view onto something the receiver still holds?
+        //
+        // Derived, never annotated: `Raii::InferReturnOwnership` computes it
+        // by a monotone fixpoint over every declared body at the serial
+        // Driver seam, and records it here for exactly the reason
+        // `bConstructs`/`bIndirect` are recorded on a resolution — the
+        // decision is taken once, where the information is, and every later
+        // consumer reads rather than re-derives it
+        // (rules/zero-hardcode.md's "record it on the resolution"). A fourth
+        // annotation was never an option; the closed list stays closed.
+        //
+        // It lives on `Member` rather than on `CalleeEntry` because it is a
+        // property of the *callee's declaration*, not of any one call site,
+        // and because `Member` is the only RAII-relevant record that crosses
+        // a unit boundary: `String#+` is resolved inside whichever unit calls
+        // it, whose `TypeChecker` never sees the stdlib's AST.
+        //
+        // `false` is the safe default and the fixpoint's initial value, so an
+        // unprovable case (a recursive cycle, an unresolvable callee) leaves
+        // the result `Borrowed` — a measured leak, never a double free.
+        bool bReturnsOwned = false;
     };
 
     // One type as the compiler knows it: a name, where it was declared, and
@@ -148,6 +190,12 @@ namespace Sema
         // Generic parameter names in declaration order; a SigType's
         // ParamIndex indexes into this.
         Core::SmallVec<Symbol, 2> Params;
+        // Parallel to Params: `T : Bound` kept as written, in this type's own
+        // parameter space (the same shape Super/Includes already use for a
+        // parent link) — invalid when the parameter is unbounded. Resolved in
+        // Phase B (a bound's own name may live in another unit), read by
+        // Sema::CheckGenericBounds at every concrete instantiation.
+        Core::SmallVec<SigTypeId, 2> ParamBounds;
         // The declared interface: fields and methods of the body itself.
         std::vector<Member> Members;
         // `class X < Y<T>` / `include Enumerable<T>`, kept *as written*, in
@@ -157,6 +205,25 @@ namespace Sema
         // turns one of these into the concrete parent.
         SigTypeId Super;
         Core::SmallVec<SigTypeId, 2> Includes;
+
+        // Does destroying a value of this type do nothing at all?
+        //
+        // `finalize` is universal: every declared type has one, synthesized
+        // empty when the source does not write it, exactly as C++ gives every
+        // class a defaulted destructor. That makes `x.finalize` resolvable on
+        // *anything*, which is what lets a container release its elements in
+        // ordinary Volt (`Array<T>` loops and calls it) instead of having the
+        // middle-end synthesize a `.size`/`[]` loop it could only build by
+        // knowing what a sequence is.
+        //
+        // Universality costs nothing only because of this bit, the exact
+        // counterpart of `std::is_trivially_destructible`: a defaulted
+        // `finalize` with no field to cascade and no ancestor that writes one
+        // does nothing, so no region has to inject a call to it. Set by
+        // `SynthesizeFinalizeStubs` at the serial seam, read by
+        // `Raii::IsFinalizeCandidateNominal` — which is now the *only*
+        // question the RAII sweeps ask about a type.
+        bool bTrivialFinalize = true;
 
         // Per generic parameter, the AST field names feeding it when a node
         // kind is lowered to this type. Empty = the default convention (the
@@ -224,6 +291,11 @@ namespace Sema
             Types.Get( Id ).Params = std::move( Names );
         }
 
+        void SetParamBounds ( NominalId Id, Core::SmallVec<SigTypeId, 2> Bounds )
+        {
+            Types.Get( Id ).ParamBounds = std::move( Bounds );
+        }
+
         void SetLiteralSlots ( NominalId Id, std::vector<Core::SmallVec<Symbol, 2>> Slots )
         {
             Types.Get( Id ).LiteralSlots = std::move( Slots );
@@ -261,6 +333,47 @@ namespace Sema
         // signature phase can fill in what the declaration phase could not yet
         // resolve. A DeclId is unique within its unit, so matching both Unit and
         // Decl is exact even across units.
+        // Every member `Id` declares, mutable — the seam-time counterpart of
+        // `Type( Id ).Members`. Same contract as `MemberByDecl` just below:
+        // the store is only writable *before* it freezes for the parallel
+        // sema phase, and both exist so a serial seam pass can fill in a fact
+        // the declaration phase could not yet know (`Raii::
+        // InferReturnOwnership`'s fixpoint is the second such pass).
+        [[nodiscard]] std::span<Member> MutableMembers ( NominalId Id )
+        {
+            return Types.Get( Id ).Members;
+        }
+
+        // The whole record, mutable, under the identical contract: a serial
+        // seam pass settling a fact the declaration phase could not know.
+        // `SynthesizeFinalizeStubs` uses it for `bTrivialFinalize`.
+        [[nodiscard]] NominalType &MutableType ( NominalId Id )
+        {
+            return Types.Get( Id );
+        }
+
+        // Does destroying a value of `Id` do nothing at all — the answer
+        // `trivially_destructible? T` materialises. See
+        // `NominalType::bTrivialFinalize`.
+        //
+        // An unresolved nominal answers *no*: a caller that cannot see the
+        // type must run the destructor rather than skip it, which costs time
+        // and never correctness. That is the same direction every other
+        // unprovable case in the ownership model takes.
+        [[nodiscard]] bool IsTriviallyDestructible ( NominalId Id ) const
+        {
+            return Id.IsValid() and Types.Get( Id ).bTrivialFinalize;
+        }
+
+        // The same, for the free functions a `module` (or a bare top-level
+        // `def`) binds — they are members too, and a fixpoint over call
+        // targets must reach them or `MathUtils.build_name( … )` resolves to
+        // nothing at all.
+        [[nodiscard]] std::span<Member> MutableFreeFunctions ()
+        {
+            return Functions;
+        }
+
         [[nodiscard]] Member *MemberByDecl ( NominalId Id, std::uint32_t Unit, Frontend::DeclId Decl )
         {
             for ( Member &Entry : Types.Get( Id ).Members )

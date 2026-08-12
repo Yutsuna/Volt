@@ -1,7 +1,7 @@
 struct HashEntry<K, V>
-  getter key : K
+  getter key   : K
   getter value : V
-  getter used : Bool
+  getter used  : Bool
 
   def initialize( @key : K, @value : V, @used : Bool = true )
   end
@@ -11,11 +11,22 @@ end
 @[Literal( HashLit )]
 struct Hash<K, V>
   getter entries : Array<HashEntry<K, V>>
-  getter size : UInt64
+  getter size    : UInt64
 
-  def initialize
-    @size = 0
-    @entries = Array<HashEntry<K, V>>.new( 16 )
+  buckets : Array<UInt64>
+  nexts   : Array<UInt64>
+
+  def initialize( bucket_count : UInt64 = 16 )
+    @size    = 0
+    @entries = Array<HashEntry<K, V>>.new( bucket_count )
+    @nexts   = Array<UInt64>.new( bucket_count )
+    @buckets = Array<UInt64>.new( bucket_count )
+
+    i = 0_u64
+    while i < bucket_count
+      @buckets.push( empty_slot )
+      i += 1
+    end
   end
 
   def empty? -> Bool
@@ -23,40 +34,86 @@ struct Hash<K, V>
   end
 
   def []=( key : K, value : V ) -> Void
-    _ = key.hash % @entries.capacity
+    grow if needs_resize?
+
+    slot = find_slot( key )
+    if slot != empty_slot
+      entry = @entries[ slot ]
+      @size += 1 unless entry.used
+      @entries[ slot ] = HashEntry<K, V>.new( key, value, true )
+      return
+    end
+
+    idx = key.hash % @buckets.size
+    new_index = @entries.size
     @entries.push( HashEntry<K, V>.new( key, value, true ) )
+    @nexts.push( @buckets[ idx ] )
+    @buckets[ idx ] = new_index
     @size += 1
   end
 
   def []( key : K ) -> V
-    i = 0_u64
-    while i < @entries.size
-      entry = @entries[ i ]
-      if entry.used and entry.key == key
-        return entry.value
-      end
-      i += 1
-    end
+    slot = find_slot( key )
+    raise KeyError.new( "Key not found" ) if slot == empty_slot
+    @entries[ slot ].value
   end
 
   def contains?( key : K ) -> Bool
-    i = 0_u64
-    while i < @entries.size
-      entry = @entries[ i ]
-      if entry.used and entry.key == key
-        return true
-      end
-      i += 1
-    end
-    false
+    find_slot( key ) != empty_slot
+  end
+
+  def delete( key : K ) -> Void
+    slot = find_slot( key )
+    return if slot == empty_slot
+    entry = @entries[ slot ]
+    @entries[ slot ] = HashEntry<K, V>.new( entry.key, entry.value, false )
+    @size -= 1
   end
 
   def each( &block : ( K, V ) -> Void ) -> Void
     i = 0_u64
     while i < @entries.size
       entry = @entries[ i ]
+      block.call( entry.key, entry.value ) if entry.used
+      i += 1
+    end
+  end
+
+  def empty_slot -> UInt64
+    18446744073709551615_u64
+  end
+
+  def find_slot( key : K ) -> UInt64
+    idx = key.hash % @buckets.size
+    chain = @buckets[ idx ]
+    while chain != empty_slot
+      entry = @entries[ chain ]
+      return chain if entry.used and entry.key == key
+      chain = @nexts[ chain ]
+    end
+    empty_slot
+  end
+
+  def needs_resize? -> Bool
+    ( @size + 1 ) * 4 > @buckets.size * 3
+  end
+
+  def grow -> Void
+    new_bucket_count = @buckets.size * 2
+    @buckets = Array<UInt64>.new( new_bucket_count )
+    i = 0_u64
+    while i < new_bucket_count
+      @buckets.push( empty_slot )
+      i += 1
+    end
+
+    i = 0_u64
+    while i < @entries.size
+      entry = @entries[ i ]
       if entry.used
-        block.call( entry.key, entry.value )
+        idx = entry.key.hash % new_bucket_count
+        @nexts[ i ] = @buckets[ idx ]
+        @buckets[ idx ] = i
       end
       i += 1
     end

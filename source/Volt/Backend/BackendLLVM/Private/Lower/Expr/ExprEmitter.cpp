@@ -85,6 +85,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitExpr ( Frontend::ExprId Id )
             // value position — the Call wrapping it is what emits anything.
             [] ( const Frontend::GenericInst & ) -> llvm::Value * { return nullptr; },
             [this, Id] ( const Frontend::SizeOf & ) -> llvm::Value * { return EmitSizeOf( *this, Id ); },
+            [this, Id] ( const Frontend::TypeTrait &Node ) -> llvm::Value * { return EmitTypeTrait( *this, Id, Node ); },
             [this] ( const Frontend::FuncAddr &Node ) -> llvm::Value * { return EmitFuncAddr( *this, Node ); },
 
             // `( Value : Type )` — TypeChecker already constrained `Value` to

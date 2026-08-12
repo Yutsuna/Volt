@@ -1,0 +1,115 @@
+Program 'samples/Tests/RAII/FieldArrayElementCascade.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Binary '+' @3:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @3:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @3:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @3:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/RAII/FieldArrayElementCascade.vl' @3:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @3:11
+│                                └─ rhs
+│                                   └─ Call @3:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @3:11
+│                                            └─ object
+│                                               └─ IntLiteral '3' @3:43
+├─ Struct 'Bag' @9:1
+│  └─ body
+│     ├─ Field 'items' getter @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Array' @10:18
+│     │        └─ generics
+│     │           └─ TypeRef 'String' @10:24
+│     └─ Method 'initialize' @12:3
+│        └─ params
+│           └─ Param 'items' instance_var @12:19
+│              └─ decl_type
+│                 └─ TypeRef 'Array' @12:28
+│                    └─ generics
+│                       └─ TypeRef 'String' @12:34
+├─ Method 'use_bag' @16:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @16:16
+│  └─ body
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Assign '=' @17:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'arr' @17:3
+│     │        └─ value
+│     │           └─ Member 'new' @17:22
+│     │              └─ object
+│     │                 └─ GenericInst @17:14
+│     │                    ├─ base
+│     │                    │  └─ Identifier 'Array' @17:9
+│     │                    └─ args
+│     │                       └─ TypeRef 'String' @17:15
+│     ├─ ExprStmt @18:3
+│     │  └─ expr
+│     │     └─ Binary '<<' @18:7
+│     │        ├─ lhs
+│     │        │  └─ Identifier 'arr' @18:3
+│     │        └─ rhs
+│     │           └─ StringLiteral 'hello' @18:10
+│     ├─ ExprStmt @19:3
+│     │  └─ expr
+│     │     └─ Binary '<<' @19:7
+│     │        ├─ lhs
+│     │        │  └─ Identifier 'arr' @19:3
+│     │        └─ rhs
+│     │           └─ StringLiteral 'world' @19:10
+│     ├─ ExprStmt @20:3
+│     │  └─ expr
+│     │     └─ Assign '=' @20:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @20:3
+│     │        └─ value
+│     │           └─ Call @20:14
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @20:10
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Bag' @20:7
+│     │              └─ args
+│     │                 └─ Identifier 'arr' @20:16
+│     └─ ExprStmt @21:3
+│        └─ expr
+│           └─ Member 'size' @21:10
+│              └─ object
+│                 └─ Member 'items' @21:4
+│                    └─ object
+│                       └─ Identifier 'b' @21:3
+└─ ExprStmt @24:1
+   └─ expr
+      └─ Call @24:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @24:1
+         └─ args
+            └─ Binary '==' @24:18
+               ├─ lhs
+               │  └─ Identifier 'use_bag' @24:10
+               └─ rhs
+                  └─ IntLiteral '2_u64' @24:21
+--- exit 0 ---

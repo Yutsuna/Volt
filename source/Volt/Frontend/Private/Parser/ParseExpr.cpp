@@ -348,6 +348,19 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
         return MakeExpr( Node, RangeSince( Begin ) );
     }
 
+    // Every compile-time type predicate parses here, through one arm: same
+    // shape as `sizeof`, and the token *is* which question was asked. A new
+    // predicate is a row in TokenKind.inl plus a label on this case — no new
+    // parselet, no new node.
+    case TokenKind::KwTriviallyDestructible:
+    {
+        TypeTrait Node;
+        Node.Trait = Peek().Kind;
+        Advance();
+        Node.Type = ParseType();
+        return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
     case TokenKind::KwSuper:
     {
         Advance();

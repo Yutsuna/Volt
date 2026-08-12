@@ -50,6 +50,39 @@ namespace Sema
         // member — TypeChecker decides later, with type context in hand.
         std::size_t UnresolvedIdentifiers = 0;
 
+        // RAII (InsertFinalizeCalls, the last sweep inside TypeChecker).
+        //
+        // These exist so that the ownership model is checkable *by the
+        // compiler*, rather than only observable through an external
+        // valgrind run: an accounting identity holds over them, and a leak
+        // shows up as a number here before it shows up as bytes there.
+        //
+        //     RaiiOwnedCreated == RaiiMoves + RaiiFinalizes + RaiiExplicitEscapes
+        //     RaiiOwnedWithoutCleanup == 0
+        //     RaiiUnsupportedExits    == 0
+        //
+        // `RaiiOwnedWithoutCleanup` counts an owned value this pass saw
+        // leave its region with neither a move nor a finalize — the
+        // instrumentation the plan asks for, deliberately *not* a fix.
+        std::size_t RaiiLocals              = 0;
+        std::size_t RaiiTemporaries         = 0;
+        std::size_t RaiiOwnedCreated        = 0;
+        std::size_t RaiiMoves               = 0;
+        std::size_t RaiiFinalizes           = 0;
+        std::size_t RaiiExplicitEscapes     = 0;
+        std::size_t RaiiOwnedWithoutCleanup = 0;
+        std::size_t RaiiCleanupPaths        = 0;
+        // An exit found inside an *expression-position* control construct —
+        // the shape the structural recursion used to refuse wholesale.
+        std::size_t RaiiNestedExpressionExits = 0;
+        // An exit the pass still cannot instrument. The epic's exit
+        // criterion is that this stays 0 on the whole corpus.
+        std::size_t RaiiUnsupportedExits = 0;
+        // A conditional move resolved with a synthesized runtime flag rather
+        // than per-branch on the CFG. The documented fallback: if this ever
+        // moves off 0 on ordinary code, the static analysis has regressed.
+        std::size_t RaiiRuntimeOwnershipFlags = 0;
+
         // Fold another unit's counters in, field by field, straight off the
         // reflected shape of this struct. The Driver used to name two of them
         // by hand, so every counter added since was collected per file and
@@ -143,6 +176,22 @@ namespace Sema
 
     // Same, restricted to the passes of one Kind (manifest order preserved).
     SEMA_EXPORT std::size_t RunPasses ( PassContext &Context, EPassKind Only );
+
+    // Same, restricted to the half-open Order window `[Begin, End)`. Splitting
+    // the per-unit run *by Order* rather than by Kind is the point: the
+    // manifest interleaves the two (`ScopeResolver` sits at 10, between two
+    // lowerings), and running all of one Kind before all of the other would
+    // silently reorder passes that depend on each other.
+    SEMA_EXPORT std::size_t RunPasses ( PassContext &Context, int OrderBegin, int OrderEnd );
+
+    // The Order at which the per-unit sema run can be cut in two so a serial,
+    // whole-program analysis may read a **lowered** AST before anything types
+    // it — the Driver's ownership seam (`Raii::InferReturnOwnership`).
+    //
+    // Derived from the manifest, never written down twice: it is one past the
+    // last `Lowering` pass, so adding a lowering moves the seam with it and
+    // nothing in the Driver ever names a pass.
+    [[nodiscard]] SEMA_EXPORT int LoweredSeamOrder ();
 
 } // namespace Sema
 

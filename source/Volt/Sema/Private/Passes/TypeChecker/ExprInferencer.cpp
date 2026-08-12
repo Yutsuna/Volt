@@ -573,7 +573,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                 // on this node's own site: the site map is where a type
                 // attached to an Id that is not a value expression lives, the
                 // same channel a `rescue` clause's filter uses.
-                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                UnitSink Sink{ .Values   = Context.Ctx.Values,
+                               .Self     = Context.SelfValue,
+                               .Bindings = Context.GenericBindings(),
+                               .Diags    = &Context.Ctx.Diags };
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
                                                                                     Context.Generics(), Sink, Expr.Type ) );
                 const auto Base = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
@@ -582,6 +585,35 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     return SemaTypeId{};
                 }
                 Context.UnconstrainedLiterals.insert( Id.Value );
+                return Context.MakeType( *Base, {} );
+            },
+            [&] ( const Frontend::TypeTrait &Expr ) -> SemaTypeId
+            {
+                // Identical shape to `SizeOf` just above, and for the
+                // identical reason: the operand names a type, so nothing is
+                // descended into and the *resolved* type is published on this
+                // node's own site rather than left as a spelling for someone
+                // downstream to re-resolve. Inside a generic body it resolves
+                // to nothing yet — `Sema::ReinstantiateBody` runs this same
+                // arm again once the arguments are concrete, exactly as it
+                // does for `sizeof T` in `Pointer<T>#malloc`.
+                //
+                // The answer is a truth value, so the type is whatever claims
+                // the `BoolLiteral` node kind — a node-kind claim, the
+                // compiler's own vocabulary, never a Volt type name
+                // (rules/zero-hardcode.md). Unlike a byte count it takes no
+                // width from its use site: there is only one.
+                UnitSink Sink{ .Values   = Context.Ctx.Values,
+                               .Self     = Context.SelfValue,
+                               .Bindings = Context.GenericBindings(),
+                               .Diags    = &Context.Ctx.Diags };
+                Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
+                                                                                    Context.Generics(), Sink, Expr.Type ) );
+                const auto Base = Context.Ctx.Types.LookupNodeKind( "BoolLiteral" );
+                if ( not Base )
+                {
+                    return SemaTypeId{};
+                }
                 return Context.MakeType( *Base, {} );
             },
             [&] ( const Frontend::FuncAddr & ) -> SemaTypeId
@@ -752,8 +784,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
                     SemaTypeId ExceptionType{};
                     if ( Clause.ExceptionType.IsValid() )
                     {
-                        UnitSink Sink{
-                            .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                        UnitSink Sink{ .Values   = Context.Ctx.Values,
+                                       .Self     = Context.SelfValue,
+                                       .Bindings = Context.GenericBindings(),
+                                       .Diags    = &Context.Ctx.Diags };
                         ExceptionType =
                             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
                         const NominalId Nominal =
@@ -853,7 +887,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::ComputeExpr ( TypeCheckerCon
             // first call cannot narrow it).
             [&] ( const Frontend::TypedExpr &Expr ) -> SemaTypeId
             {
-                UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+                UnitSink Sink{ .Values   = Context.Ctx.Values,
+                               .Self     = Context.SelfValue,
+                               .Bindings = Context.GenericBindings(),
+                               .Diags    = &Context.Ctx.Diags };
                 const SemaTypeId Written =
                     ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
                 if ( Written.IsValid() )
@@ -1013,7 +1050,10 @@ Volt::Sema::SemaTypeId Volt::Sema::TypeCheckerPass::GenericInstType ( TypeChecke
     Core::SmallVec<SemaTypeId, 2> Args;
     for ( const Frontend::TypeId Arg : Expr.Args )
     {
-        UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Context.SelfValue, .Bindings = Context.GenericBindings() };
+        UnitSink Sink{ .Values   = Context.Ctx.Values,
+                       .Self     = Context.SelfValue,
+                       .Bindings = Context.GenericBindings(),
+                       .Diags    = &Context.Ctx.Diags };
         Args.PushBack( ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Arg ) );
     }
 

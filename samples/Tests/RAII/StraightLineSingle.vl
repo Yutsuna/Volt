@@ -1,0 +1,17 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def use_one_array -> UInt64
+  arr = Array<Int32>.new( 4 )
+  arr.push( 10 )
+  arr.push( 20 )
+  arr.push( 30 )
+  arr.size
+end
+
+assert!( use_one_array == 3 )

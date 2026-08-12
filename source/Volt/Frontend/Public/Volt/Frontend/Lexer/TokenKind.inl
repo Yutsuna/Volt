@@ -124,6 +124,11 @@ VOLT_KEYWORD( KwReturn, "return" )
 VOLT_KEYWORD( KwBreak, "break" )
 VOLT_KEYWORD( KwNext, "next" )
 VOLT_KEYWORD( KwSizeOf, "sizeof" )
+// A compile-time question about a type, in the same family as `sizeof` — it
+// takes a type and yields a constant, and the middle-end answers it before
+// any backend runs. Spelled with the `?` every predicate in this language
+// carries; the lexer consults this table after the suffix for exactly that.
+VOLT_KEYWORD( KwTriviallyDestructible, "trivially_destructible?" )
 VOLT_KEYWORD( KwOf, "of" )
 VOLT_KEYWORD( KwTrue, "true" )
 VOLT_KEYWORD( KwFalse, "false" )

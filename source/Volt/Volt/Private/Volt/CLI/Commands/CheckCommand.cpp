@@ -1,7 +1,7 @@
 #include "Volt/CLI/Commands/CheckCommand.hpp"
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/CommandParser.hpp"
 #include "Volt/CLI/CommandRegistry.hpp"
-#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Driver/Driver.hpp"

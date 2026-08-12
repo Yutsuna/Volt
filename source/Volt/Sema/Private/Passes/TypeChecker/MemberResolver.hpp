@@ -15,6 +15,12 @@ constexpr std::string_view IndexOperator = "[]";
 constexpr std::string_view ConstructorCall = "new";
 constexpr std::string_view ConstructorName = "initialize";
 
+// The RAII-style destructor spelling used to be declared here *and*, verbatim,
+// in TypeBinder.cpp — the two sites sit on opposite sides of a directory
+// boundary and neither could include the other's private header. It now has a
+// single definition, `Sema::Raii::FinalizeName` (Private/Raii/Ownership.hpp),
+// which both include.
+
 [[nodiscard]] Resolution LookupOn ( TypeCheckerContext &Context, SemaTypeId Receiver, std::string_view Name );
 
 // A top-level `def`, looked up by name alone — no receiver, so no `self` to
