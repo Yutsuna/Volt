@@ -10,7 +10,7 @@ SemaTypeId InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id );
 
 SemaTypeId ComputeExpr ( TypeCheckerContext &Context, Frontend::ExprId Id );
 
-SemaTypeId CallType ( TypeCheckerContext &Context, const Frontend::Call &Expr );
+SemaTypeId CallType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Frontend::Call &Expr );
 
 SemaTypeId GenericInstType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Frontend::GenericInst &Expr );
 
