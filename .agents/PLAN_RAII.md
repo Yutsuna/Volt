@@ -284,11 +284,72 @@ réduit à la seule fuite `Hash`.
 
 ---
 
-## Phase 3 — ÉTAT AU MOMENT DE L'ARRÊT (EN COURS, NON TERMINÉE)
+## Phase 3 — TERMINÉE (les 8 régressions sont corrigées)
 
-**Statut : `meson test` = 264 OK / 10 FAIL** (baseline avant Phase 3 : 272 OK /
-2 FAIL). Donc **8 régressions nettes introduites**, à corriger avant d'aller
-plus loin. Ne pas passer en Phase 4 tant que ce n'est pas revenu à 272/2.
+**Statut : `meson test` = 272 OK / 2 FAIL** — exactement la baseline d'avant
+Phase 3 (les 2 restants sont `golden`/`golden-lowered` `Sema/MixinGenerics.vl`,
+préexistants et sans rapport). `scripts/valgrind_check.py` : **0 fuite au sens
+du script, 0 échec de build** (contre 5 fuites + 2 build failures avant), et
+**0 erreur valgrind sur les 57 samples** — plus aucun use-after-free ni double
+free. Restent 7 samples avec des octets `definitely lost` (voir « précision
+restante » plus bas) : des fuites comptées, jamais une corruption.
+
+### Les cinq causes des régressions, et leur correction
+
+Toutes dans `Lifetime/Temporaries.cpp` sauf la première, qui est un problème
+d'ordonnancement dans `FinalizeLowering.cpp`.
+
+1. **`ScopeCleanup` doit tourner AVANT `Temporaries`, pas après.** Une région
+   de temporaires est un `StmtList` comme un autre : un `ScopeCleanup` passant
+   après collectait les locales déclarées *dans* cette région comme si la
+   région était leur portée, et les libérait à la fin de la région au lieu de
+   la fin du corps — `tidy = users.map( f )` finalisait `tidy` avant que le
+   statement suivant ne le lise. L'ordre inverse donne à chaque locale la
+   portée où elle a réellement été écrite ; `Temporaries` ne réécrit ensuite
+   que des slots d'expression, jamais un `StmtList`, donc il ne peut pas
+   déranger le cleanup déjà posé.
+2. **Un `Call::Callee` n'est jamais matérialisé.** Un callee est une
+   *désignation*, pas une valeur possédée — et le backend indexe la résolution
+   sur l'id du `Callee` (`ExprCallEmitter.cpp`), donc détacher ce slot lui
+   retirait sa résolution sous les pieds (« call at expression N carries no
+   callee resolution »). La descente continue quand même, pour qu'un receveur
+   caché dans le callee (`( a + b ).trim`) reste collecté pour son compte.
+3. **`raise e` est un move.** L'exception est confiée au mécanisme d'unwind,
+   qui la porte jusqu'au `rescue` qui l'attrape ; c'est cette frame-là qui la
+   relâche. La finaliser à la fin de la full-expression libérait l'exception
+   en vol sous son propre handler (les 4 samples `Exceptions` + `RaiseUnwind`).
+4. **La valeur d'un `Assign` est un move, à n'importe quelle profondeur** — pas
+   seulement quand l'`Assign` est la racine du statement. Une affectation
+   confie sa valeur à l'emplacement qu'elle écrit : une locale, un champ, ou la
+   mémoire derrière un `Deref` (c'est exactement comme ça que l'env d'une
+   closure est rempli).
+5. **Un temporaire de type *callable* n'est pas matérialisé.** L'env d'une
+   closure capturante contient les locales de la frame englobante
+   (`ClosureLifting` réécrit chaque usage d'une variable capturée, des deux
+   côtés, en un load à travers cet env) : le relâcher à la fin du statement qui
+   a construit la closure libère la mémoire que la portée englobante continue
+   de lire (`arr.each do |i| total = total + i end`). Identifié par le type qui
+   revendique le node-kind `FuncType` (`IsCallableType`), jamais par un nom de
+   type Volt.
+
+### Précision restante (à reprendre en Phase 4/5, pas des bugs)
+
+Deux règles délibérément conservatrices, chacune coûtant une fuite comptée et
+jamais une corruption :
+
+- **Les arguments d'un `Call` dont la résolution ne porte aucune `Decl`** sont
+  traités comme `Moved` : une invocation synthétisée (la forme que prend
+  l'argument lié d'une section abaissée, en route vers un env de closure) ne
+  peut pas être prouvée emprunteuse. C'est ce qui restait derrière
+  `PointFree.vl`.
+- **L'env d'une closure n'a pas encore sa vraie durée de vie** (la portée de ce
+  qu'elle capture, pas la full-expression). D'où les 8 octets perdus par
+  closure capturante dans `Mixins`/`Curry`/`ForLoop`/`BreakNext`.
+
+L'outil `VOLT_RAII_TRACE` a servi à diagnostiquer tout ce qui précède puis a
+été **supprimé** — il ne reste aucun bloc de debug dans `Temporaries.cpp`.
+
+### Historique (état à l'arrêt précédent, conservé pour mémoire)
 
 ### Ce qui est écrit et compile
 
