@@ -53,6 +53,7 @@ namespace Backend
         [[nodiscard]] llvm::Value *
         EmitSymbolLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::SymbolLiteral &Node );
         [[nodiscard]] llvm::Value *EmitSizeOf ( BodyEmitter &Emitter, Frontend::ExprId Id );
+        [[nodiscard]] llvm::Value *EmitTypeTrait ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::TypeTrait &Node );
 
         // --- Access (ExprAccessEmitter.cpp) ------------------------------------
 
