@@ -66,31 +66,15 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @9:29
 │        └─ expr
-│           └─ Call @9:29
-│              ├─ callee
-│              │  └─ Lambda @9:34
-│              │     ├─ params
-│              │     │  └─ Param 'fn_tmp_7' @9:34
-│              │     └─ body
-│              │        └─ Binary '*' @9:34
-│              │           ├─ lhs
-│              │           │  └─ Identifier 'fn_tmp_7' @9:34
-│              │           └─ rhs
-│              │              └─ IntLiteral '2' @9:38
-│              └─ args
-│                 └─ Call @9:29
-│                    ├─ callee
-│                    │  └─ Lambda @9:20
-│                    │     ├─ params
-│                    │     │  └─ Param 'fn_tmp_6' @9:20
-│                    │     └─ body
-│                    │        └─ Binary '+' @9:20
-│                    │           ├─ lhs
-│                    │           │  └─ Identifier 'fn_tmp_6' @9:20
-│                    │           └─ rhs
-│                    │              └─ IntLiteral '10' @9:24
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_0' @9:29
+│           └─ Binary '*' @9:34
+│              ├─ lhs
+│              │  └─ Binary '+' @9:20
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'fn_tmp_0' @9:29
+│              │     └─ rhs
+│              │        └─ IntLiteral '10' @9:24
+│              └─ rhs
+│                 └─ IntLiteral '2' @9:38
 ├─ Method 'clean_pointfree' [T_3] @18:16
 │  ├─ params
 │  │  └─ Param 'fn_tmp_2' @18:16
@@ -101,53 +85,21 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @18:16
 │        └─ expr
-│           └─ Call @18:16
+│           └─ Call @18:20
 │              ├─ callee
-│              │  └─ Lambda @18:20
-│              │     ├─ params
-│              │     │  └─ Param 'fn_tmp_11' @18:20
-│              │     └─ body
-│              │        └─ Call @18:20
-│              │           ├─ callee
-│              │           │  └─ Member 'prefix' @18:20
-│              │           │     └─ object
-│              │           │        └─ Identifier 'fn_tmp_11' @18:20
-│              │           └─ args
-│              │              └─ StringLiteral '[user]: ' @18:29
+│              │  └─ Member 'prefix' @18:20
+│              │     └─ object
+│              │        └─ Call @17:20
+│              │           └─ callee
+│              │              └─ Member 'downcase' @17:20
+│              │                 └─ object
+│              │                    └─ Call @16:20
+│              │                       └─ callee
+│              │                          └─ Member 'trim' @16:20
+│              │                             └─ object
+│              │                                └─ Identifier 'fn_tmp_2' @18:16
 │              └─ args
-│                 └─ Call @18:16
-│                    ├─ callee
-│                    │  └─ Lambda @17:16
-│                    │     ├─ params
-│                    │     │  └─ Param 'fn_tmp_10' @17:16
-│                    │     └─ body
-│                    │        └─ Call @17:16
-│                    │           ├─ callee
-│                    │           │  └─ Lambda @17:20
-│                    │           │     ├─ params
-│                    │           │     │  └─ Param 'fn_tmp_9' @17:20
-│                    │           │     └─ body
-│                    │           │        └─ Call @17:20
-│                    │           │           └─ callee
-│                    │           │              └─ Member 'downcase' @17:20
-│                    │           │                 └─ object
-│                    │           │                    └─ Identifier 'fn_tmp_9' @17:20
-│                    │           └─ args
-│                    │              └─ Call @17:16
-│                    │                 ├─ callee
-│                    │                 │  └─ Lambda @16:20
-│                    │                 │     ├─ params
-│                    │                 │     │  └─ Param 'fn_tmp_8' @16:20
-│                    │                 │     └─ body
-│                    │                 │        └─ Call @16:20
-│                    │                 │           └─ callee
-│                    │                 │              └─ Member 'trim' @16:20
-│                    │                 │                 └─ object
-│                    │                 │                    └─ Identifier 'fn_tmp_8' @16:20
-│                    │                 └─ args
-│                    │                    └─ Identifier 'fn_tmp_10' @17:16
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_2' @18:16
+│                 └─ StringLiteral '[user]: ' @18:29
 ├─ Method 'transform' [T_5] @32:24
 │  ├─ params
 │  │  └─ Param 'fn_tmp_4' @32:24
@@ -158,33 +110,17 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @32:24
 │        └─ expr
-│           └─ Call @32:24
+│           └─ Call @32:29
 │              ├─ callee
-│              │  └─ Lambda @32:29
-│              │     ├─ params
-│              │     │  └─ Param 'fn_tmp_16' @32:29
-│              │     └─ body
-│              │        └─ Call @32:29
-│              │           ├─ callee
-│              │           │  └─ Member 'prefix' @32:29
-│              │           │     └─ object
-│              │           │        └─ Identifier 'fn_tmp_16' @32:29
-│              │           └─ args
-│              │              └─ StringLiteral 'usr_' @32:39
+│              │  └─ Member 'prefix' @32:29
+│              │     └─ object
+│              │        └─ Call @32:15
+│              │           └─ callee
+│              │              └─ Member 'trim' @32:15
+│              │                 └─ object
+│              │                    └─ Identifier 'fn_tmp_4' @32:24
 │              └─ args
-│                 └─ Call @32:24
-│                    ├─ callee
-│                    │  └─ Lambda @32:15
-│                    │     ├─ params
-│                    │     │  └─ Param 'fn_tmp_15' @32:15
-│                    │     └─ body
-│                    │        └─ Call @32:15
-│                    │           └─ callee
-│                    │              └─ Member 'trim' @32:15
-│                    │                 └─ object
-│                    │                    └─ Identifier 'fn_tmp_15' @32:15
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_4' @32:24
+│                 └─ StringLiteral 'usr_' @32:39
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
@@ -331,17 +267,17 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              └─ block_arg
 │                 └─ Lambda @25:35
 │                    ├─ params
-│                    │  └─ Param 'fn_tmp_14' @25:35
+│                    │  └─ Param 'fn_tmp_8' @25:35
 │                    └─ body
 │                       └─ Call @25:35
 │                          ├─ callee
 │                          │  └─ Lambda @25:40
 │                          │     ├─ params
-│                          │     │  └─ Param 'fn_tmp_13' @25:40
+│                          │     │  └─ Param 'fn_tmp_7' @25:40
 │                          │     └─ body
 │                          │        └─ Binary '*' @25:40
 │                          │           ├─ lhs
-│                          │           │  └─ Identifier 'fn_tmp_13' @25:40
+│                          │           │  └─ Identifier 'fn_tmp_7' @25:40
 │                          │           └─ rhs
 │                          │              └─ IntLiteral '2' @25:44
 │                          └─ args
@@ -349,15 +285,15 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │                                ├─ callee
 │                                │  └─ Lambda @25:26
 │                                │     ├─ params
-│                                │     │  └─ Param 'fn_tmp_12' @25:26
+│                                │     │  └─ Param 'fn_tmp_6' @25:26
 │                                │     └─ body
 │                                │        └─ Binary '+' @25:26
 │                                │           ├─ lhs
-│                                │           │  └─ Identifier 'fn_tmp_12' @25:26
+│                                │           │  └─ Identifier 'fn_tmp_6' @25:26
 │                                │           └─ rhs
 │                                │              └─ IntLiteral '10' @25:30
 │                                └─ args
-│                                   └─ Identifier 'fn_tmp_14' @25:35
+│                                   └─ Identifier 'fn_tmp_8' @25:35
 ├─ ExprStmt @27:1
 │  └─ expr
 │     └─ Call @27:8
@@ -438,7 +374,7 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │           └─ block_arg
 │              │              └─ Lambda @35:13
 │              │                 ├─ params
-│              │                 │  └─ Param 'fn_tmp_17' @35:13
+│              │                 │  └─ Param 'fn_tmp_9' @35:13
 │              │                 └─ body
 │              │                    └─ Unary '!' @35:13
 │              │                       └─ operand
@@ -446,17 +382,17 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │                             └─ callee
 │              │                                └─ Member 'empty?' @35:13
 │              │                                   └─ object
-│              │                                      └─ Identifier 'fn_tmp_17' @35:13
+│              │                                      └─ Identifier 'fn_tmp_9' @35:13
 │              └─ block_arg
 │                 └─ Lambda @36:9
 │                    ├─ params
-│                    │  └─ Param 'fn_tmp_18' @36:9
+│                    │  └─ Param 'fn_tmp_10' @36:9
 │                    └─ body
 │                       └─ Call @36:9
 │                          ├─ callee
 │                          │  └─ Identifier 'transform' @36:10
 │                          └─ args
-│                             └─ Identifier 'fn_tmp_18' @36:9
+│                             └─ Identifier 'fn_tmp_10' @36:9
 ├─ ExprStmt @37:1
 │  └─ expr
 │     └─ Call @37:8

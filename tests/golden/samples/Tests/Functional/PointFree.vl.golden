@@ -39,19 +39,15 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @9:29
 │        └─ expr
-│           └─ Call @9:29
-│              ├─ callee
-│              │  └─ Section operator '*' '*' @9:34
-│              │     └─ args
-│              │        └─ IntLiteral '2' @9:38
-│              └─ args
-│                 └─ Call @9:29
-│                    ├─ callee
-│                    │  └─ Section operator '+' '+' @9:20
-│                    │     └─ args
-│                    │        └─ IntLiteral '10' @9:24
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_0' @9:29
+│           └─ Binary '*' @9:34
+│              ├─ lhs
+│              │  └─ Binary '+' @9:20
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'fn_tmp_0' @9:29
+│              │     └─ rhs
+│              │        └─ IntLiteral '10' @9:24
+│              └─ rhs
+│                 └─ IntLiteral '2' @9:38
 ├─ Method 'clean_pointfree' [T_3] @18:16
 │  ├─ params
 │  │  └─ Param 'fn_tmp_2' @18:16
@@ -62,21 +58,21 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @18:16
 │        └─ expr
-│           └─ Call @18:16
+│           └─ Call @18:20
 │              ├─ callee
-│              │  └─ Section instance_method 'prefix' @18:20
-│              │     └─ args
-│              │        └─ StringLiteral '[user]: ' @18:29
+│              │  └─ Member 'prefix' @18:20
+│              │     └─ object
+│              │        └─ Call @17:20
+│              │           └─ callee
+│              │              └─ Member 'downcase' @17:20
+│              │                 └─ object
+│              │                    └─ Call @16:20
+│              │                       └─ callee
+│              │                          └─ Member 'trim' @16:20
+│              │                             └─ object
+│              │                                └─ Identifier 'fn_tmp_2' @18:16
 │              └─ args
-│                 └─ Call @18:16
-│                    ├─ callee
-│                    │  └─ Composition @17:16
-│                    │     ├─ lhs
-│                    │     │  └─ Section instance_method 'trim' @16:20
-│                    │     └─ rhs
-│                    │        └─ Section instance_method 'downcase' @17:20
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_2' @18:16
+│                 └─ StringLiteral '[user]: ' @18:29
 ├─ Method 'transform' [T_5] @32:24
 │  ├─ params
 │  │  └─ Param 'fn_tmp_4' @32:24
@@ -87,17 +83,17 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  └─ body
 │     └─ ExprStmt @32:24
 │        └─ expr
-│           └─ Call @32:24
+│           └─ Call @32:29
 │              ├─ callee
-│              │  └─ Section instance_method 'prefix' @32:29
-│              │     └─ args
-│              │        └─ StringLiteral 'usr_' @32:39
+│              │  └─ Member 'prefix' @32:29
+│              │     └─ object
+│              │        └─ Call @32:15
+│              │           └─ callee
+│              │              └─ Member 'trim' @32:15
+│              │                 └─ object
+│              │                    └─ Identifier 'fn_tmp_4' @32:24
 │              └─ args
-│                 └─ Call @32:24
-│                    ├─ callee
-│                    │  └─ Section instance_method 'trim' @32:15
-│                    └─ args
-│                       └─ Identifier 'fn_tmp_4' @32:24
+│                 └─ StringLiteral 'usr_' @32:39
 ├─ ExprStmt @8:1
 │  └─ expr
 │     └─ Assign '=' @8:14
