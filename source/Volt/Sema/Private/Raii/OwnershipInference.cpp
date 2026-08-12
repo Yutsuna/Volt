@@ -624,7 +624,10 @@ namespace
         // nothing here grants a borrow. Written once with `Meta::ForEachField`
         // so a node added to `Nodes.inl` is covered on the safe side with no
         // edit (rules/meta-first.md).
-        template <typename NodeVariant> void WalkFields ( const NodeVariant &Variant )
+        // NOTE: noinline because to avoid:
+        // c++/16.1.0/variant:524:22: error: potential null pointer dereference
+        // return this->_M_index != __index_type(variant_npos);
+        template <typename NodeVariant> __attribute__ ( ( noinline ) ) void WalkFields ( const NodeVariant &Variant )
         {
             std::visit(
                 [&] ( const auto &Node )
