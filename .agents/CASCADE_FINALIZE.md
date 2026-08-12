@@ -1,140 +1,156 @@
-# RAII follow-up epic: cascading `finalize()`
+# RAII in Volt: the ownership model and what it currently reaches
 
-Four gaps identified after `fix/87-volt-lib-valgrind` closed every Exception/RAII
-sample under valgrind (see that branch's own history for the RescueClause
-top-level scope bug and the `ScopeOf`/`SlotFor` fix). This file tracks design
-and status for each.
+Volt has no GC. The middle-end injects `finalize()` calls at region exits;
+the backend gains no node for any of it (`rules/backend-machine-only.md`).
+This file records the model the RAII epic settled on, and — measured, not
+projected — exactly where it still stops.
 
-## 1. Rvalue / expression-temporary materialization — IN PROGRESS
+It replaces the older four-item gap list. Those four items were phrased as
+independent leaks; three of them turned out to be the same missing concept
+(nobody owned an unnamed value), which is why the rewrite is organised around
+ownership rather than around symptoms.
 
-`a + b + c` produces an anonymous, unnamed intermediate String (the result of
-`a + b`, immediately consumed by the outer `+`). `FinalizeLowering` only ever
-finalizes a *named* local declared directly in a body (`CollectCandidates`
-walks `Scope.Order`/`Bindings`); an expression-tree temporary has no binding
-for it to find, so it leaks. `StringBuilder` sidesteps this in the stdlib
-(`Exception#report_unhandled`/`format_backtrace` now build incrementally
-instead of chaining `+`) but the compiler doesn't solve it generally — any
-user code chaining `+`/other Aggregate-returning operators still leaks.
+## The rule
 
-Design: extend `FinalizeLowering`'s per-`StmtList` walk (or a new sweep
-ahead of it) to materialize every Aggregate-typed, non-tail sub-expression of
-a `Binary`/`Call` chain into a synthesized named temp (`Sema::BindingSite{ExprId}`,
-the same "implicit local" shape `ClosureLifting`'s own `__env` already uses),
-then finalize that temp immediately after the parent expression is done
-reading it. Full-expression lifetime (C++/Rust style): the temp lives from
-its own construction to the end of the enclosing statement.
+> **Every owned value lives until the end of its region, unless its ownership
+> is transferred first. Every path that leaves a region crosses that region's
+> cleanup boundary.**
 
-Status: design only, not yet implemented.
+Everything else is a consequence.
 
-## 2. `Array<T>#finalize` cascading into elements — DONE
+### `Owned` is proven, never presumed
 
-Turned out **not** to need generic bounds at all — the original "BLOCKED"
-framing conflated two different questions. `Array<T>#finalize`'s own body
-(inside `source/Lib/Primitives/Array.vl`) genuinely cannot special-case
-`T` (that *would* need bounds, `T : Finalizable`, and would wrongly force
-every `Array<T>` — including `Array<Int32>` — to require `T` to declare
-`finalize`). But the actual leak lived one layer up: whatever local/field
-*holds* the `Array<T>`. `FinalizeLowering.cpp` already resolves that
-holder's own generic argument (`GetElementFinalizeCandidateType`, reading
-`SemaType.Args[0]`, general to any single-generic-argument Aggregate, not
-just `Array` — no Volt name spelled in C++) and, if the element type is
-itself a finalize candidate (declares `finalize`, checked the same
-structural way as every other candidacy in this file — duck-typed, no
-bound), synthesizes a `while` loop calling `element.finalize()` on every
-element (via `.size`/`[]`, both ordinary member calls resolved through
-`InferExpr` — `rules/zero-hardcode.md`'s "a synthesized operator is not a
-built-in either") *before* the container's own `.finalize()`. This existed
-for **local** candidates already (`BuildFinalizeCall`, shipped in an earlier
-session); this pass added the same cascade to **field** candidates
-(`BuildFieldFinalizeCall`), by extracting the shared element-loop logic into
-`BuildFinalizeCallOnReceiver` (parameterized over a `MakeReadId` callable —
-an `Identifier` read for a local, an `InstanceVar` read for a field) so both
-call sites stay in sync instead of drifting.
+The single most important decision in the model, and the one most likely to be
+undone by a well-meaning change:
 
-No new annotation, no bound on `Array<T>` itself — `Array<Int32>` is
-untouched and still typechecks with no `finalize` requirement on `Int32`.
-Verified valgrind-clean: `samples/Tests/RAII/FieldArrayElementCascade.vl`
-(a `struct` field typed `Array<String>`, no user-declared `finalize` at
-all — item 3's synthesis handles that half, this item's element loop
-handles the elements). Confirmed no double-free between the array-typed
-local passed into the constructor and the field alias it initializes (the
-existing "bare-identifier-read is an alias, not a candidate" rule in
-`CollectCandidates` already prevents the local from *also* being finalized
-independently of the field it was moved into).
+| Form | State | Why |
+|---|---|---|
+| `Identifier` / `InstanceVar` / bare `Member` | `Borrowed` | reads an existing place |
+| `Call` whose resolution has `bConstructs` | `Owned` | a construction is a new value; certain, not inferred |
+| `Call` whose callee has `bReturnsOwned` | `Owned` | derived by fixpoint over bodies, recorded on the resolution |
+| everything else | `Borrowed` | **the safe default** |
 
-Status: **done**. The generic-bounds language feature (below, item 3's
-prerequisite investigation) landed anyway as part of this epic, but this
-item did not end up needing it.
+`bReturnsOwned` is *derived and recorded on the resolution*, never an
+annotation — the shape `rules/zero-hardcode.md` sanctions, and the reason the
+annotation list stays closed at three.
 
-## 3. Auto field-finalize propagation for Aggregate fields — IN PROGRESS
+The asymmetry is deliberate and load-bearing: **a missed classification costs a
+leak, a wrong one costs a double free.** A leak is a counted, bounded gap; a
+double free is memory corruption. Whenever the two trade off, the model takes
+the leak. Section "What is still open" is entirely made of leaks for this
+reason, and that is the intended state, not a backlog of equal-severity bugs.
 
-Rust/C++-style: a struct/class's own `finalize` (whether user-written or
-absent) should not need to hand-enumerate every Aggregate-typed field itself
-(`Exception#finalize` currently does `@message.finalize` by hand). The
-compiler should synthesize field cascade calls automatically, appended after
-whatever body the user wrote (or as the entire body if the user wrote none).
+### Regions
 
-Design (concrete, non-generic types only — the same generic-instantiation
-wall as #2 applies to a field whose own type is a generic parameter, so this
-is scoped to fields with a concrete Aggregate type):
+`CleanupRegion` is the primitive; `BeginExpr { Body, EnsureBody }` is merely
+how it is lowered today. **Only `CleanupRegion.cpp` may construct a
+`Frontend::BeginExpr`** — that is what keeps "give regions a different
+representation" a one-file change, and it is checkable:
 
-- New step in `FinalizeLowering.cpp`, run once per `Struct`/`Class` Decl
-  (`Node.Generics.IsEmpty()` only — a generic type's own field types aren't
-  resolved until instantiation, same wall as #2):
-  - Enumerate `Body`'s `Frontend::Field` nodes.
-  - For each, resolve its declared type to a concrete `SemaTypeId` (via the
-    type's own `NominalType.Members` entry — `TypeStore::OwnMember` already
-    answers "declared directly, ignoring inheritance" for the exists check;
-    `Member::Result` is a `SigTypeId`, converted through
-    `Instantiate(Store, SigTypeId, ReceiverArgs={}, Self, Values)` since the
-    struct itself is non-generic) and test `IsFinalizeCandidateType` (already
-    exists, shared with the local-candidate path).
-  - If the type has no cascade-candidate fields, skip entirely (silent
-    default, same discipline as every other gate in this pass).
-  - If it does: if the type has **no own `finalize`** (`OwnMember` check —
-    inherited doesn't count, matches how a subclass with no new fields is
-    left alone since it already inherits its base's finalize), synthesize a
-    brand-new `Method` Decl (`finalize -> Void`, body = one
-    `@field.finalize` `Call` per candidate field, reverse field-declaration
-    order) and append it to `Body`.
-  - If it **does** have its own `finalize`, append the same per-field
-    `@field.finalize` calls to the *end* of that method's own `Body`
-    (respecting whatever exits `FinalizeLowering`'s existing wrap/splice
-    machinery already handles — this cascade epilogue is just more
-    statements at the natural tail, so it rides the existing Step 5 wrap for
-    free).
+```sh
+grep -rn "BeginExpr" source/Volt/Sema/Private/Passes/TypeChecker/Lifetime \
+                     source/Volt/Sema/Private/Raii     # → CleanupRegion.cpp only
+```
 
-This closes the redundancy `Exception#finalize` has today: once shipped,
-`Exception.vl`'s own `finalize` should shrink to just the backtrace
-*element* loop (`Array<T>` itself still doesn't cascade into elements — #2 —
-so that loop stays hand-written), and the `@message.finalize` /
-`@backtrace.finalize` lines become auto-generated instead of hand-written —
-remove them by hand once this ships to avoid a double-free.
+Two kinds, one implementation: a **scope region** (a `StmtList`) owns its named
+locals; a **full-expression region** (a statement that materialized
+temporaries) owns those. Each emits exactly one boundary regardless of how many
+values it holds.
 
-Status: design landed, implementation starting.
+### Exits
 
-## 4. `Proc.env` / closure-capture leaks — NOT STARTED
+Two mechanisms, because the backend already treats the two differently:
 
-Block-arg temporaries (`arr.each do |x| ... end`) and other closure literals
-lifted by `ClosureLifting` have no named local for `FinalizeLowering` to
-attach to — the `Proc.new(FuncAddr, env)` construction is itself a temporary,
-consumed directly by the call it's an argument to, structurally the same gap
-as #1 (an rvalue temporary) but for `Proc`'s own heap-allocated env buffer
-specifically (`to_address`/`from_address` `Pointer<UInt8>` arithmetic,
-per `core-ast.md`'s "Closures are gone" section).
+- **fall-through, unhandled `raise`, non-local `break`** — wrapped, and
+  `EmitBegin` threads all three through `EnsureBody` with no new node;
+- **`return`, loop-owned `break`/`next`** — all three bypass `Ensure` entirely
+  in the backend, so the finalize calls are *spliced* directly before the exit.
 
-Confirmed leaking today: `Curry.vl`, `Composition.vl`, `PointFree.vl`,
-`Mixins.vl`, `FullOOP.vl`, `ForLoop.vl`, `BreakNext.vl` (7/55 samples under
-`scripts/valgrind_check.py`, all pre-existing, unrelated to this session's
-Exception/RAII fixes).
+Discovery is uniform since Phase 5: `CollectNestedBlockExprs` finds a nested
+block by *where it sits*, not by which statement encloses it, so an exit in
+expression position (`x = if c then return 1 else 2 end`) reaches the same
+recursion a statement-position one does. There is no per-method bail-out any
+more, and `RaiiUnsupportedExits` is incremented nowhere.
 
-Design: likely resolved as a *consequence* of #1 once rvalue-temporary
-materialization exists (a `Proc.new(...)` call whose result isn't bound to a
-name is exactly the shape #1 targets) — worth revisiting after #1 ships
-rather than solved separately. If it doesn't fall out for free, `env`'s own
-free needs to be spliced at the point the call consuming the `Proc` returns
-(non-escaping case) or left to the receiver (escaping case — already tracked
-by `ScopeTable::Escapes`/`SetEscapes`, so the information to decide this
-already exists).
+## What works
 
-Status: not started, expected to piggyback on #1's mechanism.
+Field cascade, including on **generic** types (`Hash<K, V>` cascades into
+`@entries : Array<HashEntry<K, V>>` with no bound on `K`/`V` — the deferred
+typing every generic body already uses is sufficient). Element cascade, gated
+on a node-kind claim so `Proc<R>` no longer receives a synthesized `.size`/`[]`
+loop. Full-expression temporaries: chained rvalues, rvalue arguments, simple
+and conditional moves, and temporaries live across a `raise`. Move-out
+exemption per exit site.
+
+Fixtures: `samples/Tests/RAII/`, each with a `.expected`. The seven locked
+shapes are `TempChainedRvalue`, `TempAsArgument`, `TempSimpleMove`,
+`TempConditionalMove`, `ExpressionPositionReturn`, `ExpressionPositionBreakNext`,
+`TempRaiseDuringBuild`, plus `GenericHashCascade`.
+
+**The `.lowered.golden` files do not cover any of this.** `parse --lowered`
+runs only `EPassKind::Lowering` passes, and the whole RAII sweep runs *inside*
+`TypeChecker`, so a lowered golden of a RAII sample shows the sweep's input,
+never its output — `StraightLineSingle.vl.lowered.golden` contains zero
+`finalize`. They are kept as ordinary lowering-pass coverage. The real oracles
+are the `.expected` execution tests and `scripts/valgrind_check.py`.
+
+## What is still open
+
+Measured with `scripts/valgrind_check.py`: **57/65 passed, 0 memory
+corruption, 0 double frees**; the residue is leaks in 7 samples, from three
+causes.
+
+### 1. A paren-less call in nested position is never provably owned
+
+A paren-less invocation is a bare `Member`, not a `Call` — `a.dup2 + b` parses
+as `Binary( Member( a, dup2 ), b )`. `Temporaries::ResolutionOf` keys `Call` on
+its callee and `Binary`/`Unary` on themselves, and does not handle `Member`, so
+such a value is never proven owned and never released. This is why
+`d.full_id == s`, `s.trim + t`, and the `x.to_string` an interpolation lowers
+to all leak, while `s = d.full_id` does not — a *named* local is finalized by
+`ScopeCleanup` on its type, needing no resolution at all.
+
+**Adding `Member` to that group is wrong and was tried**: it converts 8 leaks
+into 6 double frees. A `Member` is also how a place is read, and an owned value
+reaching a field by a path the `Moved` marking does not cover is then released
+twice — `Exception#capture_backtrace` stores a `String` into a field that
+`Exception#finalize` frees. Closing this needs `Member` split into *invocation*
+vs *place read* in the ownership model. It is the largest remaining item and
+the one to do next.
+
+### 2. Reassigning an owned local abandons the old value
+
+`result = n.digit_char + result` in `Stringable#to_string` overwrites a local
+that owns a buffer; the previous buffer is neither moved nor finalized, so it
+leaks once per iteration (`5.to_string` is clean, `42.to_string` leaks one
+block). Drop-on-reassign needs flow-sensitive per-local ownership: a local
+initialized from a borrow must *not* be released on reassignment, so a naive
+"release before store" is a double free. This is genuinely the same
+flow-sensitivity the conditional-move design already reasons about, and belongs
+with item 1.
+
+### 3. An indirect call's result cannot be classified
+
+`f( 1 )( 2 )` calls through a `Proc` value; the resolution carries no `Decl`,
+so the returned closure's env is `Borrowed` and leaks. Unlike 1 and 2 this is
+not an oversight — through a function pointer the body is genuinely unknown.
+It needs either escape analysis or an ownership bit on the callable *type*.
+
+Closure `env` is also deliberately excluded from full-expression lifetime: a
+capturing closure's env holds the enclosing frame's locals, so releasing it at
+the end of the statement that built it frees storage the scope still reads.
+Giving `env` its true lifetime is scope-level work.
+
+## Accounting, not valgrind
+
+The intended long-term check is an identity, not a memory tool:
+
+```
+RaiiOwnedCreated == RaiiMoves + RaiiFinalizes + RaiiExplicitEscapes
+RaiiOwnedWithoutCleanup == 0
+```
+
+Counters live on `PassStats`, which `Meta::ForEachField` walks, so a new one is
+one field and reaches `volt check --metrics` with no other edit. Note that
+`RaiiLocals` is currently declared but incremented nowhere — the live counters
+are `RaiiTemporaries`, `RaiiCleanupPaths`, and `RaiiNestedExpressionExits`.

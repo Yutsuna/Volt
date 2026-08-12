@@ -74,14 +74,29 @@ with ordinary nodes a backend already knows:
   `return`, which unwinds the whole call).
 
 A local whose exit hands it back by bare `Identifier` name is exempted at
-that exit site only (ownership moves to the caller's scope). A method
-containing an exit that hides inside an *expression-position* control
-construct (`x = if c then return 1 else 2 end`, reachable only because `If`/
-`CaseExpr`/`BeginExpr` are core *expression* nodes, not just statement-position
-sugar) is left completely untouched rather than risk missing a finalize — the
-one shape this sweep's structural recursion cannot reach, since it only
-descends into a `While`/`If`/`CaseExpr`/`BeginExpr` found directly as a
-`StmtList` element.
+that exit site only (ownership moves to the caller's scope).
+
+An exit hiding inside an *expression-position* control construct
+(`x = if c then return 1 else 2 end`, reachable only because `If`/`CaseExpr`/
+`BeginExpr` are core *expression* nodes, not just statement-position sugar)
+used to make the sweep leave the whole method untouched, rather than risk
+emitting a partial set of finalize calls. It no longer does. The bail-out is
+gone: the sweep finds a nested block through `CollectNestedBlockExprs`, which
+follows a node's *expression* fields reflectively and reports every
+`If`/`CaseExpr`/`BeginExpr` it reaches at any depth, so discovery is by where
+the block sits rather than by which statement encloses it. Insertion was
+already correct for these — `If::Then`/`Else` are ordinary `StmtList`s — so
+only discovery had been missing. `samples/Tests/RAII/ExpressionPositionReturn.vl`
+and `ExpressionPositionBreakNext.vl` are the fixtures.
+
+Two things the sweep still does **not** own, both leaks rather than
+corruption, and both recorded in `.agents/CASCADE_FINALIZE.md` with the
+measurement: a paren-less call in nested position (`d.full_id == s` — a bare
+`Member`, so never provably owned), and reassignment of a local that already
+owns a value (`result = f( result )` abandons the old buffer). Both need
+`Member` split into invocation vs. place read, and per-local flow-sensitive
+ownership; the naive widening of either produces double frees, which the
+model ranks strictly worse than the leak.
 
 ## The 24 core nodes
 
