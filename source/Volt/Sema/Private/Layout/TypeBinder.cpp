@@ -26,6 +26,7 @@
 #include "Volt/Frontend/AST/Type.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
 
+#include <algorithm>
 #include <charconv>
 #include <optional>
 #include <span>
@@ -1225,15 +1226,14 @@ namespace Sema
 
             const NominalType &Type = Store.Type( Id );
 
-            // A generic type's own field types are not resolved until
-            // instantiation — the same wall CASCADE_FINALIZE.md's item 2
-            // hits, and the reason `InsertFinalizeCalls`' own field-cascade
-            // step (FinalizeLowering.cpp) is scoped to `Generics.IsEmpty()`
-            // too.
-            if ( Type.Params.Size() > 0 )
-            {
-                return;
-            }
+            // A generic type is *not* excluded. Its field types are indeed
+            // unresolved until instantiation, but that is only decisive for a
+            // field whose written type *is* a bare parameter: a field written
+            // `Array<HashEntry<K,V>>` names a head nominal that declares
+            // `finalize` whatever its arguments turn out to be, so candidacy
+            // is answerable here and the stub is owed. The field loop below
+            // skips bare parameters by name, which is the one case left
+            // undecidable (CASCADE_FINALIZE.md item 2's residual wall).
 
             // A user-declared `finalize` already exists: nothing to
             // synthesize. TypeChecker's own `AppendFieldCascade` appends the
@@ -1284,6 +1284,39 @@ namespace Sema
             // reference held across one (rules/ast-rewrite.md).
             const Frontend::DeclList Body = *BodyPtr;
 
+            // Copied out of the store, not held as a reference: the field
+            // loop's own recursion calls `AddMember`/`AddSig`, either of
+            // which may reallocate (rules/ast-rewrite.md's discipline, same
+            // reason `Body` above is a copy).
+            std::vector<std::string> ParamNames;
+            ParamNames.reserve( Type.Params.Size() );
+            for ( std::size_t P = 0; P < Type.Params.Size(); ++P )
+            {
+                ParamNames.emplace_back( Store.Text( Type.Params[P] ) );
+            }
+
+            // A field written as one of *this* type's own generic parameters
+            // (`HashEntry<K,V>::key : K`) is the one shape candidacy cannot
+            // be decided for here — whether `K` finalizes is a fact of the
+            // instantiation, not of the declaration. Skipped by name rather
+            // than left to `LookupType` returning nothing by luck: a
+            // parameter that happened to share a declared type's spelling
+            // would otherwise resolve to that unrelated type.
+            const auto bIsOwnParameter = [&] ( const Frontend::TypeId Written )
+            {
+                if ( not Written.IsValid() )
+                {
+                    return false;
+                }
+                const auto *Ref = std::get_if<Frontend::TypeRef>( &Ast.Type( Written ) );
+                if ( Ref == nullptr or Ref->Path.Size() != 1 )
+                {
+                    return false;
+                }
+                const std::string_view Name = Ast.Text( Ref->Path[0] );
+                return std::ranges::find( ParamNames, Name ) != ParamNames.end();
+            };
+
             bool bHasCandidateField = false;
             for ( const Frontend::DeclId Child : Body )
             {
@@ -1293,6 +1326,10 @@ namespace Sema
                 }
                 const auto *Field = std::get_if<Frontend::Field>( &Ast.Decl( Child ) );
                 if ( Field == nullptr )
+                {
+                    continue;
+                }
+                if ( bIsOwnParameter( Field->DeclType ) )
                 {
                     continue;
                 }
