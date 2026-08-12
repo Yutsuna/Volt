@@ -547,6 +547,51 @@ par `rules/zero-hardcode.md`).
 
 Attendu : `ForLoop` propre. **0 fuite sur 57.**
 
+#### Phase 4 — TERMINÉE
+
+Trois éditions, plus une quatrième qui n'était pas prévue et sans laquelle les
+trois premières sont invisibles.
+
+1. **`FieldCascade` (`RunFieldCascade` / `CollectCascadeFields`)** — le garde
+   `Generics.IsEmpty()` tombe, et `CollectCascadeFields` reçoit désormais les
+   noms de paramètres du type englobant au lieu de `/*Generics=*/{}`. C'est ce
+   paramètre qui rend la résolution *correcte* dans un corps générique plutôt
+   que simplement tolérée : `Array<HashEntry<K,V>>` résout son nominal de tête
+   (`Array`, qui déclare `finalize` quel que soit son argument) pendant que
+   `K`/`V` passent par `UnitSink::Param` sans binding, donc vers un id
+   invalide — la convention de typage différé habituelle, aucun bound.
+2. **`TypeBinder::EnsureFinalizeStub`** — le `return` sur `Type.Params.Size() >
+   0` tombe. Un champ écrit comme un paramètre **nu** est en revanche sauté
+   *par son nom*, comparé à la liste des paramètres du type, et non laissé au
+   hasard d'un `LookupType` qui ne trouve rien : un paramètre qui partagerait
+   l'orthographe d'un type déclaré résoudrait sinon vers ce type sans rapport.
+   C'est le mur restant, et il est maintenant explicite dans le code.
+3. **`FinalizeLowering.hpp` / commentaires** — les mentions « non-generic types
+   only » qui décrivaient l'ancien garde.
+4. **`FrontendCacheMagic` bumpé à `VOLTFE06`.** Sans cela les trois premières
+   éditions ne changent rien : la clé du cache hache les *sources* de la
+   stdlib, qui n'ont pas bougé, donc chaque build relisait un `TypeStore` dont
+   les tables de membres précèdent la synthèse. Contrairement aux bumps
+   précédents, aucun champ sérialisé n'a changé — c'est le *contenu* synthétisé
+   qui a changé. Diagnostiqué en forçant `XDG_CACHE_HOME` sur un répertoire
+   neuf : avec un cache froid le stub apparaissait, avec le cache chaud non.
+
+Résultat mesuré : la fuite de **512 octets** de `ForLoop.vl` — le
+`Array<HashEntry<String,Int32>>` alloué par `Hash#initialize` — **a disparu**.
+`Hash<K,V>` porte maintenant un `finalize` synthétisé qui cascade vers
+`@entries.finalize`. `meson test` : 272 OK / 2 FAIL (baseline inchangée) ;
+valgrind : 0 erreur mémoire, 0 double free, aucun nouveau sample en échec.
+
+Ce qui reste sur les 7 samples encore en fuite relève des règles
+conservatrices de la Phase 3 (arguments d'un appel sans `Decl` ; durée de vie
+de l'env de closure), pas de la cause 2. **Le « 0 fuite sur 57 » attendu n'est
+donc pas atteint** : c'est la précision de la Phase 3 qui manque, pas la
+cascade générique.
+
+Mur restant, tel que prévu : un champ dont le type est un paramètre générique
+nu (`HashEntry<K,V>::key : K`). Non traité, documenté à la fois ici et dans le
+commentaire de `CollectCascadeFields`.
+
 ### Phase 5 — Sorties en position d'expression *(cause 4)*
 
 `ExitPaths` parcourt expressions **et** statements en portant la pile de
@@ -560,6 +605,58 @@ disparaissent.
 d'expression arrivent par le même chemin, `Return`/`Break`/`Next`/`RaiseExpr`
 arrivent par le même chemin. `RaiiNestedExpressionExits` compte les cas traités ;
 `RaiiUnsupportedExits` doit rester à 0.
+
+#### Phase 5 — TERMINÉE
+
+La découverte était bien le seul manque, exactement comme prévu — l'insertion
+n'a pas bougé d'une ligne.
+
+- **`ExitPaths` : `ContainsUnstructuredExit` → `CollectNestedBlockExprs`.** Le
+  scan booléen « y a-t-il une sortie que je ne sais pas atteindre » est
+  remplacé par un collecteur : tout `If`/`CaseExpr`/`BeginExpr` atteignable
+  depuis un statement par ses champs **expression**, à n'importe quelle
+  profondeur. Écrit avec `Meta::ForEachField`, donc un nœud ajouté à
+  `Nodes.inl` est parcouru sans édition ici. Seul le **plus externe** de
+  chaque sous-arbre est rapporté : le caller redescend dans les corps de
+  branche qu'on lui rend, et chaque statement y repasse par le même walk —
+  sans quoi l'instrumentation serait double. Les champs `StmtId`/`StmtList`
+  ne sont volontairement pas suivis (les seules expressions qui possèdent des
+  statements sont ces trois-là, et `While` n'est atteignable depuis aucune
+  expression), ce qui est précisément ce qui garantit la propriété
+  « outermost only ».
+- **`ScopeCleanup`, étape 1.** La descente ne teste plus « `ExprStmt` dont
+  l'expression *est* un `If`/`Case`/`Begin` » mais itère sur ce que
+  `CollectNestedBlockExprs` rend. La position statement n'est plus un cas
+  distinct, juste le plus superficiel : profondeur zéro. `While` garde son
+  arm parce que c'est un *statement*. Les tranches d'ambient
+  (`ReturnAmbient`/`LoopAmbient`) étaient recopiées verbatim dans les trois
+  arms ; elles sont hissées une fois par statement — même valeur, puisque
+  tous les blocs d'un statement sont entrés au même point de la séquence du
+  `Body`.
+- **Le bail-out par méthode a disparu** de `RunScopeCleanup`, et avec lui la
+  seule forme que le sweep refusait en silence.
+- `RaiiNestedExpressionExits` compte les blocs instrumentés.
+  `RaiiUnsupportedExits` n'est incrémenté nulle part : il n'y a plus de cas
+  refusé à compter.
+
+Fixture, ajoutée maintenant plutôt qu'en Phase 6 parce qu'elle est la preuve
+de la phase : `samples/Tests/RAII/ExpressionPositionReturn.vl` (item 5 de la
+liste de la Phase 6), avec son `.expected`, son `.golden` et son
+`.lowered.golden`. Elle est discriminante — elle vérifie via un `log`/`cursor`
+que `inner` **et** `outer` sont finalisés, dans cet ordre, à un `return` situé
+dans `value = if flag ... end` ; avant la Phase 5 la méthode entière était
+refusée et le compteur serait resté à 0.
+
+`meson test` : **275 OK / 2 FAIL** (les 2 sont toujours `golden` +
+`golden-lowered` sur `Sema/MixinGenerics.vl`) — +3 par rapport à la baseline,
+soit les trois suites qu'un nouveau sample rejoint. Valgrind : 58 samples,
+0 erreur mémoire, le nouveau propre. `format` passé, graphify rafraîchi.
+
+**Note, sans rapport avec cette épopée :** les 2 `MixinGenerics` échouent
+parce que `volt parse` **segfault sur toute déclaration de type générique**
+(`struct Box<T> ... end` suffit, exit 139). C'est un bug du chemin `parse`
+seul — `check` et `build` traitent les mêmes fichiers sans problème —
+antérieur à la Phase 3 et jamais touché ici. À traiter séparément.
 
 ### Phase 6 — Régressions, nettoyage, docs
 
