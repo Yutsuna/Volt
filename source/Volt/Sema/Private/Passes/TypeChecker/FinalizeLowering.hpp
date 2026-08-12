@@ -37,11 +37,14 @@ namespace Volt::Sema::TypeCheckerPass
 //   ensure-stack lookup in any of the three — so finalize calls are
 //   *spliced directly before* each one instead (see ProcessBlock's Step 3).
 //   Only an exit that is literally a top-level element of the StmtList being
-//   processed is spliced there; a `Return`/`Break`/`Next` hiding inside an
-//   *expression-position* control construct (`x = if c then return 1 else 2
-//   end`) is the one shape ProcessBlock's structural recursion cannot reach
-//   — `ContainsUnstructuredExit` detects exactly that and leaves the whole
-//   method untouched rather than risk missing a finalize. A spliced exit
+//   processed is spliced there — but that is no longer a restriction on
+//   *which* StmtLists get processed. Since Phase 5, ProcessBlock finds a
+//   nested block through `CollectNestedBlockExprs`, i.e. by where the
+//   `If`/`CaseExpr`/`BeginExpr` sits rather than by which statement encloses
+//   it, so an exit in expression position (`x = if c then return 1 else 2
+//   end`, `f( begin ... end )`) reaches the identical recursion a
+//   statement-position one does. The old `ContainsUnstructuredExit`
+//   bail-out, which refused such a method wholesale, is gone. A spliced exit
 //   only finalizes candidates declared strictly before its own position
 //   (`BodyIndex < BodyPos`) — anything declared later isn't live on that
 //   path yet. `break`/`next` carry no move-out value (the backend refuses
