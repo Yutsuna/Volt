@@ -3,6 +3,7 @@
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
+#include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
 
@@ -69,13 +70,13 @@ namespace
     // must keep demoting its spelling.
     using NameIndex = std::unordered_map<std::string_view, std::vector<const Member *>>;
 
-    [[nodiscard]] NameIndex BuildNameIndex ( TypeStore &Store )
+    [[nodiscard]] NameIndex BuildNameIndex ( const TypeStore &Store )
     {
         NameIndex Index;
         for ( std::size_t TypeIdx = 0; TypeIdx < Store.TypeCount(); ++TypeIdx )
         {
             const NominalId Id{ static_cast<NominalId::ValueType>( TypeIdx ) };
-            for ( const Member &Entry : Store.MutableMembers( Id ) )
+            for ( const Member &Entry : Store.Type( Id ).Members )
             {
                 if ( Entry.Kind == EMemberKind::Method and not Entry.bAbstract )
                 {
@@ -83,7 +84,7 @@ namespace
                 }
             }
         }
-        for ( const Member &Entry : Store.MutableFreeFunctions() )
+        for ( const Member &Entry : Store.FreeFunctions() )
         {
             if ( not Entry.bAbstract )
             {
@@ -188,6 +189,26 @@ namespace
         }
         const Frontend::ExprNode &Node = Ast.Expr( Id );
 
+        // A literal materialises a value; it cannot name a place, so there is
+        // nothing for it to alias and nobody else to hold what it produces.
+        // `""` becomes a `String` construction, `[ … ]` an `Array` built
+        // element by element, a closure literal a `Proc` over a fresh
+        // environment — all of them later, inside `TypeChecker`, which is why
+        // reading the *lowering* would be guesswork; reading what a literal
+        // **is** is not.
+        //
+        // Which node kinds are literals is not a list this file keeps either:
+        // a type states its own claim with `@[Literal( Kind )]`, and
+        // `LookupNodeKind` reads it back — the same mechanism that identifies
+        // `nil`, the pointee type and the callable type
+        // (rules/zero-hardcode.md). No Volt type name and no node kind is
+        // spelled here, and a stdlib that claims a new one is covered with no
+        // edit.
+        if ( Store.LookupNodeKind( Frontend::NodeName( Node ) ).has_value() )
+        {
+            return true;
+        }
+
         // A name holding an owned value hands that ownership on: `result =
         // Array<U>.new; …; result` is exactly how `Enumerable#map` is
         // written, and refusing it would leave every stdlib collection
@@ -204,6 +225,22 @@ namespace
                 return false;
             }
             const Frontend::ExprNode &Callee = Ast.Expr( CallNode->Callee );
+
+            // The callee is a closure literal standing right there, so its
+            // body *is* the value and can simply be read — the same question,
+            // one level in. This is the shape every desugared composition and
+            // pipeline produces (`x |> (&.trim) >> (&.downcase)` lowers to
+            // nested `Call( Lambda, … )`), and the one case where a call
+            // through a callable is not opaque at all.
+            if ( const auto *LambdaNode = std::get_if<Frontend::Lambda>( &Callee ) )
+            {
+                return ProducesOwned( Ast, Store, Index, Owner, Locals, LambdaNode->Body );
+            }
+            if ( const auto *BlockNode = std::get_if<Frontend::Block>( &Callee ) )
+            {
+                return BodyProducesOwned( Ast, Store, Index, Owner, Locals, BlockNode->Body );
+            }
+
             if ( const auto *MemberNode = std::get_if<Frontend::Member>( &Callee ) )
             {
                 const std::string_view Name = Ast.Text( MemberNode->Name );
@@ -822,6 +859,64 @@ bool ParameterEscapes ( const Member &Decl, const std::size_t Index )
     // Past the end: a default-valued slot the call did not fill, or an arity
     // this analysis cannot match. Nothing to release either way.
     return true;
+}
+
+Core::SmallVec<bool, 4>
+ClosureParameterEscape ( const Frontend::AstContext &Ast, const TypeStore &Store, const Frontend::ExprId Id )
+{
+    if ( not Id.IsValid() )
+    {
+        return {};
+    }
+
+    const Frontend::ParamList *Params = nullptr;
+    const Frontend::ExprNode &Node    = Ast.Expr( Id );
+    if ( const auto *LambdaNode = std::get_if<Frontend::Lambda>( &Node ) )
+    {
+        Params = &LambdaNode->Params;
+    }
+    else if ( const auto *BlockNode = std::get_if<Frontend::Block>( &Node ) )
+    {
+        Params = &BlockNode->Params;
+    }
+    if ( Params == nullptr )
+    {
+        return {};
+    }
+
+    // Same starting point as `ScanParamEscape`: assume borrowed, let the walk
+    // contradict it. A body that mentions nothing contradicts nothing, which
+    // is correct — a parameter no statement reads cannot be kept.
+    std::vector<bool> Escapes( Params->Size(), false );
+
+    const NameIndex Index = BuildNameIndex( Store );
+    EscapeScan Scan{ .Ast = Ast, .Index = Index, .ByName = {}, .Escapes = Escapes };
+    for ( std::size_t Slot = 0; Slot < Params->Size(); ++Slot )
+    {
+        const Frontend::Param &ParamNode = Ast.GetParam( ( *Params )[Slot] );
+        if ( ParamNode.bInstanceVar )
+        {
+            Escapes[Slot] = true;
+            continue;
+        }
+        Scan.ByName[ParamNode.Name.Value] = Slot;
+    }
+
+    if ( const auto *LambdaNode = std::get_if<Frontend::Lambda>( &Node ) )
+    {
+        Scan.WalkExpr( LambdaNode->Body, false );
+    }
+    else
+    {
+        Scan.WalkBody( std::get<Frontend::Block>( Node ).Body );
+    }
+
+    Core::SmallVec<bool, 4> Out;
+    for ( const bool Escaped : Escapes )
+    {
+        Out.PushBack( Escaped );
+    }
+    return Out;
 }
 
 bool BlockParameterEscapes ( const Member &Decl )
