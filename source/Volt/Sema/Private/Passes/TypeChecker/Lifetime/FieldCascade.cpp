@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -34,9 +35,13 @@ namespace
     // ordinary Decl append at this pass's own late stage — a Decl added here
     // would never be visible to TypeBinder's member table or the backend's own
     // per-type emission walk). CASCADE_FINALIZE.md tracks that half separately.
-    // Also scoped to non-generic types only: a generic type's field types are
-    // not resolved until instantiation (the same MonoDriver-lives-only-in-
-    // BackendLLVM wall CASCADE_FINALIZE.md's item 2 hits).
+    //
+    // Generic types are *not* excluded (they were, until Phase 4): a field
+    // written `Array<HashEntry<K,V>>` names a head nominal that declares
+    // `finalize` whatever its arguments are, so it cascades under the ordinary
+    // deferred-typing convention with no bound and no instantiation. Only a
+    // field written as a *bare* parameter stays undecidable — see
+    // `CollectCascadeFields`.
 
     // Forward declarations — a StmtId's own fields and an ExprId's own fields
     // recurse into each other, same shape as ContainsExitStmt/ContainsExitExpr
@@ -137,10 +142,24 @@ namespace
     // Every Field declared directly in Body whose resolved type is an
     // Aggregate-layout, finalize-declaring candidate — resolved straight off
     // each Field's own written TypeRef (ResolveTypeExpr), never through
-    // TypeStore/NominalId machinery: a non-generic type's field types need no
-    // instantiation, so there is nothing generic-argument-shaped to substitute.
-    [[nodiscard]] std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> CollectCascadeFields ( TypeCheckerContext &Context,
-                                                                                                const Frontend::DeclList &Body )
+    // TypeStore/NominalId machinery.
+    //
+    // `Generics` are the *enclosing* type's own parameter names, and passing
+    // them is what makes this correct inside a generic body rather than merely
+    // tolerated there. `Hash<K,V>`'s `@entries : Array<HashEntry<K,V>>`
+    // resolves its head nominal (`Array`, which declares `finalize` whatever
+    // its argument is — so the field is a genuine cascade candidate) while
+    // `K`/`V` resolve through `UnitSink::Param` with no binding, i.e. to an
+    // invalid id: the ordinary deferred-typing convention every generic body
+    // already uses (core-ast.md §"Generic definition bodies"), and no bound is
+    // required (CASCADE_FINALIZE.md item 2, applied one level up).
+    //
+    // A field whose written type is a *bare* parameter (`HashEntry<K,V>::key :
+    // K`) therefore resolves to an invalid id and is skipped — it is not a
+    // missed case handled by accident but the one documented remaining wall:
+    // whether `K` needs finalizing is only knowable at instantiation.
+    [[nodiscard]] std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> CollectCascadeFields (
+        TypeCheckerContext &Context, const Frontend::DeclList &Body, std::span<const Frontend::Symbol> Generics )
     {
         std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Result;
         const Frontend::AstContext &Ast = Context.Ctx.Ast;
@@ -157,7 +176,7 @@ namespace
             }
             Sema::UnitSink Sink{ .Values = Context.Ctx.Values, .Self = Sema::SemaTypeId{}, .Bindings = {} };
             const Sema::SemaTypeId FieldType =
-                Sema::ResolveTypeExpr( Ast, Context.Ctx.Types, /*Generics=*/{}, Sink, FieldNode->DeclType );
+                Sema::ResolveTypeExpr( Ast, Context.Ctx.Types, Generics, Sink, FieldNode->DeclType );
             if ( not Raii::IsFinalizeCandidateType( Context.Ctx.Types, Context.Ctx.Values, FieldType ) )
             {
                 continue;
@@ -288,32 +307,38 @@ void RunFieldCascade ( TypeCheckerContext &Context )
     for ( std::size_t Index = 0; Index < Ast.DeclCount(); ++Index )
     {
         const Frontend::DeclId Id{ static_cast<Frontend::DeclId::ValueType>( Index ) };
-        const Frontend::DeclList *Body = nullptr;
+        // A generic type is *not* excluded: `CollectCascadeFields` takes its
+        // parameter names and defers on them, so `Hash<K,V>` cascades its
+        // `Array`-typed field exactly like a concrete type would. Both spans
+        // are copied out rather than kept as pointers into the Decl arena —
+        // `AppendFieldCascade` below `Add()`s into it (rules/ast-rewrite.md).
+        const Frontend::DeclList *BodyPtr = nullptr;
+        std::span<const Frontend::Symbol> Generics;
         if ( const auto *StructNode = std::get_if<Frontend::Struct>( &Ast.Decl( Id ) ) )
         {
-            if ( StructNode->Generics.IsEmpty() )
-            {
-                Body = &StructNode->Body;
-            }
+            BodyPtr  = &StructNode->Body;
+            Generics = std::span<const Frontend::Symbol>{ StructNode->Generics.begin(), StructNode->Generics.Size() };
         }
         else if ( const auto *ClassNode = std::get_if<Frontend::Class>( &Ast.Decl( Id ) ) )
         {
-            if ( ClassNode->Generics.IsEmpty() )
-            {
-                Body = &ClassNode->Body;
-            }
+            BodyPtr  = &ClassNode->Body;
+            Generics = std::span<const Frontend::Symbol>{ ClassNode->Generics.begin(), ClassNode->Generics.Size() };
         }
-        if ( Body == nullptr )
+        if ( BodyPtr == nullptr )
         {
             continue;
         }
+        const Frontend::DeclList BodyCopy = *BodyPtr;
+        const std::vector<Frontend::Symbol> GenericsCopy{ Generics.begin(), Generics.end() };
+        const Frontend::DeclList *Body = &BodyCopy;
+        Generics                       = std::span<const Frontend::Symbol>{ GenericsCopy };
 
         const std::optional<Frontend::DeclId> FinalizeId = FindOwnFinalizeMethod( Ast, *Body );
         if ( not FinalizeId.has_value() )
         {
             continue;
         }
-        std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Fields = CollectCascadeFields( Context, *Body );
+        std::vector<std::pair<Core::Symbol, Sema::SemaTypeId>> Fields = CollectCascadeFields( Context, *Body, Generics );
         if ( Fields.empty() )
         {
             continue;
