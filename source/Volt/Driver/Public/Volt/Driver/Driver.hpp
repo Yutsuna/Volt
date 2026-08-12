@@ -345,7 +345,19 @@ namespace Driver
 
         // Run the sema passes over one parsed unit, with read-only access to
         // the published cross-unit interfaces. Same thread-safety contract.
-        void RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
+        //
+        // Split in two at `Sema::LoweredSeamOrder()`, because one serial,
+        // whole-program question sits between the halves: whether a member
+        // hands its caller an owned value, and whether it keeps what it is
+        // handed (`Sema::Raii`). Asking it before the desugarings run forces
+        // the answer to be guessed from *sugar* — an `Interp` node instead of
+        // the `String#+` fold it becomes — and guessing is what puts Volt
+        // method spellings into the middle-end. Asking it after them costs one
+        // extra parallel dispatch and nothing else.
+        void RunSemaLoweringOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
+
+        // The second half: typing and every check built on typing.
+        void RunSemaTypedOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
 
         // Run only the AST lowering passes over one parsed unit — no
         // cross-unit interfaces involved. Same thread-safety contract.

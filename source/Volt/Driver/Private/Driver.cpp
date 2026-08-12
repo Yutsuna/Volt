@@ -19,6 +19,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cstdlib>
+#include <limits>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -319,21 +320,43 @@ void Volt::Driver::Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     Frontend::SynthesizeEnumMembers( Unit.Ast );
 }
 
-void Volt::Driver::Driver::RunSemaOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
+namespace
+{
+
+// The per-unit pass context, identical for both halves of the sema run — the
+// split is in *which* passes execute, never in what they are handed.
+[[nodiscard]] Volt::Sema::PassContext MakeSemaContext ( Volt::Driver::CompileUnit &Unit,
+                                                        Volt::Core::DiagEngine::Bag &Bag,
+                                                        Volt::Sema::TypeStore &Types,
+                                                        Volt::Sema::InterfaceRegistry &Registry,
+                                                        Volt::Core::SourceManager &Sources )
 {
     // Passes (JsxLowering included) run per file over local state; the
     // published Registry is the only shared input, and it is read-only.
-    Sema::PassContext Context{ .Ast     = Unit.Ast,
-                               .Types   = Types,
-                               .Values  = Unit.Types,
-                               .Scopes  = Unit.Scopes,
-                               .Diags   = Bag,
-                               .Stats   = Unit.Stats,
-                               .Globals = &Registry,
-                               .Sources = &Sources,
-                               .Callees = &Unit.Callees,
-                               .Synth   = Unit.Synth };
-    static_cast<void>( Sema::RunPasses( Context ) );
+    return Volt::Sema::PassContext{ .Ast     = Unit.Ast,
+                                    .Types   = Types,
+                                    .Values  = Unit.Types,
+                                    .Scopes  = Unit.Scopes,
+                                    .Diags   = Bag,
+                                    .Stats   = Unit.Stats,
+                                    .Globals = &Registry,
+                                    .Sources = &Sources,
+                                    .Callees = &Unit.Callees,
+                                    .Synth   = Unit.Synth };
+}
+
+} // namespace
+
+void Volt::Driver::Driver::RunSemaLoweringOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
+{
+    Sema::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
+    static_cast<void>( Sema::RunPasses( Context, std::numeric_limits<int>::min(), Sema::LoweredSeamOrder() ) );
+}
+
+void Volt::Driver::Driver::RunSemaTypedOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
+{
+    Sema::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
+    static_cast<void>( Sema::RunPasses( Context, Sema::LoweredSeamOrder(), std::numeric_limits<int>::max() ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
@@ -484,20 +507,6 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             Sema::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
         }
 
-        // Last thing the seam does, and the last chance to do it: whether a
-        // member hands its caller an owned value is a whole-program fixpoint
-        // over every declared body, so it needs every unit at once — and
-        // TypeChecker, which reads the answer, runs in parallel immediately
-        // after, so the answer must already be still by then. `UnitAsts` (the
-        // read-only view built above) is what it wants: nothing here mutates
-        // an AST, only the store's own `Member` records.
-        Sema::Raii::InferReturnOwnership( UnitAsts, Types );
-        // The mirror question, same seam and same reasons: whether a callee
-        // keeps what it is handed. Independent of the fixpoint above — one
-        // reasons about results, the other about arguments — so the order
-        // between the two is free.
-        Sema::Raii::InferParameterEscape( UnitAsts, Types );
-
         Diagnostics.Merge( std::move( SeamBag ) );
 
         if ( bStdlibCacheHit )
@@ -513,9 +522,37 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             }
         }
 
-        // parallel: run the sema passes over every parsed unit (skipping a
-        // cache-loaded stdlib prefix, which is already type-checked).
-        ForEachUnitParallel( &Driver::RunSemaOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
+        const std::size_t SemaBegin = bStdlibCacheHit ? StdlibCount : 0;
+
+        // parallel, first half: desugar every unit and resolve its scopes.
+        ForEachUnitParallel( &Driver::RunSemaLoweringOne, SemaBegin, Units.size() );
+
+        // serial, between the halves: whether a member hands its caller an
+        // owned value is a whole-program fixpoint over every declared body, so
+        // it needs every unit at once — and `TypeChecker`, which reads the
+        // answer, runs in parallel immediately after, so the answer must
+        // already be still by then.
+        //
+        // It sits *here*, rather than up in the interface seam, because it
+        // reads bodies: before the lowerings it would see `Interp`, `Index`,
+        // `Pipeline` and `Section` nodes instead of the ordinary calls they
+        // become, and every question it asks of one would have to be answered
+        // by guessing what that node will lower to — which is precisely how a
+        // Volt method spelling once ended up hardcoded in this analysis
+        // (.agents/CASCADE_FINALIZE.md's own guardrail). Move the question,
+        // never teach it a spelling.
+        //
+        // `UnitAsts` (the read-only view built above) is what it wants:
+        // nothing here mutates an AST, only the store's own `Member` records.
+        Sema::Raii::InferReturnOwnership( UnitAsts, Types );
+        // The mirror question, same seam and same reasons: whether a callee
+        // keeps what it is handed. Independent of the fixpoint above — one
+        // reasons about results, the other about arguments — so the order
+        // between the two is free.
+        Sema::Raii::InferParameterEscape( UnitAsts, Types );
+
+        // parallel, second half: typing, and every check built on typing.
+        ForEachUnitParallel( &Driver::RunSemaTypedOne, SemaBegin, Units.size() );
 
         if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() and not ActiveCacheOptions.bNoCache )
         {
