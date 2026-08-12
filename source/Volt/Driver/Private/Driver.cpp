@@ -485,7 +485,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         {
             UnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
         }
-        Sema::ResolveStructLayouts( UnitAsts, Types );
+        Sema::ResolveStructLayouts( UnitAsts, Types, &SeamBag );
 
         // Still serial, still the same seam, right after field layouts land
         // and before any signature is resolved: synthesize an empty
