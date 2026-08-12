@@ -401,12 +401,24 @@ namespace
         // that consumer's own ordering calls for "finalized last".
         const std::vector<FinalizeCandidate> Candidates = CollectCandidates( Context, MethodScope, Body );
 
-        // Step 1 — recurse bottom-up into every nested StmtList reachable
-        // through a statement-position If/While/CaseExpr/BeginExpr, mutating
-        // arena entries in place. Body's own StmtId sequence does not change
-        // here: only the *contents* of the nested nodes it points at do, via
-        // copy-out/Add()/write-back (rules/ast-rewrite.md) — Body[i] itself
-        // still names the same slot afterward.
+        // Step 1 — recurse bottom-up into every nested StmtList this Body
+        // owns, mutating arena entries in place. Body's own StmtId sequence
+        // does not change here: only the *contents* of the nested nodes it
+        // points at do, via copy-out/Add()/write-back (rules/ast-rewrite.md)
+        // — Body[i] itself still names the same slot afterward.
+        //
+        // "Nested" is answered by CollectNestedBlockExprs, i.e. by an
+        // If/CaseExpr/BeginExpr occurring anywhere in the statement's
+        // expressions — not only as an ExprStmt's own top-level expression.
+        // That is the whole of Phase 5: `x = if c then return 1 else 2 end`
+        // and `f( begin ... end )` reach the identical recursion an
+        // ordinary statement-position `if` does, so a `return`/`break`/`next`
+        // inside one is spliced exactly like any other. There is no
+        // per-shape arm and no bail-out; the old `ContainsUnstructuredExit`
+        // safety net, which refused such a method wholesale, is gone.
+        //
+        // `While` stays a case of its own only because it is a *statement*,
+        // so no expression walk can reach it.
         for ( std::size_t Pos = 0; Pos < Body.Size(); ++Pos )
         {
             const Frontend::StmtId Id = Body[Pos];
@@ -433,113 +445,103 @@ namespace
                 continue;
             }
 
-            const auto *ExprStmtNode = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( Id ) );
-            if ( ExprStmtNode == nullptr )
+            // Every nested block this statement owns, at any expression
+            // depth. Collected by value before the first rewrite below: each
+            // arm Add()s (rules/ast-rewrite.md), and the ids stay valid
+            // because every rewrite writes back into the same slot.
+            const std::vector<Frontend::ExprId> Nested = CollectNestedBlockExprs( Ast, Id );
+            if ( Nested.empty() )
             {
                 continue;
             }
-            const Frontend::ExprId InnerId = ExprStmtNode->Expr;
 
-            if ( std::holds_alternative<Frontend::If>( Ast.Expr( InnerId ) ) )
+            // Computed once for the statement rather than per arm: the three
+            // arms below used three verbatim copies of this, which is also
+            // why the whole statement shares one ambient slice — every block
+            // it owns is entered at the same point in this Body's sequence.
+            std::vector<FinalizeCandidate> StmtReturnAmbient = ReversedBefore( Candidates, Pos );
+            StmtReturnAmbient.insert( StmtReturnAmbient.end(), ReturnAmbient.begin(), ReturnAmbient.end() );
+            std::vector<FinalizeCandidate> StmtLoopAmbient;
+            if ( bInLoop )
             {
-                Frontend::If IfCopy = std::get<Frontend::If>( Ast.Expr( InnerId ) );
-
-                std::vector<FinalizeCandidate> ChildReturnAmbient = ReversedBefore( Candidates, Pos );
-                ChildReturnAmbient.insert( ChildReturnAmbient.end(), ReturnAmbient.begin(), ReturnAmbient.end() );
-                std::vector<FinalizeCandidate> ChildLoopAmbient;
-                if ( bInLoop )
-                {
-                    ChildLoopAmbient = ReversedBefore( Candidates, Pos );
-                    ChildLoopAmbient.insert( ChildLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
-                }
-                if ( ImplicitCandidate.has_value() )
-                {
-                    ChildReturnAmbient.push_back( *ImplicitCandidate );
-                    if ( bInLoop )
-                    {
-                        ChildLoopAmbient.push_back( *ImplicitCandidate );
-                    }
-                }
-
-                IfCopy.Then =
-                    ProcessBlock( Context, MethodScope, std::move( IfCopy.Then ), bInLoop, ChildReturnAmbient, ChildLoopAmbient );
-                IfCopy.Else         = ProcessBlock( Context, MethodScope, std::move( IfCopy.Else ), bInLoop,
-                                                    std::move( ChildReturnAmbient ), std::move( ChildLoopAmbient ) );
-                Ast.Expr( InnerId ) = Frontend::ExprNode{ std::move( IfCopy ) };
+                StmtLoopAmbient = ReversedBefore( Candidates, Pos );
+                StmtLoopAmbient.insert( StmtLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
             }
-            else if ( std::holds_alternative<Frontend::CaseExpr>( Ast.Expr( InnerId ) ) )
+            if ( ImplicitCandidate.has_value() )
             {
-                Frontend::CaseExpr CaseCopy = std::get<Frontend::CaseExpr>( Ast.Expr( InnerId ) );
-
-                std::vector<FinalizeCandidate> ChildReturnAmbient = ReversedBefore( Candidates, Pos );
-                ChildReturnAmbient.insert( ChildReturnAmbient.end(), ReturnAmbient.begin(), ReturnAmbient.end() );
-                std::vector<FinalizeCandidate> ChildLoopAmbient;
+                StmtReturnAmbient.push_back( *ImplicitCandidate );
                 if ( bInLoop )
                 {
-                    ChildLoopAmbient = ReversedBefore( Candidates, Pos );
-                    ChildLoopAmbient.insert( ChildLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
+                    StmtLoopAmbient.push_back( *ImplicitCandidate );
                 }
-                if ( ImplicitCandidate.has_value() )
-                {
-                    ChildReturnAmbient.push_back( *ImplicitCandidate );
-                    if ( bInLoop )
-                    {
-                        ChildLoopAmbient.push_back( *ImplicitCandidate );
-                    }
-                }
-
-                for ( const Frontend::StmtId ClauseId : CaseCopy.Clauses )
-                {
-                    Frontend::WhenClause ClauseCopy = std::get<Frontend::WhenClause>( Ast.Stmt( ClauseId ) );
-                    ClauseCopy.Body                 = ProcessBlock( Context, MethodScope, std::move( ClauseCopy.Body ), bInLoop,
-                                                                    ChildReturnAmbient, ChildLoopAmbient );
-                    Ast.Stmt( ClauseId )            = Frontend::StmtNode{ std::move( ClauseCopy ) };
-                }
-                CaseCopy.ElseBody   = ProcessBlock( Context, MethodScope, std::move( CaseCopy.ElseBody ), bInLoop,
-                                                    std::move( ChildReturnAmbient ), std::move( ChildLoopAmbient ) );
-                Ast.Expr( InnerId ) = Frontend::ExprNode{ std::move( CaseCopy ) };
             }
-            else if ( std::holds_alternative<Frontend::BeginExpr>( Ast.Expr( InnerId ) ) )
+
+            for ( const Frontend::ExprId InnerId : Nested )
             {
-                Frontend::BeginExpr BeginCopy = std::get<Frontend::BeginExpr>( Ast.Expr( InnerId ) );
+                Context.Ctx.Stats.RaiiNestedExpressionExits += 1;
 
-                std::vector<FinalizeCandidate> ChildReturnAmbient = ReversedBefore( Candidates, Pos );
-                ChildReturnAmbient.insert( ChildReturnAmbient.end(), ReturnAmbient.begin(), ReturnAmbient.end() );
-                std::vector<FinalizeCandidate> ChildLoopAmbient;
-                if ( bInLoop )
+                if ( std::holds_alternative<Frontend::If>( Ast.Expr( InnerId ) ) )
                 {
-                    ChildLoopAmbient = ReversedBefore( Candidates, Pos );
-                    ChildLoopAmbient.insert( ChildLoopAmbient.end(), LoopAmbient.begin(), LoopAmbient.end() );
+                    Frontend::If IfCopy = std::get<Frontend::If>( Ast.Expr( InnerId ) );
+
+                    std::vector<FinalizeCandidate> ChildReturnAmbient = StmtReturnAmbient;
+                    std::vector<FinalizeCandidate> ChildLoopAmbient   = StmtLoopAmbient;
+
+                    IfCopy.Then = ProcessBlock( Context, MethodScope, std::move( IfCopy.Then ), bInLoop, ChildReturnAmbient,
+                                                ChildLoopAmbient );
+                    IfCopy.Else = ProcessBlock( Context, MethodScope, std::move( IfCopy.Else ), bInLoop,
+                                                std::move( ChildReturnAmbient ), std::move( ChildLoopAmbient ) );
+                    Ast.Expr( InnerId ) = Frontend::ExprNode{ std::move( IfCopy ) };
+                    continue;
                 }
-                if ( ImplicitCandidate.has_value() )
+
+                if ( std::holds_alternative<Frontend::CaseExpr>( Ast.Expr( InnerId ) ) )
                 {
-                    ChildReturnAmbient.push_back( *ImplicitCandidate );
-                    if ( bInLoop )
+                    Frontend::CaseExpr CaseCopy = std::get<Frontend::CaseExpr>( Ast.Expr( InnerId ) );
+
+                    std::vector<FinalizeCandidate> ChildReturnAmbient = StmtReturnAmbient;
+                    std::vector<FinalizeCandidate> ChildLoopAmbient   = StmtLoopAmbient;
+
+                    for ( const Frontend::StmtId ClauseId : CaseCopy.Clauses )
                     {
-                        ChildLoopAmbient.push_back( *ImplicitCandidate );
+                        Frontend::WhenClause ClauseCopy = std::get<Frontend::WhenClause>( Ast.Stmt( ClauseId ) );
+                        ClauseCopy.Body      = ProcessBlock( Context, MethodScope, std::move( ClauseCopy.Body ), bInLoop,
+                                                             ChildReturnAmbient, ChildLoopAmbient );
+                        Ast.Stmt( ClauseId ) = Frontend::StmtNode{ std::move( ClauseCopy ) };
                     }
+                    CaseCopy.ElseBody   = ProcessBlock( Context, MethodScope, std::move( CaseCopy.ElseBody ), bInLoop,
+                                                        std::move( ChildReturnAmbient ), std::move( ChildLoopAmbient ) );
+                    Ast.Expr( InnerId ) = Frontend::ExprNode{ std::move( CaseCopy ) };
+                    continue;
                 }
 
-                BeginCopy.Body = ProcessBlock( Context, MethodScope, std::move( BeginCopy.Body ), bInLoop, ChildReturnAmbient,
-                                               ChildLoopAmbient );
-                for ( const Frontend::StmtId RescueId : BeginCopy.RescueClauses )
                 {
-                    Frontend::RescueClause RescueCopy = std::get<Frontend::RescueClause>( Ast.Stmt( RescueId ) );
-                    // The clause's own bound variable (`rescue e : Exception`) —
-                    // an implicit candidate for its own Body only, orthogonal to
-                    // whatever this level's own ImplicitCandidate (an outer
-                    // enclosing rescue var, if this BeginExpr is itself nested)
-                    // already folded into ChildReturnAmbient/ChildLoopAmbient
-                    // above.
-                    const std::optional<FinalizeCandidate> RescueCandidate =
-                        BuildRescueCandidate( Context, RescueCopy, RescueId );
-                    RescueCopy.Body      = ProcessBlock( Context, MethodScope, std::move( RescueCopy.Body ), bInLoop,
-                                                         ChildReturnAmbient, ChildLoopAmbient, RescueCandidate, RescueCopy.Loc );
-                    Ast.Stmt( RescueId ) = Frontend::StmtNode{ std::move( RescueCopy ) };
+                    Frontend::BeginExpr BeginCopy = std::get<Frontend::BeginExpr>( Ast.Expr( InnerId ) );
+
+                    std::vector<FinalizeCandidate> ChildReturnAmbient = StmtReturnAmbient;
+                    std::vector<FinalizeCandidate> ChildLoopAmbient   = StmtLoopAmbient;
+
+                    BeginCopy.Body = ProcessBlock( Context, MethodScope, std::move( BeginCopy.Body ), bInLoop, ChildReturnAmbient,
+                                                   ChildLoopAmbient );
+                    for ( const Frontend::StmtId RescueId : BeginCopy.RescueClauses )
+                    {
+                        Frontend::RescueClause RescueCopy = std::get<Frontend::RescueClause>( Ast.Stmt( RescueId ) );
+                        // The clause's own bound variable (`rescue e : Exception`) —
+                        // an implicit candidate for its own Body only, orthogonal to
+                        // whatever this level's own ImplicitCandidate (an outer
+                        // enclosing rescue var, if this BeginExpr is itself nested)
+                        // already folded into ChildReturnAmbient/ChildLoopAmbient
+                        // above.
+                        const std::optional<FinalizeCandidate> RescueCandidate =
+                            BuildRescueCandidate( Context, RescueCopy, RescueId );
+                        RescueCopy.Body      = ProcessBlock( Context, MethodScope, std::move( RescueCopy.Body ), bInLoop,
+                                                             ChildReturnAmbient, ChildLoopAmbient, RescueCandidate, RescueCopy.Loc );
+                        Ast.Stmt( RescueId ) = Frontend::StmtNode{ std::move( RescueCopy ) };
+                    }
+                    BeginCopy.EnsureBody = ProcessBlock( Context, MethodScope, std::move( BeginCopy.EnsureBody ), bInLoop,
+                                                         std::move( ChildReturnAmbient ), std::move( ChildLoopAmbient ) );
+                    Ast.Expr( InnerId )  = Frontend::ExprNode{ std::move( BeginCopy ) };
                 }
-                BeginCopy.EnsureBody = ProcessBlock( Context, MethodScope, std::move( BeginCopy.EnsureBody ), bInLoop,
-                                                     std::move( ChildReturnAmbient ), std::move( ChildLoopAmbient ) );
-                Ast.Expr( InnerId )  = Frontend::ExprNode{ std::move( BeginCopy ) };
             }
         }
 
@@ -827,13 +829,12 @@ bool RunScopeCleanup ( TypeCheckerContext &Context, const Sema::ScopeId Scope, F
         return false;
     }
 
-    // The one shape the structural recursion below cannot reach: an exit
-    // buried in an *expression-position* control construct. Refused wholesale
-    // rather than half-instrumented — see ExitPaths.hpp.
-    if ( ContainsUnstructuredExit( Context.Ctx.Ast, Body ) )
-    {
-        return false;
-    }
+    // There is no exit-shape bail-out here any more. `ProcessBlock`'s Step 1
+    // discovers a nested block through `CollectNestedBlockExprs`, i.e. by
+    // where it *is* rather than by which statement shape encloses it, so an
+    // exit in expression position (`x = if c then return 1 else 2 end`) is
+    // reached by the same recursion as one in statement position and needs
+    // no special case to be correct.
 
     // The silent default this feature must be for ordinary code: a body that
     // owns nothing, and binds no rescue variable, is never touched at all.
