@@ -373,7 +373,10 @@ namespace Frontend
             }
             else if constexpr ( IsIdList<F> )
             {
-                if ( !Field.IsEmpty() )
+                // Not `!IsEmpty()`: a list may be entirely placeholders (an
+                // unbounded `T` in Struct::GenericBounds), and a label with
+                // no branch under it would be a lie.
+                if ( LastValidIndex( Field ) != NoValidIndex )
                 {
                     Children.push_back( [this, FieldName, &Field] ( const std::string &Prefix, bool bLast )
                                         { EmitList( Detail::SnakeCase( FieldName ), Field, Prefix, bLast ); } );
@@ -395,14 +398,41 @@ namespace Frontend
             Dump( Id, Sub + Vert( true ) );
         }
 
+        static constexpr std::size_t NoValidIndex = static_cast<std::size_t>( -1 );
+
+        /// Index of the last entry that names a real node, or NoValidIndex if
+        /// the list holds none. An id list is *not* guaranteed dense: a list
+        /// kept index-parallel to another one carries an invalid id wherever
+        /// the optional half is absent — `Struct::GenericBounds` is invalid at
+        /// every unbounded parameter (`class Box<T>`), matching the invalid
+        /// `Symbol`s that `Call::ArgNames` uses for positional slots.
+        /// Dereferencing one indexes the arena out of bounds.
+        template <typename TList> [[nodiscard]] static std::size_t LastValidIndex ( const TList &List )
+        {
+            std::size_t Last = NoValidIndex;
+            for ( std::size_t Index = 0; Index < List.Size(); ++Index )
+            {
+                if ( List[Index].IsValid() )
+                {
+                    Last = Index;
+                }
+            }
+            return Last;
+        }
+
         template <typename TList>
         void EmitList ( const std::string &Label, const TList &List, const std::string &Prefix, bool bLast )
         {
             Out << Prefix << Branch( bLast ) << LabelText( Label ) << '\n';
-            const std::string Sub = Prefix + Vert( bLast );
+            const std::string Sub       = Prefix + Vert( bLast );
+            const std::size_t LastValid = LastValidIndex( List );
             for ( std::size_t Index = 0; Index < List.Size(); ++Index )
             {
-                const bool bLastElem = Index + 1 == List.Size();
+                if ( !List[Index].IsValid() )
+                {
+                    continue;
+                }
+                const bool bLastElem = Index == LastValid;
                 Out << Sub << Branch( bLastElem );
                 Dump( List[Index], Sub + Vert( bLastElem ) );
             }
