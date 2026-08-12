@@ -1205,6 +1205,49 @@ namespace Sema
         // malformed one must not hang the seam.
         constexpr std::uint32_t MaxFinalizeDepth = 32;
 
+        // Every nominal this type destroys *through*: the written `< Parent`
+        // and every `include`d mixin.
+        //
+        // Read off the AST, exactly as `EnsureStructLayout` reads the same
+        // parent link two functions up, and for the identical reason:
+        // `NominalType::Super` and `NominalType::Includes` are filled by the
+        // *signature* phase, which runs after this seam (Driver.cpp). Asking
+        // the store here answers "no parents" for every type in the program —
+        // which is precisely how a subclass came to synthesize an empty
+        // `finalize` that shadowed its base's real one, statically dispatched,
+        // so `ArgumentError` released nothing an `Exception` owns.
+        [[nodiscard]] Core::SmallVec<NominalId, 2>
+        ParentNominals ( const Frontend::AstContext &Ast, const TypeStore &Store, Frontend::DeclId Decl )
+        {
+            Core::SmallVec<NominalId, 2> Out;
+            if ( const std::optional<NominalId> Super = FieldTypeNominal( Ast, Store, TypeSuperOf( Ast, Decl ) ) )
+            {
+                Out.PushBack( *Super );
+            }
+            const Frontend::DeclList *Body = TypeBodyOf( Ast, Decl );
+            if ( Body == nullptr )
+            {
+                return Out;
+            }
+            for ( const Frontend::DeclId Child : *Body )
+            {
+                if ( not Child.IsValid() )
+                {
+                    continue;
+                }
+                const auto *Included = std::get_if<Frontend::Include>( &Ast.Decl( Child ) );
+                if ( Included == nullptr )
+                {
+                    continue;
+                }
+                if ( const std::optional<NominalId> Mixin = FieldTypeNominal( Ast, Store, Included->Target ) )
+                {
+                    Out.PushBack( *Mixin );
+                }
+            }
+            return Out;
+        }
+
         // Ensures `Id`'s own finalize candidacy (already declared by hand, or
         // freshly synthesized as an empty stub here) is *decided* before a
         // sibling recursion asks `IsFinalizeCandidateNominal` on it — the
@@ -1224,31 +1267,55 @@ namespace Sema
             }
             Done[Id.Value] = true;
 
-            // Settle everything this type can inherit a `finalize` from
-            // before asking whether it has one. Same memoized-by-attachment
-            // discipline the field loop below already uses, and needed for
-            // the same reason: the outer `TypeCount()` sweep may reach a
-            // subclass first, and a subclass that answered "nothing above me"
-            // too early would synthesize an empty stub that *shadows* the
-            // parent destructor synthesized a moment later. Copied out of the
-            // store first — the recursion calls `AddMember` (rules/ast-
-            // rewrite.md's discipline: never a live reference across a
-            // reallocating write).
+            // Copied out before the first recursive call below: a sibling
+            // recursion `AddMember`s and `Add()`s into arenas this very type
+            // also lives in (rules/ast-rewrite.md — never a live reference
+            // across a reallocating write).
+            const std::uint32_t Unit        = Store.Type( Id ).Unit;
+            const Frontend::DeclId TypeDecl = Store.Type( Id ).Decl;
+
+            if ( Unit >= Units.size() or Units[Unit] == nullptr )
             {
-                const SigTypeId Super = Store.Type( Id ).Super;
-                Core::SmallVec<SigTypeId, 2> Includes;
-                for ( const SigTypeId Mixin : Store.Type( Id ).Includes )
-                {
-                    Includes.PushBack( Mixin );
-                }
-                EnsureFinalizeStub( Units, Store, Store.BaseOf( Super ), Done, Depth + 1 );
-                for ( const SigTypeId Mixin : Includes )
-                {
-                    EnsureFinalizeStub( Units, Store, Store.BaseOf( Mixin ), Done, Depth + 1 );
-                }
+                return; // a cache-hit stdlib slot: already synthesized and settled.
             }
 
-            const NominalType &Type = Store.Type( Id );
+            Frontend::AstContext &Ast = *Units[Unit];
+
+            // Settle everything this type destroys through before asking what
+            // it owes. The outer `TypeCount()` sweep may reach a subclass
+            // first, and a subclass that answered "nothing above me" too early
+            // would both mis-report its own triviality and lose the delegation
+            // its synthesized destructor owes its base.
+            const Core::SmallVec<NominalId, 2> Parents = ParentNominals( Ast, Store, TypeDecl );
+            for ( const NominalId Parent : Parents )
+            {
+                EnsureFinalizeStub( Units, Store, Parent, Done, Depth + 1 );
+            }
+
+            // `finalize` is universal, so *having* one says nothing; the
+            // question is only ever whether running it does anything. A
+            // destructor written by hand always does (the compiler cannot read
+            // intent out of a body), an ancestor that is itself non-trivial is
+            // reached through this type's own destructor, and a field that
+            // needs releasing is released by it.
+            const bool bOwnDeclared = Store.OwnMember( Id, FinalizeName ) != nullptr;
+            bool bNonTrivial        = bOwnDeclared;
+            for ( const NominalId Parent : Parents )
+            {
+                bNonTrivial = bNonTrivial or IsFinalizeCandidateNominal( Store, Parent );
+            }
+
+            // `Mixin`/`Enum` carry no storage of their own and are never
+            // synthesized for — but one that *writes* a `finalize` is still
+            // non-trivial, and every type including it inherits that, which is
+            // why the bit is settled before this gate rather than after.
+            const bool bStruct = std::holds_alternative<Frontend::Struct>( Ast.Decl( TypeDecl ) );
+            const bool bClass  = std::holds_alternative<Frontend::Class>( Ast.Decl( TypeDecl ) );
+            if ( not bStruct and not bClass )
+            {
+                Store.MutableType( Id ).bTrivialFinalize = not bNonTrivial;
+                return;
+            }
 
             // A generic type is *not* excluded. Its field types are indeed
             // unresolved until instantiation, but that is only decisive for a
@@ -1258,44 +1325,6 @@ namespace Sema
             // is answerable here and the stub is owed. The field loop below
             // skips bare parameters by name, which is the one case left
             // undecidable (CASCADE_FINALIZE.md item 2's residual wall).
-
-            // Anything in this type's own chain — its body, a mixin it
-            // includes, an ancestor — already answers `finalize`, so there is
-            // nothing to synthesize and, crucially, nothing to *shadow*: an
-            // empty stub added here would hide an inherited destructor and
-            // silently stop it running. `LookupMember` walks that whole
-            // chain, which is exactly the reach this question needs;
-            // `OwnMember` (what this used to ask) does not.
-            //
-            // A finalize that was written rather than defaulted always does
-            // something, so the type is non-trivial before any field is even
-            // looked at.
-            const bool bInherited = Store.LookupMember( Id, FinalizeName ).Decl != nullptr;
-            if ( bInherited )
-            {
-                Store.MutableType( Id ).bTrivialFinalize = false;
-                return;
-            }
-
-            if ( Type.Unit >= Units.size() or Units[Type.Unit] == nullptr )
-            {
-                return; // a cache-hit stdlib slot: already resolved and cached.
-            }
-
-            Frontend::AstContext &Ast = *Units[Type.Unit];
-
-            // `Mixin`/`Enum` are out of scope (Struct/Class only, matching
-            // CASCADE_FINALIZE.md item 3's own design) — decided once, up
-            // front, so nothing below holds a reference across the
-            // recursive `EnsureFinalizeStub` calls the field loop makes
-            // (rules/ast-rewrite.md: a sibling recursion may `Add()` into
-            // this very same unit's Decl arena for an unrelated type).
-            const bool bStruct = std::holds_alternative<Frontend::Struct>( Ast.Decl( Type.Decl ) );
-            const bool bClass  = std::holds_alternative<Frontend::Class>( Ast.Decl( Type.Decl ) );
-            if ( not bStruct and not bClass )
-            {
-                return;
-            }
 
             Core::SourceRange Loc;
             std::visit(
@@ -1307,9 +1336,9 @@ namespace Sema
                         Loc = N.Loc;
                     }
                 },
-                Ast.Decl( Type.Decl ) );
+                Ast.Decl( TypeDecl ) );
 
-            const Frontend::DeclList *BodyPtr = TypeBodyOf( Ast, Type.Decl );
+            const Frontend::DeclList *BodyPtr = TypeBodyOf( Ast, TypeDecl );
             if ( BodyPtr == nullptr )
             {
                 return;
@@ -1323,10 +1352,10 @@ namespace Sema
             // which may reallocate (rules/ast-rewrite.md's discipline, same
             // reason `Body` above is a copy).
             std::vector<std::string> ParamNames;
-            ParamNames.reserve( Type.Params.Size() );
-            for ( std::size_t P = 0; P < Type.Params.Size(); ++P )
+            ParamNames.reserve( Store.Type( Id ).Params.Size() );
+            for ( std::size_t P = 0; P < Store.Type( Id ).Params.Size(); ++P )
             {
-                ParamNames.emplace_back( Store.Text( Type.Params[P] ) );
+                ParamNames.emplace_back( Store.Text( Store.Type( Id ).Params[P] ) );
             }
 
             // A field written as one of *this* type's own generic parameters
@@ -1387,7 +1416,12 @@ namespace Sema
             // triviality bit is what keeps every region's injection set
             // exactly what it was, while making the member itself resolvable
             // on any receiver at all.
-            Store.MutableType( Id ).bTrivialFinalize = not bHasCandidateField;
+            Store.MutableType( Id ).bTrivialFinalize = not( bNonTrivial or bHasCandidateField );
+
+            if ( bOwnDeclared )
+            {
+                return; // the source wrote one; there is nothing to default.
+            }
 
             // An empty `finalize -> Void` — `ReturnType` stays invalid, which
             // is exactly what a hand-written `-> Void` itself resolves to
@@ -1407,15 +1441,15 @@ namespace Sema
             // the Decl arena, and it already happened before this read.
             if ( bStruct )
             {
-                Frontend::Struct Copy = std::get<Frontend::Struct>( Ast.Decl( Type.Decl ) );
+                Frontend::Struct Copy = std::get<Frontend::Struct>( Ast.Decl( TypeDecl ) );
                 Copy.Body.PushBack( StubId );
-                Ast.Decl( Type.Decl ) = Frontend::DeclNode{ std::move( Copy ) };
+                Ast.Decl( TypeDecl ) = Frontend::DeclNode{ std::move( Copy ) };
             }
             else
             {
-                Frontend::Class Copy = std::get<Frontend::Class>( Ast.Decl( Type.Decl ) );
+                Frontend::Class Copy = std::get<Frontend::Class>( Ast.Decl( TypeDecl ) );
                 Copy.Body.PushBack( StubId );
-                Ast.Decl( Type.Decl ) = Frontend::DeclNode{ std::move( Copy ) };
+                Ast.Decl( TypeDecl ) = Frontend::DeclNode{ std::move( Copy ) };
             }
 
             // Registered exactly like Phase A's own DeclareMembers would for
@@ -1428,7 +1462,7 @@ namespace Sema
             Member Slot;
             Slot.Name = Store.Intern( FinalizeName );
             Slot.Kind = EMemberKind::Method;
-            Slot.Unit = Type.Unit;
+            Slot.Unit = Unit;
             Slot.Decl = StubId;
             Store.AddMember( Id, std::move( Slot ) );
         }
