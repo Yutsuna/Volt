@@ -177,7 +177,14 @@ namespace
 // is a reflected aggregate dump, so a new field silently shifts every byte
 // after it. The magic is the only thing standing between a stale cache and a
 // misread signature table.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453035ULL; // "VOLTFE05"
+// Bumped to 06 when `SynthesizeFinalizeStubs` stopped excluding generic
+// types: the stdlib's own generic aggregates (`Hash<K,V>`) now carry a
+// synthesized `finalize` member that a cache written by the previous
+// compiler does not. Unlike the bumps above, no serialised *field* changed —
+// the cache key hashes stdlib *sources*, which did not change either, so
+// nothing else would have invalidated it and every build would keep reading
+// a store whose member tables predate the synthesis.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453036ULL; // "VOLTFE06"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
