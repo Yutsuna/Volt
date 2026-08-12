@@ -46,8 +46,9 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             TopBody.PushBack( Id );
         }
 
+        const bool bTopCleanup = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] ), TopBody );
         static_cast<void>( Lifetime::RunTemporaries( Context, TopBody ) );
-        if ( Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Ast.TopStmts[0] ), TopBody ) )
+        if ( bTopCleanup )
         {
             Ast.TopStmts.clear();
             for ( const Frontend::StmtId Id : TopBody )
@@ -78,12 +79,18 @@ void Volt::Sema::TypeCheckerPass::InsertFinalizeCalls ( TypeCheckerContext &Cont
             continue;
         }
 
-        // Temporaries first: it rewrites *expression* slots the body already
-        // points at, never the StmtList itself, so ScopeCleanup then sees a
-        // body whose unnamed owned values have already become ordinary
-        // regions — and needs no notion of a temporary of its own.
-        const bool bTemporaries = Lifetime::RunTemporaries( Context, Node.Body );
+        // ScopeCleanup first, Temporaries second — and the order is
+        // load-bearing, not a preference. A temporary region is a `StmtList`
+        // like any other, so a ScopeCleanup running *after* it would collect
+        // the locals declared inside that list as if the region were their
+        // scope, and release them at the region's end instead of the body's
+        // (`tidy = users.map( f )` → `tidy` finalized before the next
+        // statement reads it). Running cleanup first means every local is
+        // scoped against the body it was actually written in; Temporaries
+        // then only ever rewrites expression slots, never a StmtList, so it
+        // cannot disturb the cleanup already placed.
         const bool bCleanup     = Lifetime::RunScopeCleanup( Context, Context.Ctx.Scopes.ScopeOf( Node.Body[0] ), Node.Body );
+        const bool bTemporaries = Lifetime::RunTemporaries( Context, Node.Body );
         if ( bTemporaries or bCleanup )
         {
             Ast.Decl( Id ) = Frontend::DeclNode{ std::move( Node ) };
