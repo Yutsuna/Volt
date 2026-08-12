@@ -187,7 +187,17 @@ namespace
 // a store whose member tables predate the synthesis.
 // Bumped to 07 when `Sema::Member` gained `ParamEscapes`: a new serialised
 // field, so the same byte-shift reasoning as 05 applies.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453037ULL; // "VOLTFE07"
+// Bumped to 08 for the RAII epic's second half. No serialised *field* changed
+// — the same "content, not shape" case as 06, and for two reasons at once:
+// `SynthesizeFinalizeStubs` now resolves a type's ancestors (so a subclass no
+// longer synthesizes a stub that shadows its base's destructor, and its
+// triviality bit accounts for the chain), and `Raii::InferReturnOwnership`
+// moved to a seam that reads the *lowered* AST, which changes what it can
+// prove for every stdlib member. Both are baked into the cached store and the
+// cached ASTs, and neither would invalidate the key on its own: it hashes
+// stdlib *sources*, which did not change, plus the `volt` executable's own
+// identity — which does not move when only a module `.so` is relinked.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453038ULL; // "VOLTFE08"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
