@@ -1,0 +1,56 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+#------------------------------------------------------------------------------
+# Phase 5 fixture: an exit hiding in an *expression-position* control
+# construct. `value = if ... then return ... else ... end` puts a StmtList
+# under an Assign's value, which the RAII sweep used to be unable to reach —
+# it refused the whole method rather than emit a partial set of finalize
+# calls, so `outer` leaked silently. ScopeCleanup now discovers a nested
+# block by where it is rather than by which statement encloses it, so this
+# return is spliced exactly like a statement-position one.
+
+class Tracked
+  id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> ) end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @id
+    *@cursor = slot + 1
+  end
+end
+
+def expression_return( flag : Bool, log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Int32
+  outer = Tracked.new( 1, log, cursor )
+  value = if flag
+    inner = Tracked.new( 2, log, cursor )
+    return 99
+  else
+    7
+  end
+  value
+end
+
+cursor = Pointer<Int32>.malloc( 1 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 2 )
+
+result = expression_return( true, log, cursor )
+
+assert!( result == 99 )
+
+# Both finalize, innermost first: `inner` belongs to the branch the return
+# leaves, `outer` to the method body it unwinds past.
+assert!( *cursor == 2 )
+assert!( *( log + 0 ) == 2 )
+assert!( *( log + 1 ) == 1 )
+
+log.free
+cursor.free
