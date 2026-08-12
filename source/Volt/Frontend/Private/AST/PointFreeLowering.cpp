@@ -6,6 +6,7 @@
 #include "Volt/Frontend/AST/Type.hpp"
 
 #include <cstdio>
+#include <optional>
 #include <variant>
 #include <vector>
 
@@ -116,6 +117,42 @@ BuildCompositionBody ( Frontend::AstContext &Context, Frontend::ExprId CompId, F
     return Context.Add( OuterCall );
 }
 
+// A composition's result type is whatever its rightmost step returns, never
+// the input type `T` — `(&.to_string) >> (&.data) >> libc_puts` yields
+// `Int32`, not the `String` it started from. That rightmost step is the
+// composition's own `Rhs` (parsed left-associative, so `Comp.Rhs` is already
+// the last one applied); recurse through it when it is itself a nested
+// Composition, and stop at a bare `Identifier` naming a top-level `def` in
+// this same file, whose declared `-> T` is read back verbatim — no type
+// resolution, just the same TypeId the callee itself declared. A Section (or
+// any other shape) has no statically-known result without evaluating a
+// receiver type, so it falls back to the caller's default of `T`.
+[[nodiscard]] std::optional<Frontend::TypeId> TryResolveChainReturnType ( const Frontend::AstContext &Context,
+                                                                          Frontend::ExprId Id )
+{
+    if ( const auto *Comp = std::get_if<Frontend::Composition>( &Context.Expr( Id ) ) )
+    {
+        return TryResolveChainReturnType( Context, Comp->Rhs );
+    }
+
+    const auto *Ident = std::get_if<Frontend::Identifier>( &Context.Expr( Id ) );
+    if ( Ident == nullptr )
+    {
+        return std::nullopt;
+    }
+
+    for ( const Frontend::DeclId DeclId : Context.TopDecls )
+    {
+        const auto *Def = std::get_if<Frontend::Method>( &Context.Decl( DeclId ) );
+        if ( Def != nullptr and Def->Name == Ident->Name and Def->ReturnType.IsValid() )
+        {
+            return Def->ReturnType;
+        }
+    }
+
+    return std::nullopt;
+}
+
 } // namespace
 
 void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
@@ -146,6 +183,9 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         const Core::SourceRange Loc = ValueKind == ExprKind::Section ? std::get<Section>( Context.Expr( ValId ) ).Loc
                                                                      : std::get<Composition>( Context.Expr( ValId ) ).Loc;
 
+        const std::optional<TypeId> ResolvedReturnType =
+            ValueKind == ExprKind::Composition ? TryResolveChainReturnType( Context, ValId ) : std::nullopt;
+
         const Core::Symbol ParamName = Context.MakeUniqueSymbol( "fn_tmp" );
         const Core::Symbol TSym      = Context.MakeUniqueSymbol( "T" );
 
@@ -154,10 +194,21 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
         ParamTRef.Path.PushBack( TSym );
         const TypeId ParamTId = Context.Add( ParamTRef );
 
-        TypeRef ReturnTRef;
-        ReturnTRef.Loc = Loc;
-        ReturnTRef.Path.PushBack( TSym );
-        const TypeId ReturnTId = Context.Add( ReturnTRef );
+        TypeId ReturnTId;
+        if ( ResolvedReturnType.has_value() )
+        {
+            // The rightmost step's own declared return TypeId, reused as-is —
+            // Type nodes are immutable after parsing, so sharing the Id
+            // across two decls' signatures is safe.
+            ReturnTId = *ResolvedReturnType;
+        }
+        else
+        {
+            TypeRef ReturnTRef;
+            ReturnTRef.Loc = Loc;
+            ReturnTRef.Path.PushBack( TSym );
+            ReturnTId = Context.Add( ReturnTRef );
+        }
 
         Param ParamNode;
         ParamNode.Loc          = Loc;
