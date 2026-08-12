@@ -54,7 +54,7 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_3' @18:16
 │  ├─ return_type
-│  │  └─ TypeRef 'T_3' @18:16
+│  │  └─ TypeRef 'String' @18:20
 │  └─ body
 │     └─ ExprStmt @18:16
 │        └─ expr
@@ -79,7 +79,7 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_5' @32:24
 │  ├─ return_type
-│  │  └─ TypeRef 'T_5' @32:24
+│  │  └─ TypeRef 'String' @32:29
 │  └─ body
 │     └─ ExprStmt @32:24
 │        └─ expr
