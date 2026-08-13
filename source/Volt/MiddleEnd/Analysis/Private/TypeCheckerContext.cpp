@@ -130,11 +130,11 @@ std::string Volt::MiddleEnd::Analysis::TypeCheckerContext::NameOf ( NominalId Id
 
 std::string Volt::MiddleEnd::Analysis::TypeCheckerContext::NameOfValue ( SemaTypeId Id ) const
 {
-    if ( not Ctx.Values.Has( Id ) )
-    {
-        return "<unresolved>";
-    }
-    return NameOf( Ctx.Values.Get( Id ).Base );
+    // The full generic signature, not the base nominal: two instantiations of
+    // one generic differ only in their arguments, so dropping those turned
+    // every such mismatch into "cannot assign G to G". `UnitTypes::Describe`
+    // renders them from the canonical dictionary (TypeUniverse.hpp).
+    return Ctx.Values.Describe( Ctx.Types, Id );
 }
 
 Volt::MiddleEnd::TypeSystem::SemaTypeId
