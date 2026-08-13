@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string_view>
@@ -30,6 +31,32 @@ namespace MiddleEnd
 
     namespace TypeSystem
     {
+
+        // Structural keys — a flat `u32` sequence — are how both dedup tables in
+        // this tier are hashed: `TypeStore::AddSig` for signature types, and
+        // `TypeUniverse`/`UnitTypes` for expression types. One encoding, one
+        // hash, so the two can never disagree about what "the same shape" means.
+        struct U32KeyHash
+        {
+
+            [[nodiscard]] std::size_t operator()( const std::vector<std::uint32_t> &Key ) const noexcept
+            {
+                // FNV-1a over the words: cheap, and these keys are 1-4 words in
+                // the overwhelming majority of cases.
+                std::size_t Hash = 1469598103934665603ULL;
+                for ( const std::uint32_t Word : Key )
+                {
+                    Hash ^= Word;
+                    Hash *= 1099511628211ULL;
+                }
+                return Hash;
+            }
+        };
+
+        // Defined in TypeUniverse.hpp, which needs `NominalId` from this header
+        // and so cannot be included here. The store owns one by pointer; see
+        // `TypeStore::Universe`.
+        class TypeUniverse;
 
         // A declared Volt type, referenced by handle like everything else.
         struct NominalTag
@@ -249,6 +276,36 @@ namespace MiddleEnd
         {
 
         public:
+
+            // Out-of-line: the store owns a `TypeUniverse` by pointer, and that
+            // type is only complete in TypeUniverse.cpp (its own header needs
+            // `NominalId` from this one).
+            TypeStore ();
+            TypeStore ( const TypeStore & )           = delete;
+            TypeStore ( TypeStore && )                = delete;
+            TypeStore &operator=( const TypeStore & ) = delete;
+            TypeStore &operator=( TypeStore && )      = delete;
+            ~TypeStore ();
+
+            // The canonical dictionary for every expression type built against
+            // *this* store's nominals. Logically const — interning an
+            // instantiation does not change what the store declares — which is
+            // why a read-only `PassContext::Types` can still hand a parallel
+            // TypeChecker somewhere to intern into. See TypeUniverse.hpp on why
+            // the scope is one store and never one process.
+            [[nodiscard]] TypeUniverse &Universe () const
+            {
+                return *UniverseStorage;
+            }
+
+            // Distinguishes this store instance from every other one the process
+            // ever builds, so a cache keyed on ids minted here (see
+            // `Analysis::InstantiationCache`) can refuse a key from a different
+            // build instead of silently reading a stranger's nominals.
+            [[nodiscard]] std::uint64_t Generation () const
+            {
+                return Gen;
+            }
 
             [[nodiscard]] Symbol Intern ( std::string_view Text )
             {
@@ -552,9 +609,26 @@ namespace MiddleEnd
 
             // --- Signature types ----------------------------------------------
 
+            // Structurally interned, exactly like an expression type in the
+            // universe: a signature is immutable once added (nothing hands out a
+            // mutable `SigType`), so two identical shapes are the same shape.
+            // Written `T` appears once per signature that mentions it across the
+            // whole stdlib, so this collapses a large fraction of the arena and
+            // makes `SigTypeId` equality mean something.
+            //
+            // Unsynchronised on purpose: every caller sits on the serial
+            // TypeBinder seam — a parallel pass only ever holds a
+            // `const TypeStore &`, which cannot reach this.
             [[nodiscard]] SigTypeId AddSig ( SigType Value )
             {
-                return Sigs.Add( std::move( Value ) );
+                std::vector<std::uint32_t> Key = SigKeyOf( Value );
+                if ( const auto It = SigDedup.find( Key ); It != SigDedup.end() )
+                {
+                    return It->second;
+                }
+                const SigTypeId Id = Sigs.Add( std::move( Value ) );
+                SigDedup.emplace( std::move( Key ), Id );
+                return Id;
             }
 
             [[nodiscard]] const SigType &Sig ( SigTypeId Id ) const
@@ -707,9 +781,38 @@ namespace MiddleEnd
                 Functions.clear();
                 FunctionByName.clear();
                 Modules.clear();
+                SigDedup.clear();
+                ClearUniverse();
             }
 
         private:
+
+            // Out-of-line for the same reason the destructor is: `TypeUniverse`
+            // is incomplete here.
+            void ClearUniverse ();
+
+            // Rebuilt after a cache replay rather than persisted: it is a pure
+            // index over `Sigs`, whose entries `AddSig` already guarantees are
+            // duplicate-free, so it is recomputable and redundant on disk — the
+            // same argument `UnitTypes` makes about its own memo.
+            void RebuildSigIndex ();
+
+            // The `AddSig` dedup encoding. `ParamIndex` is signed and its
+            // sentinels are negative, so it is folded in bit-for-bit rather
+            // than cast; `Base` is invalid exactly when `ParamIndex` is not, so
+            // the pair never collides across the two shapes.
+            [[nodiscard]] static std::vector<std::uint32_t> SigKeyOf ( const SigType &Value )
+            {
+                std::vector<std::uint32_t> Key;
+                Key.reserve( 2 + Value.Args.Size() );
+                Key.push_back( Value.Base.Value );
+                Key.push_back( static_cast<std::uint32_t>( Value.ParamIndex ) );
+                for ( const SigTypeId Arg : Value.Args )
+                {
+                    Key.push_back( Arg.Value );
+                }
+                return Key;
+            }
 
             template <typename MapType>
             [[nodiscard]] std::optional<NominalId> Find ( const MapType &Map, std::string_view Text ) const
@@ -742,6 +845,9 @@ namespace MiddleEnd
             std::vector<Member> Functions;
             std::unordered_map<Symbol, std::size_t> FunctionByName;
             std::unordered_set<Symbol> Modules;
+            std::unordered_map<std::vector<std::uint32_t>, SigTypeId, U32KeyHash> SigDedup;
+            std::unique_ptr<TypeUniverse> UniverseStorage;
+            std::uint64_t Gen = 0;
         };
 
     } // namespace TypeSystem
