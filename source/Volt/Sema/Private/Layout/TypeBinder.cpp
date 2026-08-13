@@ -1026,8 +1026,92 @@ namespace Sema
                                 std::uint32_t MinParams = 0;
                                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                                 {
-                                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
-                                    Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
+                                    Frontend::Param &ParamNode = const_cast<Frontend::AstContext &>( Ast ).GetParam( ParamRef );
+                                    SigTypeId ParamSig;
+
+                                    if ( ParamNode.bInstanceVar )
+                                    {
+                                        if ( not ParamNode.DeclType.IsValid() )
+                                        {
+                                            Frontend::TypeId InferredDeclType;
+                                            if ( Decl.Body != nullptr )
+                                            {
+                                                for ( const Frontend::DeclId ChildId : *Decl.Body )
+                                                {
+                                                    if ( not ChildId.IsValid() )
+                                                    {
+                                                        continue;
+                                                    }
+                                                    if ( const auto *FieldNode =
+                                                             std::get_if<Frontend::Field>( &Ast.Decl( ChildId ) ) )
+                                                    {
+                                                        if ( FieldNode->Name == ParamNode.Name and FieldNode->DeclType.IsValid() )
+                                                        {
+                                                            InferredDeclType = FieldNode->DeclType;
+                                                            break;
+                                                        }
+                                                    }
+                                                }
+                                            }
+
+                                            if ( InferredDeclType.IsValid() )
+                                            {
+                                                ParamNode.DeclType = InferredDeclType;
+                                            }
+                                            else
+                                            {
+                                                const auto FoundField = Store.LookupMember( Id, Ast.Text( ParamNode.Name ) );
+                                                if ( FoundField.Decl != nullptr and FoundField.Decl->Kind == EMemberKind::Field )
+                                                {
+                                                    if ( FoundField.Decl->Result.IsValid() )
+                                                    {
+                                                        ParamSig = FoundField.Decl->Result;
+                                                    }
+                                                    if ( FoundField.Decl->Decl.IsValid() )
+                                                    {
+                                                        if ( const auto *FieldNode = std::get_if<Frontend::Field>(
+                                                                 &Ast.Decl( FoundField.Decl->Decl ) ) )
+                                                        {
+                                                            if ( FieldNode->DeclType.IsValid() )
+                                                            {
+                                                                ParamNode.DeclType = FieldNode->DeclType;
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        if ( not ParamSig.IsValid() and ParamNode.DeclType.IsValid() )
+                                        {
+                                            ParamSig = ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType );
+                                        }
+
+                                        if ( not ParamSig.IsValid() )
+                                        {
+                                            Report( Core::ESeverity::Error, ParamNode.Loc,
+                                                    "parameter '@" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                                        "' has no corresponding field declared on '" + std::string{ Decl.Name } + "'" );
+                                        }
+                                    }
+                                    else if ( not ParamNode.bIsBlock and not ParamNode.DeclType.IsValid() )
+                                    {
+                                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                                                "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                                    "' requires an explicit type annotation" );
+                                    }
+                                    else
+                                    {
+                                        ParamSig = ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType );
+                                        if ( not ParamNode.bIsBlock and not ParamSig.IsValid() )
+                                        {
+                                            Report( Core::ESeverity::Error, ParamNode.Loc,
+                                                    "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                                        "' has unresolvable type" );
+                                        }
+                                    }
+
+                                    Params.PushBack( ParamSig );
                                     ParamIsBlock.PushBack( ParamNode.bIsBlock );
                                     if ( not ParamNode.bIsBlock and not ParamNode.Default.IsValid() )
                                     {
@@ -1168,8 +1252,33 @@ namespace Sema
                 std::uint32_t MinParams = 0;
                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                 {
-                    const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
-                    Params.PushBack( ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType ) );
+                    Frontend::Param &ParamNode = const_cast<Frontend::AstContext &>( Ast ).GetParam( ParamRef );
+                    SigTypeId ParamSig;
+
+                    if ( ParamNode.bInstanceVar )
+                    {
+                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                                "instance variable parameter '@" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                    "' is not allowed in a free function" );
+                    }
+                    else if ( not ParamNode.bIsBlock and not ParamNode.DeclType.IsValid() )
+                    {
+                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                                "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                    "' requires an explicit type annotation" );
+                    }
+                    else
+                    {
+                        ParamSig = ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType );
+                        if ( not ParamNode.bIsBlock and not ParamSig.IsValid() )
+                        {
+                            Report( Core::ESeverity::Error, ParamNode.Loc,
+                                    "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
+                                        "' has unresolvable type" );
+                        }
+                    }
+
+                    Params.PushBack( ParamSig );
                     ParamIsBlock.PushBack( ParamNode.bIsBlock );
                     if ( not ParamNode.bIsBlock and not ParamNode.Default.IsValid() )
                     {
