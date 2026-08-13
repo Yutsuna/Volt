@@ -15,6 +15,7 @@ volt_middleend_consteval_lib = static_library(
         'Private/MagicExpansion.cpp',
         'Private/MacroExpansion.cpp',
         'Private/SelfCheck.cpp',
+        'Private/TraitEngine.cpp',
     ),
     volt_middleend_consteval_export,
     cpp_pch: common_pch_header,
@@ -24,6 +25,11 @@ volt_middleend_consteval_lib = static_library(
     dependencies: [
         compile_options_dep,
         volt_middleend_core_dep,
+        # TraitEngine answers its questions off the TypeStore's own structure
+        # (Includes / Super / Members), so it needs the type system proper —
+        # which sits below ConstEval in §1's DAG, so this is an ordinary
+        # forward edge, not the back-edge Lowering carries.
+        volt_middleend_typesystem_dep,
         core_dep,
         frontend_dep,
     ],
