@@ -9,7 +9,7 @@ readonly VOLT_BIN="${2:?Missing VOLT_BIN argument}"
 readonly SAMPLE="${3:?Missing SAMPLE argument}"
 readonly GOLDEN="${4:?Missing GOLDEN argument}"
 readonly LOWERED="${5:?Missing LOWERED argument}"
-readonly STAMP="${6:?Missing STAMP argument}"
+readonly STAMP="$(realpath -m "${6:?Missing STAMP argument}")"
 
 mkdir -p -- "${GOLDEN%/*}"
 
