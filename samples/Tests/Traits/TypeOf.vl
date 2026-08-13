@@ -1,0 +1,33 @@
+# `typeof( expr )` names the type an expression has, written where a type is
+# written. It is resolved by ResolveTypeExpr through UnitSink's inference hook
+# and is gone before any backend runs — there is no `typeof` at run time, only
+# the type it stood for.
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+# --- A local annotation ------------------------------------------------------
+count : Int32 = 41
+mirrored : typeof( count ) = 1
+assert!( count + mirrored == 42 )
+
+label : String = "volt"
+echoed : typeof( label ) = "volt"
+assert!( echoed == label )
+
+# --- Over an expression, not just a name -------------------------------------
+doubled : typeof( count * 2 ) = 84
+assert!( doubled == count * 2 + 2 )
+
+# --- As a generic argument, in expression position ---------------------------
+numbers = Array<typeof( count )>.new
+numbers.push( count )
+numbers.push( mirrored )
+assert!( numbers.size == 2 )
+assert!( numbers[0] == 41 )
+
+# --- Composed with the other compile-time question over a type ---------------
+assert!( sizeof( typeof( count ) ) == sizeof( Int32 ) )
