@@ -12,6 +12,7 @@ volt_middleend_lowering_export = configure_file(
 volt_middleend_lowering_lib = static_library(
     'VoltMiddleEndLowering',
     files(
+        'Private/LoweringRules.cpp',
         'Private/FunctionalLowering.cpp',
         'Private/PipelineLowering.cpp',
         'Private/JsxLowering.cpp',

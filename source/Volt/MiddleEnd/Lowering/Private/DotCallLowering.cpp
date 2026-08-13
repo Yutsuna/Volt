@@ -14,76 +14,71 @@
 // entirely, and it matches the choice CaseLowering already makes for a `case`
 // with no target: an explicit SelfExpr, never a second resolution path.
 
+#include "Volt/MiddleEnd/Lowering/LoweringRules.hpp"
+
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 
-#include <cstddef>
 #include <variant>
 
 namespace
 {
 
 using namespace Volt;
+using namespace Volt::MiddleEnd::Lowering;
 
-class DotCallRewriter
+// Every DotCall reaching order 23 is an implicit-self call, so this claims all
+// of them unconditionally — the `Match` that returns true is the honest
+// spelling of "there is no residual question here".
+class DotCallToSelf
 {
 
 public:
 
-    explicit DotCallRewriter ( Frontend::AstContext &InContext ) : Context( InContext )
+    static constexpr Frontend::ExprKind Kind ()
     {
+        return Frontend::ExprKind::DotCall;
     }
 
-    std::size_t Run ()
+    bool Match ( RewriteContext & /*Context*/, Frontend::ExprId /*Id*/ ) const
     {
-        // Index sweep, copy-out / write-back — see rules/ast-rewrite.md.
-        const std::size_t OriginalCount = Context.ExprCount();
-        std::size_t Rewritten           = 0;
-
-        for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
-        {
-            const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
-            if ( KindOf( Context.Expr( Id ) ) == Frontend::ExprKind::DotCall )
-            {
-                Context.Expr( Id ) = LowerDotCall( Id );
-                ++Rewritten;
-            }
-        }
-
-        return Rewritten;
+        return true;
     }
 
-private:
-
-    [[nodiscard]] Frontend::ExprNode LowerDotCall ( Frontend::ExprId DotCallId )
+    Frontend::ExprNode Apply ( RewriteContext &Context, Frontend::ExprId Id ) const
     {
-        const Frontend::DotCall Dot = std::get<Frontend::DotCall>( Context.Expr( DotCallId ) );
+        // Copied out: both `Add()`s below can move the arena (ast-rewrite.md).
+        const Frontend::DotCall Dot = std::get<Frontend::DotCall>( Context.Ast.Expr( Id ) );
 
-        Frontend::SelfExpr SelfNode;
-        SelfNode.Loc                    = Dot.Loc;
-        const Frontend::ExprId Receiver = Context.Add( Frontend::ExprNode{ SelfNode } );
+        const Frontend::ExprId Receiver = Context.Ast.Add( Frontend::ExprNode{ Frontend::SelfExpr{ .Loc = Dot.Loc } } );
+        const Frontend::ExprId Callee =
+            Context.Ast.Add( Frontend::ExprNode{ Frontend::Member{ .Loc = Dot.Loc, .Object = Receiver, .Name = Dot.Method } } );
 
-        Frontend::Member Mem;
-        Mem.Loc                       = Dot.Loc;
-        Mem.Object                    = Receiver;
-        Mem.Name                      = Dot.Method;
-        const Frontend::ExprId Callee = Context.Add( Frontend::ExprNode{ Mem } );
-
-        Frontend::Call Node;
-        Node.Loc      = Dot.Loc;
-        Node.Callee   = Callee;
-        Node.Args     = Dot.Args;
-        Node.ArgNames = Dot.ArgNames;
-        return Node;
+        Frontend::Call Lowered;
+        Lowered.Loc      = Dot.Loc;
+        Lowered.Callee   = Callee;
+        Lowered.Args     = Dot.Args;
+        Lowered.ArgNames = Dot.ArgNames;
+        return Lowered;
     }
-
-    Frontend::AstContext &Context;
 };
+
+[[nodiscard]] const RuleRegistry &Rules ()
+{
+    static const RuleRegistry Registry = []
+    {
+        RuleRegistry Built;
+        Built.Add<DotCallToSelf>( "DotCallToSelf" );
+        return Built;
+    }();
+    return Registry;
+}
 
 } // namespace
 
 void Volt::MiddleEnd::Lowering::DotCallLowering ( Core::PassContext &Context )
 {
-    Context.Stats.DotCallsLowered += DotCallRewriter( Context.Ast ).Run();
+    RewriteContext Rewrite{ .Ast = Context.Ast, .Diags = Context.Diags };
+    Context.Stats.DotCallsLowered += Rules().Run( Rewrite );
 }
