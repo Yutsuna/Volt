@@ -46,6 +46,11 @@ namespace MiddleEnd
             using IdType = SigTypeId;
 
             TypeStore &Store;
+            // Only `typeof` reports through this — a signature is the one place
+            // it cannot be answered, and a field left silently untyped is worse
+            // than a refusal. Null keeps ResolveTypeExpr's ordinary "an unknown
+            // name yields an invalid id and no diagnostic" behaviour.
+            ::Volt::Core::DiagEngine::Bag *Diags = nullptr;
 
             [[nodiscard]] IdType Make ( NominalId Base, ::Volt::Core::SmallVec<IdType, 2> Args )
             {
@@ -60,6 +65,26 @@ namespace MiddleEnd
             [[nodiscard]] IdType SelfRef ()
             {
                 return Param( SigType::SelfParam );
+            }
+
+            // `typeof( expr )` in a *declaration's* signature — a field type, a
+            // parameter, a return type. Unanswerable here and deliberately so:
+            // a signature is published for other units to resolve against, and
+            // an expression's type is a fact about one body in one unit, whose
+            // AST that other unit never sees. Refused out loud, because the
+            // alternative is a field whose type is silently nothing.
+            [[nodiscard]] IdType TypeOf ( Frontend::ExprId /*Value*/, ::Volt::Core::SourceRange Loc ) const
+            {
+                if ( Diags != nullptr )
+                {
+                    Diags->Report( ::Volt::Core::Diagnostic{
+                        .Severity = ::Volt::Core::ESeverity::Error,
+                        .Range    = Loc,
+                        .Message  = "'typeof' cannot be used in a declaration's type — it names the type of an "
+                                    "expression, which only exists inside a body",
+                        .Notes    = {} } );
+                }
+                return IdType{};
             }
         };
 
@@ -87,9 +112,30 @@ namespace MiddleEnd
             // that only wants a best-effort type (e.g. MiddleEnd::TypeSystem::ReinstantiateBody).
             ::Volt::Core::DiagEngine::Bag *Diags = nullptr;
 
+            // `typeof( expr )` is the one annotation whose answer is an
+            // *inference*, and inference lives in Analysis — above this module
+            // in §1's DAG. Rather than invert that, the walk which owns an
+            // inferencer installs itself here and `ResolveTypeExpr` calls back
+            // through it; nothing in this module's headers points at Analysis.
+            //
+            // Null in every caller that has no walk state to lend
+            // (`ReinstantiateBody`'s best-effort resolve, any pass resolving an
+            // annotation outside a body), where a `typeof` has no answer and
+            // yields an invalid id like any other unresolvable annotation.
+            SemaTypeId ( *InferHook )( void *State, Frontend::ExprId Id ) = nullptr;
+            void *InferState                                              = nullptr;
+
             [[nodiscard]] IdType Make ( NominalId Base, ::Volt::Core::SmallVec<IdType, 2> Args )
             {
                 return Values.Intern( SemaType{ .Base = Base, .Args = std::move( Args ) } );
+            }
+
+            // No diagnostic on a miss, unlike SigSink's: a hookless UnitSink is
+            // an ordinary best-effort resolve (ReinstantiateBody), not a
+            // refusal, and reporting there would fire once per instantiation.
+            [[nodiscard]] IdType TypeOf ( Frontend::ExprId Id, ::Volt::Core::SourceRange /*Loc*/ ) const
+            {
+                return InferHook != nullptr and Id.IsValid() ? InferHook( InferState, Id ) : IdType{};
             }
 
             [[nodiscard]] IdType Param ( std::int32_t Index )
@@ -234,6 +280,11 @@ namespace MiddleEnd
 
                         return Out.Make( *Base, std::move( Args ) );
                     },
+                    // `typeof( expr )` — the only node here built from a
+                    // *value*, so the only one the reflected arm below cannot
+                    // reach: it has no TypeId field to recurse on and claims no
+                    // node kind. The sink answers it, or says it cannot.
+                    [&] ( const Frontend::TypeOfType &Node ) -> IdType { return Out.TypeOf( Node.Value, Node.Loc ); },
                     // Every other shape, present or future: the node claims a
                     // stdlib type through `@[Literal( <NodeName> )]`, and its
                     // type-bearing fields are its arguments in declaration order.
