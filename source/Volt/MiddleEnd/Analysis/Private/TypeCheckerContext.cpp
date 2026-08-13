@@ -1,4 +1,5 @@
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
+#include "ExprInferencer.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
@@ -15,6 +16,20 @@ Volt::MiddleEnd::Analysis::TypeCheckerContext::TypeCheckerContext ( PassContext 
 /**
  * Public
  */
+
+Volt::MiddleEnd::TypeSystem::UnitSink Volt::MiddleEnd::Analysis::TypeCheckerContext::MakeSink ()
+{
+    // The hook is captureless on purpose — it has to decay to a plain function
+    // pointer, which is what lets `UnitSink` carry it without this module's
+    // headers ever naming Analysis (see UnitSink::InferHook).
+    return TypeSystem::UnitSink{ .Values    = Ctx.Values,
+                                 .Self      = SelfValue,
+                                 .Bindings  = GenericBindings(),
+                                 .Diags     = &Ctx.Diags,
+                                 .InferHook = [] ( void *State, Frontend::ExprId Id )
+                                 { return InferExpr( *static_cast<TypeCheckerContext *>( State ), Id ); },
+                                 .InferState = this };
+}
 
 void Volt::MiddleEnd::Analysis::TypeCheckerContext::Report ( Volt::Core::SourceRange Loc, std::string Message )
 {

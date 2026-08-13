@@ -195,6 +195,13 @@ struct VOLT_MIDDLEEND_ANALYSIS_EXPORT TypeCheckerContext
 
     void ConstrainExprType ( Frontend::ExprId Expr, SemaTypeId TargetType );
 
+    // The UnitSink every annotation in a *body* is resolved through — the four
+    // fields each site used to repeat, plus the `typeof` hook, which is the
+    // reason this exists at all: `UnitSink::InferHook` needs a walk to call
+    // back into, and this is the walk. Building one by hand elsewhere is not
+    // wrong, only weaker — a `typeof( x )` resolved through it answers nothing.
+    [[nodiscard]] TypeSystem::UnitSink MakeSink ();
+
     // The concrete arguments the enclosing generic was fixed to, when this
     // walk is a re-instantiation (MiddleEnd::TypeSystem::ReinstantiateBody). Empty in an
     // ordinary pass, where a written `T` inside a generic body is deferred by

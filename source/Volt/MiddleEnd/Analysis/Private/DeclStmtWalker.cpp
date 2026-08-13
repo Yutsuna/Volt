@@ -142,10 +142,7 @@ void Volt::MiddleEnd::Analysis::EnterMethod ( TypeCheckerContext &Context, const
     OuterUninitializedLocals.swap( Context.UninitializedLocals );
     const SemaTypeId OuterReturnType = Context.CurrentMethodReturnType;
 
-    UnitSink Sink{ .Values   = Context.Ctx.Values,
-                   .Self     = Context.SelfValue,
-                   .Bindings = Context.GenericBindings(),
-                   .Diags    = &Context.Ctx.Diags };
+    UnitSink Sink = Context.MakeSink();
     Context.CurrentMethodReturnType =
         ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.ReturnType );
 
@@ -311,10 +308,7 @@ void Volt::MiddleEnd::Analysis::WalkStmt ( TypeCheckerContext &Context, Frontend
         Meta::Overloaded{
             [&] ( const Frontend::LocalDecl &Node )
             {
-                UnitSink Sink{ .Values   = Context.Ctx.Values,
-                               .Self     = Context.SelfValue,
-                               .Bindings = Context.GenericBindings(),
-                               .Diags    = &Context.Ctx.Diags };
+                UnitSink Sink = Context.MakeSink();
                 const SemaTypeId Written =
                     ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.DeclType );
                 if ( Written.IsValid() and Node.Init.IsValid() )

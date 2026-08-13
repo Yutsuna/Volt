@@ -8,6 +8,7 @@
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
+#include "Volt/MiddleEnd/ConstEval/TraitEngine.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeCompat.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
@@ -318,6 +319,161 @@ ScrutineeNominal ( const Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
     return Value.Args.IsEmpty() ? Volt::MiddleEnd::TypeSystem::SemaTypeId{} : Value.Args[0];
 }
 
+// --- Receiver traits -------------------------------------------------------
+// `user.is_a? Admin`, `row.has_field? :id` — see ConstEval/TraitEngine.hpp.
+//
+// Folded here, at the *callee* seam, rather than after ordinary resolution,
+// because there is nothing to resolve: no type declares `is_a?`, so letting
+// the Member callee infer first would report "type Foo has no member 'is_a?'"
+// before this ever ran. Only the receiver is inferred; the trait's own Member
+// node is never typed and never reaches CalleeResolution, which is what makes
+// "no call is emitted" structural rather than a promise — there is no
+// Resolution for a backend to emit a call from.
+
+// The BoolLiteral answer's own type — a node-kind claim, the compiler's own
+// vocabulary, never a Volt type name (rules/zero-hardcode.md). The same line
+// the TypeTrait arm uses, for the same reason: there is exactly one truth type
+// and the stdlib is what says which.
+[[nodiscard]] Volt::MiddleEnd::TypeSystem::SemaTypeId TruthType ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context )
+{
+    const auto Base = Context.Ctx.Types.LookupNodeKind( "BoolLiteral" );
+    return Base ? Context.MakeType( *Base, {} ) : Volt::MiddleEnd::TypeSystem::SemaTypeId{};
+}
+
+// Replaces `Target`'s slot with the `BoolLiteral` answer, unless this is a
+// re-instantiation walk (`Redirects`), in which case the shared generic body
+// is left untouched and the substitution recorded instead — every
+// instantiation reaches this same node with a different receiver and needs its
+// own answer. Identical in shape and reason to ClosureLifting's own
+// RewriteSlot.
+//
+// `Truth` is published on whichever node the backend will actually read: the
+// target in mutate mode, the *new* node in redirect mode. Skipping the latter
+// is how an instantiated body reaches codegen holding a literal nobody typed.
+void FoldInto ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
+                Volt::Frontend::ExprId Target,
+                Volt::Core::SourceRange Loc,
+                bool Answer,
+                Volt::MiddleEnd::TypeSystem::SemaTypeId Truth )
+{
+    Volt::Frontend::ExprNode Content{ Volt::Frontend::BoolLiteral{ .Loc = Loc, .Value = Answer } };
+
+    if ( Context.Redirects != nullptr )
+    {
+        const Volt::Frontend::ExprId Folded  = Context.Ctx.Ast.Add( std::move( Content ) );
+        ( *Context.Redirects )[Target.Value] = Folded;
+        Context.Ctx.Values.SetExprType( Folded, Truth );
+        return;
+    }
+    Context.Ctx.Ast.Expr( Target ) = std::move( Content );
+    Context.Ctx.Values.SetExprType( Target, Truth );
+}
+
+// The nominal `Id` names when it is written as a bare type (`obj.is_a? Admin`)
+// — resolved through the ordinary naked-type path rather than by reading the
+// spelling, so a qualified name, an alias and `Vector<Int32>` all work and
+// none of them is a case here. A generic's arguments are dropped on purpose:
+// see TraitSite's own comment.
+[[nodiscard]] Volt::MiddleEnd::TypeSystem::NominalId OperandNominal ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
+                                                                      Volt::Frontend::ExprId Id )
+{
+    using namespace Volt::MiddleEnd::Analysis;
+    const Volt::MiddleEnd::TypeSystem::SemaTypeId Named = InferExpr( Context, Id );
+    if ( not Context.NakedTypeExprs.contains( Id.Value ) or not Context.Ctx.Values.Has( Named ) )
+    {
+        return Volt::MiddleEnd::TypeSystem::NominalId{};
+    }
+    return Context.Ctx.Values.Get( Named ).Base;
+}
+
+// Answers `Id` when it is a receiver trait, and reports whether it was one.
+// `Out` is the folded node's type; the node itself has been replaced.
+[[nodiscard]] bool FoldReceiverTrait ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
+                                       Volt::Frontend::ExprId Id,
+                                       const Volt::Frontend::Call &Expr,
+                                       Volt::MiddleEnd::TypeSystem::SemaTypeId &Out )
+{
+    namespace ConstEval = Volt::MiddleEnd::ConstEval;
+    using Volt::MiddleEnd::TypeSystem::NominalId;
+
+    const auto *Callee = std::get_if<Volt::Frontend::Member>( &Context.Ctx.Ast.Expr( Expr.Callee ) );
+    if ( Callee == nullptr )
+    {
+        return false;
+    }
+    const auto Trait = ConstEval::LookupTrait( Context.Ctx.Ast.Text( Callee->Name ) );
+    if ( not Trait )
+    {
+        return false;
+    }
+
+    // Copied out before anything below can `Add()` — a reference into the Expr
+    // arena does not survive one (rules/ast-rewrite.md).
+    const Volt::Frontend::Member Written = *Callee;
+    const Volt::Core::SourceRange Loc    = Volt::Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) );
+    Out                                  = TruthType( Context );
+
+    if ( Expr.Args.Size() != 1 or Expr.BlockArg.IsValid() )
+    {
+        Context.Report( Loc, "'" + std::string{ Context.Ctx.Ast.Text( Written.Name ) } + "' takes exactly one argument" );
+        FoldInto( Context, Id, Loc, false, Out );
+        return true;
+    }
+
+    const Volt::MiddleEnd::TypeSystem::SemaTypeId Receiver = InferExpr( Context, Written.Object );
+    const NominalId Base = Context.Ctx.Values.Has( Receiver ) ? Context.Ctx.Values.Get( Receiver ).Base : NominalId{};
+    if ( not Base.IsValid() )
+    {
+        // A generic definition's own body: the receiver is `T`, which has no
+        // answer *yet*. Leave the node exactly as written and type it as a
+        // truth value — `TypeSystem::ReinstantiateBody` walks this same node
+        // again once the arguments are concrete, with `Redirects` set, and
+        // folds it there. An un-instantiated generic body is never emitted,
+        // so no backend can meet the unfolded node.
+        //
+        // The argument survives with the Call, so it has to be marked deferred
+        // for exactly the reason AstInvariant's own check exempts one: it is
+        // written inside a generic definition and answered at instantiation.
+        // Nothing here descends into it — a trait's operand is a type name or
+        // a symbol, never a value to evaluate — so without this it would be
+        // reported as an expression nobody typed.
+        Context.Ctx.Values.MarkDeferred( Expr.Args[0] );
+        return true;
+    }
+
+    const Volt::Frontend::ExprId Arg = Expr.Args[0];
+    Volt::MiddleEnd::ConstEval::TraitSite Site{ .Types = Context.Ctx.Types, .Receiver = Base, .Operand = {}, .Name = {} };
+
+    if ( ConstEval::OperandOf( *Trait ) == ConstEval::EOperandKind::Name )
+    {
+        const auto *Symbol = std::get_if<Volt::Frontend::SymbolLiteral>( &Context.Ctx.Ast.Expr( Arg ) );
+        if ( Symbol == nullptr )
+        {
+            Context.Report( Loc, "'" + std::string{ Context.Ctx.Ast.Text( Written.Name ) } + "' expects a symbol, as in '." +
+                                     std::string{ Context.Ctx.Ast.Text( Written.Name ) } + " :name'" );
+            FoldInto( Context, Id, Loc, false, Out );
+            return true;
+        }
+        // A SymbolLiteral's lexeme is interned from the `:` onward (Lexer.cpp
+        // makes the token at the colon), and a member is named without one.
+        const std::string_view Spelled = Context.Ctx.Ast.Text( Symbol->Name );
+        Site.Name                      = Spelled.starts_with( ':' ) ? Spelled.substr( 1 ) : Spelled;
+    }
+    else
+    {
+        Site.Operand = OperandNominal( Context, Arg );
+        if ( not Site.Operand.IsValid() )
+        {
+            Context.Report( Loc, "'" + std::string{ Context.Ctx.Ast.Text( Written.Name ) } + "' expects a type name" );
+            FoldInto( Context, Id, Loc, false, Out );
+            return true;
+        }
+    }
+
+    FoldInto( Context, Id, Loc, ConstEval::EvaluateTrait( *Trait, Site ), Out );
+    return true;
+}
+
 } // namespace
 
 /**
@@ -577,10 +733,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 // on this node's own site: the site map is where a type
                 // attached to an Id that is not a value expression lives, the
                 // same channel a `rescue` clause's filter uses.
-                UnitSink Sink{ .Values   = Context.Ctx.Values,
-                               .Self     = Context.SelfValue,
-                               .Bindings = Context.GenericBindings(),
-                               .Diags    = &Context.Ctx.Diags };
+                UnitSink Sink = Context.MakeSink();
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
                                                                                     Context.Generics(), Sink, Expr.Type ) );
                 const auto Base = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
@@ -607,10 +760,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 // compiler's own vocabulary, never a Volt type name
                 // (rules/zero-hardcode.md). Unlike a byte count it takes no
                 // width from its use site: there is only one.
-                UnitSink Sink{ .Values   = Context.Ctx.Values,
-                               .Self     = Context.SelfValue,
-                               .Bindings = Context.GenericBindings(),
-                               .Diags    = &Context.Ctx.Diags };
+                UnitSink Sink = Context.MakeSink();
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
                                                                                     Context.Generics(), Sink, Expr.Type ) );
                 const auto Base = Context.Ctx.Types.LookupNodeKind( "BoolLiteral" );
@@ -788,10 +938,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                     SemaTypeId ExceptionType{};
                     if ( Clause.ExceptionType.IsValid() )
                     {
-                        UnitSink Sink{ .Values   = Context.Ctx.Values,
-                                       .Self     = Context.SelfValue,
-                                       .Bindings = Context.GenericBindings(),
-                                       .Diags    = &Context.Ctx.Diags };
+                        UnitSink Sink = Context.MakeSink();
                         ExceptionType =
                             ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Clause.ExceptionType );
                         const NominalId Nominal =
@@ -891,10 +1038,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
             // first call cannot narrow it).
             [&] ( const Frontend::TypedExpr &Expr ) -> SemaTypeId
             {
-                UnitSink Sink{ .Values   = Context.Ctx.Values,
-                               .Self     = Context.SelfValue,
-                               .Bindings = Context.GenericBindings(),
-                               .Diags    = &Context.Ctx.Diags };
+                UnitSink Sink = Context.MakeSink();
                 const SemaTypeId Written =
                     ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Type );
                 if ( Written.IsValid() )
@@ -916,6 +1060,14 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
 Volt::MiddleEnd::TypeSystem::SemaTypeId
 Volt::MiddleEnd::Analysis::CallType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Frontend::Call &Expr )
 {
+    // Before anything else, and before the callee is inferred: a receiver
+    // trait is not a call, and resolving its callee as one would report an
+    // unknown member for a name no type is meant to declare.
+    if ( SemaTypeId Folded; FoldReceiverTrait( Context, Id, Expr, Folded ) )
+    {
+        return Folded;
+    }
+
     if ( IsLambdaExpr( Context.Ctx.Ast, Expr.Callee ) and not Expr.Args.IsEmpty() and not Context.ExpectedClosure.IsValid() )
     {
         Volt::Core::SmallVec<SemaTypeId, 2> ArgTypes;
@@ -1074,10 +1226,7 @@ Volt::MiddleEnd::Analysis::GenericInstType ( TypeCheckerContext &Context, Fronte
     Volt::Core::SmallVec<SemaTypeId, 2> Args;
     for ( const Frontend::TypeId Arg : Expr.Args )
     {
-        UnitSink Sink{ .Values   = Context.Ctx.Values,
-                       .Self     = Context.SelfValue,
-                       .Bindings = Context.GenericBindings(),
-                       .Diags    = &Context.Ctx.Diags };
+        UnitSink Sink = Context.MakeSink();
         Args.PushBack( ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Arg ) );
     }
 

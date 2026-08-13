@@ -22,10 +22,7 @@ Volt::MiddleEnd::Analysis::BindClosureParams ( TypeCheckerContext &Context, cons
     }
     Context.ExpectedClosure = SemaTypeId{};
 
-    UnitSink Sink{ .Values   = Context.Ctx.Values,
-                   .Self     = Context.SelfValue,
-                   .Bindings = Context.GenericBindings(),
-                   .Diags    = &Context.Ctx.Diags };
+    UnitSink Sink = Context.MakeSink();
     Volt::Core::SmallVec<SemaTypeId, 2> Types;
     for ( std::size_t Index = 0; Index < Params.Size(); ++Index )
     {
