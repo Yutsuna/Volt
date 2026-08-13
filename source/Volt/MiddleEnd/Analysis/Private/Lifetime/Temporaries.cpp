@@ -97,7 +97,7 @@ namespace
 
     // --- Region discovery -------------------------------------------------
 
-    bool ProcessStmtList ( TypeCheckerContext &Context, const Frontend::StmtList &Body );
+    bool ProcessStmtList ( TypeCheckerContext &Context, const Frontend::StmtList &Body, bool bHasTailValue = true );
 
     // Collects, in evaluation order (post-order — innermost first), every
     // proper sub-expression of `Root` this region must own.
@@ -313,7 +313,7 @@ namespace
                                             }
                                             else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
                                             {
-                                                static_cast<void>( ProcessStmtList( Context, Field ) );
+                                                static_cast<void>( ProcessStmtList( Context, Field, /*bHasTailValue=*/true ) );
                                             }
                                         } );
                 }
@@ -589,7 +589,7 @@ namespace
     // them *in its own right*, not as part of the enclosing statement,
     // because it is re-evaluated every iteration; wrapping it any higher
     // would leak one temporary per turn of the loop.
-    bool ProcessStmtList ( TypeCheckerContext &Context, const Frontend::StmtList &Body )
+    bool ProcessStmtList ( TypeCheckerContext &Context, const Frontend::StmtList &Body, const bool bHasTailValue )
     {
         bool bChanged = false;
 
@@ -601,20 +601,16 @@ namespace
                 continue;
             }
 
-            // **A body's last expression is that body's value.** Volt has no
-            // `return` keyword requirement: `def +( other ) -> String` ends
-            // on `String.owned( buf, total )`, and that expression's result
-            // *is* what the caller receives. Classifying it as discarded —
-            // which "a bare expression statement" otherwise means — makes
-            // the region finalize the very buffer it is about to hand back,
-            // and every caller of every stdlib string operator then reads
-            // freed memory. Found exactly that way: `s = "aa" + "bb"`
-            // aborting with "double free detected in tcache".
-            //
-            // The same holds one level down, for the tail of an `If`/`when`/
-            // `begin` body standing in expression position — which is why
-            // this is decided per StmtList rather than only for a method.
-            const bool bTail = Pos + 1 == Body.Size();
+            // **A body's last expression is that body's value only when the
+            // body produces a value (`bHasTailValue`).** Volt has no `return`
+            // keyword requirement: `def +( other ) -> String` ends on
+            // `String.owned( buf, total )`, and that expression's result *is*
+            // what the caller receives. When `bHasTailValue` is true, the tail
+            // is `Moved` to the caller. When false (e.g. top-level unit init,
+            // while loops, statement-position blocks), the tail is `Discarded`
+            // and its temporary is finalized at the boundary.
+            const bool bTail               = Pos + 1 == Body.Size();
+            const bool bBranchHasTailValue = bTail and bHasTailValue;
 
             // Copied out before ProcessRoot's own Add()s
             // (rules/ast-rewrite.md). Nothing below writes the statement
@@ -635,7 +631,7 @@ namespace
             if ( const auto *WhileNode = std::get_if<Frontend::While>( &Node ) )
             {
                 bChanged = ProcessRoot( Context, WhileNode->Cond, ERootUse::Discarded ) or bChanged;
-                bChanged = ProcessStmtList( Context, WhileNode->Body ) or bChanged;
+                bChanged = ProcessStmtList( Context, WhileNode->Body, /*bHasTailValue=*/false ) or bChanged;
                 continue;
             }
 
@@ -651,8 +647,8 @@ namespace
             if ( const auto *IfNode = std::get_if<Frontend::If>( &Inner ) )
             {
                 bChanged = ProcessRoot( Context, IfNode->Cond, ERootUse::Discarded ) or bChanged;
-                bChanged = ProcessStmtList( Context, IfNode->Then ) or bChanged;
-                bChanged = ProcessStmtList( Context, IfNode->Else ) or bChanged;
+                bChanged = ProcessStmtList( Context, IfNode->Then, bBranchHasTailValue ) or bChanged;
+                bChanged = ProcessStmtList( Context, IfNode->Else, bBranchHasTailValue ) or bChanged;
                 continue;
             }
             if ( const auto *CaseNode = std::get_if<Frontend::CaseExpr>( &Inner ) )
@@ -667,24 +663,26 @@ namespace
                 for ( const Frontend::StmtId ClauseId : CaseNode->Clauses )
                 {
                     const auto &Clause = std::get<Frontend::WhenClause>( Context.Ctx.Ast.Stmt( ClauseId ) );
-                    bChanged           = ProcessStmtList( Context, Clause.Body ) or bChanged;
+                    bChanged           = ProcessStmtList( Context, Clause.Body, bBranchHasTailValue ) or bChanged;
                 }
-                bChanged = ProcessStmtList( Context, CaseNode->ElseBody ) or bChanged;
+                bChanged = ProcessStmtList( Context, CaseNode->ElseBody, bBranchHasTailValue ) or bChanged;
                 continue;
             }
             if ( const auto *BeginNode = std::get_if<Frontend::BeginExpr>( &Inner ) )
             {
-                bChanged = ProcessStmtList( Context, BeginNode->Body ) or bChanged;
+                bChanged = ProcessStmtList( Context, BeginNode->Body, bBranchHasTailValue ) or bChanged;
                 for ( const Frontend::StmtId RescueId : BeginNode->RescueClauses )
                 {
                     const auto &Rescue = std::get<Frontend::RescueClause>( Context.Ctx.Ast.Stmt( RescueId ) );
-                    bChanged           = ProcessStmtList( Context, Rescue.Body ) or bChanged;
+                    bChanged           = ProcessStmtList( Context, Rescue.Body, bBranchHasTailValue ) or bChanged;
                 }
-                bChanged = ProcessStmtList( Context, BeginNode->EnsureBody ) or bChanged;
+                bChanged = ProcessStmtList( Context, BeginNode->EnsureBody, /*bHasTailValue=*/false ) or bChanged;
                 continue;
             }
 
-            bChanged = ProcessRoot( Context, ExprStmtNode->Expr, bTail ? ERootUse::Moved : ERootUse::Discarded ) or bChanged;
+            const bool bIsReturnedTail = bTail and bHasTailValue;
+            const ERootUse Use         = bIsReturnedTail ? ERootUse::Moved : ERootUse::Discarded;
+            bChanged                   = ProcessRoot( Context, ExprStmtNode->Expr, Use ) or bChanged;
         }
 
         return bChanged;
@@ -692,9 +690,10 @@ namespace
 
 } // namespace
 
-bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body )
+bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body, const bool bHasTailValue )
 {
-    return ProcessStmtList( Context, Body );
+    return ProcessStmtList( Context, Body, bHasTailValue );
 }
 
 } // namespace Volt::MiddleEnd::Analysis::Lifetime
+

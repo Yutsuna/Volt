@@ -50,6 +50,11 @@ namespace Volt::MiddleEnd::Analysis::Lifetime
 // never reshaped — only the expression slots hanging off it — which is why it
 // is taken by const reference and why this composes with `ScopeCleanup`
 // running afterwards over the very same list.
-VOLT_MIDDLEEND_ANALYSIS_EXPORT bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body );
+//
+// `bHasTailValue` dictates whether the tail of `Body` produces a value that
+// outlives the body (e.g. a method or expression block with implicit return).
+// For bodies whose tail is discarded (top-level statements, loop bodies),
+// passing false ensures the tail expression is finalized immediately.
+VOLT_MIDDLEEND_ANALYSIS_EXPORT bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body, bool bHasTailValue = true );
 
 } // namespace Volt::MiddleEnd::Analysis::Lifetime

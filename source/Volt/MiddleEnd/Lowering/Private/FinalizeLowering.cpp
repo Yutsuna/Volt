@@ -61,7 +61,7 @@ void Volt::MiddleEnd::Lowering::InsertFinalizeCalls ( TypeCheckerContext &Contex
         // alias-init guard, with no rule of its own.
         const bool bTopDrops       = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
         const bool bTopCleanup     = Lifetime::RunScopeCleanup( Context, TopScope, TopBody );
-        const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody );
+        const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody, /*bHasTailValue=*/false );
         if ( bTopDrops or bTopCleanup or bTopTemporaries )
         {
             Ast.TopStmts.clear();
