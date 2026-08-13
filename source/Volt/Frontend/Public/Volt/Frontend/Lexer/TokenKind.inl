@@ -7,6 +7,18 @@
 //   VOLT_TOKEN(Name)              dynamic lexeme (literals, identifiers, ...)
 //   VOLT_PUNCT(Name, "spelling")  fixed punctuation / operator
 //   VOLT_KEYWORD(Name, "spelling") reserved word (matched as an identifier)
+//   VOLT_TRAIT_KEYWORD(Name, "spelling")
+//                                 a reserved word in every respect — it is a
+//                                 VOLT_KEYWORD row unless the includer says
+//                                 otherwise — that additionally names a
+//                                 *receiver trait*: `obj.is_a? T`. The extra
+//                                 category exists so the two places that must
+//                                 agree on exactly which spellings those are
+//                                 (the parser, which absorbs a paren-less
+//                                 argument after one, and ConstEval's
+//                                 TraitEngine, which answers it) both read
+//                                 that list from here rather than each
+//                                 keeping their own copy.
 
 #ifndef VOLT_TOKEN
     #define VOLT_TOKEN( Name )
@@ -16,6 +28,9 @@
 #endif
 #ifndef VOLT_KEYWORD
     #define VOLT_KEYWORD( Name, Spelling )
+#endif
+#ifndef VOLT_TRAIT_KEYWORD
+    #define VOLT_TRAIT_KEYWORD( Name, Spelling ) VOLT_KEYWORD( Name, Spelling )
 #endif
 
 // --- Dynamic-lexeme tokens -------------------------------------------------
@@ -129,6 +144,11 @@ VOLT_KEYWORD( KwSizeOf, "sizeof" )
 // any backend runs. Spelled with the `?` every predicate in this language
 // carries; the lexer consults this table after the suffix for exactly that.
 VOLT_KEYWORD( KwTriviallyDestructible, "trivially_destructible?" )
+// `typeof( expr )` — the type an expression *has*, written where a type name
+// is written. Not a predicate and not a width, so it is not a `TypeTrait`: it
+// yields a type rather than a constant, and therefore lives in the type
+// grammar (`VOLT_TYPE( TypeOfType )`) rather than the expression grammar.
+VOLT_KEYWORD( KwTypeOf, "typeof" )
 VOLT_KEYWORD( KwOf, "of" )
 VOLT_KEYWORD( KwTrue, "true" )
 VOLT_KEYWORD( KwFalse, "false" )
@@ -137,6 +157,24 @@ VOLT_KEYWORD( KwAnd, "and" )
 VOLT_KEYWORD( KwOr, "or" )
 VOLT_KEYWORD( KwNot, "not" )
 
+// --- Receiver traits -------------------------------------------------------
+// Compile-time questions about the *receiver*, answered by
+// `MiddleEnd::ConstEval::TraitEngine` during inference and replaced by their
+// answer, so no call to any of these ever reaches a backend.
+//
+// Written as a member access rather than as a prefix keyword because the
+// question is about a value on the left (`user.is_a? Admin`) — that is what
+// keeps them out of `TypeTrait`, whose operand is a type and whose spelling
+// is prefix. They are reserved words for the same reason `trivially_
+// destructible?` is: the compiler, not the stdlib, answers them, and a type
+// declaring its own `is_a?` would otherwise silently never be called.
+VOLT_TRAIT_KEYWORD( KwIncludes, "includes?" )
+VOLT_TRAIT_KEYWORD( KwInheritsFrom, "inherits_from?" )
+VOLT_TRAIT_KEYWORD( KwIsA, "is_a?" )
+VOLT_TRAIT_KEYWORD( KwHasField, "has_field?" )
+VOLT_TRAIT_KEYWORD( KwHasMethod, "has_method?" )
+
 #undef VOLT_TOKEN
 #undef VOLT_PUNCT
 #undef VOLT_KEYWORD
+#undef VOLT_TRAIT_KEYWORD
