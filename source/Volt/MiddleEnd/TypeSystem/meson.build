@@ -16,6 +16,7 @@ volt_middleend_typesystem_lib = static_library(
     files(
         'Private/TypeStoreSerialize.cpp',
         'Private/SemaTypeSerialize.cpp',
+        'Private/TypeUniverse.cpp',
         'Private/TypeResolve.cpp',
         'Private/TypeCompat.cpp',
         'Private/Reinstantiate.cpp',
