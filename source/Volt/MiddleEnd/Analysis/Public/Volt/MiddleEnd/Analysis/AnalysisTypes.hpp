@@ -20,8 +20,8 @@
 #include "Volt/MiddleEnd/Resolver/ScopeTable.hpp"
 #include "Volt/MiddleEnd/TypeSystem/MemoryLayout.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
-#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeCompat.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 namespace Volt::MiddleEnd::Analysis
