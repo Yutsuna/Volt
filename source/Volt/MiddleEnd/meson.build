@@ -40,3 +40,16 @@ volt_middleend_dep = declare_dependency(
         frontend_dep,
     ],
 )
+
+alias_target(
+    'MiddleEnd',
+    [
+        volt_middleend_core_lib,
+        volt_middleend_ir_lib,
+        volt_middleend_typesystem_lib,
+        volt_middleend_resolver_lib,
+        volt_middleend_consteval_lib,
+        volt_middleend_lowering_lib,
+        volt_middleend_analysis_lib,
+    ],
+)
