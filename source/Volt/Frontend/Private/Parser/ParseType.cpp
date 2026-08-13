@@ -24,11 +24,13 @@ bool Volt::Frontend::Parser::AtGenericOpen () const
 bool Volt::Frontend::Parser::Parser::AtGenericArgs () const
 {
     // The type list must start on a type name — in Volt those are always
-    // Constants — which already rejects `count<max`. `self` is the one
-    // non-Constant spelling a type can start with (ParseTypePrimary treats
-    // it identically to a type name), needed for `Range<self>.new(...)`
-    // inside a generic-body method like `Comparable#..`.
-    if ( not AtGenericOpen() or ( PeekKind( 1 ) != TokenKind::Constant and PeekKind( 1 ) != TokenKind::KwSelf ) )
+    // Constants — which already rejects `count<max`. `self` and `typeof` are
+    // the two non-Constant spellings a type can start with (ParseTypePrimary
+    // treats both as a type primary), the first needed for `Range<self>.new(
+    // ...)` inside a generic-body method like `Comparable#..`, the second for
+    // `Vector<typeof( x )>.new`.
+    if ( not AtGenericOpen() or ( PeekKind( 1 ) != TokenKind::Constant and PeekKind( 1 ) != TokenKind::KwSelf and
+                                  PeekKind( 1 ) != TokenKind::KwTypeOf ) )
     {
         return false;
     }
@@ -57,6 +59,37 @@ bool Volt::Frontend::Parser::Parser::AtGenericArgs () const
                 return true;
             }
             break;
+        case TokenKind::KwTypeOf:
+        {
+            // `Vector<typeof( a + b )>` — the operand is an arbitrary
+            // expression, so the conservative token filter cannot vet it and
+            // must not try: every token it would reject is legal in there.
+            // Skip the balanced parenthesis group wholesale and resume vetting
+            // after it. An unbalanced group means this was never a type list.
+            if ( PeekKind( Ahead + 1 ) != TokenKind::LParen )
+            {
+                return false;
+            }
+            int Parens = 0;
+            for ( std::size_t Probe = Ahead + 1;; ++Probe )
+            {
+                const TokenKind Inner = PeekKind( Probe );
+                if ( Inner == TokenKind::LParen )
+                {
+                    ++Parens;
+                }
+                else if ( Inner == TokenKind::RParen and --Parens == 0 )
+                {
+                    Ahead = Probe;
+                    break;
+                }
+                else if ( Inner == TokenKind::Eof )
+                {
+                    return false;
+                }
+            }
+            break;
+        }
         case TokenKind::Constant:
         case TokenKind::KwSelf:
         case TokenKind::ColonColon:
@@ -131,6 +164,18 @@ Volt::Frontend::TypeId Volt::Frontend::Parser::ParseTypePrimary ()
     const std::uint32_t Begin = Here();
 
     TypeRef Ref;
+
+    // `typeof( expr )` — a value's type, standing exactly where a type name
+    // stands. Parenthesised always: the operand is an expression, so without
+    // a closing delimiter `typeof x * 2` has no reading the grammar can pick.
+    if ( Accept( TokenKind::KwTypeOf ) )
+    {
+        TypeOfType Node;
+        Expect( TokenKind::LParen, "after 'typeof'" );
+        Node.Value = ParseExpr( 0 );
+        Expect( TokenKind::RParen, "to close 'typeof'" );
+        return MakeType( Node, RangeSince( Begin ) );
+    }
 
     // `-> self` — the enclosing type, spelled with the keyword.
     if ( Check( TokenKind::KwSelf ) )
