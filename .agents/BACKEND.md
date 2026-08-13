@@ -12,7 +12,7 @@ principle is **declarative generation by pattern matching**:
 > every value expression typed — outright in concrete code, after
 > substitution inside a generic body. The contract is materialised for
 > backends through four read-only tables per unit: `UnitTypes` (expression
-> types), `UnitCallees` (`Sema/Layout/CalleeMap.hpp` — the
+> types), `UnitCallees` (`MiddleEnd/IR/CalleeMap.hpp` — the
 > method-vs-machine-instruction protocol, snapshotted at the end of
 > `TypeChecker`), `SynthesizedFunctions` (closure bodies synthesized by
 > `ClosureLifting`), and the build-wide `TypeStore`'s `MemoryLayout`s.

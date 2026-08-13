@@ -1,6 +1,6 @@
 # Frontend Specification: Overview & Design Principles
 
-The Volt Frontend is responsible for transforming raw UTF-8 source code into a fully desugared, structured **Value Abstract Syntax Tree (AST)**. It acts as the syntactic boundary of the compiler, isolating source-level syntax, macros, operator precedence, and syntactic sugar from semantic analysis (`Sema`) and backend code generation.
+The Volt Frontend is responsible for transforming raw UTF-8 source code into a fully desugared, structured **Value Abstract Syntax Tree (AST)**. It acts as the syntactic boundary of the compiler, isolating source-level syntax, macros, operator precedence, and syntactic sugar from semantic analysis (`MiddleEnd`) and backend code generation.
 
 The frontend is intentionally **lazy** and **type-agnostic**: it never performs type inference, scope resolution, or identifier binding. Its sole contract is to produce an unambiguous, desugared AST ready for semantic processing.
 
@@ -80,7 +80,7 @@ Source File (.vl)
  [2. Parser] ──> Raw Value AST (Arena-backed)
        │
        ▼
- [3. Lowering Passes] (EPassKind::Lowering in Sema/PassList.inl)
+ [3. Lowering Passes] (EPassKind::Lowering in MiddleEnd/Core/PassList.inl)
        ├─ Order  8: FunctionalLowering (Sections, captures, compositions -> Lambdas)
        ├─ Order  9: PipelineLowering (x |> f -> f(x))
        ├─ Order 12: EnumLowering (enum -> struct + constants)

@@ -1,12 +1,12 @@
 # MiddleEnd Specification: Scope Resolution (`ScopeResolver`)
 
-The `ScopeResolver` pass (`source/Volt/Sema/Private/Passes/ScopeResolver.cpp`, Pass Order 10) builds lexical scope hierarchies and performs identifier binding prior to type checking.
+The `ScopeResolver` pass (`source/Volt/MiddleEnd/Resolver/Private/ScopeResolver.cpp`, Pass Order 10) builds lexical scope hierarchies and performs identifier binding prior to type checking.
 
 ---
 
 ## The Scope Hierarchy (`ScopeTable`)
 
-`ScopeResolver` walks the AST and constructs a `Sema::ScopeTable` (`source/Volt/Sema/Public/Volt/Sema/Scope/ScopeTable.hpp`).
+`ScopeResolver` walks the AST and constructs a `MiddleEnd::Resolver::ScopeTable` (`source/Volt/MiddleEnd/Resolver/Public/Volt/MiddleEnd/Resolver/ScopeTable.hpp`).
 
 ### Scope Categories (`EScopeKind`)
 - **`Global`**: Top-level file namespace scope.
@@ -82,8 +82,8 @@ struct ClosureFrame
 
 `ScopeResolver`'s output here is purely lexical (no `TypeStore`/cross-file
 lookup), which is what makes it safe to reuse well after this pass runs.
-`ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`, inside
-`TypeChecker`, after every constraint in the unit has settled) is the actual
+`ClosureLifting` (`source/Volt/MiddleEnd/Lowering/Private/ClosureLifting.cpp`, inside
+Lowering, after every constraint in the unit has settled) is the actual
 consumer: it rewrites every `Lambda`/`Block` literal into a synthesized
 top-level function plus an ordinary `Proc.new( FuncAddr, env )` construction
 at the literal's own site, using this table's `Fields`/`TotalSize` to lay out

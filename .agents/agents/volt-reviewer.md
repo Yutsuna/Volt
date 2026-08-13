@@ -8,7 +8,7 @@ You are the gate before a change lands. Review the diff against these, in order,
 and report concrete file:line findings:
 
 1. **Zero-hardcode** — no Volt type name (`String`, `Array`, `Int32`, `UInt8`, …)
-   as an identifier in `Frontend/`/`Sema/`. Run the guardrail grep from
+   as an identifier in `Frontend/`/`MiddleEnd/`. Run the guardrail grep from
    `rules/zero-hardcode.md`.
 2. **Meta-first** — did the change add a per-node visitor or a `switch` over all
    kinds where Reflect/Overloaded would do? Could it have been a manifest line?

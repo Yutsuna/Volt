@@ -12,7 +12,7 @@ The manifests:
 | `Frontend/AST/Nodes.inl`          | every `*Kind` enum, `*Node` variant, node-name LUT |
 | `Frontend/Lexer/TokenKind.inl`    | token enum, spelling table, keyword lookup         |
 | `Frontend/Parser/Pratt.inl`       | infix binding-power / parselet table               |
-| `Sema/PassList.inl`               | ordered pass registry                              |
+| `MiddleEnd/Core/PassList.inl`       | ordered pass registry                              |
 | `BackendLLVM/Instructions.inl`    | primitive spelling-family × operator → LLVM opcode |
 
 Before writing code, ask: *is this a new manifest entry?*
@@ -50,7 +50,7 @@ so **every existing consumer keeps seeing all 36 nodes** — the enum in
 consumer that defines `VOLT_EXPR_SUGAR` itself tells the two apart, and there
 are exactly two:
 
-- `Sema/Private/Passes/AstInvariant.cpp` builds a `constexpr std::array` of the
+- `source/Volt/MiddleEnd/Analysis/Private/AstInvariant.cpp` builds a `constexpr std::array` of the
   sugar kinds and reports any survivor. **No `switch`** — membership on a
   generated set.
 - `tests/meson.build` reads the same lines out of the manifest with a

@@ -10,7 +10,7 @@
   `Public/` directory (`target_include_directories(... PUBLIC Public)`).
 - **Modules** are declared via `library(...)` in `source/Volt/<Module>/meson.build`
   and registered in `source/Volt/meson.build` (`subdir('<Module>')`). Libraries are shared and
-  cascade their `DEPS` (`Frontend → Core`, `Sema → Frontend`, `Driver → Sema`).
+  cascade their `DEPS` (`Frontend → Core`, `MiddleEnd → Frontend`, `Driver → MiddleEnd`).
 - **Formatting is mechanical**: run the `format` IDE configuration (Allman braces,
   `SpacesInParens`, `ColumnLimit: 170` — parallel, per-file cached). Do not
   hand-format; let the tool do it. Run it once, at the end of a phase — not

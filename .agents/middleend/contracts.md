@@ -1,6 +1,6 @@
 # MiddleEnd Specification: Semantic Verification (`AstInvariant`)
 
-The `AstInvariant` pass (`source/Volt/Sema/Private/Passes/AstInvariant.cpp`, Pass Order 40) is the structural guard rail of the Volt MiddleEnd.
+The `AstInvariant` pass (`source/Volt/MiddleEnd/Analysis/Private/AstInvariant.cpp`, Pass Order 40) is the structural guard rail of the Volt MiddleEnd.
 
 It ensures that the MiddleEnd hand-off contract (see [`rules/core-ast.md`](file:///home/Yutsuna/Projects/VoltLang/Volt/.agents/rules/core-ast.md)) is strictly enforced before code generation begins.
 

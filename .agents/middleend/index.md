@@ -1,6 +1,6 @@
 # MiddleEnd Specification: Overview & Architecture
 
-The MiddleEnd of the Volt compiler (`source/Volt/Sema/`) consumes the desugared Value AST produced by the Frontend and executes **Scope Resolution**, **Type Binding**, **Bidirectional Type Inference**, and **Semantic Constraint Enforcement**.
+The MiddleEnd of the Volt compiler (`source/Volt/MiddleEnd/`) consumes the desugared Value AST produced by the Frontend and executes **Scope Resolution**, **Type Binding**, **Bidirectional Type Inference**, and **Semantic Constraint Enforcement**.
 
 The MiddleEnd bridge bridges the gap between raw syntactic expressions and backend-ready, fully typed Core ASTs.
 
@@ -49,7 +49,7 @@ Semantic execution is cleanly divided into two phases within the Driver:
                                         │ (Desugared ASTs)
                                         ▼
   ┌──────────────────────────────────────────────────────────────────────────┐
-  │ Serial Cross-Unit Seam (`Sema::BindUnitTypes`)                           │
+  │ Serial Cross-Unit Seam (`MiddleEnd::Resolver::BindUnitTypes`)             │
   │  - Maps `10` to standard library nominal `Int32` in `source/Lib/`         │
   │  - Registers module namespaces (`TypeStore::DeclareModule`)               │
   │  - Publishes public type structures across compilation units             │
@@ -66,8 +66,8 @@ Semantic execution is cleanly divided into two phases within the Driver:
                           └───────────────────────────┘
 ```
 
-### Serial Phase: `Sema::BindUnitTypes`
-Because Volt types (like `Int32`, `String`, `Array`) are declared within the standard library (`source/Lib/`) rather than hardcoded in the C++ compiler (`rules/zero-hardcode.md`), type resolution is **cross-unit**. `Sema::BindUnitTypes` executes serially between units before parallel semantic analysis:
+### Serial Phase: `MiddleEnd::Resolver::BindUnitTypes`
+Because Volt types (like `Int32`, `String`, `Array`) are declared within the standard library (`source/Lib/`) rather than hardcoded in the C++ compiler (`rules/zero-hardcode.md`), type resolution is **cross-unit**. `MiddleEnd::Resolver::BindUnitTypes` executes serially between units before parallel semantic analysis:
 - Binds user-level type names to `NominalId` representations in `TypeStore`.
 - Registers module declarations as namespaces (`TypeStore::DeclareModule`).
 - Publishes public struct, class, and interface declarations.
@@ -87,8 +87,8 @@ MiddleEnd state is stored out-of-band from AST nodes in reusable tables:
 
 | Data Structure | Header Path | Primary Purpose |
 |---|---|---|
-| `ScopeTable` | `Sema/Scope/ScopeTable.hpp` | Symbol visibility scopes, block nestings, variable declarations, closure frames |
-| `TypeStore` | `Sema/Layout/TypeStore.hpp` | Nominal type registry, memory layouts (`MemoryLayout`), field offsets |
-| `UnitTypes` | `Sema/Layout/SemaType.hpp` | Per-unit map storing inferred `SemaTypeId` for every AST `ExprId` |
-| `UnitCallees` | `Sema/Layout/CalleeMap.hpp` | Resolved callee resolutions (`CalleeEntry`) for method calls and operator overrides |
-| `ClosureFrame` | `Sema/Layout/ClosureFrame.hpp` | Precomputed frame layout (offset, total size, alignment, heap escape flag `bEscapes`) |
+| `ScopeTable` | `MiddleEnd/Resolver/ScopeTable.hpp` | Symbol visibility scopes, block nestings, variable declarations, closure frames |
+| `TypeStore` | `MiddleEnd/TypeSystem/TypeStore.hpp` | Nominal type registry, memory layouts (`MemoryLayout`), field offsets |
+| `UnitTypes` | `MiddleEnd/TypeSystem/SemaType.hpp` | Per-unit map storing inferred `SemaTypeId` for every AST `ExprId` |
+| `UnitCallees` | `MiddleEnd/IR/CalleeMap.hpp` | Resolved callee resolutions (`CalleeEntry`) for method calls and operator overrides |
+| `ClosureFrame` | `MiddleEnd/Resolver/ClosureFrame.hpp` | Precomputed frame layout (offset, total size, alignment, heap escape flag `bEscapes`) |

@@ -9,8 +9,8 @@ You keep the build correct and reproducible.
 - **Modules**: each lives at `source/Volt/<Module>/{Public,Private}` with a
   `meson.build` declaring `library(...)` and exported dependencies.
 - **Registration + order**: register the module via `subdir('<Module>')` in
-  `source/Volt/meson.build`, in dependency order (`Core Frontend Sema Driver Volt`).
-  Dependencies cascade: `Frontend→Core`, `Sema→Frontend`, `Driver→Sema`, `Volt→Driver`.
+  `source/Volt/meson.build`, in dependency order (`Core Frontend MiddleEnd Driver Volt`).
+  Dependencies cascade: `Frontend→Core`, `MiddleEnd→Frontend`, `Driver→MiddleEnd`, `Volt→Driver`.
 - **Toolchain**: `flake.nix` / `flake.lock` + `.envrc` (`use flake .#default`);
   `direnv` loads the dev shell. Warnings/`-Werror`, sanitizers and LLVM live in
   `meson.build` and `meson/meson.build`.

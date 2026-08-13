@@ -11,7 +11,7 @@ vocabulary:
 
 That is the entire list. `Int`, `String`, `Array`, `Int32`, `Proc`,
 `Exception` are **Volt** — they live in `source/Lib/` and reach the compiler
-only as a `MemoryLayout` (`Sema/Layout/MemoryLayout.hpp`):
+only as a `MemoryLayout` (`MiddleEnd/TypeSystem/MemoryLayout.hpp`):
 `Primitive{ Spelling, Bits } | Pointer{ Pointee } | Aggregate{ Fields[] }`. A
 primitive is an *opaque interned spelling* plus a bit width; the compiler
 never learns that `"i32"` means `Int32`.
@@ -81,13 +81,14 @@ call"*.
 
 ### Removed: `@[Apply]`
 
-`Proc` used to annotate its own `call` with `@[Apply]`, so that Sema and every
-backend could recognise "invoking a callable" by a flag on `Member`. It is
-gone, and nothing replaced it:
+`Proc` used to annotate its own `call` with `@[Apply]`, so that MiddleEnd and every
+backend knew how to invoke a closure frame. Now `Proc` is a standard library type
+like any other, and `MemberResolver`
+(`source/Volt/MiddleEnd/Analysis/Private/MemberResolver.cpp`) is that one lookup:
 
 - the callable type is **the type claiming the `FuncType` node kind** —
   `@[Literal( FuncType )]`, which `Proc` already carried. `IsCallableType`
-  (`Sema/.../MemberResolver.cpp`) is that one lookup.
+  (`MiddleEnd/Analysis/Private/MemberResolver.cpp`) is that one lookup.
 - the member invoked is that type's single `abstract` contract, found by
   walking its members — so the spelling `call` stays Volt's to choose and
   appears nowhere in C++.
@@ -141,13 +142,14 @@ downstream site has to know to ask for.
 
 ## Guardrails
 
-No Volt type name may appear as an identifier in `Frontend/` or `Sema/`
-(outside comments / tests):
+No Volt type name may appear as an identifier in `Frontend/` or `MiddleEnd/`
+code — not in string literal checks (`"Int32"`), not in comments as an invariant,
+not in variable names. Run this check before calling a change done:
 
-```sh
-grep -RnE '\b(String|Array|Int32|Int64|UInt8|Float64|Proc|Exception)\b' \
-  source/Volt/Frontend source/Volt/Sema \
-  --include='*.hpp' --include='*.cpp'
+```bash
+! grep -rnE '\b(Int|Int32|UInt64|String|Array|Bool|Proc|Nil)\b' \
+  source/Volt/Frontend source/Volt/MiddleEnd \
+  --exclude-dir=AST --exclude='*SelfCheck*'
 ```
 
 No annotation outside the closed list may be read anywhere:
@@ -189,7 +191,7 @@ Three distinct roles, none of which names a Volt type in C++:
    `Primitive` or `Pointer` may leave an operator contract bodyless — the
    backend supplies it. This is decided by `LayoutKind`, never by a type name,
    and the operator set itself is not hardcoded either: `IsBuiltinPrimitiveOp`
-   (`Sema/.../MemberResolver.cpp`) simply accepts any name that does not start
+   (`source/Volt/MiddleEnd/Analysis/Private/MemberResolver.cpp`) simply accepts any name that does not start
    with a letter or `_`, plus `and` / `or` / `not`.
 3. **The spelling selects the instruction** (codegen phase, see `BACKEND.md`):
    `Primitive{ Spelling, Bits }` is enough to pick `add` vs `fadd` from the
@@ -217,7 +219,7 @@ because an unresolved receiver reports nothing:
 - `Bool` had no `and` / `or` / `not`. Those three are spelled with words, and
   the parser's operator-method table did not accept them — a `def and` produced
   a method with no name at all. `Frontend/.../ParseDecl.cpp`'s
-  `IsOperatorMethodStart` and Sema's `IsOperatorName` must accept the same set;
+  `IsOperatorMethodStart` and MiddleEnd's `IsOperatorName` must accept the same set;
   they are two halves of one contract.
 
 Rule of thumb: if `IsBuiltinOpOn` would exempt an operator on a type, that type

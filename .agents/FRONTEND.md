@@ -18,7 +18,7 @@ The Frontend is **lazy**: it never attempts to guess or lock down the type of ex
 - Constructs the AST in arena memory (`Arena<Node, Id>`) without raw pointers (Value AST).
 
 ### 3. Syntactic Lowering (`EPassKind::Lowering`)
-These passes rewrite syntactic sugar into canonical AST forms **before** any type analysis. They correspond exactly to what `volt parse --lowered` executes, in the order defined by the manifest `Sema/PassList.inl` (the numbering represents the pass `Order`, not a contiguous counter). Each pass **sweeps the arena by index** and never holds an arena reference across an `Add()` invocation — the mandatory idiom is documented in [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
+These passes rewrite syntactic sugar into canonical AST forms **before** any type analysis. They correspond exactly to what `volt parse --lowered` executes, in the order defined by the manifest `MiddleEnd/Core/PassList.inl` (the numbering represents the pass `Order`, not a contiguous counter). Each pass **sweeps the arena by index** and never holds an arena reference across an `Add()` invocation — the mandatory idiom is documented in [`rules/ast-rewrite.md`](rules/ast-rewrite.md).
 
 - **8 — `FunctionalLowering`**: Operator/method sections (`&.+ 5`, `&.trim`), captures (`&Math.square`), compositions (`>>`) → canonical `Lambda` nodes with unique symbols generated via `AstContext::MakeUniqueSymbol`.
 - **9 — `PipelineLowering`**: `x |> f` → `f( x )`.

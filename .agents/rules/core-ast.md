@@ -39,18 +39,17 @@ others — `LowerArrayLits`/`LowerHashLits` each run as a post-walk sweep
 in the file has settled. See `.agents/PLAN_LITERAL_LOWERING.md` §2/§6 for why
 (a real ordering bug forced this away from the simpler "rewrite it inline the
 moment TypeChecker" design the `VOLT_EXPR_SUGAR` machinery would suggest).
-`Lambda`/`Block` follow the identical shape for the identical reason —
-`ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`) runs inside
-`TypeChecker` too, once a closure literal's own `ClosureType` has settled, for
-a two-part reason: registering the lifted function anywhere before the
-pre-`TypeChecker` seam would race across units' parallel `TypeChecker` runs
-(every other `Lowering` pass runs there safely only because it creates no new
-top-level declaration), and an unannotated closure parameter
-(`arr.each do |i| … end`) has no type before `TypeChecker` assigns one either.
-
-A sixth post-walk sweep, `InsertFinalizeCalls`
-(`Sema/.../TypeChecker/FinalizeLowering.cpp`), runs last, right after
-`ClosureLifting` and before `TypeChecker`'s own `Context.Callees` snapshot
+`Lambda`/`Block` follow the identical shape for the identical reason- **`ClosureLifting`** (`source/Volt/MiddleEnd/Lowering/Private/ClosureLifting.cpp`) runs inside
+  `TypeChecker` (after every constraint in the unit has settled) and rewrites
+  every `Lambda`/`Block` literal into a synthesized top-level function plus an
+  ordinary `Proc.new( FuncAddr, env )` construction at the literal's site. It
+  lays out the env frame via `LayoutEngine`, allocates it on the heap, and
+  rewrites captured-variable uses into `Deref`/`Call` loads. Neither node kind
+  survives past `TypeChecker`, so no backend ever sees a `ClosureFrame` or
+  binds a capture itself.
+- **`FinalizeLowering`**
+  (`source/Volt/MiddleEnd/Lowering/Private/FinalizeLowering.cpp`), runs last, right after
+  `TypeChecker` has typed the tree: it walks every block, local initialization,text.Callees` snapshot
 loop. It does not lower a sugar node — every node it touches is already core
 — so it introduces no new `VOLT_EXPR_SUGAR` entry; it is here because it
 needs the same "final type only" guarantee the other five sweeps do. A
@@ -96,17 +95,22 @@ the same orchestrator, both rewriting an **expression slot** rather than a
 `StmtList`, so they compose with the above by construction:
 
 - `RunTemporaries` gives a statement's unnamed values full-expression
-  lifetime — and runs again inside `Sema::ReinstantiateBody`, per
+  lifetime — and runs again inside `MiddleEnd::TypeSystem::ReinstantiateBody`, per
   instantiation, because a generic body defers every type and so is
   unclassifiable where it is declared.
-- `RunDropOnReassign` releases what a local held when it is written a second
-  time (`result = n.digit_char + result`), which no exit path ever names.
+- Every expression value's type is known **upstream**, before any backend
+  runs. A backend emits a machine instruction or a call straight from
+  `Values.ExprType( Id )` — it never inspects operands to guess a width.
+  (Inside a generic body `sizeof T` still defers until substitution; a
+  monomorphisation sweep evaluates it per instantiation through the engine's
+  same layout numbers — and runs again inside `MiddleEnd::TypeSystem::ReinstantiateBody`, per
+  `backend/llvm.md`.)
 
-Whether a value is *owned* at all is decided by `Lifetime/ExprOwnership.hpp`
-from the resolution, never from the node kind, and the facts it reads are
-derived at a serial seam that sits **between** the lowering passes and
-`TypeChecker` (`Sema::LoweredSeamOrder()`) — so the analysis reads the core
-AST rather than guessing at what sugar will become. See [`rules/raii-ownership.md`](raii-ownership.md)
+### 3.1. What the contract requires of the middle-end
+
+- **Lowerings run before type checking.** All `EPassKind::Lowering` passes run
+  before `TypeChecker` (`MiddleEnd::Core::LoweredSeamOrder()`) — so the analysis reads the core
+  shape directly, without ever reasoning about sugar nodes.will become. See [`rules/raii-ownership.md`](raii-ownership.md)
 for the full model and ownership contract.
 
 ## The 25 core nodes
@@ -125,10 +129,12 @@ rather than a value, TypeChecker publishes the *resolved* operand type on the
 node's own site, and the backend materialises a constant from it — for
 `SizeOf` a width from `LayoutEngine`, for `TypeTrait` an `i1` from
 `TypeStore::IsTriviallyDestructible`. Inside a generic body both are deferred
-and settled once per instantiation by `Sema::ReinstantiateBody`. The predicate
-exists so a container can release its elements in ordinary Volt without paying
-for a `T` that has nothing to release — the compiler used to synthesize that
-loop itself, which meant knowing what a sequence is
+  and settled once per instantiation by `MiddleEnd::TypeSystem::ReinstantiateBody`. The predicate
+  `ExprType( Id ) != SemaTypeId::Invalid` holds for every value node in the
+  unit's arena, without exception.
+- **Closure synthesis.** `Lambda`/`Block` literals are lowered into a
+  top-level function (registered in a per-unit `MiddleEnd::SynthesizedFunctions`
+  table) and a `Proc.new( FuncAddr, env )` construction node. The capture env isequence is
 ([`rules/raii-ownership.md`](raii-ownership.md)).
 
 `Lambda`/`Block` are gone from this table — see "Closures are gone" below.
@@ -141,7 +147,7 @@ occurrence can carry, alongside "read a place" and "paren-less call."
 Unlike `CaseExpr` below, closures were **not** kept core because lowering them
 would cost more — the opposite held. `ClosureLifting` rewrites every
 `Lambda`/`Block` literal, no-capture or capturing, into a synthesized
-top-level function (registered in a per-unit `Sema::SynthesizedFunctions`
+top-level function (registered in a per-unit `MiddleEnd::SynthesizedFunctions`
 table, never in the cross-unit `TypeStore` — nothing outside the unit ever
 needs to name a lifted closure by symbol, since it is only ever reached
 through its own `{code,env}` pair) plus an ordinary `Proc.new( FuncAddr, env )`
@@ -187,17 +193,16 @@ the discriminator is the receiver's `LayoutKind` — never a type name:
 - **any other layout** (`String + String`, a user `struct` that
   `include Arithmetic`) → a **method call**, resolved exactly like a `Call`.
 
-**This is realised with no pass and no node.** `MemberType`
-(`Sema/.../MemberResolver.cpp`) resolves the operator by its spelling and
-records the result in `Context.CalleeResolution[Id.Value]` for `Binary` and
-`Unary` just as it does for `Member`. A backend therefore reads:
-
-```
-CalleeResolution has Id, Decl != nullptr  ->  emit a call to that method
-otherwise (primitive/pointer layout)      ->  emit the instruction for Spelling
-```
-
-The recording lives **inside `MemberType`**, not at its call sites, and every
+**This is- **Overloaded operators** (`+`, `-`, `[]`, `[]=`, `to_string`, ...).
+  `MemberResolver`
+  (`source/Volt/MiddleEnd/Analysis/Private/MemberResolver.cpp`) resolves the operator by its spelling and
+  stores a resolution in `CalleeResolution` for `Binary`/`Unary`/`Member` / `Identifier` (free function) nodes.
+  If the receiver's type has a primitive/pointer layout, the backend emits a
+  machine instruction; otherwise it emits a method call to the resolved
+  `Member`. No extra AST nodes are created.
+- **`ArrayLit` / `HashLit`**. Lowered during `TypeChecker` post-walk into
+  `Array.new` / `Hash.new` plus sequential `.push` / `.[]=` calls.
+- **`AstInvariant`** (`source/Volt/MiddleEnd/Analysis/Private/AstInvariant.cpp`) checks the second every
 member-ish node (`Member`, `InstanceVar`, `Binary`, `Unary`) goes through that
 one function. Resolving an operator and then dropping the resolution — which is
 what the code did before — silently pushes member lookup into all three
@@ -210,7 +215,7 @@ non-primitive operators into `Call` nodes. It would have to hand-annotate the
 
 ## "Every value expression has a type" — the exact wording
 
-`AstInvariant` (`Sema/Private/Passes/AstInvariant.cpp`) checks the second
+`AstInvariant` (`source/Volt/MiddleEnd/Analysis/Private/AstInvariant.cpp`) checks the second
 contract on the set of expressions a backend will actually ask a value at:
 `Init` of a `LocalDecl`, `Value` of an `Assign` / `Return`, `Args` and
 `BlockArg` of a `Call`, the operands of `Binary` / `Unary` / `Ternary` /
@@ -247,10 +252,9 @@ Two exclusions, both recorded by the compiler rather than guessed at:
   first generic argument. Dereferencing anything else is an error, not a
   silence.
 
-## The structural invariant behind all of this
-
-> **No pass runs after `TypeChecker` except `Analysis` passes that create no
-> node.** (`Sema/PassList.inl`)
+##> **Zero structural debt means every sugar node dies before `AstInvariant`
+> (Pass Order 40), and no pass running after `TypeChecker` may create an AST
+> node.** (`MiddleEnd/Core/PassList.inl`)
 
 That is the whole reason "every node a backend sees has a type" is checkable
 rather than hoped for. Any future proposal for a "post-typing lowering pass"
@@ -289,7 +293,7 @@ refusal is not debt, a silence would be:
   `test_break_with_value` is rewritten to an accumulator (`found = x` before
   `break`) that exercises the same non-local exit without depending on
   `break`'s value.
-- **Integer literal suffixes are parsed and then ignored by Sema.** `0_u64`
+- **Integer literal suffixes are parsed and then ignored by MiddleEnd.** `0_u64`
   types as `Int32`, because `LiteralType` inserts every `IntLiteral` into
   `UnconstrainedLiterals` without ever reading the suffix. A real missing
   feature, not a regression, and its own piece of work.
