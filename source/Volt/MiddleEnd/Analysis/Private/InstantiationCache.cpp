@@ -103,8 +103,11 @@ namespace MiddleEnd
                         Oldest = It;
                     }
                 }
-                Entries.erase( Oldest );
-                EvictCount.fetch_add( 1, std::memory_order_relaxed );
+                if ( Oldest != Entries.end() )
+                {
+                    Entries.erase( Oldest );
+                    EvictCount.fetch_add( 1, std::memory_order_relaxed );
+                }
             }
         }
 
