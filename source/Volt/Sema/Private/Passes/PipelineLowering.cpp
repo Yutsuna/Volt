@@ -91,7 +91,7 @@ private:
 
 // Order 8 — rewrite pipeline nodes into standard calls. Must run
 // before ScopeResolver so it does not need to handle Pipeline nodes.
-void Volt::Sema::PipelineLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::PipelineLowering ( Core::PassContext &Context )
 {
     Context.Stats.PipelinesLowered += PipelineRewriter( Context.Ast ).Run();
 }

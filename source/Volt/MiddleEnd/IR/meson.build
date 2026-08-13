@@ -18,6 +18,10 @@ volt_middleend_ir_lib = static_library(
     cpp_pch: common_pch_header,
     include_directories: [
         volt_middleend_ir_inc,
+        include_directories('../TypeSystem/Public'),
+        include_directories('../TypeSystem'),
+        include_directories('../Resolver/Public'),
+        include_directories('../Resolver'),
         include_directories('../../Sema/Public'),
     ],
     dependencies: [
@@ -25,7 +29,6 @@ volt_middleend_ir_lib = static_library(
         volt_middleend_core_dep,
         core_dep,
         frontend_dep,
-        sema_dep,
     ],
     cpp_args: build_shared ? ['-DVOLT_MIDDLEEND_IR_BUILD_SHARED'] : [],
     gnu_symbol_visibility: 'hidden',

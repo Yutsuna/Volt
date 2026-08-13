@@ -26,8 +26,8 @@
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
-#include "Volt/Sema/MagicConstants.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/ConstEval/MagicConstants.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
 
 #include <algorithm>
 #include <array>
@@ -43,7 +43,8 @@ namespace
 {
 
 using namespace Volt;
-using namespace Volt::Sema;
+using namespace Volt::MiddleEnd::ConstEval;
+using PassContext = Volt::MiddleEnd::Core::PassContext;
 
 // The only two shapes a manifest Value column may produce. Everything
 // a literal node stores is an interned string, so a numeric site
@@ -66,21 +67,26 @@ using namespace Volt::Sema;
 
 } // namespace
 
-std::optional<Frontend::ExprNode>
-Volt::Sema::ExpandMagic ( std::string_view Name, const MagicSite &Site, Core::StringInterner &Interner, Core::SourceRange Loc )
+std::optional<Frontend::ExprNode> Volt::MiddleEnd::ConstEval::ExpandMagic ( std::string_view Name,
+                                                                            const MagicSite &Site,
+                                                                            ::Volt::Core::StringInterner &Interner,
+                                                                            ::Volt::Core::SourceRange Loc )
 {
     // Every literal node reachable from the manifest has the same shape —
     // { SourceRange, Symbol } — which is what lets one construction
     // expression serve them all, generated straight from the manifest.
 #define VOLT_MAGIC( Spelling, Node, Value )                                                                                      \
     if ( Name == std::string_view( Spelling ) )                                                                                  \
-        return Frontend::ExprNode{ Frontend::Node{ Loc, Interner.Intern( MagicText( Value ) ) } };
-#include "Volt/Sema/MagicConstants.inl"
+    {                                                                                                                            \
+        const Frontend::Node Lit{ Loc, Interner.Intern( MagicText( Value ) ) };                                                  \
+        return Frontend::ExprNode{ Lit };                                                                                        \
+    }
+#include "Volt/MiddleEnd/ConstEval/MagicConstants.inl"
 
     return std::nullopt;
 }
 
-bool Volt::Sema::IsMagicShape ( std::string_view Name )
+bool Volt::MiddleEnd::ConstEval::IsMagicShape ( std::string_view Name )
 {
     if ( Name.size() <= 4 or not Name.starts_with( "__" ) or not Name.ends_with( "__" ) )
     {
@@ -90,11 +96,11 @@ bool Volt::Sema::IsMagicShape ( std::string_view Name )
     return std::ranges::all_of( Name.substr( 2, Name.size() - 4 ), IsMagicInterior );
 }
 
-std::span<const std::string_view> Volt::Sema::MagicNames ()
+std::span<const std::string_view> Volt::MiddleEnd::ConstEval::MagicNames ()
 {
 #define VOLT_MAGIC( Spelling, Node, Value ) std::string_view( Spelling ),
     static constexpr std::array Names{
-#include "Volt/Sema/MagicConstants.inl"
+#include "Volt/MiddleEnd/ConstEval/MagicConstants.inl"
     };
     return Names;
 }
@@ -102,12 +108,16 @@ std::span<const std::string_view> Volt::Sema::MagicNames ()
 namespace
 {
 
+using namespace Volt;
+using namespace Volt::MiddleEnd::ConstEval;
+using PassContext = Volt::MiddleEnd::Core::PassContext;
+
 class Expander
 {
 
 public:
 
-    explicit Expander ( Volt::Sema::PassContext &InContext ) : Context( InContext )
+    explicit Expander ( PassContext &InContext ) : Context( InContext )
     {
     }
 
@@ -198,8 +208,8 @@ private:
             return;
         }
 
-        const Core::SourceRange Loc  = Name->Loc;
-        const Core::LineColumn Where = Context.Sources->Resolve( Loc.File, Loc.Begin );
+        const ::Volt::Core::SourceRange Loc = Name->Loc;
+        const Core::LineColumn Where        = Context.Sources->Resolve( Loc.File, Loc.Begin );
 
         const MagicSite Site{ .Path     = Path,
                               .Dir      = Dir,
@@ -224,7 +234,7 @@ private:
     // spelling of that shape the manifest does not know is a typo,
     // reported here rather than left to surface as a puzzling
     // unknown-identifier error much later.
-    void ReportUnknown ( std::string_view Spelling, Core::SourceRange Loc )
+    void ReportUnknown ( std::string_view Spelling, ::Volt::Core::SourceRange Loc )
     {
         std::string Known;
         for ( const std::string_view Candidate : MagicNames() )
@@ -293,15 +303,20 @@ private:
         }
     }
 
-    Volt::Sema::PassContext &Context;
+    PassContext &Context;
     std::string_view Path;
     std::string_view Dir;
 };
 
 } // namespace
 
-void Volt::Sema::MagicExpansion ( Volt::Sema::PassContext &Context )
+namespace Volt::MiddleEnd::ConstEval
+{
+
+void MagicExpansion ( PassContext &Context )
 {
     Expander Walk{ Context };
     Walk.Run();
 }
+
+} // namespace Volt::MiddleEnd::ConstEval

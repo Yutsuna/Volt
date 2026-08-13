@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeStore.hpp"
 
@@ -73,7 +74,7 @@ enum class EOwnership : std::uint8_t
 // needs substitution here, since a generic field's own nominal never attaches
 // a Layout in the first place — so this returns false for it automatically,
 // which is the wall rules/raii-ownership.md documents.
-[[nodiscard]] bool IsFinalizeCandidateNominal ( const TypeStore &Store, NominalId Id );
+[[nodiscard]] SEMA_EXPORT bool IsFinalizeCandidateNominal ( const TypeStore &Store, NominalId Id );
 
 // The same candidacy against a receiver's own (possibly generic-argument
 // bearing) `SemaTypeId`. `Values` is non-const to keep the signature stable

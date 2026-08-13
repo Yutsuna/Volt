@@ -16,7 +16,7 @@
 // file with no fixed order relative to this one, so it resolves lazily and
 // recursively across units rather than in either per-unit pass.
 
-#include "Volt/Sema/Layout/TypeBinder.hpp"
+#include "Volt/MiddleEnd/Resolver/TypeBinder.hpp"
 
 #include "Raii/Ownership.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
@@ -24,7 +24,7 @@
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Type.hpp"
-#include "Volt/Sema/Layout/TypeResolve.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -38,8 +38,10 @@
 namespace Volt
 {
 
-namespace Sema
+namespace MiddleEnd::Resolver
 {
+
+    using namespace Volt::MiddleEnd::TypeSystem;
 
     namespace
     {
@@ -49,7 +51,7 @@ namespace Sema
 
             Symbol Name;
             Frontend::ExprList Args;
-            Core::SourceRange Loc;
+            ::Volt::Core::SourceRange Loc;
         };
 
         // What both phases need out of a declaration that introduces a type.
@@ -641,7 +643,7 @@ namespace Sema
             std::uint32_t Unit = 0;
             std::size_t Bound  = 0;
 
-            void Report ( Core::ESeverity Severity, Core::SourceRange Loc, const std::string &Message )
+            void Report ( Core::ESeverity Severity, ::Volt::Core::SourceRange Loc, const std::string &Message )
             {
                 Diags.Report( Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
             }
@@ -733,12 +735,12 @@ namespace Sema
             // entry per generic parameter, naming the AST field(s) that feed
             // it. `[ B, C ]` joins two fields onto one parameter. Empty means
             // "use the default convention".
-            [[nodiscard]] std::vector<Core::SmallVec<Symbol, 2>> ReadLiteralSlots ( const Frontend::ExprList &Args )
+            [[nodiscard]] std::vector<::Volt::Core::SmallVec<Symbol, 2>> ReadLiteralSlots ( const Frontend::ExprList &Args )
             {
-                std::vector<Core::SmallVec<Symbol, 2>> Slots;
+                std::vector<::Volt::Core::SmallVec<Symbol, 2>> Slots;
                 for ( std::size_t Index = 1; Index < Args.Size(); ++Index )
                 {
-                    Core::SmallVec<Symbol, 2> Slot;
+                    ::Volt::Core::SmallVec<Symbol, 2> Slot;
                     const Frontend::ExprNode &Arg = Ast.Expr( Args[static_cast<std::uint32_t>( Index )] );
                     std::visit(
                         Meta::Overloaded{
@@ -770,7 +772,7 @@ namespace Sema
                 const NominalId Id = Store.DeclareType( Decl.Name, Unit, Decl.Id );
                 ++Bound;
 
-                Core::SmallVec<Symbol, 2> Params;
+                ::Volt::Core::SmallVec<Symbol, 2> Params;
                 for ( const Symbol Name : *Decl.Generics )
                 {
                     Params.PushBack( Store.Intern( Ast.Text( Name ) ) );
@@ -867,7 +869,7 @@ namespace Sema
             std::uint32_t Unit   = 0;
             std::size_t Resolved = 0;
 
-            void Report ( Core::ESeverity Severity, Core::SourceRange Loc, const std::string &Message )
+            void Report ( Core::ESeverity Severity, ::Volt::Core::SourceRange Loc, const std::string &Message )
             {
                 Diags.Report( Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
             }
@@ -940,7 +942,7 @@ namespace Sema
                 // written parent link.
                 if ( Decl.GenericBounds != nullptr )
                 {
-                    Core::SmallVec<SigTypeId, 2> Bounds;
+                    ::Volt::Core::SmallVec<SigTypeId, 2> Bounds;
                     for ( const Frontend::TypeId Bound : *Decl.GenericBounds )
                     {
                         Bounds.PushBack( Bound.IsValid() ? ParentOf( Bound, Generics ) : SigTypeId{} );
@@ -980,7 +982,7 @@ namespace Sema
                                 // resolves T to index 0 and U to index 1, so
                                 // a single ParamIndex addresses both and
                                 // Instantiate needs no second concept.
-                                Core::SmallVec<Symbol, 4> Space;
+                                ::Volt::Core::SmallVec<Symbol, 4> Space;
                                 for ( const Symbol Name : *Decl.Generics )
                                 {
                                     Space.PushBack( Name );
@@ -1021,8 +1023,8 @@ namespace Sema
                                     Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
                                 }
 
-                                Core::SmallVec<SigTypeId, 4> Params;
-                                Core::SmallVec<bool, 4> ParamIsBlock;
+                                ::Volt::Core::SmallVec<SigTypeId, 4> Params;
+                                ::Volt::Core::SmallVec<bool, 4> ParamIsBlock;
                                 std::uint32_t MinParams = 0;
                                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                                 {
@@ -1091,7 +1093,8 @@ namespace Sema
                                         {
                                             Report( Core::ESeverity::Error, ParamNode.Loc,
                                                     "parameter '@" + std::string{ Ast.Text( ParamNode.Name ) } +
-                                                        "' has no corresponding field declared on '" + std::string{ Decl.Name } + "'" );
+                                                        "' has no corresponding field declared on '" + std::string{ Decl.Name } +
+                                                        "'" );
                                         }
                                     }
                                     else if ( not ParamNode.bIsBlock and not ParamNode.DeclType.IsValid() )
@@ -1135,8 +1138,8 @@ namespace Sema
                                 // references the enum's own parameters, so
                                 // no space concatenation like Method's.
                                 SigSink Sink{ Store };
-                                Core::SmallVec<SigTypeId, 4> Params;
-                                Core::SmallVec<bool, 4> ParamIsBlock;
+                                ::Volt::Core::SmallVec<SigTypeId, 4> Params;
+                                ::Volt::Core::SmallVec<bool, 4> ParamIsBlock;
                                 for ( const Frontend::ParamId ParamRef : Entry.Payload )
                                 {
                                     const Frontend::Param &ParamNode = Ast.GetParam( ParamRef );
@@ -1247,8 +1250,8 @@ namespace Sema
 
                 SigSink Sink{ Store };
                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
-                Core::SmallVec<SigTypeId, 4> Params;
-                Core::SmallVec<bool, 4> ParamIsBlock;
+                ::Volt::Core::SmallVec<SigTypeId, 4> Params;
+                ::Volt::Core::SmallVec<bool, 4> ParamIsBlock;
                 std::uint32_t MinParams = 0;
                 for ( const Frontend::ParamId ParamRef : Entry.Params )
                 {
@@ -1273,8 +1276,7 @@ namespace Sema
                         if ( not ParamNode.bIsBlock and not ParamSig.IsValid() )
                         {
                             Report( Core::ESeverity::Error, ParamNode.Loc,
-                                    "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
-                                        "' has unresolvable type" );
+                                    "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } + "' has unresolvable type" );
                         }
                     }
 
@@ -1341,8 +1343,8 @@ namespace Sema
         // definition each, in Private/Raii/Ownership.hpp, which this seam and
         // the in-TypeChecker sweeps share — see that header for why the
         // question belongs at the type level.
-        using Raii::FinalizeName;
-        using Raii::IsFinalizeCandidateNominal;
+        using Volt::Sema::Raii::FinalizeName;
+        using Volt::Sema::Raii::IsFinalizeCandidateNominal;
 
         // Bounded the same way EnsureStructLayout's own cross-unit recursion
         // is (MaxLayoutDepth) — a genuine by-value cycle cannot exist, but a
@@ -1360,10 +1362,10 @@ namespace Sema
         // which is precisely how a subclass came to synthesize an empty
         // `finalize` that shadowed its base's real one, statically dispatched,
         // so `ArgumentError` released nothing an `Exception` owns.
-        [[nodiscard]] Core::SmallVec<NominalId, 2>
+        [[nodiscard]] ::Volt::Core::SmallVec<NominalId, 2>
         ParentNominals ( const Frontend::AstContext &Ast, const TypeStore &Store, Frontend::DeclId Decl )
         {
-            Core::SmallVec<NominalId, 2> Out;
+            ::Volt::Core::SmallVec<NominalId, 2> Out;
             if ( const std::optional<NominalId> Super = FieldTypeNominal( Ast, Store, TypeSuperOf( Ast, Decl ) ) )
             {
                 Out.PushBack( *Super );
@@ -1430,7 +1432,7 @@ namespace Sema
             // first, and a subclass that answered "nothing above me" too early
             // would both mis-report its own triviality and lose the delegation
             // its synthesized destructor owes its base.
-            const Core::SmallVec<NominalId, 2> Parents = ParentNominals( Ast, Store, TypeDecl );
+            const ::Volt::Core::SmallVec<NominalId, 2> Parents = ParentNominals( Ast, Store, TypeDecl );
             for ( const NominalId Parent : Parents )
             {
                 EnsureFinalizeStub( Units, Store, Parent, Done, Depth + 1 );
@@ -1470,7 +1472,7 @@ namespace Sema
             // skips bare parameters by name, which is the one case left
             // undecidable (rules/raii-ownership.md).
 
-            Core::SourceRange Loc;
+            ::Volt::Core::SourceRange Loc;
             std::visit(
                 [&] ( const auto &N )
                 {
@@ -1622,6 +1624,6 @@ namespace Sema
         }
     }
 
-} // namespace Sema
+} // namespace MiddleEnd::Resolver
 
 } // namespace Volt

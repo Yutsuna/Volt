@@ -1,4 +1,4 @@
-#include "Volt/Sema/Link/InterfaceRegistry.hpp"
+#include "Volt/MiddleEnd/Resolver/InterfaceRegistry.hpp"
 
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Core/Meta/Serialize.hpp"
@@ -11,7 +11,7 @@
 namespace Volt
 {
 
-namespace Sema
+namespace MiddleEnd::Resolver
 {
 
     namespace
@@ -102,6 +102,6 @@ namespace Sema
         return true;
     }
 
-} // namespace Sema
+} // namespace MiddleEnd::Resolver
 
 } // namespace Volt

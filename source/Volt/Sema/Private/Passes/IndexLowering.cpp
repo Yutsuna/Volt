@@ -133,7 +133,7 @@ private:
 
 } // namespace
 
-void Volt::Sema::IndexLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::IndexLowering ( Core::PassContext &Context )
 {
     Context.Stats.IndexesLowered += IndexRewriter( Context.Ast ).Run();
 }

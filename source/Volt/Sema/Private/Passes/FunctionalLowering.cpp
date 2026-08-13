@@ -203,7 +203,7 @@ private:
 } // namespace
 
 // Order 8 — rewrite Section and Composition nodes into standard Lambda nodes.
-void Volt::Sema::FunctionalLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::FunctionalLowering ( Core::PassContext &Context )
 {
     FunctionalRewriter Rewriter{ Context.Ast };
     Rewriter.Run();

@@ -13,32 +13,32 @@ namespace Volt
 namespace MiddleEnd
 {
 
-namespace Core
-{
-
-    namespace
+    namespace Core
     {
 
-        [[maybe_unused]] bool RunCoreSmokeTest ()
+        namespace
         {
-            const std::span<const PassInfo> Registry = PassRegistry();
-            if ( Registry.empty() )
+
+            [[maybe_unused]] bool RunCoreSmokeTest ()
             {
-                return false;
-            }
-            for ( std::size_t Idx = 1; Idx < Registry.size(); ++Idx )
-            {
-                if ( Registry[Idx - 1].Order > Registry[Idx].Order )
+                const std::span<const PassInfo> Registry = PassRegistry();
+                if ( Registry.empty() )
                 {
                     return false;
                 }
+                for ( std::size_t Idx = 1; Idx < Registry.size(); ++Idx )
+                {
+                    if ( Registry[Idx - 1].Order > Registry[Idx].Order )
+                    {
+                        return false;
+                    }
+                }
+                return true;
             }
-            return true;
-        }
 
-    } // namespace
+        } // namespace
 
-} // namespace Core
+    } // namespace Core
 
 } // namespace MiddleEnd
 

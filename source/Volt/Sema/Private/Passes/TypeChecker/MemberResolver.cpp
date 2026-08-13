@@ -1,4 +1,5 @@
 #include "MemberResolver.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 
 #include "TypeCompat.hpp"
 

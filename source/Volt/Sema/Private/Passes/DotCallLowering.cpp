@@ -83,7 +83,7 @@ private:
 
 } // namespace
 
-void Volt::Sema::DotCallLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::DotCallLowering ( Core::PassContext &Context )
 {
     Context.Stats.DotCallsLowered += DotCallRewriter( Context.Ast ).Run();
 }

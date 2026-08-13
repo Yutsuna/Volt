@@ -1,4 +1,5 @@
 #include "EnumCaseLowering.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 
 #include "DeclStmtWalker.hpp"
 #include "ExprInferencer.hpp"

@@ -19,7 +19,8 @@
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/Resolver/ScopeTable.hpp"
 
 #include <string>
 #include <string_view>
@@ -31,14 +32,16 @@ namespace
 {
 
 using namespace Volt;
-using namespace Volt::Sema;
+using namespace Volt::MiddleEnd;
+using namespace Volt::MiddleEnd::Core;
+using namespace Volt::MiddleEnd::Resolver;
 
-class Resolver
+class ScopeResolverWalker
 {
 
 public:
 
-    explicit Resolver ( PassContext &InContext ) : Context( InContext )
+    explicit ScopeResolverWalker ( PassContext &InContext ) : Context( InContext )
     {
     }
 
@@ -61,13 +64,13 @@ public:
 
 private:
 
-    void Report ( Core::SourceRange Loc, std::string Message )
+    void Report ( ::Volt::Core::SourceRange Loc, std::string Message )
     {
-        Context.Diags.Report(
-            Core::Diagnostic{ .Severity = Core::ESeverity::Error, .Range = Loc, .Message = std::move( Message ), .Notes = {} } );
+        Context.Diags.Report( ::Volt::Core::Diagnostic{
+            .Severity = ::Volt::Core::ESeverity::Error, .Range = Loc, .Message = std::move( Message ), .Notes = {} } );
     }
 
-    void DeclareOrReport ( ScopeId InScope, Symbol Name, BindingSite Site, Core::SourceRange Loc )
+    void DeclareOrReport ( ScopeId InScope, Symbol Name, BindingSite Site, ::Volt::Core::SourceRange Loc )
     {
         if ( not Context.Scopes.Declare( InScope, Name, Site ) )
         {
@@ -502,13 +505,18 @@ private:
         }
     }
 
-    Volt::Sema::PassContext &Context;
+    PassContext &Context;
 };
 
 } // namespace
 
-void Volt::Sema::ScopeResolver ( Volt::Sema::PassContext &Context )
+namespace Volt::MiddleEnd::Resolver
 {
-    Resolver Walk{ Context };
+
+void ScopeResolver ( PassContext &Context )
+{
+    ScopeResolverWalker Walk{ Context };
     Walk.Run();
 }
+
+} // namespace Volt::MiddleEnd::Resolver

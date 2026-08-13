@@ -122,7 +122,7 @@ private:
 
 } // namespace
 
-void Volt::Sema::InterpLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::InterpLowering ( Core::PassContext &Context )
 {
     Context.Stats.InterpsLowered += InterpRewriter( Context.Ast ).Run();
 }

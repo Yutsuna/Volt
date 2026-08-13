@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../TypeCheckerContext.hpp"
+#include "Sema_export.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 
 // Full-expression regions: the values a *statement* owns without ever naming
@@ -49,6 +50,6 @@ namespace Volt::Sema::TypeCheckerPass::Lifetime
 // never reshaped — only the expression slots hanging off it — which is why it
 // is taken by const reference and why this composes with `ScopeCleanup`
 // running afterwards over the very same list.
-bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body );
+SEMA_EXPORT bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body );
 
 } // namespace Volt::Sema::TypeCheckerPass::Lifetime

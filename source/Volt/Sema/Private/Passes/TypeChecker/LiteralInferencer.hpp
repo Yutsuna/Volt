@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "DeclStmtWalker.hpp"
 #include "MemberResolver.hpp"
 #include "TypeCheckerContext.hpp"
@@ -18,7 +19,7 @@ namespace Volt::Sema::TypeCheckerPass
 
 void MarkMetadata ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::vector<bool> &Marked );
 
-[[nodiscard]] std::vector<bool> MetadataExprs ( const Frontend::AstContext &Ast );
+[[nodiscard]] SEMA_EXPORT std::vector<bool> MetadataExprs ( const Frontend::AstContext &Ast );
 
 template <typename NodeType> [[nodiscard]] consteval bool HasChildNodes ()
 {

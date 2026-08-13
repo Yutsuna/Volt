@@ -199,7 +199,7 @@ private:
 
 // Order 20 — rewrite JSX nodes into `Volt::JSX` runtime calls. Must run
 // before type checking so later passes never see a JSX node.
-void Volt::Sema::JsxLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::JsxLowering ( Core::PassContext &Context )
 {
     Context.Stats.JsxLowered += JsxRewriter( Context.Ast ).Run();
 }

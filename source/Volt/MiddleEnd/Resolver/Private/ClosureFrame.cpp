@@ -1,9 +1,9 @@
-#include "Volt/Sema/Layout/ClosureFrame.hpp"
+#include "Volt/MiddleEnd/Resolver/ClosureFrame.hpp"
 
 namespace Volt
 {
 
-namespace Sema
+namespace MiddleEnd::Resolver
 {
 
     ClosureEnvFrame SynthesizeClosureFrame ( const ScopeTable &Scopes, const UnitTypes &Types, ScopeId ClosureScope )
@@ -31,6 +31,6 @@ namespace Sema
         return Frame;
     }
 
-} // namespace Sema
+} // namespace MiddleEnd::Resolver
 
 } // namespace Volt

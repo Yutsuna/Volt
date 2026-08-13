@@ -20,7 +20,8 @@
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/ConstEval/MagicConstants.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
 
 #include <algorithm>
 #include <array>
@@ -39,7 +40,9 @@ namespace
 
 using namespace Volt;
 using namespace Volt::Frontend;
-using namespace Volt::Sema;
+using namespace Volt::MiddleEnd;
+using namespace Volt::MiddleEnd::Core;
+using namespace Volt::MiddleEnd::ConstEval;
 
 // --- Compile-time values ----------------------------------------
 
@@ -76,11 +79,14 @@ struct MacroValue
 
 // --- Member operations, straight from the MacroOps.inl manifest --
 
-using MacroOpFn = MacroValue ( * )( const MacroValue &Receiver, Core::DiagEngine::Bag &Diags, Core::SourceRange Loc );
+using MacroOpFn = MacroValue ( * )( const MacroValue &Receiver,
+                                    ::Volt::Core::DiagEngine::Bag &Diags,
+                                    ::Volt::Core::SourceRange Loc );
 
 #define VOLT_MACRO_OP( Name, Spelling )                                                                                          \
-    [[nodiscard]] MacroValue Op##Name( const MacroValue &Receiver, Core::DiagEngine::Bag &Diags, Core::SourceRange Loc );
-#include "Volt/Sema/MacroOps.inl"
+    [[nodiscard]] MacroValue Op##Name( const MacroValue &Receiver, ::Volt::Core::DiagEngine::Bag &Diags,                         \
+                                       ::Volt::Core::SourceRange Loc );
+#include "Volt/MiddleEnd/ConstEval/MacroOps.inl"
 
 struct MacroOpRow
 {
@@ -91,10 +97,10 @@ struct MacroOpRow
 
 constexpr std::array MacroOps = {
 #define VOLT_MACRO_OP( Name, Spelling ) MacroOpRow{ Spelling, &Op##Name },
-#include "Volt/Sema/MacroOps.inl"
+#include "Volt/MiddleEnd/ConstEval/MacroOps.inl"
 };
 
-MacroValue OpSize ( const MacroValue &Receiver, Core::DiagEngine::Bag &Diags, Core::SourceRange Loc )
+MacroValue OpSize ( const MacroValue &Receiver, ::Volt::Core::DiagEngine::Bag &Diags, ::Volt::Core::SourceRange Loc )
 {
     return std::visit( Meta::Overloaded{ [] ( const std::vector<MacroValue> &Seq )
                                          { return MacroValue{ static_cast<std::int64_t>( Seq.size() ) }; },
@@ -174,7 +180,7 @@ public:
         Else,
     };
 
-    TemplateScanner ( std::string_view InSource, Core::DiagEngine::Bag &InDiags, Core::SourceRange InLoc )
+    TemplateScanner ( std::string_view InSource, ::Volt::Core::DiagEngine::Bag &InDiags, ::Volt::Core::SourceRange InLoc )
         : Source( InSource ), Diags( InDiags ), Loc( InLoc )
     {
     }
@@ -296,8 +302,8 @@ private:
 
     std::string_view Source;
     std::size_t Pos = 0;
-    Core::DiagEngine::Bag &Diags;
-    Core::SourceRange Loc;
+    ::Volt::Core::DiagEngine::Bag &Diags;
+    ::Volt::Core::SourceRange Loc;
 };
 
 // --- The expander ------------------------------------------------
@@ -307,7 +313,7 @@ class MacroExpander
 
 public:
 
-    explicit MacroExpander ( Volt::Sema::PassContext &InContext ) : Context( InContext ), Ast( InContext.Ast )
+    explicit MacroExpander ( Volt::MiddleEnd::Core::PassContext &InContext ) : Context( InContext ), Ast( InContext.Ast )
     {
     }
 
@@ -512,7 +518,7 @@ private:
 
     // --- Tag evaluation ------------------------------------------
 
-    [[nodiscard]] MacroValue EvalText ( std::string_view Text, Core::SourceRange Loc )
+    [[nodiscard]] MacroValue EvalText ( std::string_view Text, ::Volt::Core::SourceRange Loc )
     {
         Lexer TagLexer( Ast.FileId(), Text, Ast.Strings(), Context.Diags );
         Parser TagParser( TagLexer.Tokenize(), Ast, Context.Diags, Text );
@@ -527,7 +533,7 @@ private:
 
     [[nodiscard]] MacroValue Eval ( ExprId Id )
     {
-        const Core::SourceRange Loc = CurrentLoc;
+        const ::Volt::Core::SourceRange Loc = CurrentLoc;
         return std::visit(
             Meta::Overloaded{
                 [&] ( const Frontend::IntLiteral &Node )
@@ -605,7 +611,7 @@ private:
             Ast.Expr( Id ) );
     }
 
-    [[nodiscard]] MacroValue EvalBinary ( const Frontend::Binary &Node, Core::SourceRange Loc )
+    [[nodiscard]] MacroValue EvalBinary ( const Frontend::Binary &Node, ::Volt::Core::SourceRange Loc )
     {
         if ( Node.Op == TokenKind::AndAnd or Node.Op == TokenKind::KwAnd )
         {
@@ -672,7 +678,7 @@ private:
         return {};
     }
 
-    [[nodiscard]] MacroValue ApplyOp ( const MacroValue &Receiver, std::string_view Spelling, Core::SourceRange Loc )
+    [[nodiscard]] MacroValue ApplyOp ( const MacroValue &Receiver, std::string_view Spelling, ::Volt::Core::SourceRange Loc )
     {
         for ( const MacroOpRow &Op : MacroOps )
         {
@@ -724,16 +730,21 @@ private:
         }
     }
 
-    Volt::Sema::PassContext &Context;
+    PassContext &Context;
     Frontend::AstContext &Ast;
     std::unordered_map<std::string_view, Frontend::DeclId> Defs;
     std::unordered_map<std::string, MacroValue> Env;
-    Core::SourceRange CurrentLoc;
+    ::Volt::Core::SourceRange CurrentLoc;
 };
 
 } // namespace
 
-void Volt::Sema::MacroExpansion ( Volt::Sema::PassContext &Context )
+namespace Volt::MiddleEnd::ConstEval
+{
+
+void MacroExpansion ( PassContext &Context )
 {
     Context.Stats.MacrosExpanded += MacroExpander( Context ).Run();
 }
+
+} // namespace Volt::MiddleEnd::ConstEval

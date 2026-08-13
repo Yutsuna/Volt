@@ -15,7 +15,7 @@
 // LookupMemberOn / Instantiate / UnifySig this file's callers already trust
 // for a non-generic body, because it is the same code.
 
-#include "Volt/Sema/Layout/Instantiate.hpp"
+#include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
 
 #include "ClosureInferencer.hpp"
 #include "ClosureLifting.hpp"
@@ -27,8 +27,10 @@
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
-#include "Volt/Sema/Layout/TypeResolve.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/IR/CalleeMap.hpp"
+#include "Volt/MiddleEnd/IR/SynthesizedFunctions.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
 #include <variant>
 
@@ -36,7 +38,12 @@ namespace
 {
 
 using namespace Volt;
+using namespace Volt::MiddleEnd::TypeSystem;
+using PassContext = Volt::MiddleEnd::Core::PassContext;
+using PassStats   = Volt::MiddleEnd::Core::PassStats;
 using namespace Volt::Sema;
+using CalleeEntry         = Volt::MiddleEnd::IR::CalleeEntry;
+using SynthesizedFunction = Volt::MiddleEnd::IR::SynthesizedFunction;
 
 // Consume one MonoRequest-encoded subtree from the front of `Cursor` and
 // intern it into `Values`: the same pre-order (NominalId, ArgCount, args...)
@@ -55,7 +62,7 @@ using namespace Volt::Sema;
     const std::uint32_t Count = Cursor[1];
     Cursor                    = Cursor.subspan( 2 );
 
-    Core::SmallVec<SemaTypeId, 2> Args;
+    ::Volt::Core::SmallVec<SemaTypeId, 2> Args;
     Args.Reserve( Count );
     for ( std::uint32_t Index = 0; Index < Count; ++Index )
     {
@@ -117,20 +124,22 @@ using namespace Volt::Sema;
 
 } // namespace
 
-Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &Store,
-                                                             const Frontend::AstContext &Ast,
-                                                             const ScopeTable &Scopes,
-                                                             const Member &Entry,
-                                                             NominalId Owner,
-                                                             std::span<const std::uint32_t> FlatArgs )
+Volt::MiddleEnd::TypeSystem::InstantiatedBody
+Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
+                                                 const Frontend::AstContext &Ast,
+                                                 const ScopeTable &Scopes,
+                                                 const Member &Entry,
+                                                 NominalId Owner,
+                                                 std::span<const std::uint32_t> FlatArgs )
 {
+    ( void )Scopes;
     InstantiatedBody Result;
 
     // Decode the flattened bindings into fresh SemaTypeIds inside the
     // overlay: NominalId is the cross-unit, instantiation-independent
     // currency, so no caller-side SemaTypeId ever needs to cross into this
     // arena — everything concrete this function needs is built here.
-    Core::SmallVec<SemaTypeId, 2> ReceiverArgs;
+    ::Volt::Core::SmallVec<SemaTypeId, 2> ReceiverArgs;
     std::span<const std::uint32_t> Cursor = FlatArgs;
     while ( not Cursor.empty() )
     {
@@ -138,7 +147,7 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     }
 
     const std::size_t OwnerGenericCount = Owner.IsValid() ? Store.Type( Owner ).Params.Size() : 0;
-    Core::SmallVec<SemaTypeId, 2> OwnerArgs;
+    ::Volt::Core::SmallVec<SemaTypeId, 2> OwnerArgs;
     for ( std::size_t Index = 0; Index < OwnerGenericCount and Index < ReceiverArgs.Size(); ++Index )
     {
         OwnerArgs.PushBack( ReceiverArgs[Index] );
@@ -156,7 +165,7 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     // else) but is told, via Context.Redirects, never to overwrite a slot
     // that already existed before this call — that slot's literal is shared
     // by every other instantiation of this same generic body.
-    Core::DiagEngine::Bag ScratchDiags;
+    ::Volt::Core::DiagEngine::Bag ScratchDiags;
     PassStats ScratchStats;
     PassContext ScratchCtx{
         // NOLINTBEGIN(cppcoreguidelines-pro-type-const-cast) — PassContext's
@@ -315,14 +324,15 @@ Volt::Sema::InstantiatedBody Volt::Sema::ReinstantiateBody ( const TypeStore &St
     // TypeChecker itself takes at the end of a unit's pass run.
     for ( const auto &[Value, Found] : Context.CalleeResolution )
     {
-        Result.Callees.Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl        = Found.Decl,
-                                                                    .Result      = Found.Result,
-                                                                    .Params      = Found.Params,
-                                                                    .BlockParam  = Found.BlockParam,
-                                                                    .Bindings    = Found.Bindings,
-                                                                    .Receiver    = Found.Receiver,
-                                                                    .bConstructs = Found.bConstructs,
-                                                                    .bIndirect   = Found.bIndirect } );
+        Result.Callees.Set( Frontend::ExprId{ static_cast<std::uint32_t>( Value ) },
+                            CalleeEntry{ .Decl        = Found.Decl,
+                                         .Result      = Found.Result,
+                                         .Params      = Found.Params,
+                                         .BlockParam  = Found.BlockParam,
+                                         .Bindings    = Found.Bindings,
+                                         .Receiver    = Found.Receiver,
+                                         .bConstructs = Found.bConstructs,
+                                         .bIndirect   = Found.bIndirect } );
     }
 
     return Result;

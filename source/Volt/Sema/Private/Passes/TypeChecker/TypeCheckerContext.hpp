@@ -1,9 +1,14 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
+#include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/TypeSystem/MemoryLayout.hpp"
+#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 #include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include <optional>
@@ -16,14 +21,34 @@
 namespace Volt::Sema::TypeCheckerPass
 {
 
-// A member resolved on a receiver, with its already-instantiated
-// result type and (for a method) its already-instantiated parameter
-// types, in declaration order.
+using Member          = Volt::MiddleEnd::TypeSystem::Member;
+using SemaTypeId      = Volt::MiddleEnd::TypeSystem::SemaTypeId;
+using SemaType        = Volt::MiddleEnd::TypeSystem::SemaType;
+using UnitTypes       = Volt::MiddleEnd::TypeSystem::UnitTypes;
+using UnitSink        = Volt::MiddleEnd::TypeSystem::UnitSink;
+using NominalId       = Volt::MiddleEnd::TypeSystem::NominalId;
+using NominalType     = Volt::MiddleEnd::TypeSystem::NominalType;
+using SigTypeId       = Volt::MiddleEnd::TypeSystem::SigTypeId;
+using SigType         = Volt::MiddleEnd::TypeSystem::SigType;
+using TypeStore       = Volt::MiddleEnd::TypeSystem::TypeStore;
+using EMemberKind     = Volt::MiddleEnd::TypeSystem::EMemberKind;
+using LayoutId        = Volt::MiddleEnd::TypeSystem::LayoutId;
+using LayoutKind      = Volt::MiddleEnd::TypeSystem::LayoutKind;
+using LayoutNode      = Volt::MiddleEnd::TypeSystem::LayoutNode;
+using Primitive       = Volt::MiddleEnd::TypeSystem::Primitive;
+using Aggregate       = Volt::MiddleEnd::TypeSystem::Aggregate;
+using FieldLayout     = Volt::MiddleEnd::TypeSystem::FieldLayout;
+using PassContext     = Volt::MiddleEnd::Core::PassContext;
+using PassStats       = Volt::MiddleEnd::Core::PassStats;
+using BindingSite     = Volt::MiddleEnd::Resolver::BindingSite;
+using BindingSiteHash = Volt::MiddleEnd::Resolver::BindingSiteHash;
+using Symbol          = ::Volt::Core::Symbol;
+
 struct Resolution
 {
     const Member *Decl = nullptr;
     SemaTypeId Result;
-    Core::SmallVec<SemaTypeId, 4> Params;
+    ::Volt::Core::SmallVec<SemaTypeId, 4> Params;
     // The instantiated `&block` slot, kept out of Params because it binds
     // through the call's trailing `do ... end` rather than positionally.
     // This is what gives a block's parameters their types: `each` on an
@@ -35,7 +60,7 @@ struct Resolution
     // the owner's arguments, then one slot per method generic. Those last
     // slots start invalid — nothing but the call can fill them — and the
     // types above are recomputed as inference closes them.
-    Core::SmallVec<SemaTypeId, 2> Bindings;
+    ::Volt::Core::SmallVec<SemaTypeId, 2> Bindings;
     // Kept so that recomputation resolves `self` the same way the first
     // instantiation did.
     SemaTypeId Receiver;
@@ -47,7 +72,7 @@ struct Resolution
     bool bIndirect = false;
 };
 
-struct TypeCheckerContext
+struct SEMA_EXPORT TypeCheckerContext
 {
     PassContext &Ctx;
     std::vector<bool> Metadata;

@@ -141,7 +141,7 @@ private:
 
 } // namespace
 
-void Volt::Sema::CaseLowering ( PassContext &Context )
+void Volt::MiddleEnd::Lowering::CaseLowering ( Core::PassContext &Context )
 {
     Context.Stats.CaseLowered += CaseRewriter( Context.Ast ).Run();
 }

@@ -1,11 +1,15 @@
 #pragma once
 
 #include "TypeCheckerContext.hpp"
+#include "Volt/Core/Diagnostics/SourceLocation.hpp"
 
 #include <string_view>
 
 namespace Volt::Sema::TypeCheckerPass
 {
+
+using TypeStore   = Volt::MiddleEnd::TypeSystem::TypeStore;
+using SourceRange = ::Volt::Core::SourceRange;
 
 constexpr std::string_view IndexOperator = "[]";
 
@@ -60,7 +64,7 @@ void UnifyArgs ( TypeCheckerContext &Context, Resolution &Found, const Frontend:
 // Array<Bool>.
 void UnifyBlock ( TypeCheckerContext &Context, Resolution &Found, SemaTypeId BlockType );
 
-void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType );
+void CheckMemberSelf ( TypeCheckerContext &Context, SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType );
 
 // Whether `Nominal` is an enum in the only sense the compiler ever needs to
 // know: it declares at least one case of its own. A plain `case x when 1, 2
@@ -94,11 +98,8 @@ void CheckMemberSelf ( TypeCheckerContext &Context, Core::SourceRange Loc, const
 [[nodiscard]] SemaTypeId MemberType (
     TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name );
 
-void CheckCallArgs ( TypeCheckerContext &Context,
-                     Core::SourceRange Loc,
-                     const Resolution &Found,
-                     const Frontend::ExprList &Args );
+void CheckCallArgs ( TypeCheckerContext &Context, SourceRange Loc, const Resolution &Found, const Frontend::ExprList &Args );
 
-void CheckArity ( TypeCheckerContext &Context, Core::SourceRange Loc, NominalId Base, std::size_t Given );
+void CheckArity ( TypeCheckerContext &Context, SourceRange Loc, NominalId Base, std::size_t Given );
 
 } // namespace Volt::Sema::TypeCheckerPass

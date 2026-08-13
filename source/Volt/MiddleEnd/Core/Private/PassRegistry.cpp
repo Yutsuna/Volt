@@ -15,41 +15,42 @@ namespace Volt
 namespace MiddleEnd
 {
 
-namespace Core
-{
-
-    namespace
+    namespace Core
     {
 
-        // Build the registry once from the manifest, then sort by Order so
-        // the Driver can run passes deterministically regardless of the
-        // order the entries happen to appear in PassList.inl.
-        [[nodiscard]] std::span<const PassInfo> BuildRegistry ()
+        namespace
         {
-            using namespace Lowering;
-            using namespace Resolver;
-            using namespace ConstEval;
-            using namespace Analysis;
+
+            // Build the registry once from the manifest, then sort by Order so
+            // the Driver can run passes deterministically regardless of the
+            // order the entries happen to appear in PassList.inl.
+            [[nodiscard]] std::span<const PassInfo> BuildRegistry ()
+            {
+                using namespace Lowering;
+                using namespace Resolver;
+                using namespace ConstEval;
+                using namespace Analysis;
 
 #define VOLT_PASS( Name, Order, Kind ) PassInfo{ #Name, Order, EPassKind::Kind, &Name },
-            static std::array Registry{
+                static std::array Registry{
 #include "Volt/MiddleEnd/Core/PassList.inl"
-            };
+                };
 #undef VOLT_PASS
 
-            static const bool bSorted = []
-            {
-                std::ranges::stable_sort( Registry, [] ( const PassInfo &A, const PassInfo &B ) { return A.Order < B.Order; } );
-                return true;
-            }();
-            static_cast<void>( bSorted );
+                static const bool bSorted = []
+                {
+                    std::ranges::stable_sort( Registry,
+                                              [] ( const PassInfo &A, const PassInfo &B ) { return A.Order < B.Order; } );
+                    return true;
+                }();
+                static_cast<void>( bSorted );
 
-            return std::span<const PassInfo>{ Registry };
-        }
+                return std::span<const PassInfo>{ Registry };
+            }
 
-    } // namespace
+        } // namespace
 
-} // namespace Core
+    } // namespace Core
 
 } // namespace MiddleEnd
 

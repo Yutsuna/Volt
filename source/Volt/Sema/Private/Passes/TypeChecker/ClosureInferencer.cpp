@@ -1,9 +1,12 @@
 #include "ClosureInferencer.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 
 #include "DeclStmtWalker.hpp"
 #include "ExprInferencer.hpp"
-#include "Volt/Sema/Layout/SemaType.hpp"
-#include "Volt/Sema/Layout/TypeResolve.hpp"
+#include "TypeCheckerContext.hpp"
+#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 Volt::Core::SmallVec<Volt::Sema::SemaTypeId, 2>
 Volt::Sema::TypeCheckerPass::BindClosureParams ( TypeCheckerContext &Context, const Frontend::ParamList &Params )

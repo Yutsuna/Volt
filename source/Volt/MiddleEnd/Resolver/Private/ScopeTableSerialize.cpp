@@ -8,12 +8,12 @@
 // re-resolved once Scopes itself has been replayed.
 
 #include "Volt/Core/Meta/Serialize.hpp"
-#include "Volt/Sema/Scope/ScopeTable.hpp"
+#include "Volt/MiddleEnd/Resolver/ScopeTable.hpp"
 
 namespace Volt
 {
 
-namespace Sema
+namespace MiddleEnd::Resolver
 {
 
     void ScopeTable::SerializeCache ( Meta::Writer &W ) const
@@ -108,6 +108,6 @@ namespace Sema
         return true;
     }
 
-} // namespace Sema
+} // namespace MiddleEnd::Resolver
 
 } // namespace Volt

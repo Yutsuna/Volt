@@ -21,6 +21,7 @@
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/Parser/Pratt.hpp"
 #include "Volt/Sema/Pass.hpp"
+#include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include <cstddef>
 #include <optional>
@@ -216,7 +217,7 @@ private:
 
 } // namespace
 
-void Volt::Sema::AssignLowering ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Lowering::AssignLowering ( Core::PassContext &Context )
 {
     Context.Stats.AssignsLowered += AssignRewriter( Context ).Run();
 }

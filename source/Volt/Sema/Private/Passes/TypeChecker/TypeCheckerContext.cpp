@@ -1,6 +1,7 @@
 #include "TypeCheckerContext.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
+#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 
 /**

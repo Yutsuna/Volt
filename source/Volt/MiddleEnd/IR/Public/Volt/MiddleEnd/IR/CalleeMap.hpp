@@ -2,12 +2,12 @@
 
 // CalleeMap.hpp — the per-unit callee resolutions a backend consumes.
 
-#include "VoltMiddleEndIR_export.hpp"
 #include "Volt/Core/Support/Arena.hpp"
 #include "Volt/Core/Support/SmallVec.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
-#include "Volt/Sema/Layout/SemaType.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
+#include "VoltMiddleEndIR_export.hpp"
 
 #include <cstdint>
 #include <unordered_map>
@@ -26,75 +26,75 @@ namespace Meta
 namespace MiddleEnd
 {
 
-namespace TypeSystem
-{
-    using Member = Volt::Sema::Member;
-    using TypeStore = Volt::Sema::TypeStore;
-    using SemaTypeId = Volt::Sema::SemaTypeId;
-} // namespace TypeSystem
-
-namespace IR
-{
-
-    // One resolved callee, with its already-instantiated signature.
-    struct CalleeEntry
+    namespace TypeSystem
     {
-        const TypeSystem::Member *Decl = nullptr;
-        TypeSystem::SemaTypeId Result;
-        Core::SmallVec<TypeSystem::SemaTypeId, 4> Params;
-        TypeSystem::SemaTypeId BlockParam;
-        Core::SmallVec<TypeSystem::SemaTypeId, 2> Bindings;
-        TypeSystem::SemaTypeId Receiver;
-        bool bConstructs = false;
-        bool bIndirect   = false;
-    };
+        using Member     = Volt::MiddleEnd::TypeSystem::Member;
+        using TypeStore  = Volt::MiddleEnd::TypeSystem::TypeStore;
+        using SemaTypeId = Volt::MiddleEnd::TypeSystem::SemaTypeId;
+    } // namespace TypeSystem
 
-    // Every callee one compile unit resolved, keyed by the callee expression's ExprId.
-    class VOLT_MIDDLEEND_IR_EXPORT UnitCallees
+    namespace IR
     {
 
-    public:
-
-        void Set ( Frontend::ExprId Expr, CalleeEntry Entry )
+        // One resolved callee, with its already-instantiated signature.
+        struct CalleeEntry
         {
-            if ( Expr.IsValid() )
+            const TypeSystem::Member *Decl = nullptr;
+            TypeSystem::SemaTypeId Result;
+            ::Volt::Core::SmallVec<TypeSystem::SemaTypeId, 4> Params;
+            TypeSystem::SemaTypeId BlockParam;
+            ::Volt::Core::SmallVec<TypeSystem::SemaTypeId, 2> Bindings;
+            TypeSystem::SemaTypeId Receiver;
+            bool bConstructs = false;
+            bool bIndirect   = false;
+        };
+
+        // Every callee one compile unit resolved, keyed by the callee expression's ExprId.
+        class VOLT_MIDDLEEND_IR_EXPORT UnitCallees
+        {
+
+        public:
+
+            void Set ( Frontend::ExprId Expr, CalleeEntry Entry )
             {
-                Entries[Expr.Value] = std::move( Entry );
+                if ( Expr.IsValid() )
+                {
+                    Entries[Expr.Value] = std::move( Entry );
+                }
             }
-        }
 
-        [[nodiscard]] const CalleeEntry *Get ( Frontend::ExprId Expr ) const
-        {
-            if ( not Expr.IsValid() )
+            [[nodiscard]] const CalleeEntry *Get ( Frontend::ExprId Expr ) const
             {
-                return nullptr;
+                if ( not Expr.IsValid() )
+                {
+                    return nullptr;
+                }
+                const auto It = Entries.find( Expr.Value );
+                return It != Entries.end() ? &It->second : nullptr;
             }
-            const auto It = Entries.find( Expr.Value );
-            return It != Entries.end() ? &It->second : nullptr;
-        }
 
-        [[nodiscard]] bool Has ( Frontend::ExprId Expr ) const
-        {
-            return Get( Expr ) != nullptr;
-        }
+            [[nodiscard]] bool Has ( Frontend::ExprId Expr ) const
+            {
+                return Get( Expr ) != nullptr;
+            }
 
-        [[nodiscard]] std::size_t Size () const
-        {
-            return Entries.size();
-        }
+            [[nodiscard]] std::size_t Size () const
+            {
+                return Entries.size();
+            }
 
-        void SerializeCache ( Meta::Writer &W ) const;
-        [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
+            void SerializeCache ( Meta::Writer &W ) const;
+            [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
 
-        void FixupDecls ( const TypeSystem::TypeStore &Store );
+            void FixupDecls ( const TypeSystem::TypeStore &Store );
 
-    private:
+        private:
 
-        std::unordered_map<std::uint32_t, CalleeEntry> Entries;
-        std::vector<std::pair<std::uint32_t, std::pair<std::uint32_t, Frontend::DeclId>>> PendingDecls;
-    };
+            std::unordered_map<std::uint32_t, CalleeEntry> Entries;
+            std::vector<std::pair<std::uint32_t, std::pair<std::uint32_t, Frontend::DeclId>>> PendingDecls;
+        };
 
-} // namespace IR
+    } // namespace IR
 
 } // namespace MiddleEnd
 

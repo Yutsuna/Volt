@@ -6,6 +6,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
+#include "Volt/MiddleEnd/IR/SynthesizedFunctions.hpp"
 #include "Volt/Sema/Layout/ClosureFrame.hpp"
 #include "Volt/Sema/Layout/SemaType.hpp"
 #include "Volt/Sema/Layout/TypeResolve.hpp"
@@ -20,6 +21,7 @@ namespace
 
 using namespace Volt;
 using namespace Volt::Sema::TypeCheckerPass;
+using Volt::MiddleEnd::IR::SynthesizedFunction;
 
 // `Proc<R>#code`'s own already-resolved field type — Pointer<UInt8> — read
 // off the declaration rather than reconstructed from a byte-width node-kind

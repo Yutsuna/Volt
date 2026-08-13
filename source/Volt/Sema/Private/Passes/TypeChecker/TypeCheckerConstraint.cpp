@@ -1,5 +1,6 @@
 #include "TypeCheckerConstraint.hpp"
 #include "TypeCheckerContext.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 
 #include "ExprInferencer.hpp"
 #include "LiteralLowering.hpp"

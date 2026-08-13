@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Sema_export.hpp"
 #include "TypeCheckerContext.hpp"
 
 #include <string_view>
@@ -14,7 +15,7 @@ namespace Volt::Sema::TypeCheckerPass
 // Context.Ctx.Ast.Stmt(ClauseId)), and WalkStmt below can Add() onto that
 // same Stmt arena mid-loop since LowerArrayLit started rewriting AST nodes
 // during TypeChecker — rules/ast-rewrite.md.
-[[nodiscard]] SemaTypeId TrailingType ( TypeCheckerContext &Context, Frontend::StmtList Body );
+[[nodiscard]] SEMA_EXPORT SemaTypeId TrailingType ( TypeCheckerContext &Context, Frontend::StmtList Body );
 
 [[nodiscard]] SemaTypeId ClosureType ( TypeCheckerContext &Context,
                                        std::string_view NodeKind,

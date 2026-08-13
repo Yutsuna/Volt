@@ -1,4 +1,5 @@
 #include "ExprInferencer.hpp"
+#include "Volt/Sema/Layout/SemaType.hpp"
 
 #include "ClosureInferencer.hpp"
 #include "LiteralInferencer.hpp"

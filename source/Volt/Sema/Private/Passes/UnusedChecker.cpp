@@ -6,6 +6,7 @@
 // is a pure read of the ScopeTable — no AST mutation, no type access.
 
 #include "Volt/Sema/Pass.hpp"
+#include "Volt/Sema/Scope/ScopeTable.hpp"
 
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
@@ -42,8 +43,14 @@ Volt::Core::SourceRange LocOfSite ( const Volt::Frontend::AstContext &Ast, const
  * Public
  */
 
-void Volt::Sema::UnusedChecker ( PassContext &Context )
+void Volt::MiddleEnd::Analysis::UnusedChecker ( Core::PassContext &Context )
 {
+    // ScopeId/Scope/EScopeKind/Symbol resolve unqualified below; Volt::Sema
+    // is a sibling namespace of Volt::MiddleEnd::Analysis, not an ancestor,
+    // so ordinary lookup needs this directive (see TypeChecker.cpp's comment
+    // on the same, pre-Etape-8, situation).
+    using namespace Volt::Sema;
+
     for ( std::size_t Idx = 0; Idx < Context.Scopes.Size(); ++Idx )
     {
         const ScopeId Id{ static_cast<std::uint32_t>( Idx ) };
@@ -91,8 +98,12 @@ void Volt::Sema::UnusedChecker ( PassContext &Context )
             const bool bIsParam    = std::holds_alternative<Frontend::ParamId>( Entry.Site );
             const std::string Kind = bIsParam ? "parameter" : "variable";
 
-            Context.Diags.Report( Core::Diagnostic{
-                .Severity = Core::ESeverity::Warning,
+            // Fully qualified from the root: inside Volt::MiddleEnd::Analysis
+            // (this function's own, already-migrated namespace), unqualified
+            // `Core::` would resolve to the sibling Volt::MiddleEnd::Core
+            // instead of Volt::Core, which owns Diagnostic/ESeverity.
+            Context.Diags.Report( ::Volt::Core::Diagnostic{
+                .Severity = ::Volt::Core::ESeverity::Warning,
                 .Range    = LocOfSite( Context.Ast, Entry.Site ),
                 .Message  = "unused " + Kind + " '" + std::string{ Spelling } + "' — prefix with '_' if intentional",
                 .Notes    = {},

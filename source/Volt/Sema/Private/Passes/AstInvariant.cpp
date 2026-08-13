@@ -226,7 +226,11 @@ private:
 
 } // namespace
 
-void Volt::Sema::AstInvariant ( Volt::Sema::PassContext &Context )
+void Volt::MiddleEnd::Analysis::AstInvariant ( Core::PassContext &Context )
 {
+    // See TypeChecker.cpp's identical comment: TypeCheckerPass has not moved
+    // yet (Etape 8), only this entry point's own namespace had to.
+    namespace TypeCheckerPass = Volt::Sema::TypeCheckerPass;
+
     InvariantChecker( Context, TypeCheckerPass::MetadataExprs( Context.Ast ) ).Run();
 }

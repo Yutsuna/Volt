@@ -9,6 +9,7 @@
 #include "TypeChecker/LiteralLowering.hpp"
 #include "TypeChecker/TypeCheckerContext.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/MiddleEnd/IR/CalleeMap.hpp"
 #include "Volt/Sema/Pass.hpp"
 
 #include <cstddef>
@@ -41,8 +42,16 @@ void RejectNilableTypes ( Volt::Sema::PassContext &Context )
 
 } // namespace
 
-void Volt::Sema::TypeChecker ( PassContext &Context )
+void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
 {
+    // TypeCheckerPass still lives at its pre-migration location (Etape 8,
+    // Analysis, not yet moved) — this pass's own top-level entry point had to
+    // move already because Core::Pass.hpp/PassList.inl (Etape 2, already
+    // migrated) forward-declare it as Volt::MiddleEnd::Analysis::TypeChecker.
+    // A namespace alias, not a using-directive, because the body below
+    // qualifies through the name (TypeCheckerPass::Foo).
+    namespace TypeCheckerPass = Volt::Sema::TypeCheckerPass;
+
     RejectNilableTypes( Context );
 
     TypeCheckerPass::TypeCheckerContext State{ Context, TypeCheckerPass::MetadataExprs( Context.Ast ) };
@@ -98,14 +107,14 @@ void Volt::Sema::TypeChecker ( PassContext &Context )
     {
         for ( const auto &[Value, Found] : State.CalleeResolution )
         {
-            Context.Callees->Set( Frontend::ExprId{ Value }, CalleeEntry{ .Decl        = Found.Decl,
-                                                                          .Result      = Found.Result,
-                                                                          .Params      = Found.Params,
-                                                                          .BlockParam  = Found.BlockParam,
-                                                                          .Bindings    = Found.Bindings,
-                                                                          .Receiver    = Found.Receiver,
-                                                                          .bConstructs = Found.bConstructs,
-                                                                          .bIndirect   = Found.bIndirect } );
+            Context.Callees->Set( Frontend::ExprId{ Value }, Volt::MiddleEnd::IR::CalleeEntry{ .Decl        = Found.Decl,
+                                                                                               .Result      = Found.Result,
+                                                                                               .Params      = Found.Params,
+                                                                                               .BlockParam  = Found.BlockParam,
+                                                                                               .Bindings    = Found.Bindings,
+                                                                                               .Receiver    = Found.Receiver,
+                                                                                               .bConstructs = Found.bConstructs,
+                                                                                               .bIndirect   = Found.bIndirect } );
         }
     }
 }

@@ -11,12 +11,12 @@ namespace Volt
 namespace MiddleEnd
 {
 
-namespace IR
-{
+    namespace IR
+    {
 
-    using ExprRedirectMap = std::unordered_map<std::uint32_t, Frontend::ExprId>;
+        using ExprRedirectMap = std::unordered_map<std::uint32_t, Frontend::ExprId>;
 
-} // namespace IR
+    } // namespace IR
 
 } // namespace MiddleEnd
 
