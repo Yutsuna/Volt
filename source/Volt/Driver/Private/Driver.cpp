@@ -197,7 +197,11 @@ namespace
 // cached ASTs, and neither would invalidate the key on its own: it hashes
 // stdlib *sources*, which did not change, plus the `volt` executable's own
 // identity — which does not move when only a module `.so` is relinked.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453038ULL; // "VOLTFE08"
+// Bumped for "VOLTFE09": expression types moved out of the per-unit arena and
+// into the store's canonical TypeUniverse, so the store now carries them and a
+// unit carries only its ExprId -> SemaTypeId mapping (TypeUniverse.hpp). An
+// older file would deserialize into a shape that no longer exists.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453039ULL; // "VOLTFE09"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -399,6 +403,11 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             continue;
         }
         Units.emplace_back( File, Ref.Path, Ref.Module, Ref.bComponent );
+        // Every unit interns into the *build's* dictionary, so `G<A>` is one
+        // handle no matter which file wrote it (TypeUniverse.hpp). Bound here,
+        // before anything can type an expression — an unbound UnitTypes answers
+        // no type at all, which is the loud failure this ordering avoids.
+        Units.back().Types.BindUniverse( Types.Universe() );
     }
 
     // A file that failed to load never got a Units entry, so a caller's
@@ -661,8 +670,9 @@ bool Volt::Driver::Driver::TryLoadFrontendCache ( std::size_t StdlibCount )
     {
         CompileUnit &Unit = Units[Index];
         Unit.Interner.Clear();
-        Unit.Ast     = Frontend::AstContext{ Unit.Interner, Unit.File };
-        Unit.Types   = MiddleEnd::TypeSystem::UnitTypes{};
+        Unit.Ast   = Frontend::AstContext{ Unit.Interner, Unit.File };
+        Unit.Types = MiddleEnd::TypeSystem::UnitTypes{};
+        Unit.Types.BindUniverse( Types.Universe() ); // reset dropped the binding CompileRefs made
         Unit.Callees = MiddleEnd::IR::UnitCallees{};
         Unit.Scopes  = MiddleEnd::Resolver::ScopeTable{};
         Unit.Stats   = MiddleEnd::Core::PassStats{};
