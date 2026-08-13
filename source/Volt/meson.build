@@ -6,6 +6,7 @@
 subdir('Core')
 subdir('Frontend')
 subdir('Sema')
+subdir('MiddleEnd')
 subdir('Backend/BackendCore')
 if get_option('enable_llvm')
     subdir('Backend/BackendLLVM')
