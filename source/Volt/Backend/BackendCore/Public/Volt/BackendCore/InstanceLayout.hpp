@@ -20,7 +20,7 @@
 // invalidate the `Member *` / `NominalType &` handles Sema handed out.
 
 #include "BackendCore_export.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstdint>
 #include <map>
@@ -58,7 +58,9 @@ namespace Backend
         //     build the aggregate here;
         //   - nothing resolvable — an invalid LayoutId, which the caller
         //     reports as a middle-end contract violation rather than guessing.
-        [[nodiscard]] Sema::LayoutId Of ( Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs );
+        [[nodiscard]] MiddleEnd::TypeSystem::LayoutId Of ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                           MiddleEnd::TypeSystem::NominalId Base,
+                                                           std::span<const std::uint32_t> FlatArgs );
 
         // The layout a *declared signature* resolves to — a parameter, a
         // result, a field — with `FlatArgs` answering whatever generic
@@ -73,10 +75,10 @@ namespace Backend
         // arguments are. That is not an optimisation but the only correct
         // reading of `Pointer<Void>` — the argument names a type the stdlib
         // never declares, yet the pointer's shape does not depend on it.
-        [[nodiscard]] Sema::LayoutId OfSignature ( Sema::TypeStore &Store,
-                                                   Sema::SigTypeId Id,
-                                                   std::span<const std::uint32_t> FlatArgs,
-                                                   std::span<const std::uint32_t> SelfArgs = {} );
+        [[nodiscard]] MiddleEnd::TypeSystem::LayoutId OfSignature ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                    MiddleEnd::TypeSystem::SigTypeId Id,
+                                                                    std::span<const std::uint32_t> FlatArgs,
+                                                                    std::span<const std::uint32_t> SelfArgs = {} );
 
         [[nodiscard]] std::size_t InstantiationCount () const
         {
@@ -86,13 +88,13 @@ namespace Backend
     private:
 
         // OfSignature's recursive half, carrying the depth bound.
-        [[nodiscard]] Sema::LayoutId OfSig ( Sema::TypeStore &Store,
-                                             Sema::SigTypeId Id,
-                                             std::span<const std::uint32_t> FlatArgs,
-                                             std::span<const std::uint32_t> SelfArgs,
-                                             std::uint32_t Depth );
+        [[nodiscard]] MiddleEnd::TypeSystem::LayoutId OfSig ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                              MiddleEnd::TypeSystem::SigTypeId Id,
+                                                              std::span<const std::uint32_t> FlatArgs,
+                                                              std::span<const std::uint32_t> SelfArgs,
+                                                              std::uint32_t Depth );
 
-        std::map<std::vector<std::uint32_t>, Sema::LayoutId> Cache;
+        std::map<std::vector<std::uint32_t>, MiddleEnd::TypeSystem::LayoutId> Cache;
     };
 
     // The `Index`-th top-level argument subtree of a MonoRequest-encoded
@@ -109,8 +111,9 @@ namespace Backend
     // FlatArgs...]`. This is what a nested `self` inside a declared signature
     // resolves to (`OfSignature`'s `SelfArgs`), since `self` inside a body
     // always means "the receiver, whatever it was instantiated with".
-    [[nodiscard]] BACKENDCORE_EXPORT std::vector<std::uint32_t>
-    SelfSubtree ( const Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs );
+    [[nodiscard]] BACKENDCORE_EXPORT std::vector<std::uint32_t> SelfSubtree ( const MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                              MiddleEnd::TypeSystem::NominalId Base,
+                                                                              std::span<const std::uint32_t> FlatArgs );
 
 } // namespace Backend
 

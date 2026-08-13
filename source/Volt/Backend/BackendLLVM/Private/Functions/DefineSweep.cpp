@@ -29,14 +29,15 @@
 #include <variant>
 
 void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
-                                         const Sema::Member &Entry,
-                                         Sema::NominalId Owner,
+                                         const MiddleEnd::TypeSystem::Member &Entry,
+                                         MiddleEnd::TypeSystem::NominalId Owner,
                                          const UnitView &Unit )
 {
     // The same four exclusions the declare sweep applies, plus @[External]: that
     // one *has* a symbol — it is declared, and calls to it link — but its body
     // lives outside Volt, so there is nothing here to emit.
-    if ( Entry.Kind != Sema::EMemberKind::Method or Entry.bAbstract or Entry.OwnGenerics > 0 or Entry.ExternSymbol.IsValid() )
+    if ( Entry.Kind != MiddleEnd::TypeSystem::EMemberKind::Method or Entry.bAbstract or Entry.OwnGenerics > 0 or
+         Entry.ExternSymbol.IsValid() )
     {
         return;
     }
@@ -56,7 +57,7 @@ void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
         return;
     }
 
-    Sema::TypeStore &Store = *Services.Build->Types;
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services.Build->Types;
 
     // A frame local to this body, so a slot from the previous one cannot resolve
     // a name to storage that no longer exists.
@@ -101,7 +102,8 @@ void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
               Services.Types->IsAggregate( Services.Signatures->SignatureLayoutOf( Store, Entry.Params[Ordinal], Owner, {} ) ) );
         ++Ordinal;
 
-        if ( not BindParameter( Emitter, Sema::BindingSite{ ParamRef }, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
+        if ( not BindParameter( Emitter, MiddleEnd::Resolver::BindingSite{ ParamRef }, Arg, bByAddress,
+                                Unit.Ast->Text( Declared.Name ) ) )
         {
             static_cast<void>( Emitter.Fail( "llvm: parameter '" + std::string( Unit.Ast->Text( Declared.Name ) ) + "' of '" +
                                              std::string( Store.Text( Entry.Name ) ) + "' has no storage" ) );
@@ -142,7 +144,7 @@ void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView 
         return;
     }
 
-    Sema::TypeStore &Store = *Services.Build->Types;
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services.Build->Types;
 
     // Declared first, for the same reason DeclareAll runs before any body: a
     // FuncAddr inside an ordinary member's own body (an original closure
@@ -151,13 +153,13 @@ void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView 
 
     for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
     {
-        const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
+        const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
         if ( Store.Type( Id ).Params.Size() > 0 or IsMixinOwner( Services, Id ) )
         {
             continue;
         }
 
-        for ( const Sema::Member &Entry : Store.Type( Id ).Members )
+        for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Id ).Members )
         {
             if ( Entry.Unit == Unit.Ordinal )
             {
@@ -166,11 +168,11 @@ void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView 
         }
     }
 
-    for ( const Sema::Member &Entry : Store.FreeFunctions() )
+    for ( const MiddleEnd::TypeSystem::Member &Entry : Store.FreeFunctions() )
     {
         if ( Entry.Unit == Unit.Ordinal )
         {
-            DefineMember( Services, Entry, Sema::NominalId{}, Unit );
+            DefineMember( Services, Entry, MiddleEnd::TypeSystem::NominalId{}, Unit );
         }
     }
 

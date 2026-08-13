@@ -41,9 +41,9 @@ llvm::Value *Volt::Backend::Llvm::EmitCase ( BodyEmitter &Emitter, Frontend::Exp
     // whose count is not known until the ladder is built. An aggregate result
     // gets a slot too — `StoreTailValue` converges it by `EmitStore`'s memcpy,
     // not a plain `CreateStore` of an SSA struct value.
-    llvm::Type *Shape           = Emitter.TypeOfExpr( Id );
-    const Sema::LayoutId Layout = Emitter.LayoutOfExpr( Id );
-    llvm::AllocaInst *Slot      = nullptr;
+    llvm::Type *Shape                            = Emitter.TypeOfExpr( Id );
+    const MiddleEnd::TypeSystem::LayoutId Layout = Emitter.LayoutOfExpr( Id );
+    llvm::AllocaInst *Slot                       = nullptr;
     if ( Shape != nullptr )
     {
         Slot = Emitter.MakeTemp( Shape, "case.result" );

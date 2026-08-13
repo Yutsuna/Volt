@@ -1,4 +1,4 @@
-// Reinstantiate.cpp — Sema::ReinstantiateBody (Instantiate.hpp), the one
+// Reinstantiate.cpp — MiddleEnd::TypeSystem::ReinstantiateBody (Instantiate.hpp), the one
 // semantic step a monomorphising backend drives from outside a per-unit pass
 // run.
 //
@@ -18,18 +18,18 @@
 #include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
 
 #include "ClosureInferencer.hpp"
-#include "ClosureLifting.hpp"
-#include "Lifetime/Temporaries.hpp"
 #include "LiteralInferencer.hpp"
-#include "TypeCheckerContext.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
+#include "Volt/MiddleEnd/Analysis/Lifetime/Temporaries.hpp"
+#include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 #include "Volt/MiddleEnd/IR/CalleeMap.hpp"
 #include "Volt/MiddleEnd/IR/SynthesizedFunctions.hpp"
+#include "Volt/MiddleEnd/Lowering/LoweringPasses.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
 #include <variant>
@@ -41,7 +41,7 @@ using namespace Volt;
 using namespace Volt::MiddleEnd::TypeSystem;
 using PassContext = Volt::MiddleEnd::Core::PassContext;
 using PassStats   = Volt::MiddleEnd::Core::PassStats;
-using namespace Volt::Sema;
+using namespace Volt::MiddleEnd::Resolver;
 using CalleeEntry         = Volt::MiddleEnd::IR::CalleeEntry;
 using SynthesizedFunction = Volt::MiddleEnd::IR::SynthesizedFunction;
 
@@ -215,7 +215,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     {
         CombinedGenerics.PushBack( Name );
     }
-    TypeCheckerPass::TypeCheckerContext Context{ ScratchCtx, TypeCheckerPass::MetadataExprs( Ast ) };
+    Analysis::TypeCheckerContext Context{ ScratchCtx, Analysis::MetadataExprs( Ast ) };
     Context.SelfType     = Owner;
     Context.SelfValue    = Self;
     Context.Redirects    = &Result.Redirects;
@@ -242,7 +242,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     }
     Context.CurrentMethodReturnType = Instantiate( Store, Entry.Result, ReceiverArgs, Self, Result.Values );
 
-    const SemaTypeId Trailing = TypeCheckerPass::TrailingType( Context, MethodNode->Body );
+    const SemaTypeId Trailing = Analysis::TrailingType( Context, MethodNode->Body );
     if ( MethodNode->Body.Size() > 0 )
     {
         if ( const auto *Last = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( MethodNode->Body[MethodNode->Body.Size() - 1] ) );
@@ -262,7 +262,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     // below is walked again, unchanged, by every other instantiation of this
     // generic method (ast-rewrite.md's sweep discipline — the arena is
     // bounded before the first Add() this loop causes).
-    TypeCheckerPass::AnalyzeClosureLiterals( Context );
+    Lowering::AnalyzeClosureLiterals( Context );
 
     const std::size_t OriginalExprCount = Ast.ExprCount();
     for ( std::size_t ExprIndex = 0; ExprIndex < OriginalExprCount; ++ExprIndex )
@@ -277,7 +277,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
         {
             continue;
         }
-        TypeCheckerPass::LowerClosureLit( Context, CandidateId );
+        Lowering::LowerClosureLit( Context, CandidateId );
     }
 
     // Full-expression temporaries, for this instantiation only.
@@ -317,7 +317,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     }
     for ( const Frontend::StmtList &Swept : Bodies )
     {
-        static_cast<void>( TypeCheckerPass::Lifetime::RunTemporaries( Context, Swept ) );
+        static_cast<void>( Analysis::Lifetime::RunTemporaries( Context, Swept ) );
     }
 
     // Snapshot the resolutions this walk collected — the same final step

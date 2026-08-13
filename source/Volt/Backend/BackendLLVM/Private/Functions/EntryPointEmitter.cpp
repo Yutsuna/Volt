@@ -66,9 +66,9 @@ bool Volt::Backend::Llvm::EmitInitAll ( EmitterServices &Services )
 
             if ( Index + 1 < Services.Build->Units.size() )
             {
-                llvm::Value *Tag = Shell.CreateLoad( Int32Ty, Services.Exceptions->ExceptionTagSlot(), "exc.tag" );
-                llvm::Value *Pending =
-                    Shell.CreateICmpNE( Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
+                llvm::Value *Tag     = Shell.CreateLoad( Int32Ty, Services.Exceptions->ExceptionTagSlot(), "exc.tag" );
+                llvm::Value *Pending = Shell.CreateICmpNE(
+                    Tag, llvm::ConstantInt::get( Int32Ty, MiddleEnd::TypeSystem::NominalId::InvalidValue ), "exc.pending" );
 
                 llvm::BasicBlock *Stop = llvm::BasicBlock::Create( Context, "init.stop", InitAllFn );
                 llvm::BasicBlock *Next = llvm::BasicBlock::Create( Context, "init.next", InitAllFn );
@@ -110,10 +110,11 @@ bool Volt::Backend::Llvm::EmitEntryPoint ( EmitterServices &Services )
     llvm::Function *EntryFn = nullptr;
     if ( Services.Build != nullptr and Services.Build->Types != nullptr )
     {
-        if ( const Sema::Member *Entry = Services.Build->Types->LookupFunction( Services.Options->EntryFunction );
+        if ( const MiddleEnd::TypeSystem::Member *Entry =
+                 Services.Build->Types->LookupFunction( Services.Options->EntryFunction );
              Entry != nullptr )
         {
-            EntryFn = Services.Functions->FunctionFor( *Entry, Sema::NominalId{}, {} );
+            EntryFn = Services.Functions->FunctionFor( *Entry, MiddleEnd::TypeSystem::NominalId{}, {} );
         }
     }
     if ( EntryFn == nullptr )

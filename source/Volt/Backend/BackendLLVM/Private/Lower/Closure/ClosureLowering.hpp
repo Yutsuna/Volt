@@ -52,7 +52,7 @@ namespace Backend
             // first, then parameters).
             [[nodiscard]] llvm::Value *EmitIndirectCall ( BodyEmitter &Emitter,
                                                           Frontend::ExprId Id,
-                                                          const Sema::CalleeEntry &Entry,
+                                                          const MiddleEnd::IR::CalleeEntry &Entry,
                                                           Frontend::ExprId Receiver,
                                                           std::span<const Frontend::ExprId> Args );
 

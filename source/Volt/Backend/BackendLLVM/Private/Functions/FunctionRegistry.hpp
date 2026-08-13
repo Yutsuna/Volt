@@ -15,7 +15,7 @@
 
 #include "Core/EmitterServices.hpp"
 #include "Core/LlvmFwd.hpp"
-#include "Volt/Sema/Layout/Instantiate.hpp"
+#include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
 
 #include <cstdint>
 #include <span>
@@ -43,20 +43,22 @@ namespace Backend
             // The linker symbol a resolved callee is reached by: the C spelling
             // verbatim for an `@[External]` member — the whole point of that
             // boundary — and the mangled scheme otherwise.
-            [[nodiscard]] std::string
-            SymbolOf ( const Sema::Member &Entry, Sema::NominalId Owner, std::span<const std::uint32_t> FlatArgs ) const;
+            [[nodiscard]] std::string SymbolOf ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                 MiddleEnd::TypeSystem::NominalId Owner,
+                                                 std::span<const std::uint32_t> FlatArgs ) const;
 
             // The declaration for that symbol, created on demand: the declare
             // sweep covers every concrete member of the build, but a
             // monomorphised callee is only named once a call site fixes its
             // arguments.
-            [[nodiscard]] llvm::Function *
-            FunctionFor ( const Sema::Member &Entry, Sema::NominalId Owner, std::span<const std::uint32_t> FlatArgs );
+            [[nodiscard]] llvm::Function *FunctionFor ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                        MiddleEnd::TypeSystem::NominalId Owner,
+                                                        std::span<const std::uint32_t> FlatArgs );
 
             // One declaration. Returns null when the member is not something
             // codegen emits a symbol for (abstract, generic, a field), which is
             // not a failure.
-            llvm::Function *DeclareMember ( const Sema::Member &Entry, Sema::NominalId Owner );
+            llvm::Function *DeclareMember ( const MiddleEnd::TypeSystem::Member &Entry, MiddleEnd::TypeSystem::NominalId Owner );
 
         private:
 
@@ -84,7 +86,7 @@ namespace Backend
         // reading the declaring unit's own AST node kind — the one fact the
         // TypeStore does not carry, since `Struct`/`Class`/`Mixin`/`Enum`
         // collapse to one `NominalType` shape at bind time.
-        [[nodiscard]] bool IsMixinOwner ( const EmitterServices &Services, Sema::NominalId Id );
+        [[nodiscard]] bool IsMixinOwner ( const EmitterServices &Services, MiddleEnd::TypeSystem::NominalId Id );
 
         // Fill in the bodies every member of `Unit` declares.
         void DefineAll ( EmitterServices &Services, const UnitView &Unit );
@@ -92,7 +94,10 @@ namespace Backend
         // One body. Silently skips a member with no body to emit (external,
         // abstract, generic); a member whose declaration is not the Method the
         // store says it is, is a contract violation and reported.
-        void DefineMember ( EmitterServices &Services, const Sema::Member &Entry, Sema::NominalId Owner, const UnitView &Unit );
+        void DefineMember ( EmitterServices &Services,
+                            const MiddleEnd::TypeSystem::Member &Entry,
+                            MiddleEnd::TypeSystem::NominalId Owner,
+                            const UnitView &Unit );
 
         // Creates (but does not define) the llvm::Function for every entry in
         // Unit.Synth, up front — before any body in this unit is emitted, so a
@@ -101,9 +106,9 @@ namespace Backend
         // SynthesizedFns, regardless of which body happens to be emitted first.
         void DeclareSynthesized ( EmitterServices &Services, const UnitView &Unit );
         void DeclareSynthesizedFn ( EmitterServices &Services,
-                                    const Sema::SynthesizedFunction &Fn,
+                                    const MiddleEnd::IR::SynthesizedFunction &Fn,
                                     const UnitView &Unit,
-                                    const Sema::UnitTypes &Values );
+                                    const MiddleEnd::TypeSystem::UnitTypes &Values );
 
         // Defines every entry's body. Split from DeclareSynthesized for the
         // reason above; unlike an ordinary member, nothing outside this unit
@@ -112,14 +117,14 @@ namespace Backend
         // `Redirects` is null for an ordinary unit's own (concrete) closure —
         // ClosureLifting mutated its literal's slot in place, so there is
         // nothing to redirect — and non-null only when `Fn` came out of a
-        // Sema::ReinstantiateBody overlay (MonoBodyEmitter), where it is that
+        // MiddleEnd::TypeSystem::ReinstantiateBody overlay (MonoBodyEmitter), where it is that
         // overlay's own ExprRedirectMap.
         void DefineSynthesizedFn ( EmitterServices &Services,
-                                   const Sema::SynthesizedFunction &Fn,
+                                   const MiddleEnd::IR::SynthesizedFunction &Fn,
                                    const UnitView &Unit,
-                                   const Sema::UnitTypes &Values,
-                                   const Sema::UnitCallees &Callees,
-                                   const Sema::ExprRedirectMap *Redirects = nullptr );
+                                   const MiddleEnd::TypeSystem::UnitTypes &Values,
+                                   const MiddleEnd::IR::UnitCallees &Callees,
+                                   const MiddleEnd::IR::ExprRedirectMap *Redirects = nullptr );
 
         // Gives `_V_init_all` (declared, never defined, by the stdlib prelude's
         // `@[External( "volt", "_V_init_all" )]`) its body: every unit's

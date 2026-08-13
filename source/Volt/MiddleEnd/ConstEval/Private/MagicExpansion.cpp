@@ -209,7 +209,7 @@ private:
         }
 
         const ::Volt::Core::SourceRange Loc = Name->Loc;
-        const Core::LineColumn Where        = Context.Sources->Resolve( Loc.File, Loc.Begin );
+        const Volt::Core::LineColumn Where  = Context.Sources->Resolve( Loc.File, Loc.Begin );
 
         const MagicSite Site{ .Path     = Path,
                               .Dir      = Dir,
@@ -246,11 +246,11 @@ private:
             Known += Candidate;
         }
 
-        Context.Diags.Report(
-            Core::Diagnostic{ .Severity = Core::ESeverity::Error,
-                              .Range    = Loc,
-                              .Message  = "unknown magic constant '" + std::string{ Spelling } + "'",
-                              .Notes = { Core::DiagnosticNote{ .Range = Loc, .Message = "known magic constants: " + Known } } } );
+        Context.Diags.Report( Volt::Core::Diagnostic{
+            .Severity = Volt::Core::ESeverity::Error,
+            .Range    = Loc,
+            .Message  = "unknown magic constant '" + std::string{ Spelling } + "'",
+            .Notes    = { Volt::Core::DiagnosticNote{ .Range = Loc, .Message = "known magic constants: " + Known } } } );
     }
 
     // Reflection-driven default walk: recurse into every child node a

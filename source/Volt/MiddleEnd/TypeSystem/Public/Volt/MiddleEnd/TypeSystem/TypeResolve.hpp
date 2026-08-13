@@ -69,7 +69,7 @@ namespace MiddleEnd
         // whatever type that body belongs to.
         //
         // `Bindings` is the one case where a parameter *is* answerable: a
-        // re-instantiation (Sema::ReinstantiateBody) walks a generic body with its
+        // re-instantiation (MiddleEnd::TypeSystem::ReinstantiateBody) walks a generic body with its
         // arguments already fixed, so `sizeof T` inside `Pointer<T>#malloc` is a
         // concrete width there and a deferral everywhere else. Empty in an
         // ordinary pass, which is what keeps that deferral the default.
@@ -81,10 +81,10 @@ namespace MiddleEnd
             UnitTypes &Values;
             SemaTypeId Self;
             std::span<const SemaTypeId> Bindings;
-            // Non-null enables generic-bound checking (Sema::CheckGenericBounds)
+            // Non-null enables generic-bound checking (MiddleEnd::TypeSystem::CheckGenericBounds)
             // at every `TypeRef` this sink resolves — nullptr keeps
             // ResolveTypeExpr's ordinary "no diagnostic" behaviour for a caller
-            // that only wants a best-effort type (e.g. Sema::ReinstantiateBody).
+            // that only wants a best-effort type (e.g. MiddleEnd::TypeSystem::ReinstantiateBody).
             ::Volt::Core::DiagEngine::Bag *Diags = nullptr;
 
             [[nodiscard]] IdType Make ( NominalId Base, ::Volt::Core::SmallVec<IdType, 2> Args )
@@ -119,7 +119,7 @@ namespace MiddleEnd
 
         /// `Base<Args...>`: does every bounded parameter of `Base` accept the
         /// concrete type supplied at the matching index? Mirrors
-        /// `TypeCheckerPass::CheckAbstractConformance`'s question but in the
+        /// `Analysis::CheckAbstractConformance`'s question but in the
         /// opposite direction — that checks a *declaration* satisfies the
         /// mixins it includes, this checks a call-site *argument* satisfies a
         /// bound the generic parameter itself declared. A bound is satisfied the

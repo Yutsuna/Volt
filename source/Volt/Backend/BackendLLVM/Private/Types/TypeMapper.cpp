@@ -47,7 +47,7 @@ namespace
 
 } // namespace
 
-llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( Sema::LayoutId Id )
+llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id )
 {
     if ( not Id.IsValid() or Services->Build == nullptr or Services->Build->Types == nullptr )
     {
@@ -59,13 +59,13 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( Sema::LayoutId Id )
         return It->second;
     }
 
-    const Sema::TypeStore &Store = *Services->Build->Types;
-    llvm::LLVMContext &Context   = Services->Ctx->Context();
+    const MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
+    llvm::LLVMContext &Context                    = Services->Ctx->Context();
 
     llvm::Type *Result = std::visit(
         Meta::Overloaded{
             [] ( const std::monostate & ) -> llvm::Type * { return nullptr; },
-            [this, &Store, &Context] ( const Sema::Primitive &Node ) -> llvm::Type *
+            [this, &Store, &Context] ( const MiddleEnd::TypeSystem::Primitive &Node ) -> llvm::Type *
             {
                 const std::string_view Spelling = Node.Spelling.IsValid() ? Store.Text( Node.Spelling ) : std::string_view{};
                 if ( Spelling.empty() )
@@ -100,12 +100,13 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( Sema::LayoutId Id )
                 }
                 return llvm::Type::getIntNTy( Context, Node.Bits );
             },
-            [&Context] ( const Sema::Pointer & ) -> llvm::Type * { return llvm::PointerType::get( Context, 0 ); },
-            [this, Id, &Context] ( const Sema::Aggregate &Node ) -> llvm::Type *
+            [&Context] ( const MiddleEnd::TypeSystem::Pointer & ) -> llvm::Type *
+            { return llvm::PointerType::get( Context, 0 ); },
+            [this, Id, &Context] ( const MiddleEnd::TypeSystem::Aggregate &Node ) -> llvm::Type *
             {
                 std::vector<llvm::Type *> Fields;
                 Fields.reserve( Node.Fields.Size() );
-                for ( const Sema::FieldLayout &Field : Node.Fields )
+                for ( const MiddleEnd::TypeSystem::FieldLayout &Field : Node.Fields )
                 {
                     llvm::Type *Inner = TypeOfLayout( Field.Type );
                     if ( Inner == nullptr )
@@ -134,7 +135,7 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( Sema::LayoutId Id )
     return Result;
 }
 
-llvm::Type *Volt::Backend::Llvm::TypeMapper::ParamTypeOfLayout ( Sema::LayoutId Id )
+llvm::Type *Volt::Backend::Llvm::TypeMapper::ParamTypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id )
 {
     llvm::Type *Shape = TypeOfLayout( Id );
     if ( Shape == nullptr )
@@ -144,11 +145,12 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::ParamTypeOfLayout ( Sema::LayoutId 
     return Shape->isStructTy() ? llvm::PointerType::get( Services->Ctx->Context(), 0 ) : Shape;
 }
 
-Volt::Sema::LayoutId Volt::Backend::Llvm::TypeMapper::LayoutOfExpr ( const FunctionFrame &Frame, Frontend::ExprId Id )
+Volt::MiddleEnd::TypeSystem::LayoutId Volt::Backend::Llvm::TypeMapper::LayoutOfExpr ( const FunctionFrame &Frame,
+                                                                                      Frontend::ExprId Id )
 {
     if ( Frame.Unit == nullptr or Frame.Values == nullptr )
     {
-        return Sema::LayoutId{};
+        return MiddleEnd::TypeSystem::LayoutId{};
     }
     return LayoutOfValue( *Frame.Values, Frame.Values->ExprType( Id ) );
 }
@@ -158,27 +160,28 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfExpr ( const FunctionFrame &F
     return TypeOfLayout( LayoutOfExpr( Frame, Id ) );
 }
 
-bool Volt::Backend::Llvm::TypeMapper::IsAggregate ( Sema::LayoutId Id ) const
+bool Volt::Backend::Llvm::TypeMapper::IsAggregate ( MiddleEnd::TypeSystem::LayoutId Id ) const
 {
     if ( not Id.IsValid() or Services->Build == nullptr or Services->Build->Types == nullptr )
     {
         return false;
     }
-    return Sema::KindOf( Services->Build->Types->Get( Id ) ) == Sema::LayoutKind::Aggregate;
+    return MiddleEnd::TypeSystem::KindOf( Services->Build->Types->Get( Id ) ) == MiddleEnd::TypeSystem::LayoutKind::Aggregate;
 }
 
-std::string_view Volt::Backend::Llvm::TypeMapper::SpellingOf ( Sema::LayoutId Id ) const
+std::string_view Volt::Backend::Llvm::TypeMapper::SpellingOf ( MiddleEnd::TypeSystem::LayoutId Id ) const
 {
     if ( not Id.IsValid() or Services->Build == nullptr or Services->Build->Types == nullptr )
     {
         return {};
     }
-    const Sema::LayoutNode &Node = Services->Build->Types->Get( Id );
-    if ( const auto *Scalar = std::get_if<Sema::Primitive>( &Node ); Scalar != nullptr and Scalar->Spelling.IsValid() )
+    const MiddleEnd::TypeSystem::LayoutNode &Node = Services->Build->Types->Get( Id );
+    if ( const auto *Scalar = std::get_if<MiddleEnd::TypeSystem::Primitive>( &Node );
+         Scalar != nullptr and Scalar->Spelling.IsValid() )
     {
         return Services->Build->Types->Text( Scalar->Spelling );
     }
     // A Pointer layout is an address just as `@[Primitive("ptr")]` is, and the
     // two must select the same instructions.
-    return std::holds_alternative<Sema::Pointer>( Node ) ? std::string_view{ "ptr" } : std::string_view{};
+    return std::holds_alternative<MiddleEnd::TypeSystem::Pointer>( Node ) ? std::string_view{ "ptr" } : std::string_view{};
 }

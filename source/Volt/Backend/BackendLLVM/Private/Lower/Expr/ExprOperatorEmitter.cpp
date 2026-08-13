@@ -19,14 +19,14 @@
 #include "Lower/FunctionFrame.hpp"
 #include "Types/TypeMapper.hpp"
 
-const Volt::Sema::CalleeEntry *Volt::Backend::Llvm::ResolvedOperator ( BodyEmitter &Emitter, Frontend::ExprId Id )
+const Volt::MiddleEnd::IR::CalleeEntry *Volt::Backend::Llvm::ResolvedOperator ( BodyEmitter &Emitter, Frontend::ExprId Id )
 {
     // `bAbstract` is what excludes the primitive contracts: `Arithmetic#+` is
     // declared so that `a + b` has a *type*, and a Primitive/Pointer receiver is
     // exempt from providing a body because the backend supplies the instruction
     // (rules/zero-hardcode.md). A resolution naming one of those is therefore
     // not a call — it is the signal to select an opcode instead.
-    const Sema::CalleeEntry *Entry = Emitter.Frame().Callees->Get( Id );
+    const MiddleEnd::IR::CalleeEntry *Entry = Emitter.Frame().Callees->Get( Id );
     if ( Entry != nullptr and Entry->Decl != nullptr and not Entry->Decl->bAbstract )
     {
         return Entry;

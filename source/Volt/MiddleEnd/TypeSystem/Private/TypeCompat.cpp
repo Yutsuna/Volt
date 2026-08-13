@@ -9,8 +9,8 @@
 
 #include "Volt/MiddleEnd/TypeSystem/TypeCompat.hpp"
 
-#include "TypeCheckerContext.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstddef>

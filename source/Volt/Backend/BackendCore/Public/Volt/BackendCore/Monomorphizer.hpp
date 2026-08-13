@@ -11,7 +11,7 @@
 // flattened NominalId trees — the cross-unit currency — so `Array<Int32>`
 // instantiates once per build no matter how many units mention it.
 
-#include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstdint>
 #include <deque>
@@ -39,8 +39,8 @@ namespace Backend
     struct MonoRequest
     {
 
-        Sema::NominalId Owner; // invalid for a free function
-        Sema::Symbol Name;     // interned in the TypeStore, like Member::Name
+        MiddleEnd::TypeSystem::NominalId Owner; // invalid for a free function
+        Volt::Core::Symbol Name;                // interned in the TypeStore, like Member::Name
         std::vector<std::uint32_t> Args;
 
         [[nodiscard]] std::vector<std::uint32_t> Key () const

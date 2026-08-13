@@ -20,9 +20,6 @@ volt_middleend_consteval_lib = static_library(
     cpp_pch: common_pch_header,
     include_directories: [
         volt_middleend_consteval_inc,
-        include_directories('../../Sema/Public'),
-        include_directories('../../Sema/Private/Passes/TypeChecker'),
-        include_directories('../../Sema'),
     ],
     dependencies: [
         compile_options_dep,

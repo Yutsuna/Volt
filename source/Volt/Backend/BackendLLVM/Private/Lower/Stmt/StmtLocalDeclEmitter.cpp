@@ -26,7 +26,9 @@
 #include <string>
 #include <variant>
 
-llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const Sema::BindingSite &Site, llvm::Type *Shape, std::string_view Name )
+llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const MiddleEnd::Resolver::BindingSite &Site,
+                                                         llvm::Type *Shape,
+                                                         std::string_view Name )
 {
     FunctionFrame &Local = Frame();
 
@@ -37,15 +39,16 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const Sema::BindingSite
 
     if ( Local.Unit != nullptr and Local.Unit->Scopes != nullptr )
     {
-        Sema::ScopeId OwnerScopeId;
+        MiddleEnd::Resolver::ScopeId OwnerScopeId;
         std::visit( Meta::Overloaded{ [&Local, &OwnerScopeId] ( Frontend::StmtId Stmt )
                                       { OwnerScopeId = Local.Unit->Scopes->ScopeOf( Stmt ); },
                                       [&Local, &OwnerScopeId] ( Frontend::ExprId Expr )
                                       { OwnerScopeId = Local.Unit->Scopes->ScopeOfExpr( Expr ); }, [] ( const auto & ) {} },
                     Site );
 
-        if ( OwnerScopeId.IsValid() and ( Local.Unit->Scopes->Get( OwnerScopeId ).Kind == Sema::EScopeKind::Unit or
-                                          Local.Unit->Scopes->Get( OwnerScopeId ).Kind == static_cast<Sema::EScopeKind>( 0 ) ) )
+        if ( OwnerScopeId.IsValid() and
+             ( Local.Unit->Scopes->Get( OwnerScopeId ).Kind == MiddleEnd::Resolver::EScopeKind::Unit or
+               Local.Unit->Scopes->Get( OwnerScopeId ).Kind == static_cast<MiddleEnd::Resolver::EScopeKind>( 0 ) ) )
         {
             const UnitGlobalKey Key{ .Ordinal = Local.Unit->Ordinal, .Site = Site };
             if ( const auto GlobIt = Services().ModuleGlobals->find( Key ); GlobIt != Services().ModuleGlobals->end() )
@@ -78,9 +81,9 @@ void Volt::Backend::Llvm::EmitLocalDecl ( BodyEmitter &Emitter, Frontend::StmtId
     // The local's shape is the one TypeChecker recorded *for the binding site*,
     // not the initialiser's: a declared `x : UInt64 = 0` is storage of the
     // declared width, and the initialiser widens into it.
-    const Sema::BindingSite Site{ Id };
-    const Sema::LayoutId Shape = Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Site ) );
-    llvm::Type *Slot           = Emitter.Types().TypeOfLayout( Shape );
+    const MiddleEnd::Resolver::BindingSite Site{ Id };
+    const MiddleEnd::TypeSystem::LayoutId Shape = Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Site ) );
+    llvm::Type *Slot                            = Emitter.Types().TypeOfLayout( Shape );
     if ( Slot == nullptr )
     {
         static_cast<void>(

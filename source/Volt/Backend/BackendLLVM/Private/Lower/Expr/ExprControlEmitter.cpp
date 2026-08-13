@@ -27,7 +27,7 @@ void Volt::Backend::Llvm::EmitConvergingBody ( BodyEmitter &Emitter,
                                                const Frontend::StmtList &Body,
                                                llvm::AllocaInst *Slot,
                                                llvm::Type *Shape,
-                                               Sema::LayoutId Layout,
+                                               MiddleEnd::TypeSystem::LayoutId Layout,
                                                llvm::BasicBlock *Merge )
 {
     const Frontend::AstContext &Ast = *Emitter.Frame().Unit->Ast;

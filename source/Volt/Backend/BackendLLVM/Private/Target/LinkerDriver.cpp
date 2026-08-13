@@ -17,7 +17,7 @@
 std::vector<std::string> Volt::Backend::Llvm::LinkerDriver::ExternLibraries () const
 {
     std::vector<std::string> Libraries;
-    auto Collect = [&] ( const Sema::Member &Entry )
+    auto Collect = [&] ( const MiddleEnd::TypeSystem::Member &Entry )
     {
         if ( not Entry.ExternLib.IsValid() )
         {
@@ -38,16 +38,16 @@ std::vector<std::string> Volt::Backend::Llvm::LinkerDriver::ExternLibraries () c
         Libraries.push_back( Name );
     };
 
-    Sema::TypeStore &Store = *Services->Build->Types;
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
     for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
     {
-        const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
-        for ( const Sema::Member &Entry : Store.Type( Id ).Members )
+        const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
+        for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Id ).Members )
         {
             Collect( Entry );
         }
     }
-    for ( const Sema::Member &Entry : Store.FreeFunctions() )
+    for ( const MiddleEnd::TypeSystem::Member &Entry : Store.FreeFunctions() )
     {
         Collect( Entry );
     }

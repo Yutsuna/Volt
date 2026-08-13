@@ -37,8 +37,11 @@
 #include <string>
 #include <variant>
 
-void Volt::Backend::Llvm::ExceptionLowering::EmitBeginTail (
-    BodyEmitter &Emitter, const Frontend::StmtList &Body, llvm::AllocaInst *Slot, llvm::Type *Shape, Sema::LayoutId Layout )
+void Volt::Backend::Llvm::ExceptionLowering::EmitBeginTail ( BodyEmitter &Emitter,
+                                                             const Frontend::StmtList &Body,
+                                                             llvm::AllocaInst *Slot,
+                                                             llvm::Type *Shape,
+                                                             MiddleEnd::TypeSystem::LayoutId Layout )
 {
     const Frontend::AstContext &Ast = *Emitter.Frame().Unit->Ast;
     for ( std::size_t Index = 0; Index < Body.Size() and not Emitter.Terminated() and not Emitter.Failed(); ++Index )
@@ -59,12 +62,12 @@ void Volt::Backend::Llvm::ExceptionLowering::EmitBeginTail (
 llvm::Value *
 Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::BeginExpr &Node )
 {
-    FunctionFrame &Frame            = Emitter.Frame();
-    const Frontend::AstContext &Ast = *Frame.Unit->Ast;
-    const Sema::UnitTypes &Values   = *Frame.Values;
-    llvm::LLVMContext &Context      = Services->Ctx->Context();
-    llvm::IRBuilder<> &Builder      = Services->Ctx->Builder();
-    llvm::Function *Fn              = Frame.Fn;
+    FunctionFrame &Frame                           = Emitter.Frame();
+    const Frontend::AstContext &Ast                = *Frame.Unit->Ast;
+    const MiddleEnd::TypeSystem::UnitTypes &Values = *Frame.Values;
+    llvm::LLVMContext &Context                     = Services->Ctx->Context();
+    llvm::IRBuilder<> &Builder                     = Services->Ctx->Builder();
+    llvm::Function *Fn                             = Frame.Fn;
 
     // A `begin` in value position needs a slot for the same reason `case` does:
     // its body and every clause are statement lists, so their results converge
@@ -72,9 +75,9 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
     // clause ladder is built. An aggregate result gets a slot too —
     // `StoreTailValue` converges it by `EmitStore`'s memcpy, not a plain
     // `CreateStore` of an SSA struct value.
-    llvm::Type *Shape           = Emitter.TypeOfExpr( Id );
-    const Sema::LayoutId Layout = Emitter.LayoutOfExpr( Id );
-    llvm::AllocaInst *Slot      = nullptr;
+    llvm::Type *Shape                            = Emitter.TypeOfExpr( Id );
+    const MiddleEnd::TypeSystem::LayoutId Layout = Emitter.LayoutOfExpr( Id );
+    llvm::AllocaInst *Slot                       = nullptr;
     if ( Shape != nullptr )
     {
         Slot = Emitter.MakeTemp( Shape, "begin.result" );
@@ -126,7 +129,7 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
 
         // ExprInferencer records this for every clause, bound variable or not —
         // the filter Sema resolved, never re-resolved here.
-        const Sema::SemaTypeId FilterType = Values.SiteType( Sema::BindingSite{ ClauseId } );
+        const MiddleEnd::TypeSystem::SemaTypeId FilterType = Values.SiteType( MiddleEnd::Resolver::BindingSite{ ClauseId } );
         if ( not Values.Has( FilterType ) or not Values.Get( FilterType ).Base.IsValid() )
         {
             static_cast<void>( Emitter.Fail( "llvm: `rescue` clause at statement " + std::to_string( ClauseId.Value ) +
@@ -134,7 +137,7 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
             Frame.Rescues.pop_back();
             return nullptr;
         }
-        const Sema::NominalId Target = Values.Get( FilterType ).Base;
+        const MiddleEnd::TypeSystem::NominalId Target = Values.Get( FilterType ).Base;
 
         llvm::Value *Matches = EmitAncestorTest( Emitter, Tag, Target );
 
@@ -147,14 +150,15 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
         // call inside it is checked against whatever *it* raises, never the
         // exception it is currently handling.
         static_cast<void>( Builder.CreateStore(
-            llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ), ExceptionTagSlot() ) );
+            llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), MiddleEnd::TypeSystem::NominalId::InvalidValue ),
+            ExceptionTagSlot() ) );
         static_cast<void>(
             Builder.CreateStore( llvm::Constant::getNullValue( llvm::PointerType::get( Context, 0 ) ), ExceptionValueSlot() ) );
 
         if ( Clause->VarName.IsValid() )
         {
-            const Sema::LayoutId FilterShape = Emitter.Types().LayoutOfValue( Values, FilterType );
-            llvm::Type *VarType              = Emitter.Types().TypeOfLayout( FilterShape );
+            const MiddleEnd::TypeSystem::LayoutId FilterShape = Emitter.Types().LayoutOfValue( Values, FilterType );
+            llvm::Type *VarType                               = Emitter.Types().TypeOfLayout( FilterShape );
             if ( VarType == nullptr )
             {
                 static_cast<void>( Emitter.Fail( "llvm: rescue variable '" +
@@ -163,8 +167,8 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
                 Frame.Rescues.pop_back();
                 return nullptr;
             }
-            llvm::Value *VarSlot =
-                Emitter.SlotFor( Sema::BindingSite{ ClauseId }, VarType, Frame.Unit->Ast->Text( Clause->VarName ) );
+            llvm::Value *VarSlot = Emitter.SlotFor( MiddleEnd::Resolver::BindingSite{ ClauseId }, VarType,
+                                                    Frame.Unit->Ast->Text( Clause->VarName ) );
             if ( VarSlot == nullptr )
             {
                 Frame.Rescues.pop_back();
@@ -215,7 +219,8 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
     llvm::Value *SavedExc = Builder.CreateLoad( llvm::PointerType::get( Context, 0 ), ExceptionValueSlot(), "exc.value.saved" );
     llvm::Value *SavedBrk = Builder.CreateLoad( Builder.getInt1Ty(), BreakFlagSlot(), "brk.saved" );
     static_cast<void>( Builder.CreateStore(
-        llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ), ExceptionTagSlot() ) );
+        llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), MiddleEnd::TypeSystem::NominalId::InvalidValue ),
+        ExceptionTagSlot() ) );
     static_cast<void>(
         Builder.CreateStore( llvm::Constant::getNullValue( llvm::PointerType::get( Context, 0 ) ), ExceptionValueSlot() ) );
     static_cast<void>( Builder.CreateStore( Builder.getFalse(), BreakFlagSlot() ) );
@@ -238,7 +243,7 @@ Volt::Backend::Llvm::ExceptionLowering::EmitBegin ( BodyEmitter &Emitter, Fronte
         // past it.
         llvm::Value *StillTag        = Builder.CreateLoad( llvm::Type::getInt32Ty( Context ), ExceptionTagSlot(), "exc.tag" );
         llvm::Value *StillExcPending = Builder.CreateICmpNE(
-            StillTag, llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), Sema::NominalId::InvalidValue ),
+            StillTag, llvm::ConstantInt::get( llvm::Type::getInt32Ty( Context ), MiddleEnd::TypeSystem::NominalId::InvalidValue ),
             "exc.still_pending" );
         llvm::Value *StillBrk     = Builder.CreateLoad( Builder.getInt1Ty(), BreakFlagSlot(), "brk.still_pending" );
         llvm::Value *StillPending = Builder.CreateOr( StillExcPending, StillBrk, "unwind.still_pending" );

@@ -54,7 +54,7 @@ namespace Backend
         {
 
             std::uint32_t Ordinal = 0;
-            Sema::BindingSite Site;
+            MiddleEnd::Resolver::BindingSite Site;
 
             bool operator==( const UnitGlobalKey &Other ) const
             {

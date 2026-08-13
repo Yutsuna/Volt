@@ -21,15 +21,15 @@
 #include <string>
 #include <variant>
 
-bool Volt::Backend::Llvm::IsMixinOwner ( const EmitterServices &Services, Sema::NominalId Id )
+bool Volt::Backend::Llvm::IsMixinOwner ( const EmitterServices &Services, MiddleEnd::TypeSystem::NominalId Id )
 {
     if ( not Id.IsValid() or Services.Build == nullptr )
     {
         return false;
     }
 
-    const Sema::TypeStore &Store  = *Services.Build->Types;
-    const Sema::NominalType &Type = Store.Type( Id );
+    const MiddleEnd::TypeSystem::TypeStore &Store  = *Services.Build->Types;
+    const MiddleEnd::TypeSystem::NominalType &Type = Store.Type( Id );
     for ( const UnitView &View : Services.Build->Units )
     {
         if ( View.Ordinal == Type.Unit and View.Ast != nullptr )
@@ -47,11 +47,11 @@ void Volt::Backend::Llvm::DeclareAll ( EmitterServices &Services )
         return;
     }
 
-    Sema::TypeStore &Store = *Services.Build->Types;
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services.Build->Types;
 
     for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
     {
-        const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
+        const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
 
         // A generic type's members have no shape until its arguments are fixed;
         // `Array<Int32>#push` is minted by the monomorphiser instead. A mixin's
@@ -63,15 +63,15 @@ void Volt::Backend::Llvm::DeclareAll ( EmitterServices &Services )
             continue;
         }
 
-        for ( const Sema::Member &Entry : Store.Type( Id ).Members )
+        for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Id ).Members )
         {
             static_cast<void>( Services.Functions->DeclareMember( Entry, Id ) );
         }
     }
 
-    for ( const Sema::Member &Entry : Store.FreeFunctions() )
+    for ( const MiddleEnd::TypeSystem::Member &Entry : Store.FreeFunctions() )
     {
-        static_cast<void>( Services.Functions->DeclareMember( Entry, Sema::NominalId{} ) );
+        static_cast<void>( Services.Functions->DeclareMember( Entry, MiddleEnd::TypeSystem::NominalId{} ) );
     }
 
     llvm::FunctionType *InitFnTy = llvm::FunctionType::get( Services.Ctx->Builder().getVoidTy(), false );

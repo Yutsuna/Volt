@@ -30,7 +30,9 @@ namespace
 // own IsSubclassOf: "is `Id` the root, or does its Super chain reach it". The
 // bound is the same one TypeStore::LookupMember uses — a malformed cyclic
 // hierarchy must not hang codegen.
-[[nodiscard]] bool DescendsFrom ( const Volt::Sema::TypeStore &Store, Volt::Sema::NominalId Id, Volt::Sema::NominalId Root )
+[[nodiscard]] bool DescendsFrom ( const Volt::MiddleEnd::TypeSystem::TypeStore &Store,
+                                  Volt::MiddleEnd::TypeSystem::NominalId Id,
+                                  Volt::MiddleEnd::TypeSystem::NominalId Root )
 {
     for ( std::uint32_t Depth = 0; Id.IsValid() and Depth <= 16; ++Depth )
     {
@@ -52,8 +54,8 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSl
         return ExcStorage;
     }
 
-    Sema::TypeStore &Store     = *Services->Build->Types;
-    llvm::LLVMContext &Context = Services->Ctx->Context();
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
+    llvm::LLVMContext &Context              = Services->Ctx->Context();
 
     // An empty answer (no root declared, so nothing can be raised at all) still
     // yields a valid one-byte buffer rather than a zero-length global.
@@ -63,8 +65,8 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSl
     {
         for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
         {
-            const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
-            const Sema::LayoutId Shape = Store.Type( Id ).Layout;
+            const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
+            const MiddleEnd::TypeSystem::LayoutId Shape = Store.Type( Id ).Layout;
             if ( not Shape.IsValid() or not DescendsFrom( Store, Id, *Root ) )
             {
                 continue;

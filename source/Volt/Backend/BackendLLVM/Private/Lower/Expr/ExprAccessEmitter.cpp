@@ -36,8 +36,8 @@ llvm::Value *Volt::Backend::Llvm::EmitIdentifierValue ( BodyEmitter &Emitter, Fr
     // exactly as a paren-less `Member` is. EmitResolvedCall already handles a
     // receiver-less entry (`Receiver` invalid, `Frame.Self` or no owner at all
     // for a module-level free function).
-    if ( const Sema::CalleeEntry *Entry = Emitter.Frame().Callees->Get( Id );
-         Entry != nullptr and Entry->Decl != nullptr and Entry->Decl->Kind == Sema::EMemberKind::Method )
+    if ( const MiddleEnd::IR::CalleeEntry *Entry = Emitter.Frame().Callees->Get( Id );
+         Entry != nullptr and Entry->Decl != nullptr and Entry->Decl->Kind == MiddleEnd::TypeSystem::EMemberKind::Method )
     {
         return Emitter.EmitResolvedCall( Id, *Entry, Frontend::ExprId{}, {}, Frontend::ExprId{} );
     }
@@ -48,8 +48,8 @@ llvm::Value *Volt::Backend::Llvm::EmitMemberValue ( BodyEmitter &Emitter, Fronte
 {
     // `symbols.free` — a paren-less call is a bare `Member`, and only the
     // resolution tells it apart from a field read.
-    if ( const Sema::CalleeEntry *Entry = Emitter.Frame().Callees->Get( Id );
-         Entry != nullptr and Entry->Decl != nullptr and Entry->Decl->Kind == Sema::EMemberKind::Method )
+    if ( const MiddleEnd::IR::CalleeEntry *Entry = Emitter.Frame().Callees->Get( Id );
+         Entry != nullptr and Entry->Decl != nullptr and Entry->Decl->Kind == MiddleEnd::TypeSystem::EMemberKind::Method )
     {
         return Emitter.EmitResolvedCall( Id, *Entry, Node.Object, {}, Frontend::ExprId{} );
     }
@@ -83,15 +83,16 @@ llvm::Value *Volt::Backend::Llvm::EmitFuncAddr ( BodyEmitter &Emitter, const Fro
     //
     // Two sources, tried in order: an ordinary top-level `def`, registered in the
     // cross-unit TypeStore like any other free function; failing that, a function
-    // ClosureLifting synthesized for this unit alone (Sema::SynthesizedFunctions
+    // ClosureLifting synthesized for this unit alone (MiddleEnd::IR::SynthesizedFunctions
     // — never a TypeStore member), keyed the same way DeclareSynthesizedFn
     // registered it.
     const FunctionFrame &Frame = Emitter.Frame();
     EmitterServices &Services  = Emitter.Services();
 
-    if ( const Sema::Member *Entry = Services.Build->Types->FunctionByDecl( Frame.Unit->Ordinal, Node.Target ); Entry != nullptr )
+    if ( const MiddleEnd::TypeSystem::Member *Entry = Services.Build->Types->FunctionByDecl( Frame.Unit->Ordinal, Node.Target );
+         Entry != nullptr )
     {
-        return Services.Functions->FunctionFor( *Entry, Sema::NominalId{}, {} );
+        return Services.Functions->FunctionFor( *Entry, MiddleEnd::TypeSystem::NominalId{}, {} );
     }
 
     const auto It = Services.SynthesizedFns->find( UnitDeclKey{ .Ordinal = Frame.Unit->Ordinal, .Decl = Node.Target } );

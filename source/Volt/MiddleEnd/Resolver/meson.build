@@ -25,10 +25,11 @@ volt_middleend_resolver_lib = static_library(
     cpp_pch: common_pch_header,
     include_directories: [
         volt_middleend_resolver_inc,
-        include_directories('../../Sema/Public'),
-        include_directories('../../Sema/Private/Passes/TypeChecker'),
-        include_directories('../../Sema/Private'),
-        include_directories('../../Sema'),
+        # TypeBinder.cpp's SynthesizeFinalizeStubs reads Raii::FinalizeName,
+        # which lives in Analysis — a back-edge, header-only (see
+        # Lowering/meson.build).
+        include_directories('../Analysis/Public'),
+        include_directories('../Analysis'),
     ],
     dependencies: [
         compile_options_dep,

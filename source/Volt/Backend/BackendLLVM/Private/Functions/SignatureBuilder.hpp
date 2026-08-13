@@ -33,8 +33,9 @@ namespace Backend
             // The signature of `Entry` as a member of `Owner`, instantiated for
             // `FlatArgs`. Null when some part of it has no resolved layout, with
             // the diagnostic already recorded.
-            [[nodiscard]] llvm::FunctionType *
-            FunctionTypeOf ( const Sema::Member &Entry, Sema::NominalId Owner, std::span<const std::uint32_t> FlatArgs );
+            [[nodiscard]] llvm::FunctionType *FunctionTypeOf ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                               MiddleEnd::TypeSystem::NominalId Owner,
+                                                               std::span<const std::uint32_t> FlatArgs );
 
             // The layout a *declared* signature type means for a member of
             // `Owner` instantiated at `FlatArgs` — `InstanceLayouts::OfSignature`,
@@ -45,10 +46,10 @@ namespace Backend
             // Arithmetic#+, rules/zero-hardcode.md's own example) is the
             // ordinary, load-bearing case — the receiver's own layout, exactly
             // like the leading `self` parameter FunctionTypeOf already computes.
-            [[nodiscard]] Sema::LayoutId SignatureLayoutOf ( Sema::TypeStore &Store,
-                                                             Sema::SigTypeId Id,
-                                                             Sema::NominalId Owner,
-                                                             std::span<const std::uint32_t> FlatArgs );
+            [[nodiscard]] MiddleEnd::TypeSystem::LayoutId SignatureLayoutOf ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                              MiddleEnd::TypeSystem::SigTypeId Id,
+                                                                              MiddleEnd::TypeSystem::NominalId Owner,
+                                                                              std::span<const std::uint32_t> FlatArgs );
 
         private:
 

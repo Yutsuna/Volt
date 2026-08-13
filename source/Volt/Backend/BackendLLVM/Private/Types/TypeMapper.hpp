@@ -38,43 +38,46 @@ namespace Backend
 
             // The LLVM type for a memory layout. Null when the layout is
             // unresolved.
-            [[nodiscard]] llvm::Type *TypeOfLayout ( Sema::LayoutId Id );
+            [[nodiscard]] llvm::Type *TypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id );
 
             // How a value of this layout crosses a call boundary. Scalars
             // travel in a register; an aggregate travels by pointer, which is
             // what abi.md fixes for all three targets. Null when unresolved.
-            [[nodiscard]] llvm::Type *ParamTypeOfLayout ( Sema::LayoutId Id );
+            [[nodiscard]] llvm::Type *ParamTypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id );
 
             // The MonoRequest encoding of an inferred expression type: a
             // pre-order walk emitting, per node, its NominalId then its own
             // argument count. The one currency InstanceLayouts, Monomorphizer
             // and Mangler share, so a layout, a symbol and a queue entry can
             // never mean different instantiations.
-            void FlattenValueType ( const Sema::UnitTypes &Values, Sema::SemaTypeId Id, std::vector<std::uint32_t> &Out ) const;
+            void FlattenValueType ( const MiddleEnd::TypeSystem::UnitTypes &Values,
+                                    MiddleEnd::TypeSystem::SemaTypeId Id,
+                                    std::vector<std::uint32_t> &Out ) const;
 
             // The memory shape of a value of this inferred type. Invalid when
             // the type is absent — which inside a generic body is normal
             // (UnitTypes::IsDeferred) and everywhere else is a middle-end hole
             // the caller reports.
-            [[nodiscard]] Sema::LayoutId LayoutOfValue ( const Sema::UnitTypes &Values, Sema::SemaTypeId Id );
+            [[nodiscard]] MiddleEnd::TypeSystem::LayoutId LayoutOfValue ( const MiddleEnd::TypeSystem::UnitTypes &Values,
+                                                                          MiddleEnd::TypeSystem::SemaTypeId Id );
 
             // The layout, then the llvm::Type, of what an expression evaluates
             // to. Both read the frame's own Values overlay, which is the unit's
             // for a concrete body and ReinstantiateBody's for a monomorphised
             // one.
-            [[nodiscard]] Sema::LayoutId LayoutOfExpr ( const FunctionFrame &Frame, Frontend::ExprId Id );
+            [[nodiscard]] MiddleEnd::TypeSystem::LayoutId LayoutOfExpr ( const FunctionFrame &Frame, Frontend::ExprId Id );
             [[nodiscard]] llvm::Type *TypeOfExpr ( const FunctionFrame &Frame, Frontend::ExprId Id );
 
             // An aggregate never travels in a register (abi.md): it is
             // addressed, so every expression of aggregate layout evaluates to a
             // `ptr` at its storage rather than to a loaded struct value.
-            [[nodiscard]] bool IsAggregate ( Sema::LayoutId Id ) const;
+            [[nodiscard]] bool IsAggregate ( MiddleEnd::TypeSystem::LayoutId Id ) const;
 
             // The opaque spelling driving instruction selection for a layout: a
             // Primitive's own, and "ptr" for a Pointer, so the two shapes of
             // address cannot select different instructions. Empty for an
             // aggregate.
-            [[nodiscard]] std::string_view SpellingOf ( Sema::LayoutId Id ) const;
+            [[nodiscard]] std::string_view SpellingOf ( MiddleEnd::TypeSystem::LayoutId Id ) const;
 
         private:
 

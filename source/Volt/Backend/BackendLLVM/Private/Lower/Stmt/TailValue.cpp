@@ -22,7 +22,7 @@
 void Volt::Backend::Llvm::BodyEmitter::StoreTailValue ( llvm::Value *Value,
                                                         llvm::Value *Slot,
                                                         llvm::Type *Shape,
-                                                        Sema::LayoutId Layout )
+                                                        MiddleEnd::TypeSystem::LayoutId Layout )
 {
     // A tail expression with no value converges nothing. The ordinary case is a
     // call to a `-> Void` member: `begin level3() rescue e : E then 7 end` in
@@ -71,8 +71,10 @@ void Volt::Backend::Llvm::BodyEmitter::StoreTailValue ( llvm::Value *Value,
     static_cast<void>( Ctx().Builder().CreateStore( Fitted, Slot ) );
 }
 
-llvm::Value *
-Volt::Backend::Llvm::BodyEmitter::LoadConverged ( llvm::Value *Slot, llvm::Type *Shape, Sema::LayoutId Layout, const char *Name )
+llvm::Value *Volt::Backend::Llvm::BodyEmitter::LoadConverged ( llvm::Value *Slot,
+                                                               llvm::Type *Shape,
+                                                               MiddleEnd::TypeSystem::LayoutId Layout,
+                                                               const char *Name )
 {
     if ( Slot == nullptr or Shape == nullptr )
     {

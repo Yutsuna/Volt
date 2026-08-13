@@ -24,20 +24,22 @@ constexpr std::size_t PointerSize = 8;
 
 } // namespace
 
-Volt::Backend::SizeAlign Volt::Backend::LayoutEngine::Of ( Sema::LayoutId Id ) const
+Volt::Backend::SizeAlign Volt::Backend::LayoutEngine::Of ( MiddleEnd::TypeSystem::LayoutId Id ) const
 {
     if ( not Id.IsValid() )
     {
         return {};
     }
 
-    return std::visit( Meta::Overloaded{ [] ( const std::monostate & ) { return SizeAlign{}; }, [] ( const Sema::Primitive &Node )
-                                         { return PrimitiveSizeAlign( Node.Bits ); }, [] ( const Sema::Pointer & )
+    return std::visit( Meta::Overloaded{ [] ( const std::monostate & ) { return SizeAlign{}; },
+                                         [] ( const MiddleEnd::TypeSystem::Primitive &Node )
+                                         { return PrimitiveSizeAlign( Node.Bits ); },
+                                         [] ( const MiddleEnd::TypeSystem::Pointer & )
                                          { return SizeAlign{ .Size = PointerSize, .Alignment = PointerSize }; },
-                                         [this] ( const Sema::Aggregate &Node )
+                                         [this] ( const MiddleEnd::TypeSystem::Aggregate &Node )
                                          {
                                              SizeAlign Result;
-                                             for ( const Sema::FieldLayout &Field : Node.Fields )
+                                             for ( const MiddleEnd::TypeSystem::FieldLayout &Field : Node.Fields )
                                              {
                                                  const SizeAlign Inner = Of( Field.Type );
                                                  Result.Size           = AlignTo( Result.Size, Inner.Alignment ) + Inner.Size;
@@ -49,14 +51,14 @@ Volt::Backend::SizeAlign Volt::Backend::LayoutEngine::Of ( Sema::LayoutId Id ) c
                        Store.Get( Id ) );
 }
 
-std::size_t Volt::Backend::LayoutEngine::FieldOffset ( Sema::LayoutId Aggregate, std::size_t Index ) const
+std::size_t Volt::Backend::LayoutEngine::FieldOffset ( MiddleEnd::TypeSystem::LayoutId Aggregate, std::size_t Index ) const
 {
     if ( not Aggregate.IsValid() )
     {
         return 0;
     }
 
-    const auto *Node = std::get_if<Sema::Aggregate>( &Store.Get( Aggregate ) );
+    const auto *Node = std::get_if<MiddleEnd::TypeSystem::Aggregate>( &Store.Get( Aggregate ) );
     if ( Node == nullptr or Index >= Node->Fields.Size() )
     {
         return 0;

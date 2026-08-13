@@ -52,7 +52,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitAddress ( Frontend::ExprId Id
                 // The binding is ScopeResolver's answer, never a re-resolution:
                 // a name the resolver did not bind is not a name this emitter
                 // may go looking for.
-                const Sema::Binding *Bound = Frame().Unit->Scopes->BindingOf( Id );
+                const MiddleEnd::Resolver::Binding *Bound = Frame().Unit->Scopes->BindingOf( Id );
                 if ( Bound == nullptr )
                 {
                     static_cast<void>( Fail( "llvm: identifier '" + std::string( Frame().Unit->Ast->Text( Node.Name ) ) +
@@ -66,10 +66,10 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitAddress ( Frontend::ExprId Id
                 }
 
                 if ( Bound->Owner.IsValid() and
-                     ( Frame().Unit->Scopes->Get( Bound->Owner ).Kind == Sema::EScopeKind::Unit or
-                       Frame().Unit->Scopes->Get( Bound->Owner ).Kind == static_cast<Sema::EScopeKind>( 0 ) ) )
+                     ( Frame().Unit->Scopes->Get( Bound->Owner ).Kind == MiddleEnd::Resolver::EScopeKind::Unit or
+                       Frame().Unit->Scopes->Get( Bound->Owner ).Kind == static_cast<MiddleEnd::Resolver::EScopeKind>( 0 ) ) )
                 {
-                    const Sema::LayoutId Shape =
+                    const MiddleEnd::TypeSystem::LayoutId Shape =
                         Types().LayoutOfValue( *Frame().Values, Frame().Values->SiteType( Bound->Site ) );
                     llvm::Type *Slot = Types().TypeOfLayout( Shape );
                     if ( Slot == nullptr )
@@ -89,7 +89,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitAddress ( Frontend::ExprId Id
                 // recorded for the site.
                 if ( const auto *Site = std::get_if<Frontend::ExprId>( &Bound->Site ); Site != nullptr )
                 {
-                    const Sema::LayoutId Shape =
+                    const MiddleEnd::TypeSystem::LayoutId Shape =
                         Types().LayoutOfValue( *Frame().Values, Frame().Values->SiteType( Bound->Site ) );
                     llvm::Type *Slot = Types().TypeOfLayout( Shape );
                     if ( Slot == nullptr )
@@ -149,7 +149,7 @@ std::string_view Volt::Backend::Llvm::BodyEmitter::FieldNameOf ( std::string_vie
 }
 
 llvm::Value *Volt::Backend::Llvm::BodyEmitter::FieldAddress ( llvm::Value *Object,
-                                                              Sema::LayoutId Shape,
+                                                              MiddleEnd::TypeSystem::LayoutId Shape,
                                                               std::string_view Name,
                                                               Frontend::ExprId Id )
 {
@@ -165,7 +165,8 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::FieldAddress ( llvm::Value *Objec
     // the same one AbiVerifier already cross-checked against LayoutEngine. So a
     // struct GEP and LayoutEngine::FieldOffset name the same byte by
     // construction.
-    const Sema::Aggregate &Fields = std::get<Sema::Aggregate>( Services().Build->Types->Get( Shape ) );
+    const MiddleEnd::TypeSystem::Aggregate &Fields =
+        std::get<MiddleEnd::TypeSystem::Aggregate>( Services().Build->Types->Get( Shape ) );
     for ( std::size_t Index = 0; Index < Fields.Fields.Size(); ++Index )
     {
         if ( Services().Build->Types->Text( Fields.Fields[Index].Name ) == Name )
@@ -188,7 +189,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::LoadPlace ( Frontend::ExprId Id )
         return nullptr;
     }
 
-    const Sema::LayoutId Shape = LayoutOfExpr( Id );
+    const MiddleEnd::TypeSystem::LayoutId Shape = LayoutOfExpr( Id );
     // An aggregate never leaves its storage: its value *is* the address.
     if ( IsAggregate( Shape ) )
     {

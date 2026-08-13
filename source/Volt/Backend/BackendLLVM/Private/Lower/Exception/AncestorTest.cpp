@@ -18,8 +18,9 @@
 #include <llvm/IR/Type.h>
 
 // NOLINTBEGIN(clang-analyzer-security.ArrayBound) — false positive via LLVM's hung-off operand layout
-llvm::Value *
-Volt::Backend::Llvm::ExceptionLowering::EmitAncestorTest ( BodyEmitter &Emitter, llvm::Value *Dynamic, Sema::NominalId Target )
+llvm::Value *Volt::Backend::Llvm::ExceptionLowering::EmitAncestorTest ( BodyEmitter &Emitter,
+                                                                        llvm::Value *Dynamic,
+                                                                        MiddleEnd::TypeSystem::NominalId Target )
 {
     llvm::LLVMContext &Context = Services->Ctx->Context();
     llvm::IRBuilder<> &Builder = Services->Ctx->Builder();
@@ -27,7 +28,7 @@ Volt::Backend::Llvm::ExceptionLowering::EmitAncestorTest ( BodyEmitter &Emitter,
 
     llvm::Type *Int32Ty         = llvm::Type::getInt32Ty( Context );
     llvm::Value *TargetConst    = llvm::ConstantInt::get( Int32Ty, Target.Value );
-    llvm::Value *SentinelConst  = llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue );
+    llvm::Value *SentinelConst  = llvm::ConstantInt::get( Int32Ty, MiddleEnd::TypeSystem::NominalId::InvalidValue );
     llvm::GlobalVariable *Table = AncestryTable();
     llvm::BasicBlock *Preheader = Builder.GetInsertBlock();
 

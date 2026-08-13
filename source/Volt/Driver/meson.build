@@ -19,7 +19,7 @@ driver_export = configure_file(
     configuration: {'MODULE': 'DRIVER'},
 )
 
-driver_deps = [compile_options_dep, sema_dep, backendcore_dep]
+driver_deps = [compile_options_dep, volt_middleend_dep, backendcore_dep]
 driver_args = [
     '-DVOLT_DEV_STDLIB_DIR="' + meson.project_source_root() / 'source' / 'Lib' + '"',
 ]
@@ -41,7 +41,7 @@ driver_lib = library(
     install: true,
 )
 
-driver_link_deps = [sema_dep, backendcore_dep]
+driver_link_deps = [volt_middleend_dep, backendcore_dep]
 if get_option('enable_llvm')
     driver_link_deps += [backendllvm_dep]
 endif

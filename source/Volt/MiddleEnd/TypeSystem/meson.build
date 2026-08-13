@@ -32,15 +32,18 @@ volt_middleend_typesystem_lib = static_library(
         # on Resolver follows from this — ScopeTable's methods are header-inline.
         include_directories('../Resolver/Public'),
         include_directories('../Resolver'),
-        # Reinstantiate.cpp still drives the not-yet-migrated Analysis-tier
-        # TypeChecker machinery (TypeCheckerContext, ClosureInferencer,
-        # LiteralInferencer, Lifetime/Temporaries) directly from
-        # source/Volt/Sema — that migration is Etape 8, out of this task's
-        # scope, and the old locations are the only ones that exist today.
-        include_directories('../../Sema/Public'),
-        include_directories('../../Sema/Private'),
-        include_directories('../../Sema/Private/Passes/TypeChecker'),
-        include_directories('../../Sema'),
+        # Reinstantiate.cpp re-walks a generic body once per concrete
+        # instantiation, which means driving the Analysis-tier TypeChecker
+        # machinery (TypeCheckerContext, ClosureInferencer, LiteralInferencer,
+        # Lifetime/Temporaries) and the Lowering-tier LowerClosureLit. Both
+        # are back-edges against §1's DAG; see Lowering/meson.build for why
+        # the #include graph nonetheless stays acyclic and how the mutual link
+        # is resolved.
+        include_directories('../Analysis/Public'),
+        include_directories('../Analysis/Private'),
+        include_directories('../Analysis'),
+        include_directories('../Lowering/Public'),
+        include_directories('../Lowering'),
     ],
     dependencies: [
         compile_options_dep,

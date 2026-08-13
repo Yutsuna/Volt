@@ -18,12 +18,12 @@
 
 #include "Volt/MiddleEnd/Resolver/TypeBinder.hpp"
 
-#include "Raii/Ownership.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Type.hpp"
+#include "Volt/MiddleEnd/Analysis/Raii/Ownership.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
 #include <algorithm>
@@ -375,7 +375,7 @@ namespace MiddleEnd::Resolver
                                     const Frontend::Enum &Type,
                                     std::uint32_t Depth,
                                     std::vector<NominalId> &ActiveStack,
-                                    Core::DiagEngine::Bag *Diags );
+                                    Volt::Core::DiagEngine::Bag *Diags );
 
         // A non-generic `SigType` wrapping a plain nominal — no ParamIndex,
         // no Base's own generic arguments threaded through. Used for
@@ -404,7 +404,7 @@ namespace MiddleEnd::Resolver
                                       NominalId Id,
                                       std::uint32_t Depth,
                                       std::vector<NominalId> &ActiveStack,
-                                      Core::DiagEngine::Bag *Diags )
+                                      Volt::Core::DiagEngine::Bag *Diags )
         {
             if ( not Id.IsValid() or Depth > MaxLayoutDepth )
             {
@@ -425,11 +425,11 @@ namespace MiddleEnd::Resolver
                 {
                     const Frontend::AstContext &Ast = *Units[Type.Unit];
                     const std::string_view TypeName = Store.Text( Type.Name );
-                    Diags->Report( Core::Diagnostic{ .Severity = Core::ESeverity::Error,
-                                                     .Range    = Frontend::LocOf( Ast.Decl( Type.Decl ) ).Head(),
-                                                     .Message  = "recursive type '" + std::string( TypeName ) +
-                                                                "' has infinite size (layout cycle detected)",
-                                                     .Notes = {} } );
+                    Diags->Report( Volt::Core::Diagnostic{ .Severity = Volt::Core::ESeverity::Error,
+                                                           .Range    = Frontend::LocOf( Ast.Decl( Type.Decl ) ).Head(),
+                                                           .Message  = "recursive type '" + std::string( TypeName ) +
+                                                                      "' has infinite size (layout cycle detected)",
+                                                           .Notes = {} } );
                 }
                 return LayoutId{};
             }
@@ -536,7 +536,7 @@ namespace MiddleEnd::Resolver
                                     const Frontend::Enum &Type,
                                     std::uint32_t Depth,
                                     std::vector<NominalId> &ActiveStack,
-                                    Core::DiagEngine::Bag *Diags )
+                                    Volt::Core::DiagEngine::Bag *Diags )
         {
             const std::optional<NominalId> TagNominal = EnumTagNominal( Ast, Store, Type );
             const LayoutId TagLayout =
@@ -639,13 +639,13 @@ namespace MiddleEnd::Resolver
 
             const Frontend::AstContext &Ast;
             TypeStore &Store;
-            Core::DiagEngine::Bag &Diags;
+            Volt::Core::DiagEngine::Bag &Diags;
             std::uint32_t Unit = 0;
             std::size_t Bound  = 0;
 
-            void Report ( Core::ESeverity Severity, ::Volt::Core::SourceRange Loc, const std::string &Message )
+            void Report ( Volt::Core::ESeverity Severity, ::Volt::Core::SourceRange Loc, const std::string &Message )
             {
-                Diags.Report( Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
+                Diags.Report( Volt::Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
             }
 
             // `Id` instantiated with its own generic parameters, in order —
@@ -791,7 +791,7 @@ namespace MiddleEnd::Resolver
                         const auto Spelling = Frontend::AsStringText( Ast, Anno.Args[0] );
                         if ( not Spelling )
                         {
-                            Report( Core::ESeverity::Error, Anno.Loc,
+                            Report( Volt::Core::ESeverity::Error, Anno.Loc,
                                     "@[Primitive] expects a layout spelling string, e.g. @[Primitive( \"i32\", 32 )]" );
                             continue;
                         }
@@ -804,7 +804,7 @@ namespace MiddleEnd::Resolver
                             Anno.Args.Size() >= 1 ? std::get_if<Frontend::Identifier>( &Ast.Expr( Anno.Args[0] ) ) : nullptr;
                         if ( Kind == nullptr )
                         {
-                            Report( Core::ESeverity::Error, Anno.Loc,
+                            Report( Volt::Core::ESeverity::Error, Anno.Loc,
                                     "@[Literal] expects a node kind, e.g. @[Literal( IntLiteral )]" );
                             continue;
                         }
@@ -819,7 +819,7 @@ namespace MiddleEnd::Resolver
                         // type of `10` depend on stdlib file order. Refuse.
                         if ( not Store.BindNodeKind( NodeKind, Id ) )
                         {
-                            Report( Core::ESeverity::Error, Anno.Loc,
+                            Report( Volt::Core::ESeverity::Error, Anno.Loc,
                                     "node kind '" + std::string{ NodeKind } +
                                         "' is already claimed by another type; only one type may wrap it" );
                             continue;
@@ -865,13 +865,13 @@ namespace MiddleEnd::Resolver
 
             const Frontend::AstContext &Ast;
             TypeStore &Store;
-            Core::DiagEngine::Bag &Diags;
+            Volt::Core::DiagEngine::Bag &Diags;
             std::uint32_t Unit   = 0;
             std::size_t Resolved = 0;
 
-            void Report ( Core::ESeverity Severity, ::Volt::Core::SourceRange Loc, const std::string &Message )
+            void Report ( Volt::Core::ESeverity Severity, ::Volt::Core::SourceRange Loc, const std::string &Message )
             {
-                Diags.Report( Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
+                Diags.Report( Volt::Core::Diagnostic{ .Severity = Severity, .Range = Loc, .Message = Message, .Notes = {} } );
             }
 
             // A defaulted parameter followed by a non-defaulted one would
@@ -897,7 +897,7 @@ namespace MiddleEnd::Resolver
                     }
                     if ( bSeenDefault )
                     {
-                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                        Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                 "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
                                     "' has no default value but follows a parameter that does" );
                     }
@@ -1091,7 +1091,7 @@ namespace MiddleEnd::Resolver
 
                                         if ( not ParamSig.IsValid() )
                                         {
-                                            Report( Core::ESeverity::Error, ParamNode.Loc,
+                                            Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                                     "parameter '@" + std::string{ Ast.Text( ParamNode.Name ) } +
                                                         "' has no corresponding field declared on '" + std::string{ Decl.Name } +
                                                         "'" );
@@ -1099,7 +1099,7 @@ namespace MiddleEnd::Resolver
                                     }
                                     else if ( not ParamNode.bIsBlock and not ParamNode.DeclType.IsValid() )
                                     {
-                                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                                        Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                                 "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
                                                     "' requires an explicit type annotation" );
                                     }
@@ -1108,7 +1108,7 @@ namespace MiddleEnd::Resolver
                                         ParamSig = ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType );
                                         if ( not ParamNode.bIsBlock and not ParamSig.IsValid() )
                                         {
-                                            Report( Core::ESeverity::Error, ParamNode.Loc,
+                                            Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                                     "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
                                                         "' has unresolvable type" );
                                         }
@@ -1165,7 +1165,7 @@ namespace MiddleEnd::Resolver
                 // own attached Layout at all, so registering these only
                 // there would leave `tmp.tag`/`self.Some` unresolvable
                 // through the ordinary `MemberType`/`LookupOn` path, which
-                // is exactly the path `Sema::ReinstantiateBody` re-walks
+                // is exactly the path `MiddleEnd::TypeSystem::ReinstantiateBody` re-walks
                 // per instantiation over a *fresh* `UnitTypes` overlay — a
                 // node whose type was merely stamped once, by hand, on the
                 // file's own overlay (`Sema/Private/Passes/TypeChecker/
@@ -1260,13 +1260,13 @@ namespace MiddleEnd::Resolver
 
                     if ( ParamNode.bInstanceVar )
                     {
-                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                        Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                 "instance variable parameter '@" + std::string{ Ast.Text( ParamNode.Name ) } +
                                     "' is not allowed in a free function" );
                     }
                     else if ( not ParamNode.bIsBlock and not ParamNode.DeclType.IsValid() )
                     {
-                        Report( Core::ESeverity::Error, ParamNode.Loc,
+                        Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                 "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } +
                                     "' requires an explicit type annotation" );
                     }
@@ -1275,7 +1275,7 @@ namespace MiddleEnd::Resolver
                         ParamSig = ResolveTypeExpr( Ast, Store, Scope, Sink, ParamNode.DeclType );
                         if ( not ParamNode.bIsBlock and not ParamSig.IsValid() )
                         {
-                            Report( Core::ESeverity::Error, ParamNode.Loc,
+                            Report( Volt::Core::ESeverity::Error, ParamNode.Loc,
                                     "parameter '" + std::string{ Ast.Text( ParamNode.Name ) } + "' has unresolvable type" );
                         }
                     }
@@ -1299,7 +1299,7 @@ namespace MiddleEnd::Resolver
     } // namespace
 
     std::size_t
-    BindUnitTypes ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags )
+    BindUnitTypes ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Volt::Core::DiagEngine::Bag &Diags )
     {
         Binder Bind{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls, [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> &Pending )
@@ -1311,8 +1311,10 @@ namespace MiddleEnd::Resolver
         return Bind.Bound;
     }
 
-    std::size_t
-    ResolveUnitSignatures ( const Frontend::AstContext &Ast, std::uint32_t Unit, TypeStore &Store, Core::DiagEngine::Bag &Diags )
+    std::size_t ResolveUnitSignatures ( const Frontend::AstContext &Ast,
+                                        std::uint32_t Unit,
+                                        TypeStore &Store,
+                                        Volt::Core::DiagEngine::Bag &Diags )
     {
         SignatureResolver Step{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
         ForEachTypeDecl( Ast, Ast.TopDecls,
@@ -1323,8 +1325,9 @@ namespace MiddleEnd::Resolver
         return Step.Resolved;
     }
 
-    void
-    ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store, Core::DiagEngine::Bag *Diags )
+    void ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units,
+                                TypeStore &Store,
+                                Volt::Core::DiagEngine::Bag *Diags )
     {
         std::vector<NominalId> ActiveStack;
         for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
@@ -1343,8 +1346,8 @@ namespace MiddleEnd::Resolver
         // definition each, in Private/Raii/Ownership.hpp, which this seam and
         // the in-TypeChecker sweeps share — see that header for why the
         // question belongs at the type level.
-        using Volt::Sema::Raii::FinalizeName;
-        using Volt::Sema::Raii::IsFinalizeCandidateNominal;
+        using Volt::MiddleEnd::Analysis::Raii::FinalizeName;
+        using Volt::MiddleEnd::Analysis::Raii::IsFinalizeCandidateNominal;
 
         // Bounded the same way EnsureStructLayout's own cross-unit recursion
         // is (MaxLayoutDepth) — a genuine by-value cycle cannot exist, but a

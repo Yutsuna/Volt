@@ -20,9 +20,6 @@ volt_middleend_ir_lib = static_library(
         volt_middleend_ir_inc,
         include_directories('../TypeSystem/Public'),
         include_directories('../TypeSystem'),
-        include_directories('../Resolver/Public'),
-        include_directories('../Resolver'),
-        include_directories('../../Sema/Public'),
     ],
     dependencies: [
         compile_options_dep,

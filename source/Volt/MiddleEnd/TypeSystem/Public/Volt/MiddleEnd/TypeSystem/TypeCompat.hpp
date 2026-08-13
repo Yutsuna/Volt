@@ -6,7 +6,7 @@
 
 #include <cstdint>
 
-namespace Volt::Sema::TypeCheckerPass
+namespace Volt::MiddleEnd::Analysis
 {
 struct TypeCheckerContext;
 }
@@ -14,7 +14,7 @@ struct TypeCheckerContext;
 namespace Volt::MiddleEnd::TypeSystem
 {
 
-using TypeCheckerContext = Volt::Sema::TypeCheckerPass::TypeCheckerContext;
+using TypeCheckerContext = Volt::MiddleEnd::Analysis::TypeCheckerContext;
 
 // **The** assignability predicate — is a `Value` of one type acceptable where
 // a `Target` of another is expected?

@@ -95,7 +95,8 @@ namespace Backend
             // same reflexive, depth-bounded walk IsSubclassOf performs in Sema,
             // done here at runtime because the dynamic side is only known once a
             // program actually raises.
-            [[nodiscard]] llvm::Value *EmitAncestorTest ( BodyEmitter &Emitter, llvm::Value *Dynamic, Sema::NominalId Target );
+            [[nodiscard]] llvm::Value *
+            EmitAncestorTest ( BodyEmitter &Emitter, llvm::Value *Dynamic, MiddleEnd::TypeSystem::NominalId Target );
 
             // The exit every raising path shares once it decides *this* function
             // does not handle it: branch to `Frame.Rescues.back()` when this
@@ -135,7 +136,7 @@ namespace Backend
                                  const Frontend::StmtList &Body,
                                  llvm::AllocaInst *Slot,
                                  llvm::Type *Shape,
-                                 Sema::LayoutId Layout );
+                                 MiddleEnd::TypeSystem::LayoutId Layout );
 
         private:
 

@@ -68,7 +68,7 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::BodyEmitter::Fail ( std::string 
     return ServicesPtr->Diag->Fail( std::move( Message ) );
 }
 
-Volt::Sema::LayoutId Volt::Backend::Llvm::BodyEmitter::LayoutOfExpr ( Frontend::ExprId Id ) const
+Volt::MiddleEnd::TypeSystem::LayoutId Volt::Backend::Llvm::BodyEmitter::LayoutOfExpr ( Frontend::ExprId Id ) const
 {
     return ServicesPtr->Types->LayoutOfExpr( *FramePtr, Id );
 }
@@ -78,7 +78,7 @@ llvm::Type *Volt::Backend::Llvm::BodyEmitter::TypeOfExpr ( Frontend::ExprId Id )
     return ServicesPtr->Types->TypeOfExpr( *FramePtr, Id );
 }
 
-bool Volt::Backend::Llvm::BodyEmitter::IsAggregate ( Sema::LayoutId Id ) const
+bool Volt::Backend::Llvm::BodyEmitter::IsAggregate ( MiddleEnd::TypeSystem::LayoutId Id ) const
 {
     return ServicesPtr->Types->IsAggregate( Id );
 }

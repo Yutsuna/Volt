@@ -2,7 +2,7 @@
 //
 // A hand-written pair, not a Meta::Reflected fallback: TypeStore is a class
 // with private state and derived indexes (ByName, ByNodeKind, FunctionByName,
-// Modules), exactly like Core::Arena/StringInterner themselves. The body is
+// Modules), exactly like Volt::Core::Arena/StringInterner themselves. The body is
 // nothing but calls to the generic Serialize/SerializeArena/SerializeInterner
 // primitives (rules/meta-first.md still applies inside it).
 

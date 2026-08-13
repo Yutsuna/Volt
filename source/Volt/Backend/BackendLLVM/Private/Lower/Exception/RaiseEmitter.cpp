@@ -28,15 +28,15 @@ Volt::Backend::Llvm::ExceptionLowering::EmitRaise ( BodyEmitter &Emitter, Fronte
         return nullptr;
     }
 
-    const Sema::UnitTypes &Values = *Emitter.Frame().Values;
-    const Sema::SemaTypeId Ty     = Values.ExprType( Node.Exception );
+    const MiddleEnd::TypeSystem::UnitTypes &Values = *Emitter.Frame().Values;
+    const MiddleEnd::TypeSystem::SemaTypeId Ty     = Values.ExprType( Node.Exception );
     if ( not Values.Has( Ty ) or not Values.Get( Ty ).Base.IsValid() )
     {
         static_cast<void>(
             Emitter.Fail( "llvm: `raise` at expression " + std::to_string( Id.Value ) + " has no resolved exception type" ) );
         return nullptr;
     }
-    const Sema::NominalId Nominal = Values.Get( Ty ).Base;
+    const MiddleEnd::TypeSystem::NominalId Nominal = Values.Get( Ty ).Base;
 
     // An exception object is an aggregate like any other, hence an address
     // (abi.md); it is *this* address that both backend and (if the object
@@ -56,8 +56,8 @@ Volt::Backend::Llvm::ExceptionLowering::EmitRaise ( BodyEmitter &Emitter, Fronte
     // dead storage. The copy is one memcpy on a path that is already exceptional,
     // and it is what makes "the object outlives the raise" true rather than
     // true-in-practice.
-    llvm::GlobalVariable *Storage = ExceptionStorageSlot();
-    const Sema::LayoutId Shape    = Emitter.LayoutOfExpr( Node.Exception );
+    llvm::GlobalVariable *Storage               = ExceptionStorageSlot();
+    const MiddleEnd::TypeSystem::LayoutId Shape = Emitter.LayoutOfExpr( Node.Exception );
     if ( Services->Layouts->has_value() and Shape.IsValid() and ( *Services->Layouts )->Of( Shape ).Size > ExcStorageSize )
     {
         static_cast<void>( Emitter.Fail(

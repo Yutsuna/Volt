@@ -22,8 +22,8 @@ llvm::Value *Volt::Backend::Llvm::EmitPointerArith ( BodyEmitter &Emitter, const
     // The pointee is the first generic argument of whichever stdlib type claimed
     // PointerType — "Pointer" is not a name this compiler knows
     // (rules/core-ast.md).
-    const Sema::UnitTypes &Values   = *Emitter.Frame().Values;
-    const Sema::SemaTypeId Receiver = Values.ExprType( Node.Lhs );
+    const MiddleEnd::TypeSystem::UnitTypes &Values   = *Emitter.Frame().Values;
+    const MiddleEnd::TypeSystem::SemaTypeId Receiver = Values.ExprType( Node.Lhs );
     if ( not Values.Has( Receiver ) or Values.Get( Receiver ).Args.Size() == 0 )
     {
         static_cast<void>( Emitter.Fail( "llvm: pointer arithmetic on a receiver with no pointee argument" ) );

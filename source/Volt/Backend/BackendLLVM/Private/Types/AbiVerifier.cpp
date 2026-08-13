@@ -11,7 +11,7 @@
 
 #include <string>
 
-void Volt::Backend::Llvm::AbiVerifier::VerifyAggregateAbi ( [[maybe_unused]] Sema::LayoutId Id,
+void Volt::Backend::Llvm::AbiVerifier::VerifyAggregateAbi ( [[maybe_unused]] MiddleEnd::TypeSystem::LayoutId Id,
                                                             [[maybe_unused]] llvm::StructType *Shape )
 {
 #ifndef NDEBUG

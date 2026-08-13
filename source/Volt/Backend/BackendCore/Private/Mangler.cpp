@@ -19,7 +19,7 @@ void AppendLengthPrefixed ( std::string &Out, std::string_view Text )
 // rather than reading past the end — a truncated key is a caller bug, not
 // something to crash on while producing a symbol name.
 void AppendArg ( std::string &Out,
-                 const Volt::Sema::TypeStore &Store,
+                 const Volt::MiddleEnd::TypeSystem::TypeStore &Store,
                  std::span<const std::uint32_t> FlatArgs,
                  std::size_t &Cursor )
 {
@@ -29,7 +29,7 @@ void AppendArg ( std::string &Out,
         return;
     }
 
-    const Volt::Sema::NominalId Base{ FlatArgs[Cursor] };
+    const Volt::MiddleEnd::TypeSystem::NominalId Base{ FlatArgs[Cursor] };
     const std::uint32_t Count = FlatArgs[Cursor + 1];
     Cursor += 2;
 
@@ -50,7 +50,7 @@ void AppendArg ( std::string &Out,
 
 } // namespace
 
-std::string Volt::Backend::MangleNominal ( const Sema::TypeStore &Store, Sema::NominalId Id )
+std::string Volt::Backend::MangleNominal ( const MiddleEnd::TypeSystem::TypeStore &Store, MiddleEnd::TypeSystem::NominalId Id )
 {
     std::string Out;
     if ( not Id.IsValid() )
@@ -64,9 +64,9 @@ std::string Volt::Backend::MangleNominal ( const Sema::TypeStore &Store, Sema::N
     return Out;
 }
 
-std::string Volt::Backend::MangleFunction ( const Sema::TypeStore &Store,
-                                            const Sema::Member &Entry,
-                                            Sema::NominalId Owner,
+std::string Volt::Backend::MangleFunction ( const MiddleEnd::TypeSystem::TypeStore &Store,
+                                            const MiddleEnd::TypeSystem::Member &Entry,
+                                            MiddleEnd::TypeSystem::NominalId Owner,
                                             std::span<const std::uint32_t> FlatArgs )
 {
     // The C boundary: `@[External( "libc", "malloc" )]` means the linker and a

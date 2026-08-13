@@ -7,7 +7,7 @@
 // discovered anywhere in EmitResolvedCall, enqueues a MonoRequest; this service
 // is what turns each request into a defined llvm::Function, exactly the way
 // DefineMember defines a concrete one, except the type of every expression and
-// the resolution of every call comes from Sema::ReinstantiateBody's overlay
+// the resolution of every call comes from MiddleEnd::TypeSystem::ReinstantiateBody's overlay
 // rather than from the unit's own Values/Callees (Instantiate.hpp: a generic
 // body's ExprIds are shared by every instantiation, so the unit's own
 // single-slot-per-ExprId maps cannot hold more than one instantiation's answer
@@ -54,11 +54,12 @@ namespace Backend
             // (its Ast/Scopes are what ReinstantiateBody re-types the body
             // against). Null when the store declares no such member — a
             // middle-end contract violation, reported by the caller.
-            [[nodiscard]] const Sema::Member *LookupMonoMember ( const MonoRequest &Request, const UnitView **OutUnit ) const;
+            [[nodiscard]] const MiddleEnd::TypeSystem::Member *LookupMonoMember ( const MonoRequest &Request,
+                                                                                  const UnitView **OutUnit ) const;
 
             // One instantiation: resolve the member, get or declare its
             // Function (FunctionFor's own cache makes this idempotent),
-            // reinstantiate the body under Sema::ReinstantiateBody's overlay,
+            // reinstantiate the body under MiddleEnd::TypeSystem::ReinstantiateBody's overlay,
             // and emit it exactly as DefineMember emits a concrete one.
             void EmitMonomorphizedBody ( const MonoRequest &Request );
 

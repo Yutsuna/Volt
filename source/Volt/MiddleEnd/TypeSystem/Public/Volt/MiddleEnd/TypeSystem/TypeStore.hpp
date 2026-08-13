@@ -197,7 +197,7 @@ namespace MiddleEnd
             // parameter space (the same shape Super/Includes already use for a
             // parent link) — invalid when the parameter is unbounded. Resolved in
             // Phase B (a bound's own name may live in another unit), read by
-            // Sema::CheckGenericBounds at every concrete instantiation.
+            // MiddleEnd::TypeSystem::CheckGenericBounds at every concrete instantiation.
             ::Volt::Core::SmallVec<SigTypeId, 2> ParamBounds;
             // The declared interface: fields and methods of the body itself.
             std::vector<Member> Members;

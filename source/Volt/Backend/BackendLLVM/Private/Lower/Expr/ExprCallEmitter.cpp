@@ -20,7 +20,7 @@
 
 llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node )
 {
-    const Sema::CalleeEntry *Entry = Frame().Callees->Get( Node.Callee );
+    const MiddleEnd::IR::CalleeEntry *Entry = Frame().Callees->Get( Node.Callee );
     if ( Entry == nullptr or Entry->Decl == nullptr )
     {
         static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +

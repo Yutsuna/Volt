@@ -34,7 +34,7 @@ namespace MiddleEnd::Resolver
     struct ExportedDecl
     {
 
-        std::string QualifiedName; // e.g. "Core::AppConfig"
+        std::string QualifiedName; // e.g. "Volt::Core::AppConfig"
         Frontend::DeclKind Kind = Frontend::DeclKind::None;
         std::uint32_t Unit      = 0; // ordinal of the owning CompileUnit
         Frontend::DeclId Decl;       // into that unit's AstContext

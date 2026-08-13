@@ -23,7 +23,7 @@
 // boundary is that the linker and a C compiler agree on the name.
 
 #include "BackendCore_export.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstdint>
 #include <span>
@@ -48,15 +48,16 @@ namespace Backend
     //
     // Empty for a non-generic — the common case — and then no `I...E` group is
     // produced at all.
-    [[nodiscard]] BACKENDCORE_EXPORT std::string MangleFunction ( const Sema::TypeStore &Store,
-                                                                  const Sema::Member &Entry,
-                                                                  Sema::NominalId Owner,
+    [[nodiscard]] BACKENDCORE_EXPORT std::string MangleFunction ( const MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                  const MiddleEnd::TypeSystem::Member &Entry,
+                                                                  MiddleEnd::TypeSystem::NominalId Owner,
                                                                   std::span<const std::uint32_t> FlatArgs );
 
     // The length-prefixed spelling of one nominal, without arguments. Exposed
     // because the ancestry and type tables a backend emits as static data name
     // types with the same encoding the function symbols use.
-    [[nodiscard]] BACKENDCORE_EXPORT std::string MangleNominal ( const Sema::TypeStore &Store, Sema::NominalId Id );
+    [[nodiscard]] BACKENDCORE_EXPORT std::string MangleNominal ( const MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                 MiddleEnd::TypeSystem::NominalId Id );
 
 } // namespace Backend
 
