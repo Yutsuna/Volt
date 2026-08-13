@@ -7,7 +7,7 @@
 // primitives (rules/meta-first.md still applies inside it).
 
 #include "Volt/Core/Meta/Serialize.hpp"
-#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeUniverse.hpp"
 
 namespace Volt
 {
@@ -35,6 +35,13 @@ namespace MiddleEnd
             {
                 Meta::Serialize( W, Entry );
             }
+
+            // The canonical expression types ride with the store, not with the
+            // units: they are shared by all of them, and replaying them here —
+            // before any unit's ExprId -> SemaTypeId mapping is read back —
+            // is what makes those mappings meaningful without a remap
+            // (TypeUniverse.hpp, "Determinism").
+            UniverseStorage->SerializeCache( W );
         }
 
         bool TypeStore::DeserializeCache ( Meta::Reader &R )
@@ -88,7 +95,25 @@ namespace MiddleEnd
                 }
                 Modules.insert( Entry );
             }
+
+            if ( not UniverseStorage->DeserializeCache( R ) )
+            {
+                return false;
+            }
+
+            RebuildSigIndex();
             return true;
+        }
+
+        void TypeStore::RebuildSigIndex ()
+        {
+            SigDedup.clear();
+            SigDedup.reserve( Sigs.Size() );
+            for ( std::size_t Index = 0; Index < Sigs.Size(); ++Index )
+            {
+                const SigTypeId Id{ static_cast<SigTypeId::ValueType>( Index ) };
+                SigDedup.emplace( SigKeyOf( Sigs.Get( Id ) ), Id );
+            }
         }
 
     } // namespace TypeSystem

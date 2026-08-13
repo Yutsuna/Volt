@@ -1,4 +1,9 @@
 // SemaTypeSerialize.cpp — UnitTypes::SerializeCache/DeserializeCache.
+//
+// Only the per-unit *mappings* travel here. The types themselves belong to the
+// build's `TypeUniverse`, persisted once by `TypeStore::SerializeCache` and
+// replayed in intern order — so every SemaTypeId below comes back meaning what
+// it meant when written, with no remap table (see TypeUniverse.hpp).
 
 #include "Volt/Core/Meta/Serialize.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
@@ -14,7 +19,6 @@ namespace MiddleEnd
 
         void UnitTypes::SerializeCache ( Meta::Writer &W ) const
         {
-            Meta::SerializeArena( W, Types );
             Meta::Serialize( W, OfExpr );
             Meta::Serialize( W, Deferred );
             Meta::Serialize( W, SiteTypes );
@@ -22,10 +26,6 @@ namespace MiddleEnd
 
         bool UnitTypes::DeserializeCache ( Meta::Reader &R )
         {
-            if ( not Meta::DeserializeArena( R, Types ) )
-            {
-                return false;
-            }
             if ( not Meta::Deserialize( R, OfExpr ) )
             {
                 return false;
@@ -39,21 +39,10 @@ namespace MiddleEnd
                 return false;
             }
 
-            Dedup.clear();
-            for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
-            {
-                const SemaTypeId Id{ static_cast<std::uint32_t>( Index ) };
-                const SemaType &Value = Types.Get( Id );
-
-                std::vector<std::uint32_t> Key;
-                Key.reserve( 1 + Value.Args.Size() );
-                Key.push_back( Value.Base.Value );
-                for ( const SemaTypeId Arg : Value.Args )
-                {
-                    Key.push_back( Arg.Value );
-                }
-                Dedup.emplace( std::move( Key ), Id );
-            }
+            // A pure fast path over the universe, never storage: nothing read
+            // above needs it, and it refills itself on the first Intern this
+            // unit performs after the replay.
+            Memo.clear();
             return true;
         }
 

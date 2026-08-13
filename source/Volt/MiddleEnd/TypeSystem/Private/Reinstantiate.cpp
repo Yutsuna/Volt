@@ -24,6 +24,7 @@
 #include "Volt/Frontend/AST/Decl.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
+#include "Volt/MiddleEnd/Analysis/InstantiationCache.hpp"
 #include "Volt/MiddleEnd/Analysis/Lifetime/Temporaries.hpp"
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
@@ -32,6 +33,8 @@
 #include "Volt/MiddleEnd/Lowering/LoweringPasses.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
+#include <optional>
+#include <utility>
 #include <variant>
 
 namespace
@@ -122,6 +125,36 @@ using SynthesizedFunction = Volt::MiddleEnd::IR::SynthesizedFunction;
     return Frontend::DeclId{};
 }
 
+// Clears the in-flight mark on every exit from the body below, including the
+// early ones. Without it a request that bails out (a `Decl` that is not a
+// Method) would leave its key marked forever, and every later request for the
+// same instantiation would be reported as a cycle.
+class InFlightScope
+{
+
+public:
+
+    InFlightScope ( Volt::MiddleEnd::Analysis::InstantiationCache &InCache, Volt::MiddleEnd::Analysis::MonoKey InKey )
+        : Cache( &InCache ), Key( std::move( InKey ) )
+    {
+    }
+
+    InFlightScope ( const InFlightScope & )           = delete;
+    InFlightScope ( InFlightScope && )                = delete;
+    InFlightScope &operator=( const InFlightScope & ) = delete;
+    InFlightScope &operator=( InFlightScope && )      = delete;
+
+    ~InFlightScope ()
+    {
+        Cache->Leave( Key );
+    }
+
+private:
+
+    Volt::MiddleEnd::Analysis::InstantiationCache *Cache = nullptr;
+    Volt::MiddleEnd::Analysis::MonoKey Key;
+};
+
 } // namespace
 
 Volt::MiddleEnd::TypeSystem::InstantiatedBody
@@ -134,17 +167,44 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
 {
     ( void )Scopes;
     InstantiatedBody Result;
+    Result.Values.BindUniverse( Store.Universe() );
 
-    // Decode the flattened bindings into fresh SemaTypeIds inside the
-    // overlay: NominalId is the cross-unit, instantiation-independent
-    // currency, so no caller-side SemaTypeId ever needs to cross into this
-    // arena — everything concrete this function needs is built here.
+    // Decode the flattened bindings into the build's canonical dictionary:
+    // NominalId is the cross-unit, instantiation-independent currency the
+    // request arrives in, and interning it here produces exactly the same
+    // SemaTypeIds any unit would have produced for the same written types —
+    // which is what makes them usable as a cache key below.
     ::Volt::Core::SmallVec<SemaTypeId, 2> ReceiverArgs;
     std::span<const std::uint32_t> Cursor = FlatArgs;
     while ( not Cursor.empty() )
     {
         ReceiverArgs.PushBack( InternNext( Result.Values, Cursor ) );
     }
+
+    // Memoised: re-typing a body is pure in its key, so the same instantiation
+    // is computed once per build (InstantiationCache.hpp).
+    Analysis::MonoKey Key{
+        .Generation = Store.Generation(), .Unit = Entry.Unit, .Template = Entry.Decl, .Owner = Owner, .CanonicalArgs = {} };
+    for ( const SemaTypeId Arg : ReceiverArgs )
+    {
+        Key.CanonicalArgs.PushBack( Arg );
+    }
+
+    Analysis::InstantiationCache &Cache = Analysis::InstantiationCache::Global();
+    if ( std::optional<InstantiatedBody> Cached = Cache.Lookup( Key ); Cached.has_value() )
+    {
+        return std::move( *Cached );
+    }
+
+    // A body that reached its own instantiation would recurse forever. Nothing
+    // does today (the backend queues further requests rather than nesting
+    // them), so this returns the empty overlay it has and counts the event
+    // rather than trying to produce a half-typed one.
+    if ( not Cache.Enter( Key ) )
+    {
+        return Result;
+    }
+    const InFlightScope InFlight( Cache, Key );
 
     const std::size_t OwnerGenericCount = Owner.IsValid() ? Store.Type( Owner ).Params.Size() : 0;
     ::Volt::Core::SmallVec<SemaTypeId, 2> OwnerArgs;
@@ -335,5 +395,6 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
                                          .bIndirect   = Found.bIndirect } );
     }
 
+    Cache.Insert( std::move( Key ), Result );
     return Result;
 }
