@@ -37,8 +37,8 @@ namespace MiddleEnd::Resolver
     VOLT_MIDDLEEND_RESOLVER_EXPORT void
     ResolveStructLayouts ( std::span<const Frontend::AstContext *const> Units, TypeStore &Store, Core::DiagEngine::Bag *Diags );
 
-    VOLT_MIDDLEEND_RESOLVER_EXPORT void
-    SynthesizeFinalizeStubs ( std::span<Frontend::AstContext *const> Units, TypeStore &Store );
+    VOLT_MIDDLEEND_RESOLVER_EXPORT void SynthesizeFinalizeStubs ( std::span<Frontend::AstContext *const> Units,
+                                                                  TypeStore &Store );
 
 } // namespace MiddleEnd::Resolver
 

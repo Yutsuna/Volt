@@ -1,8 +1,8 @@
 #pragma once
 
-#include "Sema_export.hpp"
 #include "DeclStmtWalker.hpp"
 #include "MemberResolver.hpp"
+#include "Sema_export.hpp"
 #include "TypeCheckerContext.hpp"
 #include "Volt/Core/Meta/Reflect.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
