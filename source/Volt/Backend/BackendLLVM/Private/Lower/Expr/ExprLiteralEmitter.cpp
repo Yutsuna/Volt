@@ -345,8 +345,8 @@ llvm::Value *Volt::Backend::Llvm::EmitSizeOf ( BodyEmitter &Emitter, Frontend::E
     // here would be semantic analysis in codegen. TypeChecker publishes the
     // measured type on this node's own site instead, so all that is left is to
     // measure its layout, which is LayoutEngine's answer and nobody else's.
-    const Sema::LayoutId Shape =
-        Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Sema::BindingSite{ Id } ) );
+    const MiddleEnd::TypeSystem::LayoutId Shape =
+        Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( MiddleEnd::Resolver::BindingSite{ Id } ) );
     if ( not Shape.IsValid() )
     {
         static_cast<void>( Emitter.Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) +
@@ -383,7 +383,7 @@ llvm::Value *Volt::Backend::Llvm::EmitTypeTrait ( BodyEmitter &Emitter, Frontend
     // materialise it. Nothing is decided here — deciding what
     // `trivially_destructible?` means is the seam's job
     // (`SynthesizeFinalizeStubs`), read back through one accessor.
-    const Sema::SemaTypeId Operand = Frame.Values->SiteType( Sema::BindingSite{ Id } );
+    const MiddleEnd::TypeSystem::SemaTypeId Operand = Frame.Values->SiteType( MiddleEnd::Resolver::BindingSite{ Id } );
 
     llvm::Type *Shape = Emitter.TypeOfExpr( Id );
     if ( Shape == nullptr or not Shape->isIntegerTy() )
@@ -393,7 +393,7 @@ llvm::Value *Volt::Backend::Llvm::EmitTypeTrait ( BodyEmitter &Emitter, Frontend
         return nullptr;
     }
 
-    const Sema::TypeStore &Store = *Emitter.Services().Build->Types;
+    const MiddleEnd::TypeSystem::TypeStore &Store = *Emitter.Services().Build->Types;
 
     bool Answer = false;
     switch ( Node.Trait )

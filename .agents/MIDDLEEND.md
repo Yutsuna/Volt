@@ -43,20 +43,20 @@ func b
 
 ## MiddleEnd Passes (`EPassKind::Analysis`)
 
-Type binding (`Sema::BindUnitTypes`, `Layout/TypeBinder.cpp`) executes **before** the parallel pass phase, inside the Driver's serial execution seam: a literal `10` in a user file resolves to `Int32` declared in `source/Lib/`. This binding is cross-unit and cannot be run as a per-file pass. It also registers **module names** (`TypeStore::DeclareModule`): a `module` is a namespace, not a nominal type — its methods are free functions.
+Type binding (`MiddleEnd::Resolver::BindUnitTypes`, `source/Volt/MiddleEnd/Resolver/Private/TypeBinder.cpp`) executes **before** the parallel pass phase, inside the Driver's serial execution seam: a literal `10` in a user file resolves to `Int32` declared in `source/Lib/`. This binding is cross-unit and cannot be run as a per-file pass. It also registers **module names** (`TypeStore::DeclareModule`): a `module` is a namespace, not a nominal type — its methods are free functions.
 
 ### 1. Order 10 — `ScopeResolver`
 - Constructs the `ScopeTable` (`Method`/`Block`/`Branch` scopes), declares parameters and local variables, and computes closure captures along with their `bEscapes` status.
 - Rejects redeclarations within the same scope while permitting child scope shadowing.
 
-### 2. Order 30 — `TypeChecker` (`Sema/Private/Passes/TypeChecker/`)
+### 2. Order 30 — `TypeChecker` (`source/Volt/MiddleEnd/Analysis/Private/`)
 - Bidirectional inference over `UnitTypes`; `UnconstrainedLiterals` / `UnconstrainedVarInitializers` manage the lazy refinement of unconstrained literals.
 - **Imperative ordering at every assignment site: infer → constrain → verify.** Constraining before inferring freezes child expressions (the parent is memoized and AST traversal never occurs).
 - **Comprehensive Assignability**: A unified predicate `TypeCompat::IsAssignable` (+ `CheckAssignable( ..., EAssignSite )`) is wired across all 5 assignment sites (`LocalDecl`, `Assign`, `Return`, final block body value, parameter default). An **explicitly declared** type is strict: zero implicit conversions, **except** same-family scalar widening without narrowing — a language semantic design decision forced by `hash -> UInt64`, detailed in [`rules/zero-hardcode.md`](rules/zero-hardcode.md).
 - **Operators**: `MemberType` records resolution in `CalleeResolution` for `Binary`/`Unary` as well as `Member` — for primitive/pointer memory layouts, the backend emits a machine instruction; otherwise it emits a method call. Zero extra passes, zero extra AST nodes. An operator exempt from a body must **still** be declared.
 - `Nil` (`@[Literal( NilLiteral )]`) is assignable to any `Pointer`; `T?` (`NilableType`) is **loudly refused** (`nilable types are not implemented`).
 - Arity validation, instance vs static member contexts (`bStaticContext`), free function resolutions.
-- **RAII & Finalization Sweep (`InsertFinalizeCalls`)**: Runs post-walk inside `TypeChecker` using core AST (desugared at `Sema::LoweredSeamOrder()`). Manages scope cleanup, temporaries, drop-on-reassign, and exit unwinding with zero hardcoded Volt types or method names. See [`rules/raii-ownership.md`](rules/raii-ownership.md).
+- **RAII & Finalization Sweep (`InsertFinalizeCalls`)**: Runs post-walk inside `TypeChecker` using core AST (desugared at `MiddleEnd::Core::LoweredSeamOrder()`). Manages scope cleanup, temporaries, drop-on-reassign, and exit unwinding with zero hardcoded Volt types or method names. See [`rules/raii-ownership.md`](rules/raii-ownership.md).
 
 ### 3. Order 40 — `AstInvariant`
 The safety check that makes "Zero Debt" **structural** rather than transient. Creates zero AST nodes (the only way to run after `TypeChecker` without breaking structural invariants). Performs two checks, both producing hard errors:

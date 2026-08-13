@@ -29,7 +29,7 @@
 #include <vector>
 
 llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::ExprId Id,
-                                                                  const Sema::CalleeEntry &Entry,
+                                                                  const MiddleEnd::IR::CalleeEntry &Entry,
                                                                   Frontend::ExprId Receiver,
                                                                   std::span<const Frontend::ExprId> Args,
                                                                   Frontend::ExprId Block )
@@ -45,7 +45,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         return EmitIndirectDispatch( *this, Id, Entry, Receiver, Args, Block );
     }
 
-    const Sema::UnitTypes &Values = *Frame().Values;
+    const MiddleEnd::TypeSystem::UnitTypes &Values = *Frame().Values;
 
     // `to_address`/`from_address` (and any future named machine conversion): an
     // `abstract` member with no `bIndirect`, resolved on a receiver whose layout
@@ -55,10 +55,12 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     // member's own spelling instead of an operator token.
     if ( Entry.Decl->bAbstract )
     {
-        const Sema::LayoutId ReceiverShape = Types().LayoutOfValue( Values, Entry.Receiver );
-        const Sema::LayoutKind ReceiverKind =
-            ReceiverShape.IsValid() ? Sema::KindOf( Svc.Build->Types->Get( ReceiverShape ) ) : Sema::LayoutKind::Aggregate;
-        if ( ReceiverKind == Sema::LayoutKind::Pointer or ReceiverKind == Sema::LayoutKind::Primitive )
+        const MiddleEnd::TypeSystem::LayoutId ReceiverShape = Types().LayoutOfValue( Values, Entry.Receiver );
+        const MiddleEnd::TypeSystem::LayoutKind ReceiverKind =
+            ReceiverShape.IsValid() ? MiddleEnd::TypeSystem::KindOf( Svc.Build->Types->Get( ReceiverShape ) )
+                                    : MiddleEnd::TypeSystem::LayoutKind::Aggregate;
+        if ( ReceiverKind == MiddleEnd::TypeSystem::LayoutKind::Pointer or
+             ReceiverKind == MiddleEnd::TypeSystem::LayoutKind::Primitive )
         {
             return EmitNamedConversion( *this, Id, Entry, Receiver, Args );
         }
@@ -70,7 +72,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     // The owner and the instantiation both come out of the entry Sema recorded:
     // NominalIds are the cross-unit currency, and the flattened bindings are the
     // same encoding the mangler and the layout cache key on.
-    Sema::NominalId Owner;
+    MiddleEnd::TypeSystem::NominalId Owner;
     if ( Values.Has( Entry.Receiver ) )
     {
         Owner = Values.Get( Entry.Receiver ).Base;
@@ -93,7 +95,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     bool bOwnMember = false;
     if ( Owner.IsValid() )
     {
-        for ( const Sema::Member &Candidate : Svc.Build->Types->Type( Owner ).Members )
+        for ( const MiddleEnd::TypeSystem::Member &Candidate : Svc.Build->Types->Type( Owner ).Members )
         {
             if ( &Candidate == Entry.Decl )
             {
@@ -117,7 +119,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     std::vector<std::uint32_t> FlatArgs;
     if ( bInherited and Values.Has( Entry.Receiver ) )
     {
-        for ( const Sema::SemaTypeId Arg : Values.Get( Entry.Receiver ).Args )
+        for ( const MiddleEnd::TypeSystem::SemaTypeId Arg : Values.Get( Entry.Receiver ).Args )
         {
             Types().FlattenValueType( Values, Arg, FlatArgs );
         }
@@ -130,7 +132,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     }
     else
     {
-        for ( const Sema::SemaTypeId Binding : Entry.Bindings )
+        for ( const MiddleEnd::TypeSystem::SemaTypeId Binding : Entry.Bindings )
         {
             Types().FlattenValueType( Values, Binding, FlatArgs );
         }
@@ -175,8 +177,8 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         llvm::Value *Self = nullptr;
         if ( Entry.bConstructs )
         {
-            const Sema::LayoutId Shape = Types().LayoutOfValue( Values, Entry.Result );
-            llvm::Type *Instance       = Types().TypeOfLayout( Shape );
+            const MiddleEnd::TypeSystem::LayoutId Shape = Types().LayoutOfValue( Values, Entry.Result );
+            llvm::Type *Instance                        = Types().TypeOfLayout( Shape );
             if ( Instance == nullptr or not IsAggregate( Shape ) )
             {
                 // A non-aggregate `self` is passed by value (abi.md), so an
@@ -333,7 +335,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
 
 llvm::Value *Volt::Backend::Llvm::EmitNamedConversion ( BodyEmitter &Emitter,
                                                         Frontend::ExprId Id,
-                                                        const Sema::CalleeEntry &Entry,
+                                                        const MiddleEnd::IR::CalleeEntry &Entry,
                                                         Frontend::ExprId Receiver,
                                                         std::span<const Frontend::ExprId> Args )
 {

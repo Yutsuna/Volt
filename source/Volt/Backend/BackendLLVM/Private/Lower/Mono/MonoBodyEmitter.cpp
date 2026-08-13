@@ -1,7 +1,7 @@
 // MonoBodyEmitter.cpp — one instantiation's body.
 //
 // The same shape as DefineMember, with one semantic step in front of it:
-// Sema::ReinstantiateBody re-types the body under this request's concrete
+// MiddleEnd::TypeSystem::ReinstantiateBody re-types the body under this request's concrete
 // bindings, and the overlay it returns is what the frame reads for every
 // expression type and every callee resolution. Nothing here ever writes back
 // into the unit's own UnitTypes/UnitCallees — a generic body's ExprIds are
@@ -24,7 +24,7 @@
 #include "Types/TypeMapper.hpp"
 
 #include "Volt/Frontend/AST/AstContext.hpp"
-#include "Volt/Sema/Layout/Instantiate.hpp"
+#include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Function.h>
@@ -35,8 +35,8 @@
 
 void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest &Request )
 {
-    const UnitView *DeclUnit  = nullptr;
-    const Sema::Member *Entry = LookupMonoMember( Request, &DeclUnit );
+    const UnitView *DeclUnit                   = nullptr;
+    const MiddleEnd::TypeSystem::Member *Entry = LookupMonoMember( Request, &DeclUnit );
     if ( Entry == nullptr or DeclUnit == nullptr )
     {
         static_cast<void>( Services->Diag->Fail( "llvm: a monomorphisation request names no member this build declares" ) );
@@ -46,7 +46,7 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
     // The same exclusions DeclareMember/DefineMember apply to a concrete member:
     // a field, an abstract contract, and an @[External] declaration (which has a
     // symbol but no Volt body) are never something this emits.
-    if ( Entry->Kind != Sema::EMemberKind::Method or Entry->bAbstract or Entry->ExternSymbol.IsValid() )
+    if ( Entry->Kind != MiddleEnd::TypeSystem::EMemberKind::Method or Entry->bAbstract or Entry->ExternSymbol.IsValid() )
     {
         return;
     }
@@ -60,7 +60,7 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         return;
     }
 
-    Sema::TypeStore &Store = *Services->Build->Types;
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
 
     const auto *MethodNode = std::get_if<Frontend::Method>( &DeclUnit->Ast->Decl( Entry->Decl ) );
     if ( MethodNode == nullptr )
@@ -73,8 +73,8 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
 
     // Kept alive for the whole of this function — the frame's Values/Callees/
     // Redirects below all point into it.
-    const Sema::InstantiatedBody Overlay =
-        Sema::ReinstantiateBody( Store, *DeclUnit->Ast, *DeclUnit->Scopes, *Entry, Request.Owner, Request.Args );
+    const MiddleEnd::TypeSystem::InstantiatedBody Overlay =
+        MiddleEnd::TypeSystem::ReinstantiateBody( Store, *DeclUnit->Ast, *DeclUnit->Scopes, *Entry, Request.Owner, Request.Args );
 
     // Re-fetched, not reused: ReinstantiateBody may have Add()'d a synthesized
     // closure Decl into this very Decl arena (a Lambda/Block literal it lowered
@@ -96,7 +96,7 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
     // Overlay.Synth, already concretely typed in Overlay.Values (Reinstantiate.cpp:
     // the declaring unit's own generic-shaped pass never lowers one — nothing
     // concrete to lower it with — so Overlay is the only source, not DeclUnit->Synth).
-    for ( const Sema::SynthesizedFunction &SynthFn : Overlay.Synth.All() )
+    for ( const MiddleEnd::IR::SynthesizedFunction &SynthFn : Overlay.Synth.All() )
     {
         DeclareSynthesizedFn( *Services, SynthFn, *DeclUnit, Overlay.Values );
         DefineSynthesizedFn( *Services, SynthFn, *DeclUnit, Overlay.Values, Overlay.Callees, &Overlay.Redirects );
@@ -152,7 +152,8 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
                                                                Store, Entry->Params[Ordinal], Request.Owner, Request.Args ) ) );
         ++Ordinal;
 
-        if ( not BindParameter( Emitter, Sema::BindingSite{ ParamRef }, Arg, bByAddress, DeclUnit->Ast->Text( Declared.Name ) ) )
+        if ( not BindParameter( Emitter, MiddleEnd::Resolver::BindingSite{ ParamRef }, Arg, bByAddress,
+                                DeclUnit->Ast->Text( Declared.Name ) ) )
         {
             static_cast<void>( Emitter.Fail( "llvm: parameter '" + std::string( DeclUnit->Ast->Text( Declared.Name ) ) +
                                              "' of '" + std::string( Store.Text( Entry->Name ) ) + "' has no storage" ) );

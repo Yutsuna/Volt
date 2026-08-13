@@ -15,7 +15,7 @@
 #include <string>
 
 bool Volt::Backend::Llvm::BindParameter (
-    BodyEmitter &Emitter, const Sema::BindingSite &Site, llvm::Value *Arg, bool bByAddress, std::string_view Name )
+    BodyEmitter &Emitter, const MiddleEnd::Resolver::BindingSite &Site, llvm::Value *Arg, bool bByAddress, std::string_view Name )
 {
     // An aggregate (and a `&block`, whose `{ code, env }` pair is one) arrives as
     // a pointer to the caller's storage and *is* its own slot, so it is kept
@@ -73,6 +73,7 @@ void Volt::Backend::Llvm::BindInstanceVarParam ( BodyEmitter &Emitter, Frontend:
     {
         return;
     }
-    Emitter.EmitStore( Address, Value,
-                       Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( Sema::BindingSite{ ParamRef } ) ) );
+    Emitter.EmitStore(
+        Address, Value,
+        Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( MiddleEnd::Resolver::BindingSite{ ParamRef } ) ) );
 }

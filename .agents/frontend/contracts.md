@@ -6,7 +6,7 @@ This document defines the strict output contracts of the Volt Frontend and how t
 
 ## The Frontend Hand-off Contract
 
-When the frontend syntax phase finishes (`volt parse --lowered`), it produces an `AstContext` containing a fully desugared AST. The middle-end (`Sema`) expects this AST to satisfy three fundamental invariants:
+When the frontend syntax phase finishes (`volt parse --lowered`), it produces an `AstContext` containing a fully desugared AST. The middle-end (`MiddleEnd`) expects this AST to satisfy three fundamental invariants:
 
 ### Invariant 1: Absolute Elimination of Sugar Nodes
 Zero instances of the 9 syntactic sugar AST nodes may survive the lowering pipeline.
@@ -30,13 +30,13 @@ The frontend output AST contains **zero type binding information**:
 - Identifiers remain plain string symbols; no scope binding or declaration pointers exist on the AST nodes.
 
 ### Invariant 3: Zero Type Hardcoding (`ZeroHardcode`)
-The frontend never hardcodes built-in compiler type names (`Int`, `String`, `Array`, `Bool`). Method names produced during lowering (`"to_string"`, `"[]"`, `"[]="`) are plain string symbols passed to method lookup in `Sema`. Type signatures reside exclusively in the Volt standard library (`source/Lib/`).
+The frontend never hardcodes built-in compiler type names (`Int`, `String`, `Array`, `Bool`). Method names produced during lowering (`"to_string"`, `"[]"`, `"[]="`) are plain string symbols passed to method lookup in `MiddleEnd`. Type signatures reside exclusively in the Volt standard library (`source/Lib/`).
 
 ---
 
-## Automatic Mechanical Verification (`AstInvariant`)
+## Mechanical Invariant Verification
 
-The `AstInvariant` pass (`source/Volt/Sema/Private/Passes/AstInvariant.cpp`, Pass Order 40) is automatically executed:
+The `AstInvariant` pass (`source/Volt/MiddleEnd/Analysis/Private/AstInvariant.cpp`, Pass Order 40) is automatically executed:
 1. At the end of every frontend pipeline invocation (`volt parse --lowered`).
 2. Before `ScopeResolver` (Order 30) and `TypeChecker` (Order 35) in full compilation runs (`volt build`, `volt check`).
 3. Across the entire test suite via `tests/meson.build`.

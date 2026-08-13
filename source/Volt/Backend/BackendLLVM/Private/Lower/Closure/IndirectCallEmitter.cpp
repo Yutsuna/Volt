@@ -28,7 +28,7 @@
 
 llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitter &Emitter,
                                                                       Frontend::ExprId Id,
-                                                                      const Sema::CalleeEntry &Entry,
+                                                                      const MiddleEnd::IR::CalleeEntry &Entry,
                                                                       Frontend::ExprId Receiver,
                                                                       std::span<const Frontend::ExprId> Args )
 {
@@ -39,10 +39,10 @@ llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitte
         return nullptr;
     }
 
-    const Sema::UnitTypes &Values = *Emitter.Frame().Values;
-    llvm::LLVMContext &Context    = Services->Ctx->Context();
-    llvm::IRBuilder<> &Builder    = Services->Ctx->Builder();
-    TypeMapper &Types             = Emitter.Types();
+    const MiddleEnd::TypeSystem::UnitTypes &Values = *Emitter.Frame().Values;
+    llvm::LLVMContext &Context                     = Services->Ctx->Context();
+    llvm::IRBuilder<> &Builder                     = Services->Ctx->Builder();
+    TypeMapper &Types                              = Emitter.Types();
 
     // The signature *is* the receiver's own type arguments, and MemberResolver
     // already unpacked them into the entry: result first, then one parameter per
@@ -50,7 +50,7 @@ llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitte
     // thing being called — nothing is re-derived.
     std::vector<llvm::Type *> Slots;
     Slots.reserve( Entry.Params.Size() + 1 );
-    for ( const Sema::SemaTypeId Param : Entry.Params )
+    for ( const MiddleEnd::TypeSystem::SemaTypeId Param : Entry.Params )
     {
         llvm::Type *Slot = Types.ParamTypeOfLayout( Types.LayoutOfValue( Values, Param ) );
         if ( Slot == nullptr )

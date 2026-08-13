@@ -11,7 +11,7 @@
 // than by remembering to clear it.
 
 #include "Volt/BackendCore/BackendInput.hpp"
-#include "Volt/Sema/Layout/Instantiate.hpp"
+#include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
 
 #include "Core/LlvmFwd.hpp"
 
@@ -48,7 +48,7 @@ namespace Backend
             // parameter arrives as a pointer to the caller's storage (abi.md)
             // and is already its own slot, so copying it into one would only add
             // a memcpy nothing reads.
-            std::unordered_map<Sema::BindingSite, llvm::Value *, Sema::BindingSiteHash> Slots;
+            std::unordered_map<MiddleEnd::Resolver::BindingSite, llvm::Value *, MiddleEnd::Resolver::BindingSiteHash> Slots;
             std::vector<LoopFrame> Loops;
             // The innermost enclosing `begin`'s dispatch block, in *this*
             // function only — Tier 1 exceptions never cross a call boundary by
@@ -66,18 +66,18 @@ namespace Backend
             // Where an expression's type and a call's resolution come from. A
             // concrete body reads its own unit's (Unit->Values/Callees, set
             // alongside Unit); a monomorphised one reads the per-request overlay
-            // Sema::ReinstantiateBody returned, since UnitTypes/UnitCallees hold
+            // MiddleEnd::TypeSystem::ReinstantiateBody returned, since UnitTypes/UnitCallees hold
             // one answer per ExprId and a generic body's ExprIds are shared by
             // every instantiation.
-            const Sema::UnitTypes *Values    = nullptr;
-            const Sema::UnitCallees *Callees = nullptr;
+            const MiddleEnd::TypeSystem::UnitTypes *Values = nullptr;
+            const MiddleEnd::IR::UnitCallees *Callees      = nullptr;
             // Non-null only for a monomorphised body (MonoBodyEmitter):
             // `original literal ExprId -> replacement subtree`, built by
-            // Sema::ReinstantiateBody for every Lambda/Block literal it found
+            // MiddleEnd::TypeSystem::ReinstantiateBody for every Lambda/Block literal it found
             // still un-lowered (Instantiate.hpp's ExprRedirectMap). EmitExpr
             // consults this before reading Ast.Expr( Id ) at all, so the
             // shared literal's own slot never has to be mutated.
-            const Sema::ExprRedirectMap *Redirects = nullptr;
+            const MiddleEnd::IR::ExprRedirectMap *Redirects = nullptr;
             // Where every `alloca` goes, whatever block the walk is in when it
             // needs one. Keeping them all in the entry block is what lets
             // mem2reg promote them, which is why the emitter never builds SSA.
@@ -85,9 +85,9 @@ namespace Backend
             // The receiver, when the method has one, plus the instantiation it
             // was resolved at — an `@x` is a GEP into *this* shape.
             llvm::Value *Self = nullptr;
-            Sema::NominalId Owner;
+            MiddleEnd::TypeSystem::NominalId Owner;
             std::vector<std::uint32_t> OwnerArgs;
-            Sema::LayoutId SelfLayout;
+            MiddleEnd::TypeSystem::LayoutId SelfLayout;
             // Non-void functions return the value of their last expression, so a
             // tail ExprStmt emits `ret` rather than dropping its value.
             bool bReturnsValue = false;

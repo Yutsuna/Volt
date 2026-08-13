@@ -1,0 +1,127 @@
+# Receiver traits — `includes?`, `inherits_from?`, `is_a?`, `has_field?`,
+# `has_method?` — are answered by MiddleEnd::ConstEval::TraitEngine during
+# inference and replaced by the BoolLiteral they came out as.
+#
+# That this file *links at all* is the compile-time part of the test: nothing
+# in source/Lib declares any of these five names, so a trait that survived as
+# an ordinary call would have no symbol to call. The assertions below pin the
+# answers themselves.
+
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+mixin Greetable
+  def greeting -> String
+    "hello"
+  end
+end
+
+mixin Countable
+end
+
+class Animal
+  age : Int32
+
+  def initialize( @age : Int32 )
+  end
+
+  def describe -> String
+    "animal"
+  end
+end
+
+class Dog < Animal
+  include Greetable
+
+  name : String
+
+  def initialize( @name : String )
+    @age = 1
+  end
+
+  def bark -> String
+    "woof"
+  end
+end
+
+dog = Dog.new( "Rex" )
+
+# --- includes? — direct, and inherited-through ------------------------------
+assert!( dog.includes? Greetable )
+assert!( not dog.includes? Countable )
+# A superclass is not a mixin.
+assert!( not dog.includes? Animal )
+
+# --- inherits_from? — strict, so never reflexive ----------------------------
+assert!( dog.inherits_from? Animal )
+assert!( not dog.inherits_from? Dog )
+
+# --- is_a? — identity, ancestry and inclusion all at once -------------------
+assert!( dog.is_a? Dog )
+assert!( dog.is_a? Animal )
+assert!( dog.is_a? Greetable )
+assert!( not dog.is_a? Countable )
+
+# --- has_field? / has_method? — own body and everything above it ------------
+assert!( dog.has_field? :name )
+assert!( dog.has_field? :age )
+assert!( not dog.has_field? :bark )
+assert!( not dog.has_field? :missing )
+
+assert!( dog.has_method? :bark )
+assert!( dog.has_method? :describe )
+assert!( dog.has_method? :greeting )
+assert!( not dog.has_method? :name )
+
+# --- The parenthesised spelling means exactly the same thing ----------------
+assert!( dog.includes?( Greetable ) )
+assert!( dog.has_field?( :name ) )
+
+# --- A type name answers the same questions its instances do ----------------
+assert!( Dog.includes? Greetable )
+assert!( Dog.inherits_from? Animal )
+assert!( Dog.has_method? :bark )
+
+# --- Traits compose with ordinary operators, at the expected precedence -----
+assert!( dog.is_a? Animal and dog.has_field? :name )
+assert!( ( dog.includes? Countable ) or ( dog.includes? Greetable ) )
+
+# --- Inside a generic body, once per instantiation ---------------------------
+# `@value.is_a? Tagged` cannot be answered while writing `Box<T>` — `T` is not
+# a type yet. TypeChecker leaves the node standing and marks it deferred;
+# ReinstantiateBody walks the same shared body once per instantiation with the
+# arguments fixed and folds it *there*, recording the answer in the redirect
+# map rather than overwriting the body both instantiations share.
+
+mixin Tagged
+end
+
+struct Box<T>
+  value : T
+
+  def initialize( @value : T )
+  end
+
+  def tagged? -> Bool
+    @value.is_a? Tagged
+  end
+end
+
+class Plain
+  n : Int32
+  def initialize( @n : Int32 )
+  end
+end
+
+class Marked
+  include Tagged
+  n : Int32
+  def initialize( @n : Int32 )
+  end
+end
+
+assert!( not Box<Plain>.new( Plain.new( 1 ) ).tagged? )
+assert!( Box<Marked>.new( Marked.new( 2 ) ).tagged? )

@@ -82,9 +82,9 @@ namespace Backend
 
             // Frame-bound shorthands for the type service, which are what most
             // emitters actually call.
-            [[nodiscard]] Sema::LayoutId LayoutOfExpr ( Frontend::ExprId Id ) const;
+            [[nodiscard]] MiddleEnd::TypeSystem::LayoutId LayoutOfExpr ( Frontend::ExprId Id ) const;
             [[nodiscard]] llvm::Type *TypeOfExpr ( Frontend::ExprId Id ) const;
-            [[nodiscard]] bool IsAggregate ( Sema::LayoutId Id ) const;
+            [[nodiscard]] bool IsAggregate ( MiddleEnd::TypeSystem::LayoutId Id ) const;
 
             // --- Statements (Stmt/) ------------------------------------------
 
@@ -112,11 +112,13 @@ namespace Backend
             // Move a value into storage: a plain store for a scalar, a memcpy
             // sized by LayoutEngine for an aggregate, since an aggregate is only
             // ever an address.
-            void EmitStore ( llvm::Value *Address, llvm::Value *Value, Sema::LayoutId Shape );
+            void EmitStore ( llvm::Value *Address, llvm::Value *Value, MiddleEnd::TypeSystem::LayoutId Shape );
 
             // GEP to the field named `Name` inside an aggregate.
-            [[nodiscard]] llvm::Value *
-            FieldAddress ( llvm::Value *Object, Sema::LayoutId Shape, std::string_view Name, Frontend::ExprId Id );
+            [[nodiscard]] llvm::Value *FieldAddress ( llvm::Value *Object,
+                                                      MiddleEnd::TypeSystem::LayoutId Shape,
+                                                      std::string_view Name,
+                                                      Frontend::ExprId Id );
 
             // `@name` as written, reduced to the field name declared in the
             // layout. Sema strips the sigil in one place (LookupOn's CleanName)
@@ -130,7 +132,8 @@ namespace Backend
 
             // The storage backing a binding, created in the entry block on first
             // mention so a `LocalDecl` and every later use of it share one slot.
-            [[nodiscard]] llvm::Value *SlotFor ( const Sema::BindingSite &Site, llvm::Type *Shape, std::string_view Name );
+            [[nodiscard]] llvm::Value *
+            SlotFor ( const MiddleEnd::Resolver::BindingSite &Site, llvm::Type *Shape, std::string_view Name );
 
             // Unnamed entry-block storage, for a value that converges out of
             // several blocks and has no binding to key on.
@@ -140,14 +143,15 @@ namespace Backend
             // slot. `if`, `begin` and `case` all do this and must do it
             // identically, so the rule lives here once rather than at the three
             // stores.
-            void StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape, Sema::LayoutId Layout );
+            void
+            StoreTailValue ( llvm::Value *Value, llvm::Value *Slot, llvm::Type *Shape, MiddleEnd::TypeSystem::LayoutId Layout );
 
             // The value a slot-converging expression hands back to its consumer.
             // The counterpart of StoreTailValue, obeying the same convention: an
             // aggregate is only ever an *address*, so the slot itself is the
             // value; a scalar is loaded out of it.
             [[nodiscard]] llvm::Value *
-            LoadConverged ( llvm::Value *Slot, llvm::Type *Shape, Sema::LayoutId Layout, const char *Name );
+            LoadConverged ( llvm::Value *Slot, llvm::Type *Shape, MiddleEnd::TypeSystem::LayoutId Layout, const char *Name );
 
             // The zext TypeCompat's widening rule implies. Sema already decided
             // an `i8` is acceptable where a `u64` is expected
@@ -166,7 +170,7 @@ namespace Backend
             // trailing `do ... end`, which fills the callee's `&block` slot
             // rather than a positional one and is invalid for every other caller.
             [[nodiscard]] llvm::Value *EmitResolvedCall ( Frontend::ExprId Id,
-                                                          const Sema::CalleeEntry &Entry,
+                                                          const MiddleEnd::IR::CalleeEntry &Entry,
                                                           Frontend::ExprId Receiver,
                                                           std::span<const Frontend::ExprId> Args,
                                                           Frontend::ExprId Block = Frontend::ExprId{} );
@@ -174,7 +178,7 @@ namespace Backend
             // The declared default for a parameter a call omits, emitted in the
             // unit that declares it. Null when the parameter has none — which is
             // the caller's error to report, with the call site in hand.
-            [[nodiscard]] llvm::Value *EmitDefaultArgument ( const Sema::Member &Decl, std::size_t Index );
+            [[nodiscard]] llvm::Value *EmitDefaultArgument ( const MiddleEnd::TypeSystem::Member &Decl, std::size_t Index );
 
         private:
 

@@ -104,6 +104,7 @@ VOLT_TYPE( PointerType )
 VOLT_TYPE( NilableType )
 VOLT_TYPE( FixedArrayType )
 VOLT_TYPE( FuncType )
+VOLT_TYPE( TypeOfType )
 
 #undef VOLT_EXPR
 #undef VOLT_EXPR_SUGAR

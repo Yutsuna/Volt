@@ -34,9 +34,9 @@ llvm::Value *Volt::Backend::Llvm::EmitIf ( BodyEmitter &Emitter, Frontend::ExprI
 
     // No shape means the `if` is in statement position (or a `-> Void` tail):
     // there is nothing to converge, and the branches are emitted for effect.
-    llvm::Type *Shape           = Emitter.TypeOfExpr( Id );
-    const Sema::LayoutId Layout = Emitter.LayoutOfExpr( Id );
-    llvm::AllocaInst *Slot      = Shape != nullptr ? Emitter.MakeTemp( Shape, "if.result" ) : nullptr;
+    llvm::Type *Shape                            = Emitter.TypeOfExpr( Id );
+    const MiddleEnd::TypeSystem::LayoutId Layout = Emitter.LayoutOfExpr( Id );
+    llvm::AllocaInst *Slot                       = Shape != nullptr ? Emitter.MakeTemp( Shape, "if.result" ) : nullptr;
 
     Builder.SetInsertPoint( Then );
     EmitConvergingBody( Emitter, Node.Then, Slot, Shape, Layout, Merge );

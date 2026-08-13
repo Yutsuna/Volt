@@ -30,7 +30,7 @@ dispatch loop derive from the same lines (`rules/meta-first.md`). The set:
 
 `CallPrim`'s operand indexes a per-build table of `(Spelling, Bits, Op)`
 triples the emitter interned — the VM half of the primitive protocol
-(`core-interfaces.md`): the *decision* method-vs-instruction was Sema's;
+(`core-interfaces.md`): the *decision* method-vs-instruction was MiddleEnd's;
 the table only says *which* machine operation.
 
 `LoadField`'s operand is a **byte offset from `LayoutEngine::FieldOffset`**,

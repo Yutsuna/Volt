@@ -7,11 +7,11 @@
 // Backend* -> Sema and the Driver maps its CompileUnits into these views.
 
 #include "Volt/Frontend/AST/AstContext.hpp"
-#include "Volt/Sema/Layout/CalleeMap.hpp"
-#include "Volt/Sema/Layout/SemaType.hpp"
-#include "Volt/Sema/Layout/SynthesizedFunctions.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
-#include "Volt/Sema/Scope/ScopeTable.hpp"
+#include "Volt/MiddleEnd/IR/CalleeMap.hpp"
+#include "Volt/MiddleEnd/IR/SynthesizedFunctions.hpp"
+#include "Volt/MiddleEnd/Resolver/ScopeTable.hpp"
+#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstdint>
 #include <span>
@@ -39,15 +39,15 @@ namespace Backend
         std::uint32_t Ordinal = 0;
         std::string_view Module;
         std::string_view Path;
-        const Frontend::AstContext *Ast  = nullptr;
-        const Sema::UnitTypes *Values    = nullptr;
-        const Sema::UnitCallees *Callees = nullptr;
-        const Sema::ScopeTable *Scopes   = nullptr;
+        const Frontend::AstContext *Ast                = nullptr;
+        const MiddleEnd::TypeSystem::UnitTypes *Values = nullptr;
+        const MiddleEnd::IR::UnitCallees *Callees      = nullptr;
+        const MiddleEnd::Resolver::ScopeTable *Scopes  = nullptr;
         // Functions a lowering pass synthesized for this unit alone
         // (ClosureLifting) — never a TypeStore member, see
         // Sema/Layout/SynthesizedFunctions.hpp. Null in tools that stop
         // before codegen, same contract as the other pointers here.
-        const Sema::SynthesizedFunctions *Synth = nullptr;
+        const MiddleEnd::IR::SynthesizedFunctions *Synth = nullptr;
     };
 
     // The whole build: units in circuit link order (dependencies before
@@ -66,7 +66,7 @@ namespace Backend
     struct BackendInput
     {
 
-        Sema::TypeStore *Types = nullptr;
+        MiddleEnd::TypeSystem::TypeStore *Types = nullptr;
         std::span<const UnitView> Units;
 
         // How many of Units' leading entries are the stdlib — ordinals

@@ -36,10 +36,10 @@ void Volt::Backend::Llvm::ExceptionLowering::EmitExceptionCheck ( BodyEmitter &E
     llvm::IRBuilder<> &Builder = Services->Ctx->Builder();
     llvm::Function *Fn         = Emitter.Frame().Fn;
 
-    llvm::Type *Int32Ty = llvm::Type::getInt32Ty( Context );
-    llvm::Value *Tag    = Builder.CreateLoad( Int32Ty, ExceptionTagSlot(), "exc.tag" );
-    llvm::Value *Pending =
-        Builder.CreateICmpNE( Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
+    llvm::Type *Int32Ty  = llvm::Type::getInt32Ty( Context );
+    llvm::Value *Tag     = Builder.CreateLoad( Int32Ty, ExceptionTagSlot(), "exc.tag" );
+    llvm::Value *Pending = Builder.CreateICmpNE(
+        Tag, llvm::ConstantInt::get( Int32Ty, MiddleEnd::TypeSystem::NominalId::InvalidValue ), "exc.pending" );
 
     llvm::BasicBlock *Propagate = llvm::BasicBlock::Create( Context, "exc.propagate", Fn );
     llvm::BasicBlock *Continue  = llvm::BasicBlock::Create( Context, "exc.cont", Fn );
@@ -62,10 +62,10 @@ void Volt::Backend::Llvm::ExceptionLowering::EmitUnwindCheck ( BodyEmitter &Emit
     llvm::IRBuilder<> &Builder = Services->Ctx->Builder();
     llvm::Function *Fn         = Emitter.Frame().Fn;
 
-    llvm::Type *Int32Ty = llvm::Type::getInt32Ty( Context );
-    llvm::Value *Tag    = Builder.CreateLoad( Int32Ty, ExceptionTagSlot(), "exc.tag" );
-    llvm::Value *ExcPending =
-        Builder.CreateICmpNE( Tag, llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "exc.pending" );
+    llvm::Type *Int32Ty     = llvm::Type::getInt32Ty( Context );
+    llvm::Value *Tag        = Builder.CreateLoad( Int32Ty, ExceptionTagSlot(), "exc.tag" );
+    llvm::Value *ExcPending = Builder.CreateICmpNE(
+        Tag, llvm::ConstantInt::get( Int32Ty, MiddleEnd::TypeSystem::NominalId::InvalidValue ), "exc.pending" );
     llvm::Value *Brk     = Builder.CreateLoad( Builder.getInt1Ty(), BreakFlagSlot(), "brk.pending" );
     llvm::Value *Pending = Builder.CreateOr( ExcPending, Brk, "unwind.pending" );
 

@@ -55,7 +55,7 @@ Volt classifies expressions into `EOwnership` states (`{ Owned, Borrowed, Moved 
 
 ## 6. Seam Placement: Core AST Only
 
-- **Lowered Seam Order**: `Raii::InferReturnOwnership` and `Raii::InferParameterEscape` run at `Sema::LoweredSeamOrder()` (after all `EPassKind::Lowering` passes, before `TypeChecker`).
+- **Lowered Seam Order**: `Raii::InferReturnOwnership` and `Raii::InferParameterEscape` run at `MiddleEnd::Core::LoweredSeamOrder()` (after all `EPassKind::Lowering` passes, before `TypeChecker`).
 - **Core AST Operation**: The analysis operates strictly on desugared core AST (`Call` nodes), eliminating the need to guess how sugar (`Interp`, `Index`, `Pipeline`, `Section`) will lower.
 - **Architectural Rule**: *"Move the question, never teach it a spelling."*
 
@@ -106,7 +106,7 @@ Volt classifies expressions into `EOwnership` states (`{ Owned, Borrowed, Moved 
 
 ## 12. Generic Bodies & Monomorphization
 
-- Generic definition bodies defer concrete types; RAII sweeps run per instantiation in `Sema::ReinstantiateBody` over concrete monomorphized types.
+- Generic definition bodies defer concrete types; RAII sweeps run per instantiation in `MiddleEnd::TypeSystem::ReinstantiateBody` over concrete monomorphized types.
 
 ---
 

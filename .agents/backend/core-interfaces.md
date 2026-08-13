@@ -1,7 +1,7 @@
 # Backend spec: core interfaces — `BackendCore`
 
 The target-agnostic layer every emitter builds on. Code lives in
-`source/Volt/Backend/BackendCore/` (module `BackendCore`, DEPS `Sema`).
+`source/Volt/Backend/BackendCore/` (module `BackendCore`, DEPS `MiddleEnd`).
 
 ## The input contract, materialised
 
@@ -12,10 +12,10 @@ concrete read side:
 | Promise | Where a backend reads it |
 |---|---|
 | 25 core nodes, no sugar | `Frontend::AstContext` (checked by `AstInvariant`) |
-| every value expression typed | `Sema::UnitTypes` (`Values.ExprType( Id )`) |
-| method vs. machine instruction | `Sema::UnitCallees` (`Layout/CalleeMap.hpp`) |
-| closure size/alignment/escape | `Sema::SynthesizeClosureFrame( Scopes, Types, ScopeId )` |
-| memory shape of a type | `Sema::TypeStore` → `LayoutNode`, sized by `LayoutEngine` |
+| every value expression typed | `MiddleEnd::TypeSystem::UnitTypes` (`Values.ExprType( Id )`) |
+| method vs. machine instruction | `MiddleEnd::IR::UnitCallees` (`MiddleEnd/IR/CalleeMap.hpp`) |
+| closure size/alignment/escape | `MiddleEnd::Resolver::SynthesizeClosureFrame( Scopes, Types, ScopeId )` |
+| memory shape of a type | `MiddleEnd::TypeSystem::TypeStore` → `LayoutNode`, sized by `LayoutEngine` |
 
 `UnitCallees` is the piece that had to be built for this spec: TypeChecker's
 resolutions were pass-local and died with the pass. They are now snapshotted
@@ -26,19 +26,19 @@ monomorphisation needs to substitute into a generic body.
 
 ## `BackendInput` / `UnitView` — why not `CompileUnit`
 
-`BackendCore` depends on `Sema`, never on `Driver`. A backend consumes
+`BackendCore` depends on `MiddleEnd`, never on `Driver`. A backend consumes
 per-unit *facts* (AST, types, callees, scopes), not the Driver's
 orchestration state, so `BackendInput.hpp` defines its own read-only view:
 
 ```cpp
 struct UnitView    { std::uint32_t Ordinal; Module, Path, Ast*, Values*, Callees*, Scopes*, Synth* };
-struct BackendInput{ Sema::TypeStore *Types; std::span<const UnitView> Units; std::uint32_t StdlibUnitCount; };
+struct BackendInput{ MiddleEnd::TypeSystem::TypeStore *Types; std::span<const UnitView> Units; std::uint32_t StdlibUnitCount; };
 ```
 
 The Driver (or a CLI command) maps each `CompileUnit` into a `UnitView`, in
 **circuit link order** — dependencies first, entry module last — so a
 single-pass emitter sees every callee's declaring unit before the call site's.
-The dependency chain stays `Backend* → Sema → Frontend → Core`, and the
+The dependency chain stays `Backend* → MiddleEnd → Frontend → Core`, and the
 Driver may later grow a dependency on backends without a cycle.
 
 `Synth` points at the `SynthesizedFunctions` table `ClosureLifting` built for
@@ -109,7 +109,7 @@ otherwise
 ```
 
 The spelling table is per-target (`llvm.md`, `vm.md`, `wasm.md`) but the
-*decision* is made once, upstream, by Sema. A backend that finds neither a
+*decision* is made once, upstream, by MiddleEnd. A backend that finds neither a
 resolution nor a primitive layout has hit a middle-end bug — it must fail
 loudly (`EEmitStatus::Error`), never guess. **Zero semantic analysis, zero
 type inference in any backend.**

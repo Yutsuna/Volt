@@ -37,8 +37,8 @@ its own. Nothing about that is a preference either:
   **by name** against the *subclass's* layout (`FieldAddress`), and a nested
   base would hide every inherited name from that lookup.
 
-Two builders produce aggregates and both must obey this: `Sema::TypeBinder`'s
-`EnsureStructLayout` for a concrete type — reading the parent off the **AST**,
+Two builders produce aggregates and both must obey this: `TypeBinder`'s
+`EnsureStructLayout` (`source/Volt/MiddleEnd/Resolver/Private/TypeBinder.cpp`) for a concrete type — reading the parent off the **AST**,
 since `NominalType::Super` is only filled in a later phase than the one that
 attaches layouts (`Driver.cpp`) — and `BackendCore::InstanceLayouts::Of` for a
 generic instantiation, where the parent link is a signature and its arguments
@@ -95,11 +95,11 @@ struct return.
 
 ## Closure environments
 
-`SynthesizeClosureFrame` (Sema) fixes the env aggregate: field offsets,
+`SynthesizeClosureFrame` (`MiddleEnd::Resolver`) fixes the env aggregate: field offsets,
 `TotalSize`, `Alignment`, `bEscapes`. Unlike the rest of this file, closure
 environments are **not a per-target backend concern** any more: `Lambda`/
 `Block` are sugar (`rules/core-ast.md`), and `ClosureLifting`
-(`Sema/.../TypeChecker/ClosureLifting.cpp`) allocates and addresses the env
+(`source/Volt/MiddleEnd/Lowering/Private/ClosureLifting.cpp`) allocates and addresses the env
 itself, upstream, before any backend runs — heap-allocated via an ordinary
 `Pointer<UInt8>.malloc( Frame.TotalSize )` call (the stack-when-non-escaping
 optimisation is a deferred reclaim, not a blocker; every env is heap today),
@@ -152,5 +152,5 @@ for the block shape.
   resolved to a `Member` (static) — there is no `virtual` in the language
   today, so the ABI reserves nothing for it.
 - **Integer literal suffixes** (`0_u64` types as the IntLiteral claimant)
-  — a Sema gap listed in `rules/core-ast.md`, not an ABI concern, recorded
+  — a MiddleEnd gap listed in `rules/core-ast.md`, not an ABI concern, recorded
   here because backends will surface it as "wrong width constant" reports.

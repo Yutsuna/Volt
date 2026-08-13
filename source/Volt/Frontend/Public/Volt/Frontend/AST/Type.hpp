@@ -62,6 +62,26 @@ namespace Frontend
         TypeList Params;
     };
 
+    // `typeof( expr )` — the type `expr` has, written where a type is written.
+    //
+    // The one type node whose operand is a *value*: every other shape here is
+    // built from types alone, which is what lets `ResolveTypeExpr` resolve them
+    // all through one reflected line. This one cannot go that way — answering
+    // it means inferring an expression, and inference lives above the type
+    // system — so `UnitSink` carries a hook back into `Analysis` and this node
+    // is the only branch that consults it. A sink with no hook (`SigSink`, a
+    // declaration's own signature) cannot answer it and says so.
+    //
+    // `Value` is never walked by the TypeChecker: it sits inside an annotation,
+    // not in expression position, so nothing else infers it and the hook is
+    // what gives it a type at all.
+    struct TypeOfType
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+    };
+
     enum class TypeKind
     {
 

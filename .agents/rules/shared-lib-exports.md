@@ -1,6 +1,6 @@
 # Rule: shared-lib exports — annotate what crosses a `.so` boundary
 
-Every Volt module (`Core`, `Frontend`, `Sema`, `Driver`, …) compiles with
+Every Volt module (`Core`, `Frontend`, `MiddleEnd`, `Driver`, …) compiles with
 `-fvisibility=hidden` / `-fvisibility-inlines-hidden` (`meson/meson.build`).
 When `default_library=shared`, Meson builds each module as a `.so` and generates `<Module>_export.hpp` (e.g. `Core_export.hpp`) with a `<MODULE>_EXPORT` macro
 (e.g. `CORE_EXPORT`). That generated header's directory is on the module's

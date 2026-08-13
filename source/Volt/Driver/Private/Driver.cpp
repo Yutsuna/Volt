@@ -13,8 +13,8 @@
 #include "Volt/Frontend/AST/PointFreeLowering.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
-#include "Volt/Sema/Pass.hpp"
-#include "Volt/Sema/Raii/OwnershipInference.hpp"
+#include "Volt/MiddleEnd/Analysis/Raii/OwnershipInference.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -174,7 +174,7 @@ namespace
 // serialised `ExceptionRoot` field.
 // Bumped to 04 when `@[Unhandled]` was deleted: `Member` lost its serialised
 // `bUnhandled` field.
-// Bumped to 05 when `Sema::Member` gained `bReturnsOwned`: the store's cache
+// Bumped to 05 when `MiddleEnd::TypeSystem::Member` gained `bReturnsOwned`: the store's cache
 // is a reflected aggregate dump, so a new field silently shifts every byte
 // after it. The magic is the only thing standing between a stale cache and a
 // misread signature table.
@@ -185,7 +185,7 @@ namespace
 // the cache key hashes stdlib *sources*, which did not change either, so
 // nothing else would have invalidated it and every build would keep reading
 // a store whose member tables predate the synthesis.
-// Bumped to 07 when `Sema::Member` gained `ParamEscapes`: a new serialised
+// Bumped to 07 when `MiddleEnd::TypeSystem::Member` gained `ParamEscapes`: a new serialised
 // field, so the same byte-shift reasoning as 05 applies.
 // Bumped to 08 for the RAII epic's second half. No serialised *field* changed
 // — the same "content, not shape" case as 06, and for two reasons at once:
@@ -197,7 +197,11 @@ namespace
 // cached ASTs, and neither would invalidate the key on its own: it hashes
 // stdlib *sources*, which did not change, plus the `volt` executable's own
 // identity — which does not move when only a module `.so` is relinked.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453038ULL; // "VOLTFE08"
+// Bumped for "VOLTFE09": expression types moved out of the per-unit arena and
+// into the store's canonical TypeUniverse, so the store now carries them and a
+// unit carries only its ExprId -> SemaTypeId mapping (TypeUniverse.hpp). An
+// older file would deserialize into a shape that no longer exists.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453039ULL; // "VOLTFE09"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -335,52 +339,54 @@ namespace
 
 // The per-unit pass context, identical for both halves of the sema run — the
 // split is in *which* passes execute, never in what they are handed.
-[[nodiscard]] Volt::Sema::PassContext MakeSemaContext ( Volt::Driver::CompileUnit &Unit,
-                                                        Volt::Core::DiagEngine::Bag &Bag,
-                                                        Volt::Sema::TypeStore &Types,
-                                                        Volt::Sema::InterfaceRegistry &Registry,
-                                                        Volt::Core::SourceManager &Sources )
+[[nodiscard]] Volt::MiddleEnd::Core::PassContext MakeSemaContext ( Volt::Driver::CompileUnit &Unit,
+                                                                   Volt::Core::DiagEngine::Bag &Bag,
+                                                                   Volt::MiddleEnd::TypeSystem::TypeStore &Types,
+                                                                   Volt::MiddleEnd::Resolver::InterfaceRegistry &Registry,
+                                                                   Volt::Core::SourceManager &Sources )
 {
     // Passes (JsxLowering included) run per file over local state; the
     // published Registry is the only shared input, and it is read-only.
-    return Volt::Sema::PassContext{ .Ast     = Unit.Ast,
-                                    .Types   = Types,
-                                    .Values  = Unit.Types,
-                                    .Scopes  = Unit.Scopes,
-                                    .Diags   = Bag,
-                                    .Stats   = Unit.Stats,
-                                    .Globals = &Registry,
-                                    .Sources = &Sources,
-                                    .Callees = &Unit.Callees,
-                                    .Synth   = Unit.Synth };
+    return Volt::MiddleEnd::Core::PassContext{ .Ast     = Unit.Ast,
+                                               .Types   = Types,
+                                               .Values  = Unit.Types,
+                                               .Scopes  = Unit.Scopes,
+                                               .Diags   = Bag,
+                                               .Stats   = Unit.Stats,
+                                               .Globals = &Registry,
+                                               .Sources = &Sources,
+                                               .Callees = &Unit.Callees,
+                                               .Synth   = Unit.Synth };
 }
 
 } // namespace
 
 void Volt::Driver::Driver::RunSemaLoweringOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
-    Sema::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
-    static_cast<void>( Sema::RunPasses( Context, std::numeric_limits<int>::min(), Sema::LoweredSeamOrder() ) );
+    MiddleEnd::Core::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
+    static_cast<void>(
+        MiddleEnd::Core::RunPasses( Context, std::numeric_limits<int>::min(), MiddleEnd::Core::LoweredSeamOrder() ) );
 }
 
 void Volt::Driver::Driver::RunSemaTypedOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
-    Sema::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
-    static_cast<void>( Sema::RunPasses( Context, Sema::LoweredSeamOrder(), std::numeric_limits<int>::max() ) );
+    MiddleEnd::Core::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
+    static_cast<void>(
+        MiddleEnd::Core::RunPasses( Context, MiddleEnd::Core::LoweredSeamOrder(), std::numeric_limits<int>::max() ) );
 }
 
 void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
     // Lowerings rewrite purely local state; no published interfaces.
-    Sema::PassContext Context{ .Ast     = Unit.Ast,
-                               .Types   = Types,
-                               .Values  = Unit.Types,
-                               .Scopes  = Unit.Scopes,
-                               .Diags   = Bag,
-                               .Stats   = Unit.Stats,
-                               .Sources = &Sources,
-                               .Synth   = Unit.Synth };
-    static_cast<void>( Sema::RunPasses( Context, Sema::EPassKind::Lowering ) );
+    MiddleEnd::Core::PassContext Context{ .Ast     = Unit.Ast,
+                                          .Types   = Types,
+                                          .Values  = Unit.Types,
+                                          .Scopes  = Unit.Scopes,
+                                          .Diags   = Bag,
+                                          .Stats   = Unit.Stats,
+                                          .Sources = &Sources,
+                                          .Synth   = Unit.Synth };
+    static_cast<void>( MiddleEnd::Core::RunPasses( Context, MiddleEnd::Core::EPassKind::Lowering ) );
 }
 
 Volt::Driver::CompileResult
@@ -397,6 +403,11 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             continue;
         }
         Units.emplace_back( File, Ref.Path, Ref.Module, Ref.bComponent );
+        // Every unit interns into the *build's* dictionary, so `G<A>` is one
+        // handle no matter which file wrote it (TypeUniverse.hpp). Bound here,
+        // before anything can type an expression — an unbound UnitTypes answers
+        // no type at all, which is the loud failure this ordering avoids.
+        Units.back().Types.BindUniverse( Types.Universe() );
     }
 
     // A file that failed to load never got a Units entry, so a caller's
@@ -464,11 +475,11 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
                 continue; // already published/bound, straight from the cache
             }
             const auto Ordinal = static_cast<std::uint32_t>( Index );
-            static_cast<void>( Sema::PublishUnitInterface( Units[Index].Ast, Ordinal, Registry ) );
+            static_cast<void>( MiddleEnd::Resolver::PublishUnitInterface( Units[Index].Ast, Ordinal, Registry ) );
             // Same seam, same reason: type binding is cross-unit, so it
             // cannot be a per-file parallel pass. Once this loop ends the
             // store is frozen and sema reads it without a lock.
-            static_cast<void>( Sema::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
+            static_cast<void>( MiddleEnd::Resolver::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
         }
 
         // Every unit's Phase A is done, so every type this build declares
@@ -485,7 +496,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         {
             UnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
         }
-        Sema::ResolveStructLayouts( UnitAsts, Types, &SeamBag );
+        MiddleEnd::Resolver::ResolveStructLayouts( UnitAsts, Types, &SeamBag );
 
         // Still serial, still the same seam, right after field layouts land
         // and before any signature is resolved: synthesize an empty
@@ -502,7 +513,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         {
             MutableUnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
         }
-        Sema::SynthesizeFinalizeStubs( MutableUnitAsts, Types );
+        MiddleEnd::Resolver::SynthesizeFinalizeStubs( MutableUnitAsts, Types );
 
         // Still serial, still the same seam, but a second pass: a signature
         // may name a type declared in a file that comes later, so every name
@@ -514,7 +525,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             {
                 continue;
             }
-            Sema::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
+            MiddleEnd::Resolver::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
         }
 
         Diagnostics.Merge( std::move( SeamBag ) );
@@ -554,12 +565,12 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         //
         // `UnitAsts` (the read-only view built above) is what it wants:
         // nothing here mutates an AST, only the store's own `Member` records.
-        Sema::Raii::InferReturnOwnership( UnitAsts, Types );
+        MiddleEnd::Analysis::Raii::InferReturnOwnership( UnitAsts, Types );
         // The mirror question, same seam and same reasons: whether a callee
         // keeps what it is handed. Independent of the fixpoint above — one
         // reasons about results, the other about arguments — so the order
         // between the two is free.
-        Sema::Raii::InferParameterEscape( UnitAsts, Types );
+        MiddleEnd::Analysis::Raii::InferParameterEscape( UnitAsts, Types );
 
         // parallel, second half: typing, and every check built on typing.
         ForEachUnitParallel( &Driver::RunSemaTypedOne, SemaBegin, Units.size() );
@@ -654,16 +665,17 @@ bool Volt::Driver::Driver::TryLoadFrontendCache ( std::size_t StdlibCount )
     // embed (or are) a StringInterner, whose bump allocator is neither
     // copyable nor movable.
     Types.Clear();
-    Registry = Sema::InterfaceRegistry{};
+    Registry = MiddleEnd::Resolver::InterfaceRegistry{};
     for ( std::size_t Index = 0; Index < StdlibCount; ++Index )
     {
         CompileUnit &Unit = Units[Index];
         Unit.Interner.Clear();
-        Unit.Ast     = Frontend::AstContext{ Unit.Interner, Unit.File };
-        Unit.Types   = Sema::UnitTypes{};
-        Unit.Callees = Sema::UnitCallees{};
-        Unit.Scopes  = Sema::ScopeTable{};
-        Unit.Stats   = Sema::PassStats{};
+        Unit.Ast   = Frontend::AstContext{ Unit.Interner, Unit.File };
+        Unit.Types = MiddleEnd::TypeSystem::UnitTypes{};
+        Unit.Types.BindUniverse( Types.Universe() ); // reset dropped the binding CompileRefs made
+        Unit.Callees = MiddleEnd::IR::UnitCallees{};
+        Unit.Scopes  = MiddleEnd::Resolver::ScopeTable{};
+        Unit.Stats   = MiddleEnd::Core::PassStats{};
     }
     ReportDriver( Core::ESeverity::Warning, "stdlib frontend cache is missing, corrupt, or stale; recompiling" );
     return false;

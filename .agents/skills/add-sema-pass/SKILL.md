@@ -6,23 +6,23 @@ description: Recipe to add a Volt semantic pass — one PassList.inl line plus a
 # Add a sema pass
 
 1. **Manifest (1 line).** In
-   `source/Volt/Sema/Public/Volt/Sema/PassList.inl`:
+   `source/Volt/MiddleEnd/Core/Public/Volt/MiddleEnd/Core/PassList.inl`:
    ```cpp
    VOLT_PASS( MyPass, 25 )   // Order: ScopeResolver 10, JsxLowering 20, TypeChecker 30
    ```
    The registry is built from this manifest and sorted by Order.
 
-2. **Definition.** In `source/Volt/Sema/Private/Passes/`:
+2. **Definition.** In `source/Volt/MiddleEnd/<Submodule>/Private/` (e.g. `Analysis/Private/` or `Lowering/Private/`):
    ```cpp
-   #include "Volt/Sema/Pass.hpp"
-   namespace Volt { namespace Sema {
+   #include "Volt/MiddleEnd/Core/Pass.hpp"
+   namespace Volt::MiddleEnd {
        void MyPass( PassContext& Context )
        {
            // Context.Ast   — the file's AstContext
            // Context.Types — TypeStore (name -> MemoryLayout)
            // Context.Diags — thread-local diagnostic Bag
        }
-   } }
+   }
    ```
    `PassRegistry()` / `RunPasses()` pick it up with no extra wiring; the Driver
    runs every pass per file across its thread pool.

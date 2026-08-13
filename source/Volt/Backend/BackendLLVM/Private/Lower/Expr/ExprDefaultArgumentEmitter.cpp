@@ -18,7 +18,8 @@
 #include <cstddef>
 #include <variant>
 
-llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitDefaultArgument ( const Sema::Member &Decl, std::size_t Index )
+llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitDefaultArgument ( const MiddleEnd::TypeSystem::Member &Decl,
+                                                                     std::size_t Index )
 {
     const UnitView *Home = nullptr;
     for ( const UnitView &View : Services().Build->Units )
@@ -47,12 +48,12 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitDefaultArgument ( const Sema:
 
     FunctionFrame &Fr = Frame();
 
-    const UnitView *SavedUnit             = Fr.Unit;
-    const Sema::UnitTypes *SavedValues    = Fr.Values;
-    const Sema::UnitCallees *SavedCallees = Fr.Callees;
-    Fr.Unit                               = Home;
-    Fr.Values                             = Home->Values;
-    Fr.Callees                            = Home->Callees;
+    const UnitView *SavedUnit                           = Fr.Unit;
+    const MiddleEnd::TypeSystem::UnitTypes *SavedValues = Fr.Values;
+    const MiddleEnd::IR::UnitCallees *SavedCallees      = Fr.Callees;
+    Fr.Unit                                             = Home;
+    Fr.Values                                           = Home->Values;
+    Fr.Callees                                          = Home->Callees;
 
     llvm::Value *Value = EmitExpr( Default );
 

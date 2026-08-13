@@ -17,7 +17,7 @@
 
 llvm::Value *Volt::Backend::Llvm::EmitUnary ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::Unary &Node )
 {
-    if ( const Sema::CalleeEntry *Entry = ResolvedOperator( Emitter, Id ); Entry != nullptr )
+    if ( const MiddleEnd::IR::CalleeEntry *Entry = ResolvedOperator( Emitter, Id ); Entry != nullptr )
     {
         return Emitter.EmitResolvedCall( Id, *Entry, Node.Operand, {} );
     }

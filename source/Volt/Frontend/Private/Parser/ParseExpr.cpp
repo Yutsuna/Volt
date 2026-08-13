@@ -507,7 +507,14 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
             Member Node;
             Node.Object       = Lhs;
             const Token &Name = Peek();
-            if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) )
+            // A receiver trait (`obj.is_a? T`) stands exactly where a member
+            // name stands and interns as its own spelling — it is a reserved
+            // word, so the lexer hands it over as a keyword token rather than
+            // an Identifier. Nothing downstream ever resolves the name:
+            // ExprInferencer answers the question through
+            // ConstEval::TraitEngine and replaces the node with its answer.
+            const bool bTrait = IsReceiverTrait( PeekKind() );
+            if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) or bTrait )
             {
                 Node.Name = InternText( Advance() );
             }
@@ -517,6 +524,26 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
                 Node.Name = InternText( Name );
             }
             Lhs = MakeExpr( Node, RangeSince( Begin ) );
+
+            // The paren-less spelling, `obj.is_a? T`. **Only** a trait absorbs
+            // an argument this way — `a.b c` still parses as a member access
+            // followed by a separate statement, so no existing program moves.
+            // A parenthesised `obj.is_a?( T )` needs nothing here: the loop's
+            // own `LParen` arm builds the identical Call on its next turn.
+            //
+            // The operand is a type name or a symbol, never an arithmetic
+            // expression, so it is parsed above every infix operator that can
+            // legally follow the question — `x.is_a? T and y` groups as
+            // `( x.is_a? T ) and y`, which is the only reading anyone means.
+            // 65 is the operator-section arm's own choice, for the same reason.
+            if ( bTrait and not Check( TokenKind::LParen ) and CanStartCommandArgument() )
+            {
+                Call TraitCall;
+                TraitCall.Callee = Lhs;
+                TraitCall.Args.PushBack( ParseExpr( 65 ) );
+                TraitCall.ArgNames.PushBack( Symbol{} );
+                Lhs = MakeExpr( TraitCall, RangeSince( Begin ) );
+            }
         }
         else if ( AtGenericArgs() )
         {

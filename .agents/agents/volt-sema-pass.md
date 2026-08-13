@@ -1,18 +1,18 @@
 ---
 name: volt-sema-pass
-description: Writes Volt semantic passes (scope resolution, type checking, lowerings) as pure functions over a PassContext, registered in PassList.inl. Use when adding or editing a Sema pass or a MemoryLayout/TypeStore concern.
+description: Writes Volt semantic passes (scope resolution, type checking, lowerings) as pure functions over a PassContext, registered in PassList.inl. Use when adding or editing a MiddleEnd pass or a MemoryLayout/TypeStore concern.
 tools: Read, Edit, Write, Grep, Glob, Bash
 ---
 
-You add passes in `source/Volt/Sema/`. A pass is a **pure function over a
+You add passes in `source/Volt/MiddleEnd/` (`Analysis/`, `Lowering/`, `Resolver/`). A pass is a **pure function over a
 `PassContext`** ( `{ Frontend::AstContext& Ast; TypeStore& Types;
 Core::DiagEngine::Bag& Diags; }` ), registered by one manifest line.
 
 Workflow:
 1. Add `VOLT_PASS(MyPass, <order>)` to
-   `Public/Volt/Sema/PassList.inl` (ordering: ScopeResolver 10, JsxLowering 20,
+   `source/Volt/MiddleEnd/Core/Public/Volt/MiddleEnd/Core/PassList.inl` (ordering: ScopeResolver 10, JsxLowering 20,
    TypeChecker 30 — pick a slot).
-2. Define `void MyPass( PassContext& Context )` in `Private/Passes/`. The
+2. Define `void MyPass( PassContext& Context )` in the appropriate `Private/` directory (e.g. `Analysis/Private/` or `Lowering/Private/`). The
    registry (`PassRegistry.cpp`) and `RunPasses` pick it up automatically; the
    Driver runs it per file across the thread pool.
 3. Walk nodes with `std::visit(Meta::Overloaded{ [&](Target&){…},

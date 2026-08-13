@@ -41,8 +41,8 @@ constexpr std::uint32_t MaxDepth = 16;
 // (`Comparable#..`'s `-> Range<self>`, not just a bare `-> self`). False when
 // the signature names something the bindings cannot answer — a hole the
 // caller reports rather than papers over.
-[[nodiscard]] bool FlattenSig ( const Volt::Sema::TypeStore &Store,
-                                Volt::Sema::SigTypeId Id,
+[[nodiscard]] bool FlattenSig ( const Volt::MiddleEnd::TypeSystem::TypeStore &Store,
+                                Volt::MiddleEnd::TypeSystem::SigTypeId Id,
                                 std::span<const std::uint32_t> FlatArgs,
                                 std::span<const std::uint32_t> SelfArgs,
                                 std::uint32_t Depth,
@@ -53,7 +53,7 @@ constexpr std::uint32_t MaxDepth = 16;
         return false;
     }
 
-    const Volt::Sema::SigType &Sig = Store.Sig( Id );
+    const Volt::MiddleEnd::TypeSystem::SigType &Sig = Store.Sig( Id );
 
     // A generic parameter is answered verbatim by the binding that filled it:
     // the argument arrives already concrete, so its subtree is copied as-is.
@@ -73,7 +73,7 @@ constexpr std::uint32_t MaxDepth = 16;
     // `SelfArgs` exactly as a generic parameter is answered by `FlatArgs`.
     // Refused, not guessed, when the caller had no receiver to offer one
     // (a bare field signature can never mention `self` to begin with).
-    if ( Sig.ParamIndex == Volt::Sema::SigType::SelfParam )
+    if ( Sig.ParamIndex == Volt::MiddleEnd::TypeSystem::SigType::SelfParam )
     {
         if ( SelfArgs.empty() )
         {
@@ -90,7 +90,7 @@ constexpr std::uint32_t MaxDepth = 16;
 
     Out.push_back( Sig.Base.Value );
     Out.push_back( static_cast<std::uint32_t>( Sig.Args.Size() ) );
-    for ( const Volt::Sema::SigTypeId Arg : Sig.Args )
+    for ( const Volt::MiddleEnd::TypeSystem::SigTypeId Arg : Sig.Args )
     {
         if ( not FlattenSig( Store, Arg, FlatArgs, SelfArgs, Depth + 1, Out ) )
         {
@@ -121,8 +121,9 @@ std::span<const std::uint32_t> Volt::Backend::ArgSubtree ( std::span<const std::
     return {};
 }
 
-std::vector<std::uint32_t>
-Volt::Backend::SelfSubtree ( const Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs )
+std::vector<std::uint32_t> Volt::Backend::SelfSubtree ( const MiddleEnd::TypeSystem::TypeStore &Store,
+                                                        MiddleEnd::TypeSystem::NominalId Base,
+                                                        std::span<const std::uint32_t> FlatArgs )
 {
     std::vector<std::uint32_t> Out;
     if ( not Base.IsValid() )
@@ -135,19 +136,19 @@ Volt::Backend::SelfSubtree ( const Sema::TypeStore &Store, Sema::NominalId Base,
     return Out;
 }
 
-Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSignature ( Sema::TypeStore &Store,
-                                                                   Sema::SigTypeId Id,
-                                                                   std::span<const std::uint32_t> FlatArgs,
-                                                                   std::span<const std::uint32_t> SelfArgs )
+Volt::MiddleEnd::TypeSystem::LayoutId Volt::Backend::InstanceLayouts::OfSignature ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                                    MiddleEnd::TypeSystem::SigTypeId Id,
+                                                                                    std::span<const std::uint32_t> FlatArgs,
+                                                                                    std::span<const std::uint32_t> SelfArgs )
 {
     if ( not Id.IsValid() )
     {
-        return Sema::LayoutId{};
+        return MiddleEnd::TypeSystem::LayoutId{};
     }
 
-    if ( const Sema::NominalId Base = Store.Sig( Id ).Base; Base.IsValid() )
+    if ( const MiddleEnd::TypeSystem::NominalId Base = Store.Sig( Id ).Base; Base.IsValid() )
     {
-        if ( const Sema::LayoutId Attached = Store.Type( Base ).Layout; Attached.IsValid() )
+        if ( const MiddleEnd::TypeSystem::LayoutId Attached = Store.Type( Base ).Layout; Attached.IsValid() )
         {
             return Attached;
         }
@@ -155,30 +156,31 @@ Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSignature ( Sema::TypeSto
     return OfSig( Store, Id, FlatArgs, SelfArgs, 1 );
 }
 
-Volt::Sema::LayoutId Volt::Backend::InstanceLayouts::OfSig ( Sema::TypeStore &Store,
-                                                             Sema::SigTypeId Id,
-                                                             std::span<const std::uint32_t> FlatArgs,
-                                                             std::span<const std::uint32_t> SelfArgs,
-                                                             std::uint32_t Depth )
+Volt::MiddleEnd::TypeSystem::LayoutId Volt::Backend::InstanceLayouts::OfSig ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                              MiddleEnd::TypeSystem::SigTypeId Id,
+                                                                              std::span<const std::uint32_t> FlatArgs,
+                                                                              std::span<const std::uint32_t> SelfArgs,
+                                                                              std::uint32_t Depth )
 {
     std::vector<std::uint32_t> Tree;
     if ( Depth > MaxDepth or not FlattenSig( Store, Id, FlatArgs, SelfArgs, Depth, Tree ) or Tree.size() < 2 )
     {
-        return Sema::LayoutId{};
+        return MiddleEnd::TypeSystem::LayoutId{};
     }
 
-    const Sema::NominalId Base{ Tree[0] };
+    const MiddleEnd::TypeSystem::NominalId Base{ Tree[0] };
     // Tree[1] is the argument count; everything after the header *is* that
     // node's argument list, in the same encoding.
     return Of( Store, Base, std::span<const std::uint32_t>{ Tree }.subspan( 2 ) );
 }
 
-Volt::Sema::LayoutId
-Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Base, std::span<const std::uint32_t> FlatArgs )
+Volt::MiddleEnd::TypeSystem::LayoutId Volt::Backend::InstanceLayouts::Of ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                                           MiddleEnd::TypeSystem::NominalId Base,
+                                                                           std::span<const std::uint32_t> FlatArgs )
 {
     if ( not Base.IsValid() )
     {
-        return Sema::LayoutId{};
+        return MiddleEnd::TypeSystem::LayoutId{};
     }
 
     std::vector<std::uint32_t> Key;
@@ -194,7 +196,7 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     // An already-attached layout wins over any substitution: `@[Primitive]`
     // fixes a shape regardless of arguments — `Pointer<T>` is `ptr` for every
     // T — and a non-generic aggregate was already computed by TypeBinder.
-    if ( const Sema::LayoutId Attached = Store.Type( Base ).Layout; Attached.IsValid() )
+    if ( const MiddleEnd::TypeSystem::LayoutId Attached = Store.Type( Base ).Layout; Attached.IsValid() )
     {
         Cache.emplace( std::move( Key ), Attached );
         return Attached;
@@ -203,13 +205,13 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     // Claim the key before descending: a generic that reaches itself through a
     // by-value field is malformed, and must terminate as an invalid layout
     // rather than recurse forever.
-    const auto [Slot, bFresh] = Cache.emplace( Key, Sema::LayoutId{} );
+    const auto [Slot, bFresh] = Cache.emplace( Key, MiddleEnd::TypeSystem::LayoutId{} );
     if ( not bFresh )
     {
         return Slot->second;
     }
 
-    Sema::Aggregate Shape;
+    MiddleEnd::TypeSystem::Aggregate Shape;
 
     // `self` inside any of Base's own field/parent signatures means this
     // very instance — `Base` instantiated with `FlatArgs` — the same subtree
@@ -222,11 +224,12 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     // inherited `@x` is looked up by name in the subclass's layout. Here the
     // parent link is a *signature*, so it goes through OfSig and its arguments
     // are substituted out of FlatArgs exactly like a field's would be.
-    if ( const Sema::LayoutId Inherited = OfSig( Store, Store.Type( Base ).Super, FlatArgs, SelfArgs, 1 ); Inherited.IsValid() )
+    if ( const MiddleEnd::TypeSystem::LayoutId Inherited = OfSig( Store, Store.Type( Base ).Super, FlatArgs, SelfArgs, 1 );
+         Inherited.IsValid() )
     {
-        if ( const auto *Parent = std::get_if<Sema::Aggregate>( &Store.Get( Inherited ) ); Parent != nullptr )
+        if ( const auto *Parent = std::get_if<MiddleEnd::TypeSystem::Aggregate>( &Store.Get( Inherited ) ); Parent != nullptr )
         {
-            for ( const Sema::FieldLayout &Field : Parent->Fields )
+            for ( const MiddleEnd::TypeSystem::FieldLayout &Field : Parent->Fields )
             {
                 Shape.Fields.PushBack( Field );
             }
@@ -239,9 +242,9 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
     // through `Entry.Params`, since an `EnumCase` member's own `Result` is
     // the constructed enum itself (`SelfSigOf`), not a payload type.
     bool bHasEnumCase = false;
-    for ( const Sema::Member &Entry : Store.Type( Base ).Members )
+    for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Base ).Members )
     {
-        if ( Entry.Kind == Sema::EMemberKind::EnumCase )
+        if ( Entry.Kind == MiddleEnd::TypeSystem::EMemberKind::EnumCase )
         {
             bHasEnumCase = true;
             break;
@@ -265,15 +268,15 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
         // is out of scope until a sample needs it.
         if ( const auto DefaultTag = Store.LookupNodeKind( "IntLiteral" ) )
         {
-            if ( const Sema::LayoutId TagLayout = Store.Type( *DefaultTag ).Layout; TagLayout.IsValid() )
+            if ( const MiddleEnd::TypeSystem::LayoutId TagLayout = Store.Type( *DefaultTag ).Layout; TagLayout.IsValid() )
             {
-                Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( "tag" ), .Type = TagLayout } );
+                Shape.Fields.PushBack( MiddleEnd::TypeSystem::FieldLayout{ .Name = Store.Intern( "tag" ), .Type = TagLayout } );
             }
         }
 
-        for ( const Sema::Member &Entry : Store.Type( Base ).Members )
+        for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Base ).Members )
         {
-            if ( Entry.Kind != Sema::EMemberKind::EnumCase )
+            if ( Entry.Kind != MiddleEnd::TypeSystem::EMemberKind::EnumCase )
             {
                 continue;
             }
@@ -290,30 +293,30 @@ Volt::Backend::InstanceLayouts::Of ( Sema::TypeStore &Store, Sema::NominalId Bas
                 const std::string FieldName = Entry.Params.Size() > 1
                                                   ? "$" + std::string{ Store.Text( Entry.Name ) } + "_" + std::to_string( Index )
                                                   : "$" + std::string{ Store.Text( Entry.Name ) };
-                Shape.Fields.PushBack( Sema::FieldLayout{ .Name = Store.Intern( FieldName ),
-                                                          .Type = OfSig( Store, Entry.Params[Index], FlatArgs, SelfArgs, 1 ) } );
+                Shape.Fields.PushBack( MiddleEnd::TypeSystem::FieldLayout{
+                    .Name = Store.Intern( FieldName ), .Type = OfSig( Store, Entry.Params[Index], FlatArgs, SelfArgs, 1 ) } );
             }
         }
     }
     else
     {
-        for ( const Sema::Member &Entry : Store.Type( Base ).Members )
+        for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Base ).Members )
         {
-            if ( Entry.Kind != Sema::EMemberKind::Field )
+            if ( Entry.Kind != MiddleEnd::TypeSystem::EMemberKind::Field )
             {
                 continue;
             }
-            Shape.Fields.PushBack(
-                Sema::FieldLayout{ .Name = Entry.Name, .Type = OfSig( Store, Entry.Result, FlatArgs, SelfArgs, 1 ) } );
+            Shape.Fields.PushBack( MiddleEnd::TypeSystem::FieldLayout{
+                .Name = Entry.Name, .Type = OfSig( Store, Entry.Result, FlatArgs, SelfArgs, 1 ) } );
         }
     }
 
     if ( Shape.Fields.Size() == 0 )
     {
-        return Sema::LayoutId{};
+        return MiddleEnd::TypeSystem::LayoutId{};
     }
 
-    const Sema::LayoutId Built = Store.AddAggregate( std::move( Shape ) );
+    const MiddleEnd::TypeSystem::LayoutId Built = Store.AddAggregate( std::move( Shape ) );
 
     // std::map nodes are stable, so the iterator claimed above is still the
     // slot to fill — no second lookup.

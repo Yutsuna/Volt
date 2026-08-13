@@ -8,19 +8,19 @@
 
 #include "Lower/Mono/MonoDriver.hpp"
 
-const Volt::Sema::Member *Volt::Backend::Llvm::MonoDriver::LookupMonoMember ( const MonoRequest &Request,
-                                                                              const UnitView **OutUnit ) const
+const Volt::MiddleEnd::TypeSystem::Member *Volt::Backend::Llvm::MonoDriver::LookupMonoMember ( const MonoRequest &Request,
+                                                                                               const UnitView **OutUnit ) const
 {
-    const Sema::TypeStore &Store = *Services->Build->Types;
+    const MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
 
-    const Sema::Member *Found = nullptr;
+    const MiddleEnd::TypeSystem::Member *Found = nullptr;
     if ( Request.Owner.IsValid() )
     {
         Found = Store.LookupMember( Request.Owner, Store.Text( Request.Name ) ).Decl;
     }
     else
     {
-        for ( const Sema::Member &Candidate : Store.FreeFunctions() )
+        for ( const MiddleEnd::TypeSystem::Member &Candidate : Store.FreeFunctions() )
         {
             if ( Candidate.Name == Request.Name )
             {

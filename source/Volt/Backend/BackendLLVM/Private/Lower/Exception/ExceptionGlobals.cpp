@@ -39,7 +39,8 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionTagSlot (
     llvm::LLVMContext &Context = Services->Ctx->Context();
     llvm::Type *Int32Ty        = llvm::Type::getInt32Ty( Context );
     ExcTag = new llvm::GlobalVariable( Services->Ctx->Mod(), Int32Ty, false, llvm::GlobalValue::LinkOnceODRLinkage,
-                                       llvm::ConstantInt::get( Int32Ty, Sema::NominalId::InvalidValue ), "volt.exc.tag" );
+                                       llvm::ConstantInt::get( Int32Ty, MiddleEnd::TypeSystem::NominalId::InvalidValue ),
+                                       "volt.exc.tag" );
     ExcTag->setThreadLocal( true );
     return ExcTag;
 }

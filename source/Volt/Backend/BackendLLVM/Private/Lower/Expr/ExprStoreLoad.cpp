@@ -48,7 +48,9 @@ namespace
 
 } // namespace
 
-void Volt::Backend::Llvm::BodyEmitter::EmitStore ( llvm::Value *Address, llvm::Value *Value, Sema::LayoutId Shape )
+void Volt::Backend::Llvm::BodyEmitter::EmitStore ( llvm::Value *Address,
+                                                   llvm::Value *Value,
+                                                   MiddleEnd::TypeSystem::LayoutId Shape )
 {
     if ( Address == nullptr or Value == nullptr or Failed() )
     {

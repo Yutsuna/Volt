@@ -78,7 +78,7 @@ namespace Backend
         // The method this operator resolved to, or null when the receiver's
         // layout is what supplies it. Reading this *first* is what keeps member
         // lookup out of the backend.
-        [[nodiscard]] const Sema::CalleeEntry *ResolvedOperator ( BodyEmitter &Emitter, Frontend::ExprId Id );
+        [[nodiscard]] const MiddleEnd::IR::CalleeEntry *ResolvedOperator ( BodyEmitter &Emitter, Frontend::ExprId Id );
 
         // The instruction family of an expression's own receiver layout.
         [[nodiscard]] EOpFamily FamilyOfExpr ( BodyEmitter &Emitter, Frontend::ExprId Id );
@@ -102,7 +102,7 @@ namespace Backend
                                   const Frontend::StmtList &Body,
                                   llvm::AllocaInst *Slot,
                                   llvm::Type *Shape,
-                                  Sema::LayoutId Layout,
+                                  MiddleEnd::TypeSystem::LayoutId Layout,
                                   llvm::BasicBlock *Merge );
 
         // --- Calls -------------------------------------------------------------
@@ -114,7 +114,7 @@ namespace Backend
         // block cannot be passed to a callable.
         [[nodiscard]] llvm::Value *EmitIndirectDispatch ( BodyEmitter &Emitter,
                                                           Frontend::ExprId Id,
-                                                          const Sema::CalleeEntry &Entry,
+                                                          const MiddleEnd::IR::CalleeEntry &Entry,
                                                           Frontend::ExprId Receiver,
                                                           std::span<const Frontend::ExprId> Args,
                                                           Frontend::ExprId Block );
@@ -127,7 +127,7 @@ namespace Backend
         // them: an ordinary dot-call always goes through EmitResolvedCall.
         [[nodiscard]] llvm::Value *EmitNamedConversion ( BodyEmitter &Emitter,
                                                          Frontend::ExprId Id,
-                                                         const Sema::CalleeEntry &Entry,
+                                                         const MiddleEnd::IR::CalleeEntry &Entry,
                                                          Frontend::ExprId Receiver,
                                                          std::span<const Frontend::ExprId> Args );
 

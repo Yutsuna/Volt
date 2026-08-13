@@ -24,18 +24,19 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::AncestryTable ()
         return Ancestry;
     }
 
-    Sema::TypeStore &Store     = *Services->Build->Types;
-    llvm::LLVMContext &Context = Services->Ctx->Context();
-    const std::size_t Count    = Store.TypeCount();
-    llvm::Type *Int32Ty        = llvm::Type::getInt32Ty( Context );
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
+    llvm::LLVMContext &Context              = Services->Ctx->Context();
+    const std::size_t Count                 = Store.TypeCount();
+    llvm::Type *Int32Ty                     = llvm::Type::getInt32Ty( Context );
 
     std::vector<llvm::Constant *> Rows;
     Rows.reserve( Count );
     for ( std::size_t Index = 0; Index < Count; ++Index )
     {
-        const Sema::NominalId Id{ static_cast<Sema::NominalId::ValueType>( Index ) };
-        const Sema::NominalId Super = Store.BaseOf( Store.Type( Id ).Super );
-        Rows.push_back( llvm::ConstantInt::get( Int32Ty, Super.IsValid() ? Super.Value : Sema::NominalId::InvalidValue ) );
+        const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
+        const MiddleEnd::TypeSystem::NominalId Super = Store.BaseOf( Store.Type( Id ).Super );
+        Rows.push_back(
+            llvm::ConstantInt::get( Int32Ty, Super.IsValid() ? Super.Value : MiddleEnd::TypeSystem::NominalId::InvalidValue ) );
     }
 
     llvm::ArrayType *TableType = llvm::ArrayType::get( Int32Ty, Count );

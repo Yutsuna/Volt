@@ -8,8 +8,8 @@
 // numbers, so a struct laid out by the VM matches what LLVM and WASM emit.
 
 #include "BackendCore_export.hpp"
-#include "Volt/Sema/Layout/MemoryLayout.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
+#include "Volt/MiddleEnd/TypeSystem/MemoryLayout.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstddef>
 
@@ -31,7 +31,7 @@ namespace Backend
 
     public:
 
-        explicit LayoutEngine ( const Sema::TypeStore &InStore ) : Store( InStore )
+        explicit LayoutEngine ( const MiddleEnd::TypeSystem::TypeStore &InStore ) : Store( InStore )
         {
         }
 
@@ -40,16 +40,16 @@ namespace Backend
         // 8); a Pointer is 8/8; an Aggregate lays fields out in declaration
         // order, each at its own alignment, padded to the max field
         // alignment.
-        [[nodiscard]] SizeAlign Of ( Sema::LayoutId Id ) const;
+        [[nodiscard]] SizeAlign Of ( MiddleEnd::TypeSystem::LayoutId Id ) const;
 
         // Byte offset of field `Index` inside an Aggregate layout. Returns 0
         // for anything that is not an aggregate or out of range — callers
         // index off the same LayoutNode they resolved the field on.
-        [[nodiscard]] std::size_t FieldOffset ( Sema::LayoutId Aggregate, std::size_t Index ) const;
+        [[nodiscard]] std::size_t FieldOffset ( MiddleEnd::TypeSystem::LayoutId Aggregate, std::size_t Index ) const;
 
     private:
 
-        const Sema::TypeStore &Store;
+        const MiddleEnd::TypeSystem::TypeStore &Store;
     };
 
 } // namespace Backend

@@ -21,7 +21,7 @@ llvm::Value *Volt::Backend::Llvm::EmitBinary ( BodyEmitter &Emitter, Frontend::E
     // The protocol, in the one order that keeps a backend free of member lookup
     // (rules/core-ast.md): the resolution first, the instruction only when there
     // is none.
-    if ( const Sema::CalleeEntry *Entry = ResolvedOperator( Emitter, Id ); Entry != nullptr )
+    if ( const MiddleEnd::IR::CalleeEntry *Entry = ResolvedOperator( Emitter, Id ); Entry != nullptr )
     {
         return Emitter.EmitResolvedCall( Id, *Entry, Node.Lhs, std::span<const Frontend::ExprId>{ &Node.Rhs, 1 } );
     }
@@ -34,9 +34,9 @@ llvm::Value *Volt::Backend::Llvm::EmitBinary ( BodyEmitter &Emitter, Frontend::E
         return EmitShortCircuit( Emitter, Node );
     }
 
-    const Sema::LayoutId Shape      = Emitter.LayoutOfExpr( Node.Lhs );
-    const std::string_view Spelling = Emitter.Types().SpellingOf( Shape );
-    const EOpFamily Family          = FamilyOf( Spelling );
+    const MiddleEnd::TypeSystem::LayoutId Shape = Emitter.LayoutOfExpr( Node.Lhs );
+    const std::string_view Spelling             = Emitter.Types().SpellingOf( Shape );
+    const EOpFamily Family                      = FamilyOf( Spelling );
     if ( Family == EOpFamily::None )
     {
         static_cast<void>( Emitter.Fail( "llvm: operator '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +

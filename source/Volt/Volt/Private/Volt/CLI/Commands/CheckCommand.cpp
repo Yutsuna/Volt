@@ -7,7 +7,7 @@
 #include "Volt/Driver/Driver.hpp"
 
 #include "Volt/Core/Meta/Reflect.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
 
 #include <cstddef>
 #include <filesystem>
@@ -20,7 +20,7 @@ namespace
 
 namespace fs = std::filesystem;
 
-void ReportMetrics ( const Volt::Sema::PassStats &Stats )
+void ReportMetrics ( const Volt::MiddleEnd::Core::PassStats &Stats )
 {
     Volt::Core::FLogger::Info( "metrics:", "check" );
     Volt::Meta::ForEachField( Stats,

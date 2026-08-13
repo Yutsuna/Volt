@@ -1,22 +1,22 @@
 # MiddleEnd Specification: Type Inference & Checking (`TypeChecker`)
 
-The `TypeChecker` pass (`source/Volt/Sema/Private/Passes/TypeChecker.cpp`, Pass Order 30) performs bidirectional type inference, constraint solving, operator resolution, and assignability checking across the AST.
+The `TypeChecker` pass (`source/Volt/MiddleEnd/Analysis/Private/TypeChecker.cpp`, Pass Order 30) performs bidirectional type inference, constraint solving, operator resolution, and assignability checking across the AST.
 
 ---
 
 ## Architectural Layout
 
-To maintain clean separation of concerns, `TypeChecker` is modularized under `source/Volt/Sema/Private/Passes/TypeChecker/`:
+To maintain clean separation of concerns, `TypeChecker` is modularized across `source/Volt/MiddleEnd/Analysis/Private/` (and related `TypeSystem` modules):
 
 | Module Component | File Path | Responsible For |
 |---|---|---|
-| `ExprInferencer` | `ExprInferencer.cpp` | Bottom-up & top-down type inference over expressions |
-| `DeclStmtWalker` | `DeclStmtWalker.cpp` | Declaration signatures, control flow, block return types |
-| `TypeCompat` | `TypeCompat.cpp` | Unified assignability predicate `IsAssignable` |
-| `MemberResolver` | `MemberResolver.cpp` | Method dispatch, property access, operator resolution |
-| `LiteralInferencer` | `LiteralInferencer.cpp` | Unconstrained literal tracking and refinement |
-| `TypeCheckerConstraint` | `TypeCheckerConstraint.cpp` | Recursive upstream constraint propagation (`ConstrainExprType`) |
-| `TypeCheckerContext` | `TypeCheckerContext.hpp` | Per-file inference state, constraint queues, `UnitTypes` maps |
+| `ExprInferencer` | `source/Volt/MiddleEnd/Analysis/Private/ExprInferencer.cpp` | Bottom-up & top-down type inference over expressions |
+| `DeclStmtWalker` | `source/Volt/MiddleEnd/Analysis/Private/DeclStmtWalker.cpp` | Declaration signatures, control flow, block return types |
+| `TypeCompat` | `source/Volt/MiddleEnd/TypeSystem/Private/TypeCompat.cpp` | Unified assignability predicate `IsAssignable` |
+| `MemberResolver` | `source/Volt/MiddleEnd/Analysis/Private/MemberResolver.cpp` | Method dispatch, property access, operator resolution |
+| `LiteralInferencer` | `source/Volt/MiddleEnd/Analysis/Private/LiteralInferencer.cpp` | Unconstrained literal tracking and refinement |
+| `TypeCheckerConstraint` | `source/Volt/MiddleEnd/Analysis/Private/TypeCheckerConstraint.cpp` | Recursive upstream constraint propagation (`ConstrainExprType`) |
+| `TypeCheckerContext` | `source/Volt/MiddleEnd/Analysis/Public/Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp` | Per-file inference state, constraint queues, `UnitTypes` maps |
 
 ---
 
@@ -81,5 +81,5 @@ Method calls (`o.method()`), binary operators (`a + b`), unary operators (`!x`),
 
 ### Protocol Uniformity
 - **No AST Mutation**: Operator calls do not generate extra AST call nodes. The original `Binary` / `Unary` AST node remains unchanged.
-- **`UnitCallees` Snapshot**: Resolutions are written once into `UnitCallees` (`CalleeMap.hpp`) at the end of `TypeChecker` (Order 30). Backends inspect `UnitCallees` to distinguish native machine operations from stdlib method invocations.
+- **`UnitCallees` Snapshot**: Resolutions are written once into `UnitCallees` (`source/Volt/MiddleEnd/IR/Public/Volt/MiddleEnd/IR/CalleeMap.hpp`) at the end of `TypeChecker` (Order 30). Backends inspect `UnitCallees` to distinguish native machine operations from stdlib method invocations.
 - **Unresolved Operator Bug Policy**: If neither a primitive layout operation nor a method resolution exists, `TypeChecker` emits a semantic failure diagnostic (`UnknownMember` / `OperatorNotFound`).

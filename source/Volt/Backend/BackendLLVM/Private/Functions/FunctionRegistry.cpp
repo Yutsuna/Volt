@@ -13,8 +13,8 @@
 
 #include <string>
 
-std::string Volt::Backend::Llvm::FunctionRegistry::SymbolOf ( const Sema::Member &Entry,
-                                                              Sema::NominalId Owner,
+std::string Volt::Backend::Llvm::FunctionRegistry::SymbolOf ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                              MiddleEnd::TypeSystem::NominalId Owner,
                                                               std::span<const std::uint32_t> FlatArgs ) const
 {
     // An @[External] member never enters the mangling scheme: the whole point of
@@ -27,8 +27,8 @@ std::string Volt::Backend::Llvm::FunctionRegistry::SymbolOf ( const Sema::Member
     return MangleFunction( *Services->Build->Types, Entry, Owner, FlatArgs );
 }
 
-llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Sema::Member &Entry,
-                                                                     Sema::NominalId Owner,
+llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                                     MiddleEnd::TypeSystem::NominalId Owner,
                                                                      std::span<const std::uint32_t> FlatArgs )
 {
     const std::string Symbol = SymbolOf( Entry, Owner, FlatArgs );
@@ -60,12 +60,13 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Sema:
     return Fn;
 }
 
-llvm::Function *Volt::Backend::Llvm::FunctionRegistry::DeclareMember ( const Sema::Member &Entry, Sema::NominalId Owner )
+llvm::Function *Volt::Backend::Llvm::FunctionRegistry::DeclareMember ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                                       MiddleEnd::TypeSystem::NominalId Owner )
 {
     // A field is storage, not code. An `abstract def` is a contract: either an
     // including type overrides it, or its receiver's layout exempts it and the
     // backend supplies an instruction — no symbol either way.
-    if ( Entry.Kind != Sema::EMemberKind::Method or Entry.bAbstract )
+    if ( Entry.Kind != MiddleEnd::TypeSystem::EMemberKind::Method or Entry.bAbstract )
     {
         return nullptr;
     }

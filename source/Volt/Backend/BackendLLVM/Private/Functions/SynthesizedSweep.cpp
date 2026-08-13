@@ -5,7 +5,7 @@
 // only has to be distinct within the module, never resolvable. Its signature
 // comes straight from already-resolved SemaTypeIds — the lowering pass that
 // created the entry only ever runs once those have settled — instead of a
-// Sema::Member's SigTypeId/FlatArgs substitution.
+// MiddleEnd::TypeSystem::Member's SigTypeId/FlatArgs substitution.
 //
 // Declaration and definition are two sweeps rather than one for a reason stated
 // at DeclareSynthesized's declaration: a FuncAddr in an *ordinary* member's body
@@ -34,15 +34,15 @@
 #include <vector>
 
 void Volt::Backend::Llvm::DeclareSynthesizedFn ( EmitterServices &Services,
-                                                 const Sema::SynthesizedFunction &Fn,
+                                                 const MiddleEnd::IR::SynthesizedFunction &Fn,
                                                  const UnitView &Unit,
-                                                 const Sema::UnitTypes &Values )
+                                                 const MiddleEnd::TypeSystem::UnitTypes &Values )
 {
     llvm::LLVMContext &Context = Services.Ctx->Context();
 
     std::vector<llvm::Type *> Params;
     Params.reserve( Fn.Params.Size() );
-    for ( const Sema::SemaTypeId Param : Fn.Params )
+    for ( const MiddleEnd::TypeSystem::SemaTypeId Param : Fn.Params )
     {
         llvm::Type *Slot = Services.Types->ParamTypeOfLayout( Services.Types->LayoutOfValue( Values, Param ) );
         if ( Slot == nullptr )
@@ -73,18 +73,18 @@ void Volt::Backend::Llvm::DeclareSynthesized ( EmitterServices &Services, const 
     {
         return;
     }
-    for ( const Sema::SynthesizedFunction &Fn : Unit.Synth->All() )
+    for ( const MiddleEnd::IR::SynthesizedFunction &Fn : Unit.Synth->All() )
     {
         DeclareSynthesizedFn( Services, Fn, Unit, *Unit.Values );
     }
 }
 
 void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
-                                                const Sema::SynthesizedFunction &Fn,
+                                                const MiddleEnd::IR::SynthesizedFunction &Fn,
                                                 const UnitView &Unit,
-                                                const Sema::UnitTypes &Values,
-                                                const Sema::UnitCallees &Callees,
-                                                const Sema::ExprRedirectMap *Redirects )
+                                                const MiddleEnd::TypeSystem::UnitTypes &Values,
+                                                const MiddleEnd::IR::UnitCallees &Callees,
+                                                const MiddleEnd::IR::ExprRedirectMap *Redirects )
 {
     const auto *Node = std::get_if<Frontend::Method>( &Unit.Ast->Decl( Fn.Decl ) );
     if ( Node == nullptr )
@@ -130,7 +130,7 @@ void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
         const Frontend::Param &Declared = Unit.Ast->GetParam( ParamRef );
         Arg->setName( Unit.Ast->Text( Declared.Name ) );
 
-        const Sema::BindingSite Site{ ParamRef };
+        const MiddleEnd::Resolver::BindingSite Site{ ParamRef };
         const bool bByAddress = Services.Types->IsAggregate( Services.Types->LayoutOfValue( Values, Values.SiteType( Site ) ) );
         if ( not BindParameter( Emitter, Site, Arg, bByAddress, Unit.Ast->Text( Declared.Name ) ) )
         {
@@ -161,7 +161,7 @@ void Volt::Backend::Llvm::DefineSynthesized ( EmitterServices &Services, const U
     {
         return;
     }
-    for ( const Sema::SynthesizedFunction &Fn : Unit.Synth->All() )
+    for ( const MiddleEnd::IR::SynthesizedFunction &Fn : Unit.Synth->All() )
     {
         DefineSynthesizedFn( Services, Fn, Unit, *Unit.Values, *Unit.Callees );
     }

@@ -69,7 +69,7 @@ nothing and no service outlives it.
 | `FunctionRegistry` | `Functions/FunctionRegistry.hpp/cpp` | Maps mangled symbols to `llvm::Function*`; the declare/define sweeps (`DeclareAll`/`DefineAll`); the synthesized-function sweep for `UnitView::Synth` entries. |
 | `ExceptionLowering` | `Lower/Exception/ExceptionLowering.hpp` and its `.cpp` files | Thread-local `volt.exc.*` globals, ancestry table, `EmitRaise`/`EmitBegin`/`EmitUnwindCheck`/`EmitExceptionCheck`. |
 | `ClosureLowering` | `Lower/Closure/ClosureLowering.hpp` and its `.cpp` files | Indirect calls (`bIndirect` resolution), block-next emission. Closures themselves are fully synthesized upstream by `ClosureLifting`; this service handles only the call-site mechanics. |
-| `MonoDriver` | `Lower/Mono/MonoDriver.hpp/cpp` | Queue management; `Drain()` to fixpoint; drives `MonoBodyEmitter` per request via `Sema::ReinstantiateBody`. |
+| `MonoDriver` | `Lower/Mono/MonoDriver.hpp/cpp` | Queue management; `Drain()` to fixpoint; drives `MonoBodyEmitter` per request via `MiddleEnd::TypeSystem::ReinstantiateBody`. |
 | `TargetPipeline` | `Target/TargetPipeline.hpp` and its `.cpp` files | `RunOptimizationPipeline`, `VerifyModule`, `EmitIrFile`, `EmitObjectFile`. |
 | `LinkerDriver` | `Target/LinkerDriver.hpp/cpp` | Drives the system linker (mold preferred, LLD fallback) for executables and shared libraries. |
 
@@ -187,7 +187,7 @@ node kinds read that flag:
   chain a result.
 
 Nothing else propagates it, because no other node's value can be the
-function's. The rule is **positional, not typed**: it asks nothing of Sema,
+function's. The rule is **positional, not typed**: it asks nothing of MiddleEnd,
 which is the only reason it is allowed to live in a backend at all. `EmitCase`
 uses the same rule per clause, converging through a slot rather than a phi
 (a clause is a statement list, so the incoming-block count is not known until
@@ -273,7 +273,7 @@ Each is refused by a message naming the hole rather than guessed at, per
   value expression"). The emitter measures that layout through `LayoutEngine`
   and takes the constant's width from the use site, exactly as an integer
   literal does. Inside a generic body `sizeof T` still defers; a
-  *re-instantiation* answers it, because `Sema::ReinstantiateBody` now binds
+  *re-instantiation* answers it, because `MiddleEnd::TypeSystem::ReinstantiateBody` now binds
   the owner's parameter names to the request's concrete arguments
   (`UnitSink::Bindings`) — which is what `Pointer<T>#malloc` needs to compute
   `count * sizeof T` at all.
@@ -284,7 +284,7 @@ Each is refused by a message naming the hole rather than guessed at, per
   control never gets here".
 - ~~**No allocation entry point is marked, so an escaping environment cannot
   be allocated.**~~ **Closed.** `ClosureLifting` decides this upstream, in
-  Sema, before the backend ever sees a capturing closure: it synthesizes an
+  MiddleEnd, before the backend ever sees a capturing closure: it synthesizes an
   ordinary `Pointer<UInt8>.malloc( Frame.TotalSize )` call at the literal's
   own site — the same already-`@[External]`-annotated allocator every other
   heap-allocating stdlib type calls — so the backend never names an allocator
@@ -309,7 +309,7 @@ Each is refused by a message naming the hole rather than guessed at, per
 - **Integer literal suffixes are parsed and ignored** (already recorded in
   `rules/core-ast.md`). The decoder trims the suffix and takes its width from
   the *layout*, always — honouring the suffix here would make the backend
-  disagree with the type Sema assigned, which is worse than the known gap.
+  disagree with the type MiddleEnd assigned, which is worse than the known gap.
 - **A use's `ExprType` can lag behind its binding's `SiteType`.** A local with
   no annotation settles late: `ConstrainNode( Identifier )` moves the site when
   some later context finally says what the type is, but the uses *already*
@@ -339,7 +339,7 @@ Each is refused by a message naming the hole rather than guessed at, per
 ## Closures — fully synthesized upstream
 
 `Lambda` and `Block` nodes are sugar (`rules/core-ast.md`) and do not reach
-this backend. `ClosureLifting` (`Sema/.../TypeChecker/ClosureLifting.cpp`)
+this backend. `ClosureLifting` (`source/Volt/MiddleEnd/Lowering/Private/ClosureLifting.cpp`)
 rewrites every closure literal into two things before any backend runs:
 
 1. A **synthesized top-level function** that becomes an entry in
@@ -393,7 +393,7 @@ C++. The signature is then read off the receiver's own type arguments \u2014
 result first, then the parameters \u2014 because a callable's arity lives in its
 type, not in that contract's declaration.
 
-All of that happens **once**, in Sema, and lands on the resolution as
+All of that happens **once**, in MiddleEnd, and lands on the resolution as
 `CalleeEntry::bIndirect` (next to `bConstructs`). The emitter therefore:
 
 ```
@@ -486,7 +486,7 @@ records for *every* clause, bound variable or not, since the ancestry test
 needs the target regardless of whether the clause also captures it — by
 walking `volt.exc.ancestry`, a `[N x i32]` global (`NominalId -> immediate
 Super`) built once per module from `TypeStore::Type(Id).Super`. The walk is
-the same reflexive, depth-bounded one `IsSubclassOf` performs in Sema
+the same reflexive, depth-bounded one `IsSubclassOf` performs in MiddleEnd
 (`TypeResolve.cpp`), done here at runtime because only the *dynamic* side of
 the test is unknown at compile time — the emitter never re-resolves a filter
 type itself.
@@ -650,18 +650,11 @@ matter how many call sites reach it, and recursive generics terminate the
 same way a recursive layout does.
 
 **The one semantic step, and where it lives.** `Finalize()` calls
-`DrainMonomorphizer()`, which pops the queue until empty (draining a body can
-itself discover further instantiations — a generic method calling another —
-so this runs to a fixpoint, not once). For each request,
-`Sema::ReinstantiateBody( Store, Ast, Scopes, Member, Owner, FlatArgs )`
-(`Sema/Layout/Instantiate.hpp`) re-runs the type checker's own expression
-inferencer over the member's declared body into a **fresh**
-`InstantiatedBody{ Values, Callees }`, with `self` and the method's generics
+`MiddleEnd::TypeSystem::ReinstantiateBody( Store, Ast, Scopes, Member, Owner, FlatArgs )`
+(`MiddleEnd/TypeSystem/Instantiate.hpp`) re-runs the type checker's own expression
+instantiation algorithm on the template AST body under a fresh substitution
 bound to `FlatArgs` — decoded straight into fresh `SemaTypeId`s, since
-`NominalId` is the cross-unit, instantiation-independent currency — instead
-of the placeholder holes the first pass left. Parameter and result types come
-from the already-resolved `Member::Params`/`Result` (`SigTypeId`) through the
-public `Sema::Instantiate`, never by re-deriving them from written syntax:
+public `MiddleEnd::TypeSystem::Instantiate`, never by re-deriving them from written syntax:
 `ResolveTypeExpr`'s `UnitSink::Param` always refuses a generic reference by
 design (the concrete-body case it exists for can never write one), so it is
 structurally the wrong tool for this. Once `self` and the parameters carry
@@ -670,7 +663,7 @@ field access — resolves through the exact same `LookupMemberOn` /
 `UnifySig` machinery a non-generic body already trusts, because it *is* that
 machinery, invoked a second time.
 
-This is monomorphisation's only semantic step, and it stays in Sema on
+This is monomorphisation's only semantic step, and it stays in MiddleEnd on
 purpose (`rules/core-ast.md`: zero type inference in a backend) — a backend
 decides *when* to instantiate, never *how* to type what it finds.
 `EmitMonomorphizedBody` then walks the AST exactly as `DefineMember` walks a

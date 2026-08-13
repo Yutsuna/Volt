@@ -12,12 +12,13 @@
 #include <string>
 #include <vector>
 
-Volt::Sema::LayoutId Volt::Backend::Llvm::SignatureBuilder::SignatureLayoutOf ( Sema::TypeStore &Store,
-                                                                                Sema::SigTypeId Id,
-                                                                                Sema::NominalId Owner,
-                                                                                std::span<const std::uint32_t> FlatArgs )
+Volt::MiddleEnd::TypeSystem::LayoutId
+Volt::Backend::Llvm::SignatureBuilder::SignatureLayoutOf ( MiddleEnd::TypeSystem::TypeStore &Store,
+                                                           MiddleEnd::TypeSystem::SigTypeId Id,
+                                                           MiddleEnd::TypeSystem::NominalId Owner,
+                                                           std::span<const std::uint32_t> FlatArgs )
 {
-    if ( Id.IsValid() and Store.Sig( Id ).ParamIndex == Sema::SigType::SelfParam )
+    if ( Id.IsValid() and Store.Sig( Id ).ParamIndex == MiddleEnd::TypeSystem::SigType::SelfParam )
     {
         return Services->Instances->Of( Store, Owner, FlatArgs );
     }
@@ -27,13 +28,13 @@ Volt::Sema::LayoutId Volt::Backend::Llvm::SignatureBuilder::SignatureLayoutOf ( 
     return Services->Instances->OfSignature( Store, Id, FlatArgs, Backend::SelfSubtree( Store, Owner, FlatArgs ) );
 }
 
-llvm::FunctionType *Volt::Backend::Llvm::SignatureBuilder::FunctionTypeOf ( const Sema::Member &Entry,
-                                                                            Sema::NominalId Owner,
+llvm::FunctionType *Volt::Backend::Llvm::SignatureBuilder::FunctionTypeOf ( const MiddleEnd::TypeSystem::Member &Entry,
+                                                                            MiddleEnd::TypeSystem::NominalId Owner,
                                                                             std::span<const std::uint32_t> FlatArgs )
 {
-    Sema::TypeStore &Store     = *Services->Build->Types;
-    llvm::LLVMContext &Context = Services->Ctx->Context();
-    TypeMapper &Types          = *Services->Types;
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
+    llvm::LLVMContext &Context              = Services->Ctx->Context();
+    TypeMapper &Types                       = *Services->Types;
 
     std::vector<llvm::Type *> Params;
     Params.reserve( Entry.Params.Size() + 1 );

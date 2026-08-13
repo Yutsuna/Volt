@@ -26,7 +26,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitExpr ( Frontend::ExprId Id )
         return nullptr;
     }
 
-    // A monomorphised body only: Sema::ReinstantiateBody lowered a Lambda/
+    // A monomorphised body only: MiddleEnd::TypeSystem::ReinstantiateBody lowered a Lambda/
     // Block literal here into a freshly-Add()'d subtree rather than mutating
     // Id's own slot — the same literal is shared by every other instantiation
     // of this generic body (FunctionFrame::Redirects's own comment) — so the

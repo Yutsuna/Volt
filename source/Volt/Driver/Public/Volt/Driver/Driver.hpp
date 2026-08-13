@@ -9,10 +9,10 @@
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Driver/CircuitGraph.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
-#include "Volt/Sema/Layout/TypeBinder.hpp"
-#include "Volt/Sema/Layout/TypeStore.hpp"
-#include "Volt/Sema/Link/InterfaceRegistry.hpp"
-#include "Volt/Sema/Pass.hpp"
+#include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/Resolver/InterfaceRegistry.hpp"
+#include "Volt/MiddleEnd/Resolver/TypeBinder.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -65,19 +65,19 @@ namespace Driver
         Core::StringInterner Interner;
         Frontend::AstContext Ast;
         // Expression types inferred for this unit alone (see SemaType.hpp).
-        Sema::UnitTypes Types;
+        MiddleEnd::TypeSystem::UnitTypes Types;
         // Callee resolutions snapshotted for this unit alone at the end of
         // TypeChecker (see Layout/CalleeMap.hpp) — the backend's read side
         // of the rules/core-ast.md operator/call protocol.
-        Sema::UnitCallees Callees;
+        MiddleEnd::IR::UnitCallees Callees;
         // Lexical scopes + name bindings resolved for this unit alone
         // (see Scope/ScopeTable.hpp).
-        Sema::ScopeTable Scopes;
-        Sema::PassStats Stats;
+        MiddleEnd::Resolver::ScopeTable Scopes;
+        MiddleEnd::Core::PassStats Stats;
         // Functions a lowering pass synthesized for this unit alone — see
         // Sema/Layout/SynthesizedFunctions.hpp for why this is not just
         // another entry in Types (the cross-unit TypeStore).
-        Sema::SynthesizedFunctions Synth;
+        MiddleEnd::IR::SynthesizedFunctions Synth;
     };
 
     struct CompileResult
@@ -88,7 +88,7 @@ namespace Driver
         // Every per-unit counter, summed. One field rather than a copy of
         // PassStats' shape, so a new counter reaches `check --metrics` with
         // no change here at all.
-        Sema::PassStats Stats;
+        MiddleEnd::Core::PassStats Stats;
         bool bCycle = false;
     };
 
@@ -240,14 +240,14 @@ namespace Driver
 
         // The cross-unit interfaces published between the parse and sema
         // phases (empty before compilation). Read-only for callers.
-        [[nodiscard]] const Sema::InterfaceRegistry &Interfaces () const
+        [[nodiscard]] const MiddleEnd::Resolver::InterfaceRegistry &Interfaces () const
         {
             return Registry;
         }
 
         // The layouts bound from the stdlib's annotations (empty before
         // compilation). Read-only for callers.
-        [[nodiscard]] const Sema::TypeStore &Layouts () const
+        [[nodiscard]] const MiddleEnd::TypeSystem::TypeStore &Layouts () const
         {
             return Types;
         }
@@ -301,7 +301,7 @@ namespace Driver
         // into this store's layout arena as call sites discover them
         // (BackendCore/BackendInput.hpp explains why `BackendInput::Types` is
         // a non-const pointer). Exists only for the backend seam.
-        [[nodiscard]] Sema::TypeStore &MutableLayouts ()
+        [[nodiscard]] MiddleEnd::TypeSystem::TypeStore &MutableLayouts ()
         {
             return Types;
         }
@@ -346,7 +346,7 @@ namespace Driver
         // Run the sema passes over one parsed unit, with read-only access to
         // the published cross-unit interfaces. Same thread-safety contract.
         //
-        // Split in two at `Sema::LoweredSeamOrder()`, because one serial,
+        // Split in two at `MiddleEnd::Core::LoweredSeamOrder()`, because one serial,
         // whole-program question sits between the halves: whether a member
         // hands its caller an owned value, and whether it keeps what it is
         // handed (`Sema::Raii`). Asking it before the desugarings run forces
@@ -401,11 +401,11 @@ namespace Driver
         Core::SourceManager Sources;
         Core::DiagEngine Diagnostics;
         CircuitGraph Circuit;
-        Sema::InterfaceRegistry Registry;
+        MiddleEnd::Resolver::InterfaceRegistry Registry;
         // One store for the whole build, not one per unit: `Int32` is declared
         // in source/Lib/ and used everywhere, and a unit's Symbols mean
         // nothing outside it. Filled serially, then read-only.
-        Sema::TypeStore Types;
+        MiddleEnd::TypeSystem::TypeStore Types;
         std::deque<CompileUnit> Units;
         Core::FileId DriverFile;
         std::uint64_t FrontendKey = 0;

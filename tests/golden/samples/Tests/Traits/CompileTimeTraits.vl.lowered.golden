@@ -1,0 +1,554 @@
+Program 'samples/Tests/Traits/CompileTimeTraits.vl'
+├─ Method 'assert!' @10:1
+│  ├─ params
+│  │  └─ Param 'condition' @10:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @10:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @10:36
+│  └─ body
+│     └─ ExprStmt @11:3
+│        └─ expr
+│           └─ If @11:3
+│              ├─ cond
+│              │  └─ Unary 'not' @11:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @11:10
+│              └─ then
+│                 └─ ExprStmt @12:5
+│                    └─ expr
+│                       └─ RaiseExpr @12:5
+│                          └─ exception
+│                             └─ Binary '+' @12:11
+│                                ├─ lhs
+│                                │  └─ Binary '+' @12:11
+│                                │     ├─ lhs
+│                                │     │  └─ Binary '+' @12:11
+│                                │     │     ├─ lhs
+│                                │     │     │  └─ StringLiteral 'Assertion failed ' @12:11
+│                                │     │     └─ rhs
+│                                │     │        └─ StringLiteral 'samples/Tests/Traits/CompileTimeTraits.vl' @12:31
+│                                │     └─ rhs
+│                                │        └─ StringLiteral ':' @12:11
+│                                └─ rhs
+│                                   └─ Call @12:11
+│                                      └─ callee
+│                                         └─ Member 'to_string' @12:11
+│                                            └─ object
+│                                               └─ IntLiteral '12' @12:43
+├─ Mixin 'Greetable' @16:1
+│  └─ body
+│     └─ Method 'greeting' @17:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @17:19
+│        └─ body
+│           └─ ExprStmt @18:5
+│              └─ expr
+│                 └─ StringLiteral 'hello' @18:5
+├─ Mixin 'Countable' @22:1
+├─ Class 'Animal' @25:1
+│  └─ body
+│     ├─ Field 'age' @26:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @26:9
+│     ├─ Method 'initialize' @28:3
+│     │  └─ params
+│     │     └─ Param 'age' instance_var @28:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @28:26
+│     └─ Method 'describe' @31:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @31:19
+│        └─ body
+│           └─ ExprStmt @32:5
+│              └─ expr
+│                 └─ StringLiteral 'animal' @32:5
+├─ Class 'Dog' @36:1
+│  ├─ super
+│  │  └─ TypeRef 'Animal' @36:13
+│  └─ body
+│     ├─ Include @37:3
+│     │  └─ target
+│     │     └─ TypeRef 'Greetable' @37:11
+│     ├─ Field 'name' @39:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @39:10
+│     ├─ Method 'initialize' @41:3
+│     │  ├─ params
+│     │  │  └─ Param 'name' instance_var @41:19
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'String' @41:27
+│     │  └─ body
+│     │     └─ ExprStmt @42:5
+│     │        └─ expr
+│     │           └─ Assign '=' @42:10
+│     │              ├─ target
+│     │              │  └─ InstanceVar '@age' @42:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @42:12
+│     └─ Method 'bark' @45:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @45:15
+│        └─ body
+│           └─ ExprStmt @46:5
+│              └─ expr
+│                 └─ StringLiteral 'woof' @46:5
+├─ Mixin 'Tagged' @99:1
+├─ Struct 'Box' [T] @102:1
+│  └─ body
+│     ├─ Field 'value' @103:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'T' @103:11
+│     ├─ Method 'initialize' @105:3
+│     │  └─ params
+│     │     └─ Param 'value' instance_var @105:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'T' @105:28
+│     └─ Method 'tagged?' @108:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Bool' @108:18
+│        └─ body
+│           └─ ExprStmt @109:5
+│              └─ expr
+│                 └─ Call @109:11
+│                    ├─ callee
+│                    │  └─ Member 'is_a?' @109:11
+│                    │     └─ object
+│                    │        └─ InstanceVar '@value' @109:5
+│                    └─ args
+│                       └─ Identifier 'Tagged' @109:18
+├─ Class 'Plain' @113:1
+│  └─ body
+│     ├─ Field 'n' @114:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @114:7
+│     └─ Method 'initialize' @115:3
+│        └─ params
+│           └─ Param 'n' instance_var @115:19
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @115:24
+├─ Class 'Marked' @119:1
+│  └─ body
+│     ├─ Include @120:3
+│     │  └─ target
+│     │     └─ TypeRef 'Tagged' @120:11
+│     ├─ Field 'n' @121:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @121:7
+│     └─ Method 'initialize' @122:3
+│        └─ params
+│           └─ Param 'n' instance_var @122:19
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @122:24
+├─ ExprStmt @50:1
+│  └─ expr
+│     └─ Assign '=' @50:5
+│        ├─ target
+│        │  └─ Identifier 'dog' @50:1
+│        └─ value
+│           └─ Call @50:14
+│              ├─ callee
+│              │  └─ Member 'new' @50:10
+│              │     └─ object
+│              │        └─ Identifier 'Dog' @50:7
+│              └─ args
+│                 └─ StringLiteral 'Rex' @50:16
+├─ ExprStmt @53:1
+│  └─ expr
+│     └─ Call @53:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @53:1
+│        └─ args
+│           └─ Call @53:13
+│              ├─ callee
+│              │  └─ Member 'includes?' @53:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @53:10
+│              └─ args
+│                 └─ Identifier 'Greetable' @53:24
+├─ ExprStmt @54:1
+│  └─ expr
+│     └─ Call @54:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @54:1
+│        └─ args
+│           └─ Unary 'not' @54:10
+│              └─ operand
+│                 └─ Call @54:17
+│                    ├─ callee
+│                    │  └─ Member 'includes?' @54:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @54:14
+│                    └─ args
+│                       └─ Identifier 'Countable' @54:28
+├─ ExprStmt @56:1
+│  └─ expr
+│     └─ Call @56:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @56:1
+│        └─ args
+│           └─ Unary 'not' @56:10
+│              └─ operand
+│                 └─ Call @56:17
+│                    ├─ callee
+│                    │  └─ Member 'includes?' @56:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @56:14
+│                    └─ args
+│                       └─ Identifier 'Animal' @56:28
+├─ ExprStmt @59:1
+│  └─ expr
+│     └─ Call @59:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @59:1
+│        └─ args
+│           └─ Call @59:13
+│              ├─ callee
+│              │  └─ Member 'inherits_from?' @59:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @59:10
+│              └─ args
+│                 └─ Identifier 'Animal' @59:29
+├─ ExprStmt @60:1
+│  └─ expr
+│     └─ Call @60:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @60:1
+│        └─ args
+│           └─ Unary 'not' @60:10
+│              └─ operand
+│                 └─ Call @60:17
+│                    ├─ callee
+│                    │  └─ Member 'inherits_from?' @60:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @60:14
+│                    └─ args
+│                       └─ Identifier 'Dog' @60:33
+├─ ExprStmt @63:1
+│  └─ expr
+│     └─ Call @63:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @63:1
+│        └─ args
+│           └─ Call @63:13
+│              ├─ callee
+│              │  └─ Member 'is_a?' @63:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @63:10
+│              └─ args
+│                 └─ Identifier 'Dog' @63:20
+├─ ExprStmt @64:1
+│  └─ expr
+│     └─ Call @64:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @64:1
+│        └─ args
+│           └─ Call @64:13
+│              ├─ callee
+│              │  └─ Member 'is_a?' @64:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @64:10
+│              └─ args
+│                 └─ Identifier 'Animal' @64:20
+├─ ExprStmt @65:1
+│  └─ expr
+│     └─ Call @65:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @65:1
+│        └─ args
+│           └─ Call @65:13
+│              ├─ callee
+│              │  └─ Member 'is_a?' @65:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @65:10
+│              └─ args
+│                 └─ Identifier 'Greetable' @65:20
+├─ ExprStmt @66:1
+│  └─ expr
+│     └─ Call @66:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @66:1
+│        └─ args
+│           └─ Unary 'not' @66:10
+│              └─ operand
+│                 └─ Call @66:17
+│                    ├─ callee
+│                    │  └─ Member 'is_a?' @66:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @66:14
+│                    └─ args
+│                       └─ Identifier 'Countable' @66:24
+├─ ExprStmt @69:1
+│  └─ expr
+│     └─ Call @69:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @69:1
+│        └─ args
+│           └─ Call @69:13
+│              ├─ callee
+│              │  └─ Member 'has_field?' @69:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @69:10
+│              └─ args
+│                 └─ SymbolLiteral ':name' @69:25
+├─ ExprStmt @70:1
+│  └─ expr
+│     └─ Call @70:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @70:1
+│        └─ args
+│           └─ Call @70:13
+│              ├─ callee
+│              │  └─ Member 'has_field?' @70:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @70:10
+│              └─ args
+│                 └─ SymbolLiteral ':age' @70:25
+├─ ExprStmt @71:1
+│  └─ expr
+│     └─ Call @71:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @71:1
+│        └─ args
+│           └─ Unary 'not' @71:10
+│              └─ operand
+│                 └─ Call @71:17
+│                    ├─ callee
+│                    │  └─ Member 'has_field?' @71:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @71:14
+│                    └─ args
+│                       └─ SymbolLiteral ':bark' @71:29
+├─ ExprStmt @72:1
+│  └─ expr
+│     └─ Call @72:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @72:1
+│        └─ args
+│           └─ Unary 'not' @72:10
+│              └─ operand
+│                 └─ Call @72:17
+│                    ├─ callee
+│                    │  └─ Member 'has_field?' @72:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @72:14
+│                    └─ args
+│                       └─ SymbolLiteral ':missing' @72:29
+├─ ExprStmt @74:1
+│  └─ expr
+│     └─ Call @74:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @74:1
+│        └─ args
+│           └─ Call @74:13
+│              ├─ callee
+│              │  └─ Member 'has_method?' @74:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @74:10
+│              └─ args
+│                 └─ SymbolLiteral ':bark' @74:26
+├─ ExprStmt @75:1
+│  └─ expr
+│     └─ Call @75:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @75:1
+│        └─ args
+│           └─ Call @75:13
+│              ├─ callee
+│              │  └─ Member 'has_method?' @75:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @75:10
+│              └─ args
+│                 └─ SymbolLiteral ':describe' @75:26
+├─ ExprStmt @76:1
+│  └─ expr
+│     └─ Call @76:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @76:1
+│        └─ args
+│           └─ Call @76:13
+│              ├─ callee
+│              │  └─ Member 'has_method?' @76:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @76:10
+│              └─ args
+│                 └─ SymbolLiteral ':greeting' @76:26
+├─ ExprStmt @77:1
+│  └─ expr
+│     └─ Call @77:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @77:1
+│        └─ args
+│           └─ Unary 'not' @77:10
+│              └─ operand
+│                 └─ Call @77:17
+│                    ├─ callee
+│                    │  └─ Member 'has_method?' @77:17
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @77:14
+│                    └─ args
+│                       └─ SymbolLiteral ':name' @77:30
+├─ ExprStmt @80:1
+│  └─ expr
+│     └─ Call @80:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @80:1
+│        └─ args
+│           └─ Call @80:23
+│              ├─ callee
+│              │  └─ Member 'includes?' @80:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @80:10
+│              └─ args
+│                 └─ Identifier 'Greetable' @80:25
+├─ ExprStmt @81:1
+│  └─ expr
+│     └─ Call @81:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @81:1
+│        └─ args
+│           └─ Call @81:24
+│              ├─ callee
+│              │  └─ Member 'has_field?' @81:13
+│              │     └─ object
+│              │        └─ Identifier 'dog' @81:10
+│              └─ args
+│                 └─ SymbolLiteral ':name' @81:26
+├─ ExprStmt @84:1
+│  └─ expr
+│     └─ Call @84:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @84:1
+│        └─ args
+│           └─ Call @84:13
+│              ├─ callee
+│              │  └─ Member 'includes?' @84:13
+│              │     └─ object
+│              │        └─ Identifier 'Dog' @84:10
+│              └─ args
+│                 └─ Identifier 'Greetable' @84:24
+├─ ExprStmt @85:1
+│  └─ expr
+│     └─ Call @85:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @85:1
+│        └─ args
+│           └─ Call @85:13
+│              ├─ callee
+│              │  └─ Member 'inherits_from?' @85:13
+│              │     └─ object
+│              │        └─ Identifier 'Dog' @85:10
+│              └─ args
+│                 └─ Identifier 'Animal' @85:29
+├─ ExprStmt @86:1
+│  └─ expr
+│     └─ Call @86:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @86:1
+│        └─ args
+│           └─ Call @86:13
+│              ├─ callee
+│              │  └─ Member 'has_method?' @86:13
+│              │     └─ object
+│              │        └─ Identifier 'Dog' @86:10
+│              └─ args
+│                 └─ SymbolLiteral ':bark' @86:26
+├─ ExprStmt @89:1
+│  └─ expr
+│     └─ Call @89:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @89:1
+│        └─ args
+│           └─ Binary 'and' @89:27
+│              ├─ lhs
+│              │  └─ Call @89:13
+│              │     ├─ callee
+│              │     │  └─ Member 'is_a?' @89:13
+│              │     │     └─ object
+│              │     │        └─ Identifier 'dog' @89:10
+│              │     └─ args
+│              │        └─ Identifier 'Animal' @89:20
+│              └─ rhs
+│                 └─ Call @89:34
+│                    ├─ callee
+│                    │  └─ Member 'has_field?' @89:34
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @89:31
+│                    └─ args
+│                       └─ SymbolLiteral ':name' @89:46
+├─ ExprStmt @90:1
+│  └─ expr
+│     └─ Call @90:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @90:1
+│        └─ args
+│           └─ Binary 'or' @90:38
+│              ├─ lhs
+│              │  └─ Call @90:15
+│              │     ├─ callee
+│              │     │  └─ Member 'includes?' @90:15
+│              │     │     └─ object
+│              │     │        └─ Identifier 'dog' @90:12
+│              │     └─ args
+│              │        └─ Identifier 'Countable' @90:26
+│              └─ rhs
+│                 └─ Call @90:46
+│                    ├─ callee
+│                    │  └─ Member 'includes?' @90:46
+│                    │     └─ object
+│                    │        └─ Identifier 'dog' @90:43
+│                    └─ args
+│                       └─ Identifier 'Greetable' @90:57
+├─ ExprStmt @126:1
+│  └─ expr
+│     └─ Call @126:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @126:1
+│        └─ args
+│           └─ Unary 'not' @126:10
+│              └─ operand
+│                 └─ Member 'tagged?' @126:46
+│                    └─ object
+│                       └─ Call @126:28
+│                          ├─ callee
+│                          │  └─ Member 'new' @126:24
+│                          │     └─ object
+│                          │        └─ GenericInst @126:17
+│                          │           ├─ base
+│                          │           │  └─ Identifier 'Box' @126:14
+│                          │           └─ args
+│                          │              └─ TypeRef 'Plain' @126:18
+│                          └─ args
+│                             └─ Call @126:39
+│                                ├─ callee
+│                                │  └─ Member 'new' @126:35
+│                                │     └─ object
+│                                │        └─ Identifier 'Plain' @126:30
+│                                └─ args
+│                                   └─ IntLiteral '1' @126:41
+└─ ExprStmt @127:1
+   └─ expr
+      └─ Call @127:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @127:1
+         └─ args
+            └─ Member 'tagged?' @127:44
+               └─ object
+                  └─ Call @127:25
+                     ├─ callee
+                     │  └─ Member 'new' @127:21
+                     │     └─ object
+                     │        └─ GenericInst @127:13
+                     │           ├─ base
+                     │           │  └─ Identifier 'Box' @127:10
+                     │           └─ args
+                     │              └─ TypeRef 'Marked' @127:14
+                     └─ args
+                        └─ Call @127:37
+                           ├─ callee
+                           │  └─ Member 'new' @127:33
+                           │     └─ object
+                           │        └─ Identifier 'Marked' @127:27
+                           └─ args
+                              └─ IntLiteral '2' @127:39
+--- exit 0 ---

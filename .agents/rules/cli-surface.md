@@ -75,7 +75,7 @@ Usage: volt build [options] [input_file]
   structured JSX nodes). `--lowered` additionally runs the `EPassKind::Lowering`
   passes from `PassList.inl` — never full sema. Serialisation via the dumper
   (`text` today; `json`/`dot` are printer back-ends, not new traversals).
-- `check`  → Driver parse + Sema passes; `--type` selects which pass orders run.
+- `check`  → Driver parse + MiddleEnd passes; `--type` selects which pass orders run.
 - `run` / `repl` → the later JIT/interpreter phase; both sit on top of the same
   Driver pipeline (one `CompileUnit` per input, REPL = incremental units).
 - `circuit` → `Driver::CompileCircuit` / Project.vl scaffolding.

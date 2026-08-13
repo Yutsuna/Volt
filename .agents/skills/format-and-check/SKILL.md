@@ -7,7 +7,7 @@ description: The finishing checklist for any Volt change — an IDE-driven build
 
 Run these before finishing a change. Any failure means the change is not done.
 Build and test through the IDE (CLion). Never "run" a module configuration —
-a module (`Core`, `Frontend`, `Sema`, `Driver`, `BackendLLVM`, …) is a library
+a module (`Core`, `Frontend`, `MiddleEnd`, `Driver`, `BackendLLVM`, …) is a library
 target (`.so`/`.a`), not an executable, and the IDE will refuse to launch it.
 Run an executable or test configuration instead (a `*Test` target, or
 `meson test`) — the IDE builds every dependency first. The tooling targets

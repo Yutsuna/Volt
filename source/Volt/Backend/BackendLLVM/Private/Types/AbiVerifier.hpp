@@ -32,7 +32,7 @@ namespace Backend
             // In debug builds, check that LLVM's own DataLayout agrees with
             // LayoutEngine about this aggregate's size and every field offset.
             // A no-op under NDEBUG.
-            void VerifyAggregateAbi ( Sema::LayoutId Id, llvm::StructType *Shape );
+            void VerifyAggregateAbi ( MiddleEnd::TypeSystem::LayoutId Id, llvm::StructType *Shape );
 
         private:
 

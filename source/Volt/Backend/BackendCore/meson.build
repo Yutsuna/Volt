@@ -25,7 +25,7 @@ backendcore_lib = library(
     backendcore_export,
     cpp_pch: common_pch_header,
     include_directories: include_directories('Public', 'Private'),
-    dependencies: [compile_options_dep, sema_dep],
+    dependencies: [compile_options_dep, volt_middleend_dep],
     cpp_args: build_shared ? ['-DBACKENDCORE_BUILD_SHARED'] : [],
     gnu_symbol_visibility: 'hidden',
     install: true,
@@ -37,5 +37,5 @@ backendcore_dep = declare_dependency(
         include_directories('Public'),
         include_directories('.'),
     ],
-    dependencies: sema_dep,
+    dependencies: volt_middleend_dep,
 )
