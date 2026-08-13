@@ -911,7 +911,7 @@ namespace MiddleEnd::Resolver
             // that T is.
             [[nodiscard]] SigTypeId ParentOf ( Frontend::TypeId Id, std::span<const Symbol> Generics )
             {
-                SigSink Sink{ Store };
+                SigSink Sink{ .Store = Store, .Diags = &Diags };
                 return ResolveTypeExpr( Ast, Store, Generics, Sink, Id );
             }
 
@@ -967,7 +967,7 @@ namespace MiddleEnd::Resolver
                             },
                             [&] ( const Frontend::Field &Entry )
                             {
-                                SigSink Sink{ Store };
+                                SigSink Sink{ .Store = Store, .Diags = &Diags };
                                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Generics, Sink, Entry.DeclType );
                                 if ( Member *Slot = Store.MemberByDecl( Id, Unit, Child ) )
                                 {
@@ -995,7 +995,7 @@ namespace MiddleEnd::Resolver
 
                                 CheckTrailingDefaults( Entry.Params );
 
-                                SigSink Sink{ Store };
+                                SigSink Sink{ .Store = Store, .Diags = &Diags };
 
                                 // `to_value` (`EnumSynthesis.cpp`) is
                                 // synthesized with no written return type —
@@ -1137,7 +1137,7 @@ namespace MiddleEnd::Resolver
                                 // payload (`Some( value : T )`) only ever
                                 // references the enum's own parameters, so
                                 // no space concatenation like Method's.
-                                SigSink Sink{ Store };
+                                SigSink Sink{ .Store = Store, .Diags = &Diags };
                                 ::Volt::Core::SmallVec<SigTypeId, 4> Params;
                                 ::Volt::Core::SmallVec<bool, 4> ParamIsBlock;
                                 for ( const Frontend::ParamId ParamRef : Entry.Payload )
@@ -1248,7 +1248,7 @@ namespace MiddleEnd::Resolver
 
                 const std::span<const Symbol> Scope{ Entry.Generics.begin(), Entry.Generics.Size() };
 
-                SigSink Sink{ Store };
+                SigSink Sink{ .Store = Store, .Diags = &Diags };
                 const SigTypeId Result = ResolveTypeExpr( Ast, Store, Scope, Sink, Entry.ReturnType );
                 ::Volt::Core::SmallVec<SigTypeId, 4> Params;
                 ::Volt::Core::SmallVec<bool, 4> ParamIsBlock;
