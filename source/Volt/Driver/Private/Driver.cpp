@@ -9,6 +9,7 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
+#include "Volt/Frontend/AST/ConstructorSynthesis.hpp"
 #include "Volt/Frontend/AST/EnumSynthesis.hpp"
 #include "Volt/Frontend/AST/PointFreeLowering.hpp"
 #include "Volt/Frontend/Lexer/Lexer.hpp"
@@ -332,6 +333,7 @@ void Volt::Driver::Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     // type's member list.
     Frontend::MaterializeEnumOrdinals( Unit.Ast );
     Frontend::SynthesizeEnumMembers( Unit.Ast );
+    Frontend::SynthesizeDefaultConstructors( Unit.Ast );
 }
 
 namespace
