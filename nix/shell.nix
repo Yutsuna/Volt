@@ -28,7 +28,7 @@ pkgs.mkShell.override { stdenv = ccacheStdenv; } {
     export CCACHE_SLOPPINESS="pch_defines,time_macros,file_stat_matches,file_macro"
     export CC="ccache gcc"
     export CXX="ccache g++"
-    ${pkgs.lib.optionalString pkgs.stdenv.isLinux ''
+    ${pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux ''
       export NIX_CFLAGS_LINK="-fuse-ld=mold"
     ''}
 

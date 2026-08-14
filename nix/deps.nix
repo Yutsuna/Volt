@@ -10,7 +10,7 @@ in
     ninja
     pkg-config
     ccache
-  ] ++ lib.optionals pkgs.stdenv.isLinux [
+  ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [
     mold
   ];
 
