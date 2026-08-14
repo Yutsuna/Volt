@@ -696,4 +696,3 @@ bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Bod
 }
 
 } // namespace Volt::MiddleEnd::Analysis::Lifetime
-

@@ -1,0 +1,28 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+class MyClass
+  def run -> String
+    "hello!!"
+  end
+end
+
+# Issue #103 reproducer:
+assert!( ( MyClass.new ).run == "hello!!" )
+
+# Paren-less instantiation:
+inst = MyClass.new
+assert!( inst.run == "hello!!" )
+
+class AnotherClass
+  def greeting -> String
+    "welcome"
+  end
+end
+
+a = AnotherClass.new
+assert!( a.greeting == "welcome" )
+assert!( ( AnotherClass.new ).greeting == "welcome" )
