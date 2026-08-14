@@ -55,6 +55,7 @@ namespace Volt::MiddleEnd::Analysis::Lifetime
 // outlives the body (e.g. a method or expression block with implicit return).
 // For bodies whose tail is discarded (top-level statements, loop bodies),
 // passing false ensures the tail expression is finalized immediately.
-VOLT_MIDDLEEND_ANALYSIS_EXPORT bool RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body, bool bHasTailValue = true );
+VOLT_MIDDLEEND_ANALYSIS_EXPORT bool
+RunTemporaries ( TypeCheckerContext &Context, const Frontend::StmtList &Body, bool bHasTailValue = true );
 
 } // namespace Volt::MiddleEnd::Analysis::Lifetime
