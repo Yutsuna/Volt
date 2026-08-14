@@ -1,0 +1,44 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+class FilterBase
+  def process( input : String ) -> String
+    "[" + input + "]"
+  end
+
+  def compute( val : Int32 ) -> Int32
+    val + 10
+  end
+end
+
+
+class PrefixFilter < FilterBase
+  def process( input : String ) -> String
+    super( "PREFIX_" + input )
+  end
+
+  def compute( val : Int32 ) -> Int32
+    super( val * 2 )
+  end
+end
+
+
+class SecureFilter < PrefixFilter
+  def process( input : String ) -> String
+    super( input.trim )
+  end
+
+  def compute( val : Int32 ) -> Int32
+    super( val + 5 ) + 100
+  end
+end
+
+
+filter = SecureFilter.new
+
+assert!( filter.process( "  test  " ) == "[PREFIX_test]" )
+assert!( filter.compute( 3 ) == 126 )

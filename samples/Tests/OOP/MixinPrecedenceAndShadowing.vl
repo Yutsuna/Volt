@@ -1,0 +1,59 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+mixin Greeter
+  def greet -> String
+    "Hello from Greeter"
+  end
+
+  def salute -> String
+    "Salute from Greeter"
+  end
+end
+
+
+mixin FormalGreeter
+  def greet -> String
+    "Good day from FormalGreeter"
+  end
+end
+
+
+class Entity
+  def greet -> String
+    "Hello from Entity"
+  end
+
+  def entity_id -> Int32
+    100
+  end
+end
+
+
+class Person < Entity
+  include Greeter
+
+  def greet -> String
+    "Hello from Person"
+  end
+end
+
+
+class Ambassador < Entity
+  include Greeter
+  include FormalGreeter
+end
+
+
+p = Person.new
+assert!( p.greet == "Hello from Person" )
+assert!( p.salute == "Salute from Greeter" )
+assert!( p.entity_id == 100 )
+
+a = Ambassador.new
+assert!( a.greet == "Good day from FormalGreeter" )
+assert!( a.salute == "Salute from Greeter" )
