@@ -25,6 +25,13 @@ namespace Volt::MiddleEnd::Analysis
 struct Resolution
 {
     const Member *Decl = nullptr;
+    // The nominal whose body declares `Decl`, which on an inherited member is
+    // not the receiver: `describe` reached from a `Square` is owned by
+    // `Shape`. Kept because that is the type a visibility check is *against* —
+    // `private` means "the declaring type", and a Member has no back-pointer
+    // to the type holding it. Invalid for a free function, which has no owner
+    // and no visibility to check.
+    NominalId Owner;
     SemaTypeId Result;
     ::Volt::Core::SmallVec<SemaTypeId, 4> Params;
     // The instantiated `&block` slot, kept out of Params because it binds

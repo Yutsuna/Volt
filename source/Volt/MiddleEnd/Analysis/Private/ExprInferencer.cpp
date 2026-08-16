@@ -602,6 +602,12 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                     if ( Found.Decl != nullptr )
                     {
                         Context.CalleeResolution[Id.Value] = Found;
+                        // The implicit-`self` half of the visibility check.
+                        // Writing the receiver down is what routes an access
+                        // through MemberType; a bare name resolves here and
+                        // would otherwise be the one way to reach a private
+                        // member of a base class from a subclass.
+                        CheckMemberAccess( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Found );
                         return Found.Result;
                     }
                 }

@@ -66,6 +66,23 @@ void UnifyBlock ( TypeCheckerContext &Context, Resolution &Found, SemaTypeId Blo
 
 void CheckMemberSelf ( TypeCheckerContext &Context, SourceRange Loc, const Resolution &Found, bool bReceiverIsNakedType );
 
+// May the code being checked *see* what `Found` resolved to? `private` is
+// reachable only from the body of the type that declares it, `protected` from
+// that type and everything below it — a subclass, an includer of it as a
+// mixin, or any composition of the two. Anything unwritten is public.
+//
+// The comparison is against `Context.SelfType`, the type whose body we are
+// inside, and never against the receiver: that is what makes `other.balance`
+// legal between two instances of the same class and illegal everywhere else,
+// which is the C++/Crystal rule rather than Ruby's implicit-receiver one.
+//
+// Called from the two places a member is reached by name — MemberType, which
+// covers `x.f`, `@f` and every operator, and ExprInferencer's bare-identifier
+// branch, which is the implicit-`self` call `f` resolves through. Both already
+// record the resolution, so the check sits next to the recording rather than
+// inside LookupOn, which re-resolves and would report the same access twice.
+void CheckMemberAccess ( TypeCheckerContext &Context, SourceRange Loc, const Resolution &Found );
+
 // Whether `Nominal` is an enum in the only sense the compiler ever needs to
 // know: it declares at least one case of its own. A plain `case x when 1, 2
 // end` over a non-enum value must never trip exhaustiveness, and a struct
