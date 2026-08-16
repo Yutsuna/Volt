@@ -164,12 +164,74 @@ Volt::Frontend::GenericParamList Volt::Frontend::Parser::ParseGenericParams ()
     return Params;
 }
 
+bool Volt::Frontend::Parser::TakeMemberVisibility ( EVisibility &Section )
+{
+    MemberVisibility = Section;
+
+    EVisibility Written = EVisibility::None;
+    switch ( PeekKind() )
+    {
+    case TokenKind::KwPublic:
+        Written = EVisibility::Public;
+        break;
+    case TokenKind::KwProtected:
+        Written = EVisibility::Protected;
+        break;
+    case TokenKind::KwPrivate:
+        Written = EVisibility::Private;
+        break;
+    default:
+        return true;
+    }
+    Advance();
+
+    // Nothing behind it on this line: a section marker. `end` counts as a
+    // line end so that a marker with no member under it is still well-formed
+    // rather than a member declaration that ran off the body.
+    if ( AtEnd() or Check( TokenKind::Newline ) or Check( TokenKind::Semicolon ) or Check( TokenKind::KwEnd ) )
+    {
+        Section          = Written;
+        MemberVisibility = Written;
+        SkipTerminators();
+        return false;
+    }
+
+    // A prefix on exactly this member, which leaves the section it sits in
+    // alone: `private def` inside a `public` section does not make the rest
+    // of that section private.
+    //
+    // Only a field and a method carry one, since `Field` and `Method` are the
+    // two declarations with a Visibility to record. Saying so is what keeps
+    // `private class Inner` from parsing cleanly and then meaning nothing:
+    // parsing continues either way, so the member after a rejected prefix is
+    // still checked for whatever else is wrong with it.
+    if ( not Check( TokenKind::KwDef ) and not Check( TokenKind::KwAbstract ) and not Check( TokenKind::KwExternal ) and
+         not Check( TokenKind::Identifier ) )
+    {
+        ReportHere( "visibility applies to fields and methods only" );
+    }
+
+    MemberVisibility = Written;
+    return true;
+}
+
 void Volt::Frontend::Parser::ParseDeclBlock ( DeclList &Out )
 {
+    // A body opens at the default and cannot leak its own sections outward:
+    // `class Inner` declared under a `private` marker is itself private, but
+    // its *members* start public again.
+    const EVisibility Enclosing = MemberVisibility;
+    EVisibility Section         = EVisibility::None;
+
     SkipTerminators();
     while ( not AtEnd() and !Check( TokenKind::KwEnd ) )
     {
         const std::size_t Before = Pos;
+
+        if ( not TakeMemberVisibility( Section ) )
+        {
+            continue;
+        }
 
         DeclId Decl;
         if ( AtDeclaration() )
@@ -198,6 +260,8 @@ void Volt::Frontend::Parser::ParseDeclBlock ( DeclList &Out )
         }
         SkipTerminators();
     }
+
+    MemberVisibility = Enclosing;
 }
 
 Volt::Frontend::DeclId Volt::Frontend::Parser::ParseModule ()
@@ -273,10 +337,21 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseEnum ()
 
 void Volt::Frontend::Parser::ParseEnumBody ( DeclList &Out )
 {
+    // An enum body declares methods too, so it honours the same markers a
+    // class body does. A case is never private: it is the enum's own
+    // vocabulary, and `TakeMemberVisibility` records nothing on one.
+    const EVisibility Enclosing = MemberVisibility;
+    EVisibility Section         = EVisibility::None;
+
     SkipTerminators();
     while ( not AtEnd() and !Check( TokenKind::KwEnd ) )
     {
         const std::size_t Before = Pos;
+
+        if ( not TakeMemberVisibility( Section ) )
+        {
+            continue;
+        }
 
         DeclId Decl;
         if ( Check( TokenKind::Constant ) )
@@ -303,6 +378,8 @@ void Volt::Frontend::Parser::ParseEnumBody ( DeclList &Out )
         }
         SkipTerminators();
     }
+
+    MemberVisibility = Enclosing;
 }
 
 Volt::Frontend::DeclId Volt::Frontend::Parser::ParseEnumCase ()
@@ -394,6 +471,9 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMethod ( bool bAbstract, boo
     Method Node;
     Node.bAbstract = bAbstract;
     Node.bExternal = bExternal;
+    // Read before the body is parsed: a nested `class` in there runs its own
+    // ParseDeclBlock, which moves MemberVisibility while it walks.
+    Node.Visibility = MemberVisibility;
 
     if ( Accept( TokenKind::KwSelf ) )
     {
@@ -498,8 +578,9 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseFieldOrMember ()
     }
 
     Field Node;
-    Node.Accessor = Accessor;
-    Node.Name     = InternText( Expect( TokenKind::Identifier, "as a field name" ) );
+    Node.Visibility = MemberVisibility;
+    Node.Accessor   = Accessor;
+    Node.Name       = InternText( Expect( TokenKind::Identifier, "as a field name" ) );
     if ( Accept( TokenKind::Colon ) )
     {
         Node.DeclType = ParseType();
