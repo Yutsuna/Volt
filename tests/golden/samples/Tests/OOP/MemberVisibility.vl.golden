@@ -1,0 +1,362 @@
+Program 'samples/Tests/OOP/MemberVisibility.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
+├─ Mixin 'Audited' @8:1
+│  └─ body
+│     └─ Method 'audit_stamp' protected @10:13
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @10:32
+│        └─ body
+│           └─ ExprStmt @11:5
+│              └─ expr
+│                 └─ IntLiteral '7' @11:5
+├─ Class 'Account' @17:1
+│  └─ body
+│     ├─ Include @19:3
+│     │  └─ target
+│     │     └─ TypeRef 'Audited' @19:11
+│     ├─ Field 'id' getter @21:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @21:15
+│     ├─ Field 'balance' private getter @23:11
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @23:28
+│     ├─ Field 'rate' protected getter @25:13
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @25:27
+│     ├─ Method 'initialize' @27:3
+│     │  └─ params
+│     │     ├─ Param 'id' instance_var @27:19
+│     │     ├─ Param 'balance' instance_var @27:24
+│     │     └─ Param 'rate' instance_var @27:34
+│     ├─ Method 'fee' private @32:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @32:14
+│     │  └─ body
+│     │     └─ ExprStmt @33:5
+│     │        └─ expr
+│     │           └─ Binary '/' @33:14
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@balance' @33:5
+│     │              └─ rhs
+│     │                 └─ IntLiteral '10' @33:16
+│     ├─ Method 'doubled_balance' private @36:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @36:26
+│     │  └─ body
+│     │     └─ ExprStmt @37:5
+│     │        └─ expr
+│     │           └─ Binary '*' @37:14
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@balance' @37:5
+│     │              └─ rhs
+│     │                 └─ IntLiteral '2' @37:16
+│     ├─ Method 'net' public @44:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @44:14
+│     │  └─ body
+│     │     └─ ExprStmt @45:5
+│     │        └─ expr
+│     │           └─ Binary '-' @45:14
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@balance' @45:5
+│     │              └─ rhs
+│     │                 └─ Identifier 'fee' @45:16
+│     ├─ Method 'richer_than?' public @48:3
+│     │  ├─ params
+│     │  │  └─ Param 'other' @48:21
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Account' @48:29
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Bool' @48:42
+│     │  └─ body
+│     │     └─ ExprStmt @49:5
+│     │        └─ expr
+│     │           └─ Binary '>' @49:14
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@balance' @49:5
+│     │              └─ rhs
+│     │                 └─ Member 'balance' @49:21
+│     │                    └─ object
+│     │                       └─ Identifier 'other' @49:16
+│     ├─ Method 'combined_with' public @52:3
+│     │  ├─ params
+│     │  │  └─ Param 'other' @52:22
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Account' @52:30
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @52:43
+│     │  └─ body
+│     │     └─ ExprStmt @53:5
+│     │        └─ expr
+│     │           └─ Binary '+' @53:21
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'doubled_balance' @53:5
+│     │              └─ rhs
+│     │                 └─ Member 'doubled_balance' @53:28
+│     │                    └─ object
+│     │                       └─ Identifier 'other' @53:23
+│     ├─ Method 'hidden_scale' private @58:11
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @58:31
+│     │  └─ body
+│     │     └─ ExprStmt @59:5
+│     │        └─ expr
+│     │           └─ IntLiteral '3' @59:5
+│     └─ Method 'stamped' public @62:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @62:18
+│        └─ body
+│           └─ ExprStmt @63:5
+│              └─ expr
+│                 └─ Binary '+' @63:36
+│                    ├─ lhs
+│                    │  └─ Binary '*' @63:19
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'audit_stamp' @63:7
+│                    │     └─ rhs
+│                    │        └─ Identifier 'hidden_scale' @63:21
+│                    └─ rhs
+│                       └─ InstanceVar '@rate' @63:38
+├─ Class 'Savings' @69:1
+│  ├─ super
+│  │  └─ TypeRef 'Account' @69:17
+│  └─ body
+│     ├─ Method 'initialize' @71:3
+│     │  ├─ params
+│     │  │  ├─ Param 'b' @71:19
+│     │  │  │  └─ decl_type
+│     │  │  │     └─ TypeRef 'Int32' @71:23
+│     │  │  └─ Param 'r' @71:30
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Int32' @71:34
+│     │  └─ body
+│     │     └─ ExprStmt @72:5
+│     │        └─ expr
+│     │           └─ Call @72:5
+│     │              ├─ callee
+│     │              │  └─ SuperExpr @72:5
+│     │              └─ args
+│     │                 ├─ IntLiteral '2' @72:12
+│     │                 ├─ Identifier 'b' @72:15
+│     │                 └─ Identifier 'r' @72:18
+│     └─ Method 'projected' @77:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @77:20
+│        └─ body
+│           └─ ExprStmt @78:5
+│              └─ expr
+│                 └─ Binary '+' @78:19
+│                    ├─ lhs
+│                    │  └─ Binary '*' @78:13
+│                    │     ├─ lhs
+│                    │     │  └─ InstanceVar '@rate' @78:7
+│                    │     └─ rhs
+│                    │        └─ IntLiteral '2' @78:15
+│                    └─ rhs
+│                       └─ Identifier 'audit_stamp' @78:21
+├─ ExprStmt @84:1
+│  └─ expr
+│     └─ Assign '=' @84:3
+│        ├─ target
+│        │  └─ Identifier 'a' @84:1
+│        └─ value
+│           └─ Call @84:16
+│              ├─ callee
+│              │  └─ Member 'new' @84:12
+│              │     └─ object
+│              │        └─ Identifier 'Account' @84:5
+│              └─ args
+│                 ├─ IntLiteral '1' @84:18
+│                 ├─ IntLiteral '100' @84:21
+│                 └─ IntLiteral '5' @84:26
+├─ ExprStmt @85:1
+│  └─ expr
+│     └─ Assign '=' @85:3
+│        ├─ target
+│        │  └─ Identifier 'b' @85:1
+│        └─ value
+│           └─ Call @85:16
+│              ├─ callee
+│              │  └─ Member 'new' @85:12
+│              │     └─ object
+│              │        └─ Identifier 'Account' @85:5
+│              └─ args
+│                 ├─ IntLiteral '2' @85:18
+│                 ├─ IntLiteral '40' @85:21
+│                 └─ IntLiteral '5' @85:25
+├─ ExprStmt @87:1
+│  └─ expr
+│     └─ Call @87:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @87:1
+│        └─ args
+│           └─ Binary '==' @87:15
+│              ├─ lhs
+│              │  └─ Member 'id' @87:11
+│              │     └─ object
+│              │        └─ Identifier 'a' @87:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @87:18
+├─ ExprStmt @88:1
+│  └─ expr
+│     └─ Call @88:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @88:1
+│        └─ args
+│           └─ Binary '==' @88:16
+│              ├─ lhs
+│              │  └─ Member 'net' @88:11
+│              │     └─ object
+│              │        └─ Identifier 'a' @88:10
+│              └─ rhs
+│                 └─ IntLiteral '90' @88:19
+├─ ExprStmt @89:1
+│  └─ expr
+│     └─ Call @89:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @89:1
+│        └─ args
+│           └─ Call @89:24
+│              ├─ callee
+│              │  └─ Member 'richer_than?' @89:11
+│              │     └─ object
+│              │        └─ Identifier 'a' @89:10
+│              └─ args
+│                 └─ Identifier 'b' @89:26
+├─ ExprStmt @90:1
+│  └─ expr
+│     └─ Call @90:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @90:1
+│        └─ args
+│           └─ Unary 'not' @90:10
+│              └─ operand
+│                 └─ Call @90:28
+│                    ├─ callee
+│                    │  └─ Member 'richer_than?' @90:15
+│                    │     └─ object
+│                    │        └─ Identifier 'b' @90:14
+│                    └─ args
+│                       └─ Identifier 'a' @90:30
+├─ ExprStmt @91:1
+│  └─ expr
+│     └─ Call @91:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @91:1
+│        └─ args
+│           └─ Binary '==' @91:31
+│              ├─ lhs
+│              │  └─ Call @91:25
+│              │     ├─ callee
+│              │     │  └─ Member 'combined_with' @91:11
+│              │     │     └─ object
+│              │     │        └─ Identifier 'a' @91:10
+│              │     └─ args
+│              │        └─ Identifier 'b' @91:27
+│              └─ rhs
+│                 └─ IntLiteral '280' @91:34
+├─ ExprStmt @92:1
+│  └─ expr
+│     └─ Call @92:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @92:1
+│        └─ args
+│           └─ Binary '==' @92:20
+│              ├─ lhs
+│              │  └─ Member 'stamped' @92:11
+│              │     └─ object
+│              │        └─ Identifier 'a' @92:10
+│              └─ rhs
+│                 └─ IntLiteral '26' @92:23
+├─ ExprStmt @94:1
+│  └─ expr
+│     └─ Assign '=' @94:3
+│        ├─ target
+│        │  └─ Identifier 's' @94:1
+│        └─ value
+│           └─ Call @94:16
+│              ├─ callee
+│              │  └─ Member 'new' @94:12
+│              │     └─ object
+│              │        └─ Identifier 'Savings' @94:5
+│              └─ args
+│                 ├─ IntLiteral '60' @94:18
+│                 └─ IntLiteral '11' @94:22
+├─ ExprStmt @96:1
+│  └─ expr
+│     └─ Call @96:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @96:1
+│        └─ args
+│           └─ Binary '==' @96:15
+│              ├─ lhs
+│              │  └─ Member 'id' @96:11
+│              │     └─ object
+│              │        └─ Identifier 's' @96:10
+│              └─ rhs
+│                 └─ IntLiteral '2' @96:18
+├─ ExprStmt @97:1
+│  └─ expr
+│     └─ Call @97:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @97:1
+│        └─ args
+│           └─ Binary '==' @97:16
+│              ├─ lhs
+│              │  └─ Member 'net' @97:11
+│              │     └─ object
+│              │        └─ Identifier 's' @97:10
+│              └─ rhs
+│                 └─ IntLiteral '54' @97:19
+├─ ExprStmt @98:1
+│  └─ expr
+│     └─ Call @98:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @98:1
+│        └─ args
+│           └─ Binary '==' @98:22
+│              ├─ lhs
+│              │  └─ Member 'projected' @98:11
+│              │     └─ object
+│              │        └─ Identifier 's' @98:10
+│              └─ rhs
+│                 └─ IntLiteral '29' @98:25
+└─ ExprStmt @99:1
+   └─ expr
+      └─ Call @99:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @99:1
+         └─ args
+            └─ Call @99:24
+               ├─ callee
+               │  └─ Member 'richer_than?' @99:11
+               │     └─ object
+               │        └─ Identifier 's' @99:10
+               └─ args
+                  └─ Identifier 'b' @99:26
+--- exit 0 ---

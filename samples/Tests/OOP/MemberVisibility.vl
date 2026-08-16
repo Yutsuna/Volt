@@ -1,0 +1,99 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+mixin Audited
+
+  protected def audit_stamp -> Int32
+    7
+  end
+
+end
+
+
+class Account
+
+  include Audited
+
+  getter id : Int32
+
+  private getter balance : Int32
+
+  protected getter rate : Int32
+
+  def initialize( @id, @balance, @rate )
+  end
+
+  private
+
+  def fee -> Int32
+    @balance / 10
+  end
+
+  def doubled_balance -> Int32
+    @balance * 2
+  end
+
+  public
+
+  # A private member is reachable from anywhere inside its own type — the
+  # implicit receiver here, and another instance of the same class below.
+  def net -> Int32
+    @balance - fee
+  end
+
+  def richer_than?( other : Account ) -> Bool
+    @balance > other.balance
+  end
+
+  def combined_with( other : Account ) -> Int32
+    doubled_balance + other.doubled_balance
+  end
+
+  # A `private` prefix governs this member alone and leaves the surrounding
+  # `public` section exactly as it was — `stamped` below is still public.
+  private def hidden_scale -> Int32
+    3
+  end
+
+  def stamped -> Int32
+    ( audit_stamp * hidden_scale ) + @rate
+  end
+
+end
+
+
+class Savings < Account
+
+  def initialize( b : Int32, r : Int32 )
+    super( 2, b, r )
+  end
+
+  # `protected` reaches every descendant: `@rate` is declared on Account and
+  # `audit_stamp` on a mixin Account includes, and both are visible here.
+  def projected -> Int32
+    ( @rate * 2 ) + audit_stamp
+  end
+
+end
+
+
+a = Account.new( 1, 100, 5 )
+b = Account.new( 2, 40, 5 )
+
+assert!( a.id == 1 )
+assert!( a.net == 90 )
+assert!( a.richer_than?( b ) )
+assert!( not b.richer_than?( a ) )
+assert!( a.combined_with( b ) == 280 )
+assert!( a.stamped == 26 )
+
+s = Savings.new( 60, 11 )
+
+assert!( s.id == 2 )
+assert!( s.net == 54 )
+assert!( s.projected == 29 )
+assert!( s.richer_than?( b ) )
