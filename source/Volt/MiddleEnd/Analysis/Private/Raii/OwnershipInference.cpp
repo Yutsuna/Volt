@@ -204,6 +204,32 @@ namespace
         return AllNamedReturnOwned( Index, Name );
     }
 
+    // `super( … )` — the enclosing method, one level up.
+    //
+    // Resolved by the *owner's own name* against its superclass, which is what
+    // `super` means and what `Analysis::SuperType` resolves it to at the call
+    // site. Without this branch a `super` call is opaque, so every override
+    // that forwards to its parent reads as borrowing — and whatever the parent
+    // allocated is then released by nobody, which is exactly the leak
+    // `SuperMethodCall.vl` showed.
+    //
+    // An exact receiver, so no fall back to the all-or-nothing name index: the
+    // superclass is written on the declaration.
+    [[nodiscard]] bool SuperInvocationReturnsOwned ( const TypeStore &Store, const Body &Owner )
+    {
+        if ( Owner.Owner == nullptr or not Owner.Self.IsValid() )
+        {
+            return false;
+        }
+        const NominalId Parent = Store.BaseOf( Store.Type( Owner.Self ).Super );
+        if ( not Parent.IsValid() )
+        {
+            return false;
+        }
+        const TypeStore::MemberRef Found = Store.LookupMember( Parent, Store.Text( Owner.Owner->Name ) );
+        return Found.Decl != nullptr and Found.Decl->Kind == EMemberKind::Method and Found.Decl->bReturnsOwned;
+    }
+
     // A body's value on some path out of it — its own last expression
     // statement. Anything else (a trailing `while`, an empty body) yields
     // nothing and is treated as not-owned.
@@ -301,12 +327,29 @@ namespace
             {
                 return MemberInvocationReturnsOwned( Ast, Store, Index, Owner, *MemberNode );
             }
+            if ( std::holds_alternative<Frontend::SuperExpr>( Callee ) )
+            {
+                return SuperInvocationReturnsOwned( Store, Owner );
+            }
             if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Callee ) )
             {
+                // `super` also reaches here spelled as a bare name, which is
+                // how the parser hands back the paren-less form.
+                if ( Ast.Text( Ident->Name ) == "super" )
+                {
+                    return SuperInvocationReturnsOwned( Store, Owner );
+                }
                 const Member *Found = Store.LookupFunction( Ast.Text( Ident->Name ) );
                 return Found != nullptr and Found->bReturnsOwned;
             }
             return false;
+        }
+
+        // A bare `super` in value position — an override whose whole body is
+        // its parent's result.
+        if ( std::holds_alternative<Frontend::SuperExpr>( Node ) )
+        {
+            return SuperInvocationReturnsOwned( Store, Owner );
         }
 
         // An operator is an ordinary member call on a non-primitive receiver
