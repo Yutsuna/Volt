@@ -68,8 +68,9 @@ void CheckMemberSelf ( TypeCheckerContext &Context, SourceRange Loc, const Resol
 
 // May the code being checked *see* what `Found` resolved to? `private` is
 // reachable only from the body of the type that declares it, `protected` from
-// that type and everything below it — a subclass, an includer of it as a
-// mixin, or any composition of the two. Anything unwritten is public.
+// that type and everything below it — the `TypeSystem::ConformsTo` relation,
+// shared with assignability so that "a type I may be used as" and "a type
+// whose protected members I reach" cannot drift. Anything unwritten is public.
 //
 // The comparison is against `Context.SelfType`, the type whose body we are
 // inside, and never against the receiver: that is what makes `other.balance`

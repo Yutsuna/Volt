@@ -63,42 +63,6 @@ namespace
     return Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer;
 }
 
-// Is `Inner` `Owner` itself, or something below it — a subclass, a type that
-// includes it as a mixin, or any composition of the two?
-//
-// The same chain `TypeStore::LookupMember` walks to find an inherited name,
-// and deliberately so: "a member I can reach through `protected`" and "a
-// member I inherit" have to be the same relation, or a type could inherit a
-// name it is then forbidden to mention. Depth-bounded for the reason that walk
-// is — a malformed cyclic hierarchy must not hang sema.
-[[nodiscard]] bool DescendsFrom ( const Volt::MiddleEnd::TypeSystem::TypeStore &Types,
-                                  Volt::MiddleEnd::TypeSystem::NominalId Inner,
-                                  Volt::MiddleEnd::TypeSystem::NominalId Owner,
-                                  std::uint32_t Depth = 0 )
-{
-    using namespace Volt::MiddleEnd::TypeSystem;
-
-    constexpr std::uint32_t MaxDepth = 16;
-    if ( not Inner.IsValid() or not Owner.IsValid() or Depth > MaxDepth )
-    {
-        return false;
-    }
-    if ( Inner == Owner )
-    {
-        return true;
-    }
-
-    const NominalType &Type = Types.Type( Inner );
-    for ( const SigTypeId Included : Type.Includes )
-    {
-        if ( DescendsFrom( Types, Types.BaseOf( Included ), Owner, Depth + 1 ) )
-        {
-            return true;
-        }
-    }
-    return DescendsFrom( Types, Types.BaseOf( Type.Super ), Owner, Depth + 1 );
-}
-
 } // namespace
 
 Volt::MiddleEnd::Analysis::Resolution
@@ -402,7 +366,7 @@ void Volt::MiddleEnd::Analysis::CheckMemberAccess ( TypeCheckerContext &Context,
     // scope) fails both — which is the point.
     const bool bVisible = Written == EVisibility::Private
                               ? Context.SelfType == Found.Owner
-                              : DescendsFrom( Context.Ctx.Types, Context.SelfType, Found.Owner );
+                              : ConformsTo( Context.Ctx.Types, Context.SelfType, Found.Owner );
     if ( bVisible )
     {
         return;

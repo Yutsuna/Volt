@@ -113,6 +113,10 @@ struct VOLT_MIDDLEEND_ANALYSIS_EXPORT TypeCheckerContext
     // assignment, checked on every read — definite assignment analysis.
     std::unordered_set<Symbol> UninitializedLocals{};
     SemaTypeId CurrentMethodReturnType{};
+    // The name of the method body being walked, which is the whole meaning of
+    // `super`: it calls *this* method one level up, not some fixed spelling.
+    // Invalid outside a method body, where `super` has nothing to name.
+    Symbol CurrentMethodName{};
 
     // The innermost `rescue`s a bare `raise` is currently nested in, pushed
     // while typing each clause's body and popped after. An anonymous clause
