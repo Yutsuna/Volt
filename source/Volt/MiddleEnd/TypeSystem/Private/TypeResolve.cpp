@@ -122,11 +122,16 @@ namespace MiddleEnd
 
             const std::span<const SemaTypeId> Applied{ Concrete.Args.begin(), Concrete.Args.Size() };
 
-            // Mixins before the superclass, matching TypeStore::LookupMember —
-            // the two must agree on which declaration wins, or a name would
-            // exist on one path and type on the other.
-            const NominalType &Type                      = Store.Type( Concrete.Base );
-            ::Volt::Core::SmallVec<SigTypeId, 2> Parents = Type.Includes;
+            // Mixins before the superclass, and the *last* `include` before the
+            // ones above it — matching TypeStore::LookupMember, which reverses
+            // for the same reason. The two must agree on which declaration
+            // wins, or a name would exist on one path and type on the other.
+            const NominalType &Type = Store.Type( Concrete.Base );
+            ::Volt::Core::SmallVec<SigTypeId, 2> Parents;
+            for ( std::size_t Slot = Type.Includes.Size(); Slot > 0; --Slot )
+            {
+                Parents.PushBack( Type.Includes[Slot - 1] );
+            }
             if ( Type.Super.IsValid() )
             {
                 Parents.PushBack( Type.Super );
@@ -202,6 +207,41 @@ namespace MiddleEnd
             }
 
             return std::nullopt;
+        }
+
+        namespace
+        {
+
+            // The depth-carrying half of ConformsTo. File-local so the exported
+            // surface stays the two-type question callers actually ask.
+            [[nodiscard]] bool ConformsWithin ( const TypeStore &Store, NominalId Inner, NominalId Ancestor, std::uint32_t Depth )
+            {
+                constexpr std::uint32_t MaxDepth = 16;
+                if ( not Inner.IsValid() or not Ancestor.IsValid() or Depth > MaxDepth )
+                {
+                    return false;
+                }
+                if ( Inner == Ancestor )
+                {
+                    return true;
+                }
+
+                const NominalType &Type = Store.Type( Inner );
+                for ( const SigTypeId Included : Type.Includes )
+                {
+                    if ( ConformsWithin( Store, Store.BaseOf( Included ), Ancestor, Depth + 1 ) )
+                    {
+                        return true;
+                    }
+                }
+                return ConformsWithin( Store, Store.BaseOf( Type.Super ), Ancestor, Depth + 1 );
+            }
+
+        } // namespace
+
+        bool ConformsTo ( const TypeStore &Store, NominalId Inner, NominalId Ancestor )
+        {
+            return ConformsWithin( Store, Inner, Ancestor, 0 );
         }
 
         bool IsSubclassOf ( const TypeStore &Store, NominalId Child, NominalId Parent )

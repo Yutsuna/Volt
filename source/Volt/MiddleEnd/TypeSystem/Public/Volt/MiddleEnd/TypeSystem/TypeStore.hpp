@@ -505,6 +505,15 @@ namespace MiddleEnd
             // Own body first, then mixins, then the superclass — transitively.
             // Depth is bounded so a malformed cyclic hierarchy cannot hang sema.
             //
+            // Mixins are walked *last-included-first*: `include Greeter` then
+            // `include FormalGreeter` puts FormalGreeter nearer, so it is the
+            // one whose `greet` answers. That is the only order under which
+            // adding an `include` to the bottom of a body can shadow what is
+            // already there — the reason a body lists them in the first place
+            // — and it is what Ruby's ancestor chain does. LookupMemberOn
+            // reverses the same way; the two must agree or a name would exist
+            // on one path and type on the other.
+            //
             // Name existence only: the MemberRef it hands back carries the
             // declaring nominal, not an instantiation, so a signature that
             // mentions the owner's generics cannot be read off it. Typing a
@@ -522,9 +531,10 @@ namespace MiddleEnd
                 }
 
                 const NominalType &Type = Types.Get( Id );
-                for ( const SigTypeId Mixin : Type.Includes )
+                for ( std::size_t Slot = Type.Includes.Size(); Slot > 0; --Slot )
                 {
-                    if ( const MemberRef Found = LookupMember( BaseOf( Mixin ), Name, Depth + 1 ); Found.Decl != nullptr )
+                    if ( const MemberRef Found = LookupMember( BaseOf( Type.Includes[Slot - 1] ), Name, Depth + 1 );
+                         Found.Decl != nullptr )
                     {
                         return Found;
                     }
