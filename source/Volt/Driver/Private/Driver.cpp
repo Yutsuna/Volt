@@ -202,7 +202,11 @@ namespace
 // into the store's canonical TypeUniverse, so the store now carries them and a
 // unit carries only its ExprId -> SemaTypeId mapping (TypeUniverse.hpp). An
 // older file would deserialize into a shape that no longer exists.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453039ULL; // "VOLTFE09"
+// Bumped to 10 when member visibility landed: `Frontend::Field`,
+// `Frontend::Method` and `MiddleEnd::TypeSystem::Member` each gained an
+// `EVisibility`, and all three are reflected aggregate dumps, so the same
+// byte-shift reasoning as 05 and 07 applies to every cached AST *and* store.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453130ULL; // "VOLTFE10"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )

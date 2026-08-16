@@ -96,6 +96,18 @@ void Volt::Frontend::Parser::ParseFile ()
     {
         const std::size_t Before = Pos;
 
+        // A visibility keyword governs *members*, so at file scope there is
+        // nothing for it to govern. Said here rather than let through to
+        // ParseStatement, which would only report that a reserved word is not
+        // an expression and leave the actual mistake unnamed.
+        if ( Check( TokenKind::KwPublic ) or Check( TokenKind::KwProtected ) or Check( TokenKind::KwPrivate ) )
+        {
+            ReportHere( "visibility applies to members, so it is only valid inside a class, struct, mixin or enum body" );
+            Advance();
+            SkipTerminators();
+            continue;
+        }
+
         if ( AtDeclaration() )
         {
             const DeclId Decl = ParseDeclaration();

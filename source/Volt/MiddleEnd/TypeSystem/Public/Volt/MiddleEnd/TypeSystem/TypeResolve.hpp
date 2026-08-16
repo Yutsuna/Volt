@@ -378,6 +378,23 @@ namespace MiddleEnd
         [[nodiscard]] VOLT_MIDDLEEND_TYPESYSTEM_EXPORT bool
         IsSubclassOf ( const TypeStore &Store, NominalId Child, NominalId Parent );
 
+        /// Is `Inner` `Ancestor` itself, or anything below it — a subclass, a
+        /// type that includes it as a mixin, or any composition of the two?
+        ///
+        /// The wider counterpart of IsSubclassOf, which follows `Super` alone.
+        /// This walks exactly the chain `TypeStore::LookupMember` walks to find
+        /// an inherited name, and that is the point: "a type I may be used as"
+        /// and "a type whose members I have" have to be one relation, or a
+        /// value could inherit an interface it is then not accepted for.
+        ///
+        /// Two readers, for the two halves of that: `IsAssignable`
+        /// (TypeCompat.cpp), so a `Circle` fits a `Shape` slot, and
+        /// `Analysis::CheckMemberAccess`, so `protected` reaches a descendant.
+        /// Depth-bounded like every other walk here — a malformed cyclic
+        /// hierarchy must not hang sema.
+        [[nodiscard]] VOLT_MIDDLEEND_TYPESYSTEM_EXPORT bool
+        ConformsTo ( const TypeStore &Store, NominalId Inner, NominalId Ancestor );
+
     } // namespace TypeSystem
 
 } // namespace MiddleEnd

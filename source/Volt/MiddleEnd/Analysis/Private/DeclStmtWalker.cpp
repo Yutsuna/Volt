@@ -141,10 +141,12 @@ void Volt::MiddleEnd::Analysis::EnterMethod ( TypeCheckerContext &Context, const
     std::unordered_set<Symbol> OuterUninitializedLocals;
     OuterUninitializedLocals.swap( Context.UninitializedLocals );
     const SemaTypeId OuterReturnType = Context.CurrentMethodReturnType;
+    const Symbol OuterMethodName     = Context.CurrentMethodName;
 
     UnitSink Sink = Context.MakeSink();
     Context.CurrentMethodReturnType =
         ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Node.ReturnType );
+    Context.CurrentMethodName = Node.Name;
 
     const bool bOuterStatic      = Context.bStaticContext;
     Context.bStaticContext       = Node.bSelf;
@@ -193,6 +195,7 @@ void Volt::MiddleEnd::Analysis::EnterMethod ( TypeCheckerContext &Context, const
     Context.bStaticContext          = bOuterStatic;
     Context.bGenericBody            = bOuterGenericBody;
     Context.CurrentMethodReturnType = OuterReturnType;
+    Context.CurrentMethodName       = OuterMethodName;
     Context.LocalTypes.swap( OuterLocalTypes );
     Context.LocalSites.swap( OuterLocalSites );
     Context.Locals.swap( OuterLocals );

@@ -1,0 +1,60 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+class LevelA
+  getter a8 : UInt8
+  getter a64 : Int64
+
+  def initialize( @a8 : UInt8, @a64 : Int64 )
+  end
+
+  def check_base -> Bool
+    @a8 == 42_u8 and @a64 == 10000000000_i64
+  end
+end
+
+
+class LevelB < LevelA
+  getter b_str : String
+  getter b32 : Int32
+
+  def initialize( a8 : UInt8, a64 : Int64, @b_str : String, @b32 : Int32 )
+    super( a8, a64 )
+  end
+
+  def check_level_b -> Bool
+    check_base() and @b_str == "voltage" and @b32 == 999
+  end
+end
+
+
+class LevelC < LevelB
+  getter c_float : Float64
+
+  def initialize( a8 : UInt8, a64 : Int64, b_str : String, b32 : Int32, @c_float : Float64 )
+    super( a8, a64, b_str, b32 )
+  end
+
+  def check_all -> Bool
+    check_level_b() and @c_float == 3.1415
+  end
+end
+
+
+obj = LevelC.new( 42_u8, 10000000000_i64, "voltage", 999, 3.1415 )
+
+
+assert!( obj.a8 == 42_u8 )
+assert!( obj.a64 == 10000000000_i64 )
+assert!( obj.b_str == "voltage" )
+assert!( obj.b32 == 999 )
+assert!( obj.c_float == 3.1415 )
+assert!( obj.check_all )
+
+
+base_ref : LevelA = obj
+assert!( base_ref.check_base )

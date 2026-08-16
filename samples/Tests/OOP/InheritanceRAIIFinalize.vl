@@ -1,0 +1,56 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+class BaseResource
+  base_id : Int32
+  log : Pointer<Int32>
+  cursor : Pointer<Int32>
+
+  def initialize( @base_id : Int32, @log : Pointer<Int32>, @cursor : Pointer<Int32> )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @base_id
+    *@cursor = slot + 1
+  end
+end
+
+
+class DerivedResource < BaseResource
+  derived_id : Int32
+
+  def initialize( base_id : Int32, @derived_id : Int32, log : Pointer<Int32>, cursor : Pointer<Int32> )
+    super( base_id, log, cursor )
+  end
+
+  def finalize -> Void
+    slot = *@cursor
+    *( @log + slot ) = @derived_id
+    *@cursor = slot + 1
+  end
+end
+
+
+def run_scope( log : Pointer<Int32>, cursor : Pointer<Int32> ) -> Void
+  res = DerivedResource.new( 10, 20, log, cursor )
+end
+
+
+cursor = Pointer<Int32>.malloc( 1_u64 )
+*cursor = 0
+log = Pointer<Int32>.malloc( 4_u64 )
+
+
+run_scope( log, cursor )
+assert!( *cursor == 2 )
+assert!( *( log + 0 ) == 20 )
+assert!( *( log + 1 ) == 10 )
+
+
+log.free
+cursor.free

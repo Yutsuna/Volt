@@ -474,6 +474,53 @@ void FoldInto ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
     return true;
 }
 
+// `super` — the method being walked, resolved one level up the chain instead
+// of on `self`, and recorded on `Id` so the wrapping Call checks its arguments
+// against the parent's signature and the backend emits a direct call to it.
+//
+// The name comes from `Context.CurrentMethodName`, never from a spelling here:
+// `super` inside `def process` means `process`, and the old hardcoded
+// "initialize" made every override's `super( … )` resolve to the parent's
+// *constructor* — which type-checked only by accident when the arities happened
+// to agree, and called the wrong function when they did.
+//
+// Static, not virtual: `super` names one specific body, which is exactly what
+// makes it the one polymorphic-looking call this backend can already emit.
+[[nodiscard]] Volt::MiddleEnd::TypeSystem::SemaTypeId
+SuperType ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context, Volt::Frontend::ExprId Id )
+{
+    using namespace Volt::MiddleEnd::Analysis;
+    using namespace Volt::MiddleEnd::TypeSystem;
+
+    if ( not Context.SelfValue.IsValid() or not Context.CurrentMethodName.IsValid() )
+    {
+        return SemaTypeId{};
+    }
+
+    const SemaType &SelfConc = Context.Ctx.Values.Get( Context.SelfValue );
+    if ( not SelfConc.Base.IsValid() )
+    {
+        return SemaTypeId{};
+    }
+
+    const NominalType &NomType = Context.Ctx.Types.Type( SelfConc.Base );
+    if ( not NomType.Super.IsValid() )
+    {
+        return SemaTypeId{};
+    }
+
+    const SemaTypeId SuperInstance =
+        Instantiate( Context.Ctx.Types, NomType.Super, SelfConc.Args, Context.SelfValue, Context.Ctx.Values );
+    const Resolution Found = LookupOn( Context, SuperInstance, Context.Ctx.Ast.Text( Context.CurrentMethodName ) );
+    if ( Found.Decl == nullptr )
+    {
+        return SemaTypeId{};
+    }
+
+    Context.CalleeResolution[Id.Value] = Found;
+    return Found.Result;
+}
+
 } // namespace
 
 /**
@@ -534,29 +581,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 }
                 return Context.SelfValue;
             },
-            [&] ( const Frontend::SuperExpr & ) -> SemaTypeId
-            {
-                if ( Context.SelfValue.IsValid() )
-                {
-                    const SemaType &SelfConc = Context.Ctx.Values.Get( Context.SelfValue );
-                    if ( SelfConc.Base.IsValid() )
-                    {
-                        const NominalType &NomType = Context.Ctx.Types.Type( SelfConc.Base );
-                        if ( NomType.Super.IsValid() )
-                        {
-                            const SemaTypeId SuperInstance = Instantiate( Context.Ctx.Types, NomType.Super, SelfConc.Args,
-                                                                          Context.SelfValue, Context.Ctx.Values );
-                            const Resolution Found         = LookupOn( Context, SuperInstance, "initialize" );
-                            if ( Found.Decl != nullptr )
-                            {
-                                Context.CalleeResolution[Id.Value] = Found;
-                                return Found.Result;
-                            }
-                        }
-                    }
-                }
-                return SemaTypeId{};
-            },
+            [&] ( const Frontend::SuperExpr & ) -> SemaTypeId { return SuperType( Context, Id ); },
             [&] ( const Frontend::InstanceVar &Expr ) -> SemaTypeId
             { return MemberType( Context, Id, Context.SelfValue, Context.bStaticContext, Context.Ctx.Ast.Text( Expr.Name ) ); },
             [&] ( const Frontend::Identifier &Expr ) -> SemaTypeId
@@ -571,23 +596,14 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                     return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                 }
 
+                // `super` reaches the parser as a keyword in some positions and
+                // as a bare identifier in others; both mean the one thing, so
+                // both go through the same resolution.
                 if ( Context.Ctx.Ast.Text( Expr.Name ) == "super" and Context.SelfValue.IsValid() )
                 {
-                    const SemaType &SelfConc = Context.Ctx.Values.Get( Context.SelfValue );
-                    if ( SelfConc.Base.IsValid() )
+                    if ( const SemaTypeId Super = SuperType( Context, Id ); Context.CalleeResolution.contains( Id.Value ) )
                     {
-                        const NominalType &NomType = Context.Ctx.Types.Type( SelfConc.Base );
-                        if ( NomType.Super.IsValid() )
-                        {
-                            const SemaTypeId SuperInstance = Instantiate( Context.Ctx.Types, NomType.Super, SelfConc.Args,
-                                                                          Context.SelfValue, Context.Ctx.Values );
-                            const Resolution Found         = LookupOn( Context, SuperInstance, "initialize" );
-                            if ( Found.Decl != nullptr )
-                            {
-                                Context.CalleeResolution[Id.Value] = Found;
-                                return Found.Result;
-                            }
-                        }
+                        return Super;
                     }
                 }
 
@@ -602,6 +618,12 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                     if ( Found.Decl != nullptr )
                     {
                         Context.CalleeResolution[Id.Value] = Found;
+                        // The implicit-`self` half of the visibility check.
+                        // Writing the receiver down is what routes an access
+                        // through MemberType; a bare name resolves here and
+                        // would otherwise be the one way to reach a private
+                        // member of a base class from a subclass.
+                        CheckMemberAccess( Context, Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ), Found );
                         return Found.Result;
                     }
                 }

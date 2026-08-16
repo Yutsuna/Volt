@@ -108,6 +108,14 @@ Volt::MiddleEnd::Analysis::LookupOn ( TypeCheckerContext &Context, SemaTypeId Re
         return Resolution{};
     }
 
+    // The type that actually *declares* what was found, dropping the
+    // arguments LookupMemberOn made concrete. Two unrelated questions want
+    // it: whether a mixin's default body is shadowing a machine operator
+    // (below), and whether the caller may see the member at all
+    // (CheckMemberAccess).
+    const NominalId DeclaringBase =
+        Context.Ctx.Values.Has( Found.Owner ) ? Context.Ctx.Values.Get( Found.Owner ).Base : NominalId{};
+
     // Invoking a callable. The signature is not what the contract wrote down
     // — it *cannot* be, since a Proc's arity lives in its type arguments —
     // so it is read off the receiver: result first, then one parameter per
@@ -124,6 +132,7 @@ Volt::MiddleEnd::Analysis::LookupOn ( TypeCheckerContext &Context, SemaTypeId Re
         // No block slot: the signature is the receiver's own arguments, and a
         // callable takes its arguments positionally.
         return Resolution{ .Decl       = Found.Decl,
+                           .Owner      = DeclaringBase,
                            .Result     = Signature.IsEmpty() ? SemaTypeId{} : Signature[0],
                            .Params     = std::move( Params ),
                            .BlockParam = SemaTypeId{},
@@ -142,6 +151,7 @@ Volt::MiddleEnd::Analysis::LookupOn ( TypeCheckerContext &Context, SemaTypeId Re
     // adds one slot nothing here can fill. Inference at the call site
     // closes them and recomputes, which is what Reinstantiate is for.
     Resolution Out{ .Decl       = Found.Decl,
+                    .Owner      = DeclaringBase,
                     .Result     = SemaTypeId{},
                     .Params     = {},
                     .BlockParam = SemaTypeId{},
@@ -173,8 +183,6 @@ Volt::MiddleEnd::Analysis::LookupOn ( TypeCheckerContext &Context, SemaTypeId Re
     // `Int32#<=>` and `Pointer<T>#<=>` are real bodies, written with those
     // very instructions.
     const NominalId ReceiverBase = Context.Ctx.Values.Get( Receiver ).Base;
-    const NominalId DeclaringBase =
-        Context.Ctx.Values.Has( Found.Owner ) ? Context.Ctx.Values.Get( Found.Owner ).Base : NominalId{};
     if ( DeclaringBase != ReceiverBase and IsMachineOperatorOn( Context, ReceiverBase, CleanName ) )
     {
         Out.Decl = nullptr;
@@ -191,7 +199,10 @@ Volt::MiddleEnd::Analysis::Resolution Volt::MiddleEnd::Analysis::LookupFreeFunct
         return Resolution{};
     }
 
+    // No Owner: a top-level `def` is declared by no type, so there is nothing
+    // for a visibility check to be relative to and nothing that could hide it.
     Resolution Out{ .Decl       = Found,
+                    .Owner      = NominalId{},
                     .Result     = SemaTypeId{},
                     .Params     = {},
                     .BlockParam = SemaTypeId{},
@@ -332,6 +343,40 @@ void Volt::MiddleEnd::Analysis::CheckMemberSelf ( TypeCheckerContext &Context,
     }
 }
 
+void Volt::MiddleEnd::Analysis::CheckMemberAccess ( TypeCheckerContext &Context,
+                                                    Volt::Core::SourceRange Loc,
+                                                    const Resolution &Found )
+{
+    using Frontend::EVisibility;
+
+    if ( Found.Decl == nullptr or not Found.Owner.IsValid() )
+    {
+        return;
+    }
+
+    const EVisibility Written = Found.Decl->Visibility;
+    if ( Written == EVisibility::None or Written == EVisibility::Public )
+    {
+        return;
+    }
+
+    // `private` reaches exactly one type; `protected` reaches it and its
+    // descendants. Both are answered against the body we are inside, so a
+    // reference outside every type body (`SelfType` invalid, as at file
+    // scope) fails both — which is the point.
+    const bool bVisible = Written == EVisibility::Private
+                              ? Context.SelfType == Found.Owner
+                              : ConformsTo( Context.Ctx.Types, Context.SelfType, Found.Owner );
+    if ( bVisible )
+    {
+        return;
+    }
+
+    const std::string_view Keyword = Written == EVisibility::Private ? "private" : "protected";
+    Context.Report( Loc, std::string{ Keyword } + " member " + std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) } +
+                             " of " + Context.NameOf( Found.Owner ) + " cannot be accessed here" );
+}
+
 bool Volt::MiddleEnd::Analysis::IsCallableType ( const TypeCheckerContext &Context, SemaTypeId Receiver )
 {
     if ( not Context.Ctx.Values.Has( Receiver ) )
@@ -429,6 +474,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
         }
     }
     CheckMemberSelf( Context, Loc, Found, bReceiverIsNakedType );
+    CheckMemberAccess( Context, Loc, Found );
     return Found.Result;
 }
 

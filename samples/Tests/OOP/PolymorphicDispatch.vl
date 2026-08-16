@@ -1,0 +1,81 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+
+class Shape
+
+  getter name : String
+
+  def initialize( @name )
+  end
+
+  abstract def area -> Int32
+
+  def describe -> String
+    "#{@name} with area #{area}"
+  end
+
+end
+
+
+class Rectangle < Shape
+
+  getter width : Int32
+  getter height : Int32
+
+  def initialize( name : String, @width, @height )
+    super name
+  end
+
+  def area -> Int32
+    @width * @height
+  end
+
+end
+
+
+class Square < Rectangle
+
+  def initialize( size : Int32 )
+  super( "Square", size, size )
+  end
+
+end
+
+
+class Circle < Shape
+
+  getter radius : Int32
+
+  def initialize( @radius )
+    super( "Circle" )
+  end
+
+  def area -> Int32
+    3 * @radius * @radius
+  end
+
+end
+
+
+def total_area( shapes : Array<Shape> ) -> Int32
+  sum = 0
+  shapes.each { |shape| sum += shape.area }
+  sum
+end
+
+
+r : Shape = Rectangle.new( "Rect", 4, 5 )
+s : Shape = Square.new 3
+c : Shape = Circle.new 2
+
+shapes = Array<Shape>.new( 3 )
+shapes << r
+shapes << s
+shapes << c
+
+
+assert!( total_area( shapes ) == 41 )

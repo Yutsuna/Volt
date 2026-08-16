@@ -25,6 +25,13 @@ namespace Volt::MiddleEnd::Analysis
 struct Resolution
 {
     const Member *Decl = nullptr;
+    // The nominal whose body declares `Decl`, which on an inherited member is
+    // not the receiver: `describe` reached from a `Square` is owned by
+    // `Shape`. Kept because that is the type a visibility check is *against* —
+    // `private` means "the declaring type", and a Member has no back-pointer
+    // to the type holding it. Invalid for a free function, which has no owner
+    // and no visibility to check.
+    NominalId Owner;
     SemaTypeId Result;
     ::Volt::Core::SmallVec<SemaTypeId, 4> Params;
     // The instantiated `&block` slot, kept out of Params because it binds
@@ -106,6 +113,10 @@ struct VOLT_MIDDLEEND_ANALYSIS_EXPORT TypeCheckerContext
     // assignment, checked on every read — definite assignment analysis.
     std::unordered_set<Symbol> UninitializedLocals{};
     SemaTypeId CurrentMethodReturnType{};
+    // The name of the method body being walked, which is the whole meaning of
+    // `super`: it calls *this* method one level up, not some fixed spelling.
+    // Invalid outside a method body, where `super` has nothing to name.
+    Symbol CurrentMethodName{};
 
     // The innermost `rescue`s a bare `raise` is currently nested in, pushed
     // while typing each clause's body and popped after. An anonymous clause

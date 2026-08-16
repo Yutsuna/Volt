@@ -122,6 +122,15 @@ VOLT_KEYWORD( KwSelf, "self" )
 VOLT_KEYWORD( KwInclude, "include" )
 VOLT_KEYWORD( KwAbstract, "abstract" )
 VOLT_KEYWORD( KwExternal, "external" )
+// Member visibility, written either as a section marker alone on its line or
+// as a one-member prefix (`private def`, `private getter x : T`). Reserved
+// words, unlike the contextual `getter`/`setter`/`property`, precisely
+// because of the marker form: a bare identifier on a line of its own is
+// already a field declaration, so leaving `private` unreserved would make a
+// section marker parse as a field named `private`.
+VOLT_KEYWORD( KwPublic, "public" )
+VOLT_KEYWORD( KwProtected, "protected" )
+VOLT_KEYWORD( KwPrivate, "private" )
 VOLT_KEYWORD( KwComponent, "component" )
 VOLT_KEYWORD( KwCircuit, "circuit" )
 VOLT_KEYWORD( KwSuper, "super" )

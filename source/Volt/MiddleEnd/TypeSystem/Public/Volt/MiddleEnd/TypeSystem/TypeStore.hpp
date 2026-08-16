@@ -150,6 +150,15 @@ namespace MiddleEnd
             std::uint32_t OwnGenerics = 0;
             std::uint32_t MinParams   = 0;
             bool bSelf                = false; // `def self.malloc`
+            // `private` / `protected` as written on the declaration, `None`
+            // when the source wrote nothing — which reads as public.
+            //
+            // It belongs here rather than being re-read off the AST at each
+            // access for the same reason `bAbstract` does: a member is
+            // resolved inside whichever unit *calls* it, and that unit never
+            // sees the declaring unit's AstContext. `Analysis::CheckMemberAccess`
+            // is the one reader.
+            Frontend::EVisibility Visibility = Frontend::EVisibility::None;
             // `abstract def`: a contract, not an implementation. A mixin uses
             // one to state what an including type owes it, and that debt is
             // what the conformance check collects.
@@ -496,6 +505,15 @@ namespace MiddleEnd
             // Own body first, then mixins, then the superclass — transitively.
             // Depth is bounded so a malformed cyclic hierarchy cannot hang sema.
             //
+            // Mixins are walked *last-included-first*: `include Greeter` then
+            // `include FormalGreeter` puts FormalGreeter nearer, so it is the
+            // one whose `greet` answers. That is the only order under which
+            // adding an `include` to the bottom of a body can shadow what is
+            // already there — the reason a body lists them in the first place
+            // — and it is what Ruby's ancestor chain does. LookupMemberOn
+            // reverses the same way; the two must agree or a name would exist
+            // on one path and type on the other.
+            //
             // Name existence only: the MemberRef it hands back carries the
             // declaring nominal, not an instantiation, so a signature that
             // mentions the owner's generics cannot be read off it. Typing a
@@ -513,9 +531,10 @@ namespace MiddleEnd
                 }
 
                 const NominalType &Type = Types.Get( Id );
-                for ( const SigTypeId Mixin : Type.Includes )
+                for ( std::size_t Slot = Type.Includes.Size(); Slot > 0; --Slot )
                 {
-                    if ( const MemberRef Found = LookupMember( BaseOf( Mixin ), Name, Depth + 1 ); Found.Decl != nullptr )
+                    if ( const MemberRef Found = LookupMember( BaseOf( Type.Includes[Slot - 1] ), Name, Depth + 1 );
+                         Found.Decl != nullptr )
                     {
                         return Found;
                     }

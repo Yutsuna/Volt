@@ -150,6 +150,31 @@ namespace
                NilPrim->Bits == TargetPrim->Bits;
     }
 
+    // A `Circle` stored in a slot declared `Shape`. Subtyping proper, and the
+    // one rule that makes an inheritance hierarchy usable: without it a base
+    // -typed local, parameter or `Array<Shape>` element can only ever hold the
+    // base itself, which is what every `assert!( total_area( shapes ) )` shape
+    // of program needs.
+    //
+    // `ConformsTo` rather than `IsSubclassOf` so an `include`d mixin counts:
+    // the members a value has and the slots it fits are the same question.
+    //
+    // Deliberately refuses a target that carries generic arguments. Reaching
+    // `Box<Int32>` from `class IntBox < Box<Int32>` means instantiating each
+    // `Super` link down the chain against the arguments below it, and nothing
+    // here does that — so a wrong `true` would silently accept `Box<String>`
+    // too. Same-base generics never come through here: they are settled by the
+    // argument-wise comparison in IsAssignable itself.
+    [[nodiscard]] bool IsSubtypeInto ( const TypeCheckerContext &Context, SemaTypeId Target, SemaTypeId Value )
+    {
+        const SemaType &TargetVal = Context.Ctx.Values.Get( Target );
+        if ( not TargetVal.Args.IsEmpty() )
+        {
+            return false;
+        }
+        return ConformsTo( Context.Ctx.Types, Context.Ctx.Values.Get( Value ).Base, TargetVal.Base );
+    }
+
 } // namespace
 
 bool IsAssignable ( const TypeCheckerContext &Context, SemaTypeId Target, SemaTypeId Value )
@@ -167,7 +192,8 @@ bool IsAssignable ( const TypeCheckerContext &Context, SemaTypeId Target, SemaTy
     const SemaType &TargetVal = Context.Ctx.Values.Get( Target );
     if ( ValueVal.Base != TargetVal.Base or ValueVal.Args.Size() != TargetVal.Args.Size() )
     {
-        return IsWideningScalar( Context, Target, Value ) or IsNilInto( Context, Target, Value );
+        return IsWideningScalar( Context, Target, Value ) or IsNilInto( Context, Target, Value ) or
+               IsSubtypeInto( Context, Target, Value );
     }
 
     // A slot the declaration side left open (invalid — an un-instantiated
