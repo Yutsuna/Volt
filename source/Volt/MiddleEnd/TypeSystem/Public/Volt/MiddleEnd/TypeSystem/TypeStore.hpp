@@ -150,6 +150,15 @@ namespace MiddleEnd
             std::uint32_t OwnGenerics = 0;
             std::uint32_t MinParams   = 0;
             bool bSelf                = false; // `def self.malloc`
+            // `private` / `protected` as written on the declaration, `None`
+            // when the source wrote nothing — which reads as public.
+            //
+            // It belongs here rather than being re-read off the AST at each
+            // access for the same reason `bAbstract` does: a member is
+            // resolved inside whichever unit *calls* it, and that unit never
+            // sees the declaring unit's AstContext. `Analysis::CheckMemberAccess`
+            // is the one reader.
+            Frontend::EVisibility Visibility = Frontend::EVisibility::None;
             // `abstract def`: a contract, not an implementation. A mixin uses
             // one to state what an including type owes it, and that debt is
             // what the conformance check collects.

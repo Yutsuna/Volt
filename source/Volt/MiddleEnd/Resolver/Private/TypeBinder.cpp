@@ -694,21 +694,23 @@ namespace MiddleEnd::Resolver
                             [&] ( const Frontend::Field &Entry )
                             {
                                 Member Slot;
-                                Slot.Name = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind = EMemberKind::Field;
-                                Slot.Unit = Unit;
-                                Slot.Decl = Child;
+                                Slot.Name       = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind       = EMemberKind::Field;
+                                Slot.Unit       = Unit;
+                                Slot.Decl       = Child;
+                                Slot.Visibility = Entry.Visibility;
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
                             [&] ( const Frontend::Method &Entry )
                             {
                                 Member Slot;
-                                Slot.Name      = Store.Intern( Ast.Text( Entry.Name ) );
-                                Slot.Kind      = EMemberKind::Method;
-                                Slot.Unit      = Unit;
-                                Slot.Decl      = Child;
-                                Slot.bSelf     = Entry.bSelf;
-                                Slot.bAbstract = Entry.bAbstract;
+                                Slot.Name       = Store.Intern( Ast.Text( Entry.Name ) );
+                                Slot.Kind       = EMemberKind::Method;
+                                Slot.Unit       = Unit;
+                                Slot.Decl       = Child;
+                                Slot.bSelf      = Entry.bSelf;
+                                Slot.bAbstract  = Entry.bAbstract;
+                                Slot.Visibility = Entry.Visibility;
                                 ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), Slot );
                                 Store.AddMember( Id, std::move( Slot ) );
                             },
