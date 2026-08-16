@@ -75,6 +75,24 @@ namespace Frontend
         Property,
     };
 
+    /// Who may reach a Field or a Method: `private` (the declaring type only),
+    /// `protected` (that type and everything below it), `public` (anyone).
+    ///
+    /// `None` is *nothing written*, exactly as `EAccessor::None` is a plain
+    /// ivar — the parser records the syntax and the reader applies the
+    /// default. Both readers already agree on what that default is:
+    /// `Analysis::CheckMemberAccess` waves None through as public, and
+    /// AstDump prints nothing for a `None`-valued enum, which is why adding
+    /// this field left every existing golden byte-identical.
+    enum class EVisibility
+    {
+
+        None,
+        Public,
+        Protected,
+        Private,
+    };
+
     /// A method / component parameter. Stored in its own arena (ParamId)
     /// rather than the node variants, since it is shared shape, not a node.
     struct Param

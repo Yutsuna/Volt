@@ -76,6 +76,9 @@ namespace Frontend
         // annotation names the symbol to link against. Body-less like an
         // abstract method, but the opposite resolution: never overridden.
         bool bExternal = false;
+        // `private def` / a `private` section above it. None when the source
+        // wrote neither, which reads as public.
+        EVisibility Visibility = EVisibility::None;
     };
 
     // Instance-variable / accessor declaration: `x : T`, `getter x : T`,
@@ -87,7 +90,10 @@ namespace Frontend
         Symbol Name;
         TypeId DeclType;
         ExprId Default;
-        EAccessor Accessor = EAccessor::None;
+        // Ahead of Accessor so a dump reads in source order — `private
+        // getter`, never `getter private`.
+        EVisibility Visibility = EVisibility::None;
+        EAccessor Accessor     = EAccessor::None;
     };
 
     // `include Target`

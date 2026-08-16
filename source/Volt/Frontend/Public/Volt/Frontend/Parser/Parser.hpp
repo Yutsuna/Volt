@@ -259,6 +259,28 @@ namespace Frontend
         [[nodiscard]] DeclId ParseMacroInvoke ();
         [[nodiscard]] DeclId ParseFieldOrMember ();
         void ParseDeclBlock ( DeclList &Out );
+
+        // Consume a leading `private` / `protected` / `public` at the top of
+        // one iteration of a declaration-body loop and decide what it governs.
+        //
+        // Standing alone on its line it is a *section marker*: `Section` moves
+        // to it and every member below inherits that, until the next marker or
+        // the body's `end`. With a declaration behind it on the same line it is
+        // a one-member prefix and `Section` is left untouched. Either way
+        // `MemberVisibility` is left holding what the member parsed next must
+        // record, which is how `ParseMethod`/`ParseFieldOrMember` learn it
+        // without every declaration entry point growing a parameter.
+        //
+        // Returns false when the keyword stood alone — the caller has no
+        // member to parse this iteration and should go round again.
+        bool TakeMemberVisibility ( EVisibility &Section );
+
+        // What the next Field/Method declaration records, maintained entirely
+        // by TakeMemberVisibility. A body saves and restores it around its own
+        // loop, so a nested `class` inside a `private` section opens back at
+        // the default rather than inheriting the enclosing section.
+        EVisibility MemberVisibility = EVisibility::None;
+
         void ParseParameterList ( ParamList &Out );
         [[nodiscard]] GenericParamList ParseGenericParams ();
 
