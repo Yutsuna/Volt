@@ -16,6 +16,7 @@
 #include "Lower/Closure/ClosureLowering.hpp"
 #include "Lower/FunctionFrame.hpp"
 #include "Types/TypeMapper.hpp"
+#include "Volt/BackendCore/ClosureABI.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/IRBuilder.h>
@@ -44,10 +45,12 @@ llvm::Value *EmitDynamicMethodCall ( Volt::Backend::Llvm::BodyEmitter &Emitter,
     llvm::Type *PtrTy          = llvm::PointerType::get( Context, 0 );
     llvm::StructType *PairType = llvm::StructType::get( Context, { PtrTy, PtrTy }, false );
 
-    llvm::Value *DataPtrVal =
-        Builder.CreateLoad( PtrTy, Builder.CreateStructGEP( PairType, DynamicPair, 0, "dyn.data.ptr" ), "dyn.data" );
-    llvm::Value *VTableVal =
-        Builder.CreateLoad( PtrTy, Builder.CreateStructGEP( PairType, DynamicPair, 1, "dyn.vtable.ptr" ), "dyn.vtable" );
+    llvm::Value *DataPtrVal = Builder.CreateLoad(
+        PtrTy, Builder.CreateStructGEP( PairType, DynamicPair, Volt::Backend::ClosureABI::CodeSlot, "dyn.data.ptr" ),
+        "dyn.data" );
+    llvm::Value *VTableVal = Builder.CreateLoad(
+        PtrTy, Builder.CreateStructGEP( PairType, DynamicPair, Volt::Backend::ClosureABI::EnvSlot, "dyn.vtable.ptr" ),
+        "dyn.vtable" );
 
     llvm::Value *SlotIndex = Builder.getInt32( Entry.VTableSlot );
     llvm::Value *SlotPtr = Builder.CreateGEP( PtrTy, VTableVal, SlotIndex, "vtable.slot." + std::to_string( Entry.VTableSlot ) );

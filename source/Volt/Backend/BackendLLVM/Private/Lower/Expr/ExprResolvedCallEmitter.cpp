@@ -47,25 +47,30 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
 
     const MiddleEnd::TypeSystem::UnitTypes &Values = *Frame().Values;
 
-    // `to_address`/`from_address` (and any future named machine conversion): an
-    // `abstract` member with no `bIndirect`, resolved on a receiver whose layout
-    // is `Pointer` (or `Primitive`, mirroring `IsBuiltinOpOn`'s guard), has no
-    // body to call because none exists — the backend supplies it, the same shape
-    // EmitBinary/EmitUnary already use for `+`/`-`/etc., just keyed on the
-    // member's own spelling instead of an operator token.
+    // A machine conversion tagged by MemberResolver on a bodyless
+    // non-operator member of a Pointer/Primitive receiver. The backend reads
+    // the enum — no Volt name ever enters this module.
     if ( Entry.Decl->bAbstract )
     {
-        const MiddleEnd::TypeSystem::LayoutId ReceiverShape = Types().LayoutOfValue( Values, Entry.Receiver );
-        const MiddleEnd::TypeSystem::LayoutKind ReceiverKind =
-            ReceiverShape.IsValid() ? MiddleEnd::TypeSystem::KindOf( Svc.Build->Types->Get( ReceiverShape ) )
-                                    : MiddleEnd::TypeSystem::LayoutKind::Aggregate;
-        if ( ReceiverKind == MiddleEnd::TypeSystem::LayoutKind::Pointer or
-             ReceiverKind == MiddleEnd::TypeSystem::LayoutKind::Primitive )
+        using MC = MiddleEnd::IR::EMachineConversion;
+        switch ( Entry.MachineConversion )
         {
-            return EmitNamedConversion( *this, Id, Entry, Receiver, Args );
+        case MC::PtrToInt:
+        {
+            llvm::Value *Self = EmitExpr( Receiver );
+            return Self ? Ctx().Builder().CreatePtrToInt( Self, Ctx().Builder().getInt64Ty() ) : nullptr;
+        }
+        case MC::IntToPtr:
+        {
+            llvm::Value *Addr = Args.empty() ? nullptr : EmitExpr( Args[0] );
+            return Addr ? Ctx().Builder().CreateIntToPtr( Addr, llvm::PointerType::get( Ctx().Context(), 0 ) ) : nullptr;
+        }
+        case MC::None:
+            break;
         }
         static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
-                                 " resolves to an abstract member with no body, and its receiver's layout supplies none" ) );
+                                 " resolves to an abstract member with no body, and neither a machine conversion "
+                                 "nor a builtin operator is registered for its receiver's layout" ) );
         return nullptr;
     }
 
@@ -328,44 +333,4 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         }
     }
     return Constructed != nullptr ? Constructed : Result;
-}
-
-llvm::Value *Volt::Backend::Llvm::EmitNamedConversion ( BodyEmitter &Emitter,
-                                                        Frontend::ExprId Id,
-                                                        const MiddleEnd::IR::CalleeEntry &Entry,
-                                                        Frontend::ExprId Receiver,
-                                                        std::span<const Frontend::ExprId> Args )
-{
-    const std::string_view Name = Emitter.Services().Build->Types->Text( Entry.Decl->Name );
-    llvm::IRBuilder<> &Builder  = Emitter.Ctx().Builder();
-
-    // `Pointer<T>#to_address` — an instance method, the pointer itself is
-    // `self`. Opaque pointers need no real conversion; this is the
-    // architecture's own bit pattern reinterpreted as an integer.
-    if ( Name == "to_address" )
-    {
-        llvm::Value *Self = Emitter.EmitExpr( Receiver );
-        if ( Self == nullptr )
-        {
-            return nullptr;
-        }
-        return Builder.CreatePtrToInt( Self, Builder.getInt64Ty() );
-    }
-
-    // `Pointer<T>.from_address` — a static method (`bSelf`), so there is no
-    // receiver value: the address is the sole ordinary argument.
-    if ( Name == "from_address" and Args.size() == 1 )
-    {
-        llvm::Value *Addr = Emitter.EmitExpr( Args[0] );
-        if ( Addr == nullptr )
-        {
-            return nullptr;
-        }
-        return Builder.CreateIntToPtr( Addr, llvm::PointerType::get( Emitter.Ctx().Context(), 0 ) );
-    }
-
-    static_cast<void>( Emitter.Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
-                                     " resolves to an abstract member '" + std::string( Name ) +
-                                     "' with no body, and no machine conversion is registered for that name" ) );
-    return nullptr;
 }
