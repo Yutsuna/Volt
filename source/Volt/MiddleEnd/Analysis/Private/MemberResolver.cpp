@@ -564,6 +564,22 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
                                      Context.NameOfValue( Receiver ) + " without dynamic dispatch" );
             Context.CalleeResolution.erase( Id.Value );
         }
+        else if ( IsMachineSuppliedOn( Context, ReceiverBase ) and not IsOperatorName( Name ) )
+        {
+            // A bodyless non-operator member on a Pointer/Primitive receiver:
+            // the backend supplies a machine conversion, tagged by signature
+            // shape so no Volt name ever enters the backend.
+            using MC    = Volt::MiddleEnd::IR::EMachineConversion;
+            auto &Entry = Context.CalleeResolution[Id.Value];
+            if ( Found.Decl->bSelf and Found.Decl->Params.Size() == 1 )
+            {
+                Entry.MachineConversion = MC::IntToPtr;
+            }
+            else if ( not Found.Decl->bSelf and Found.Decl->Params.Size() == 0 )
+            {
+                Entry.MachineConversion = MC::PtrToInt;
+            }
+        }
     }
     CheckMemberSelf( Context, Loc, Found, bReceiverIsNakedType );
     CheckMemberAccess( Context, Loc, Found );
