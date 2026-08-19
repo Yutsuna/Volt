@@ -4,8 +4,6 @@ Program 'samples/Tests/Functional/Lambda.vl'
 │  │  └─ Param 'fn_tmp_0' @2:14
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_1' @2:14
-│  ├─ return_type
-│  │  └─ TypeRef 'T_1' @2:14
 │  └─ body
 │     └─ ExprStmt @2:14
 │        └─ expr

@@ -37,3 +37,23 @@ assert!( no_type_pointfree( 3.14 ) == "Value: 3.140000" )
 assert!( no_type_pointfree( true ) == "Value: true" )
 assert!( no_type_pointfree( [1, 2, 3] ) == "Value: [1, 2, 3]" )
 assert!( no_type_pointfree( "Volt" ) == "Value: Volt" )
+
+class Item
+  name : String
+  score : Int32
+
+  def initialize( name : String, score : Int32 )
+    @name = name
+    @score = score
+  end
+
+  def formatted_score -> String
+    @score.to_string.prefix( "Score: " )
+  end
+end
+
+item = Item.new( "Potion", 100 )
+get_item_score = (&.formatted_score) >> (&.prefix( "[Item] " ))
+assert!( get_item_score( item ) == "[Item] Score: 100" )
+assert!( item |> get_item_score == "[Item] Score: 100" )
+
