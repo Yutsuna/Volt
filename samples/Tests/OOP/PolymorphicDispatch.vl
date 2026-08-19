@@ -69,3 +69,4 @@ assert!( s.describe == "Square with area 9" )
 assert!( c.describe == "Circle with area 12" )
 
 assert!( r.area + s.area + c.area == 41 )
+
