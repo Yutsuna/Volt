@@ -1,13 +1,3 @@
-@[External( "libc", "backtrace" )]
-external def libc_backtrace( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Int32
-
-@[External( "libc", "backtrace_symbols" )]
-external def libc_backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<UInt8>>
-
-@[External( "libc", "write" )]
-external def libc_write( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-
-
 #{
   @class Exception
   @brief Represents an exception that occurred in the program.
@@ -41,12 +31,12 @@ class Exception
   def capture_backtrace -> Array<String>
     effective_max = @max_frames > 0 ? @max_frames : 64
     buffer = Pointer<Pointer<Void>>.malloc( effective_max * sizeof Pointer<Void> )
-    frames_count = libc_backtrace( buffer, effective_max )
+    frames_count = LibC.backtrace( buffer, effective_max )
 
     frames = Array<String>.new( frames_count )
 
     if frames_count > 0
-      symbols = libc_backtrace_symbols( buffer, frames_count )
+      symbols = LibC.backtrace_symbols( buffer, frames_count )
       if symbols != nil
         i = 0
         while i < frames_count
@@ -76,7 +66,7 @@ class Exception
     sb.append( @message )
     sb.append_byte( 10_u8 )
     text = sb.build
-    libc_write( 2, text.data, text.size )
+    LibC.write( 2, text.to_pointer(), text.size )
   end
 
   def format_backtrace -> String

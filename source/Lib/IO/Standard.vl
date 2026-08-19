@@ -1,13 +1,3 @@
-@[External( "libc", "read" )]
-external def libc_read( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-
-@[External( "libc", "write" )]
-external def libc_write( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-
-@[External( "libc", "fsync" )]
-external def libc_fsync( fd : Int32 ) -> Int32
-
-
 module IO
 
 
@@ -20,16 +10,16 @@ module IO
     def initialize( @fd : Int32 )
     end
 
-    def read( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-      libc_read( @fd, buffer, count )
+    def read( buffer : Pointer<Void>, count : UInt64 ) -> Int64
+      LibC.read( @fd, buffer, count )
     end
 
-    def write( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-      libc_write( @fd, buffer, count )
+    def write( buffer : Pointer<Void>, count : UInt64 ) -> Int64
+      LibC.write( @fd, buffer, count )
     end
 
     def flush -> Void
-      libc_fsync( @fd )
+      LibC.fsync( @fd )
     end
 
   end

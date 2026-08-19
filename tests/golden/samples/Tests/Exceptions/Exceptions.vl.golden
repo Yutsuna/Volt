@@ -1,186 +1,177 @@
 Program 'samples/Tests/Exceptions/Exceptions.vl'
-├─ Annotation 'External' @1:1
-│  └─ args
-│     ├─ StringLiteral 'libc' @1:13
-│     └─ StringLiteral 'exit' @1:21
-├─ Method 'libc_exit' external @2:10
-│  ├─ params
-│  │  └─ Param 'value' @2:25
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @2:33
-│  └─ return_type
-│     └─ TypeRef 'Void' @2:44
-├─ Method 'deep' @5:1
+├─ Method 'deep' @1:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @5:13
+│  │  └─ TypeRef 'Void' @1:13
 │  └─ body
-│     └─ ExprStmt @6:3
+│     └─ ExprStmt @2:3
 │        └─ expr
-│           └─ RaiseExpr @6:3
+│           └─ RaiseExpr @2:3
 │              └─ exception
-│                 └─ Call @6:26
+│                 └─ Call @2:26
 │                    ├─ callee
-│                    │  └─ Member 'new' @6:22
+│                    │  └─ Member 'new' @2:22
 │                    │     └─ object
-│                    │        └─ Identifier 'ArgumentError' @6:9
+│                    │        └─ Identifier 'ArgumentError' @2:9
 │                    └─ args
-│                       └─ StringLiteral 'from deep' @6:28
-├─ Method 'main' @10:1
+│                       └─ StringLiteral 'from deep' @2:28
+├─ Method 'main' @6:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @10:13
+│  │  └─ TypeRef 'Int32' @6:13
 │  └─ body
-│     ├─ ExprStmt @11:3
+│     ├─ ExprStmt @7:3
 │     │  └─ expr
-│     │     └─ Assign '=' @11:9
+│     │     └─ Assign '=' @7:9
 │     │        ├─ target
-│     │        │  └─ Identifier 'total' @11:3
+│     │        │  └─ Identifier 'total' @7:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @11:11
-│     ├─ ExprStmt @13:3
+│     │           └─ IntLiteral '0' @7:11
+│     ├─ ExprStmt @9:3
 │     │  └─ expr
-│     │     └─ BeginExpr @13:3
+│     │     └─ BeginExpr @9:3
 │     │        ├─ body
-│     │        │  ├─ ExprStmt @14:5
+│     │        │  ├─ ExprStmt @10:5
 │     │        │  │  └─ expr
-│     │        │  │     └─ Call @14:9
+│     │        │  │     └─ Call @10:9
 │     │        │  │        └─ callee
-│     │        │  │           └─ Identifier 'deep' @14:5
-│     │        │  └─ ExprStmt @15:5
+│     │        │  │           └─ Identifier 'deep' @10:5
+│     │        │  └─ ExprStmt @11:5
 │     │        │     └─ expr
-│     │        │        └─ Assign '=' @15:11
+│     │        │        └─ Assign '=' @11:11
 │     │        │           ├─ target
-│     │        │           │  └─ Identifier 'total' @15:5
+│     │        │           │  └─ Identifier 'total' @11:5
 │     │        │           └─ value
-│     │        │              └─ Binary '+' @15:19
+│     │        │              └─ Binary '+' @11:19
 │     │        │                 ├─ lhs
-│     │        │                 │  └─ Identifier 'total' @15:13
+│     │        │                 │  └─ Identifier 'total' @11:13
 │     │        │                 └─ rhs
-│     │        │                    └─ IntLiteral '100' @15:21
+│     │        │                    └─ IntLiteral '100' @11:21
 │     │        ├─ rescue_clauses
-│     │        │  ├─ RescueClause 'e' @16:10
+│     │        │  ├─ RescueClause 'e' @12:10
 │     │        │  │  ├─ exception_type
-│     │        │  │  │  └─ TypeRef 'IndexError' @16:14
+│     │        │  │  │  └─ TypeRef 'IndexError' @12:14
 │     │        │  │  └─ body
-│     │        │  │     └─ ExprStmt @17:5
+│     │        │  │     └─ ExprStmt @13:5
 │     │        │  │        └─ expr
-│     │        │  │           └─ Assign '=' @17:11
+│     │        │  │           └─ Assign '=' @13:11
 │     │        │  │              ├─ target
-│     │        │  │              │  └─ Identifier 'total' @17:5
+│     │        │  │              │  └─ Identifier 'total' @13:5
 │     │        │  │              └─ value
-│     │        │  │                 └─ Binary '+' @17:19
+│     │        │  │                 └─ Binary '+' @13:19
 │     │        │  │                    ├─ lhs
-│     │        │  │                    │  └─ Identifier 'total' @17:13
+│     │        │  │                    │  └─ Identifier 'total' @13:13
 │     │        │  │                    └─ rhs
-│     │        │  │                       └─ IntLiteral '200' @17:21
-│     │        │  └─ RescueClause 'e' @18:10
+│     │        │  │                       └─ IntLiteral '200' @13:21
+│     │        │  └─ RescueClause 'e' @14:10
 │     │        │     ├─ exception_type
-│     │        │     │  └─ TypeRef 'ArgumentError' @18:14
+│     │        │     │  └─ TypeRef 'ArgumentError' @14:14
 │     │        │     └─ body
-│     │        │        └─ ExprStmt @19:5
+│     │        │        └─ ExprStmt @15:5
 │     │        │           └─ expr
-│     │        │              └─ Assign '=' @19:11
+│     │        │              └─ Assign '=' @15:11
 │     │        │                 ├─ target
-│     │        │                 │  └─ Identifier 'total' @19:5
+│     │        │                 │  └─ Identifier 'total' @15:5
 │     │        │                 └─ value
-│     │        │                    └─ Binary '+' @19:19
+│     │        │                    └─ Binary '+' @15:19
 │     │        │                       ├─ lhs
-│     │        │                       │  └─ Identifier 'total' @19:13
+│     │        │                       │  └─ Identifier 'total' @15:13
 │     │        │                       └─ rhs
-│     │        │                          └─ IntLiteral '1' @19:21
+│     │        │                          └─ IntLiteral '1' @15:21
 │     │        └─ ensure_body
-│     │           └─ ExprStmt @21:5
+│     │           └─ ExprStmt @17:5
 │     │              └─ expr
-│     │                 └─ Assign '=' @21:11
+│     │                 └─ Assign '=' @17:11
 │     │                    ├─ target
-│     │                    │  └─ Identifier 'total' @21:5
+│     │                    │  └─ Identifier 'total' @17:5
 │     │                    └─ value
-│     │                       └─ Binary '+' @21:19
+│     │                       └─ Binary '+' @17:19
 │     │                          ├─ lhs
-│     │                          │  └─ Identifier 'total' @21:13
+│     │                          │  └─ Identifier 'total' @17:13
 │     │                          └─ rhs
-│     │                             └─ IntLiteral '2' @21:21
-│     ├─ ExprStmt @24:3
+│     │                             └─ IntLiteral '2' @17:21
+│     ├─ ExprStmt @20:3
 │     │  └─ expr
-│     │     └─ BeginExpr @24:3
+│     │     └─ BeginExpr @20:3
 │     │        ├─ body
-│     │        │  └─ ExprStmt @25:5
+│     │        │  └─ ExprStmt @21:5
 │     │        │     └─ expr
-│     │        │        └─ RaiseExpr @25:5
+│     │        │        └─ RaiseExpr @21:5
 │     │        │           └─ exception
-│     │        │              └─ Call @25:23
+│     │        │              └─ Call @21:23
 │     │        │                 ├─ callee
-│     │        │                 │  └─ Member 'new' @25:19
+│     │        │                 │  └─ Member 'new' @21:19
 │     │        │                 │     └─ object
-│     │        │                 │        └─ Identifier 'KeyError' @25:11
+│     │        │                 │        └─ Identifier 'KeyError' @21:11
 │     │        │                 └─ args
-│     │        │                    └─ StringLiteral 'sub' @25:25
+│     │        │                    └─ StringLiteral 'sub' @21:25
 │     │        └─ rescue_clauses
-│     │           └─ RescueClause 'e' @26:10
+│     │           └─ RescueClause 'e' @22:10
 │     │              ├─ exception_type
-│     │              │  └─ TypeRef 'Exception' @26:14
+│     │              │  └─ TypeRef 'Exception' @22:14
 │     │              └─ body
-│     │                 └─ ExprStmt @27:5
+│     │                 └─ ExprStmt @23:5
 │     │                    └─ expr
-│     │                       └─ Assign '=' @27:11
+│     │                       └─ Assign '=' @23:11
 │     │                          ├─ target
-│     │                          │  └─ Identifier 'total' @27:5
+│     │                          │  └─ Identifier 'total' @23:5
 │     │                          └─ value
-│     │                             └─ Binary '+' @27:19
+│     │                             └─ Binary '+' @23:19
 │     │                                ├─ lhs
-│     │                                │  └─ Identifier 'total' @27:13
+│     │                                │  └─ Identifier 'total' @23:13
 │     │                                └─ rhs
-│     │                                   └─ IntLiteral '4' @27:21
-│     ├─ ExprStmt @30:3
+│     │                                   └─ IntLiteral '4' @23:21
+│     ├─ ExprStmt @26:3
 │     │  └─ expr
-│     │     └─ BeginExpr @30:3
+│     │     └─ BeginExpr @26:3
 │     │        ├─ body
-│     │        │  └─ ExprStmt @31:5
+│     │        │  └─ ExprStmt @27:5
 │     │        │     └─ expr
-│     │        │        └─ Assign '=' @31:11
+│     │        │        └─ Assign '=' @27:11
 │     │        │           ├─ target
-│     │        │           │  └─ Identifier 'total' @31:5
+│     │        │           │  └─ Identifier 'total' @27:5
 │     │        │           └─ value
-│     │        │              └─ Binary '+' @31:19
+│     │        │              └─ Binary '+' @27:19
 │     │        │                 ├─ lhs
-│     │        │                 │  └─ Identifier 'total' @31:13
+│     │        │                 │  └─ Identifier 'total' @27:13
 │     │        │                 └─ rhs
-│     │        │                    └─ IntLiteral '8' @31:21
+│     │        │                    └─ IntLiteral '8' @27:21
 │     │        ├─ rescue_clauses
-│     │        │  └─ RescueClause 'e' @32:10
+│     │        │  └─ RescueClause 'e' @28:10
 │     │        │     ├─ exception_type
-│     │        │     │  └─ TypeRef 'Exception' @32:14
+│     │        │     │  └─ TypeRef 'Exception' @28:14
 │     │        │     └─ body
-│     │        │        └─ ExprStmt @33:5
+│     │        │        └─ ExprStmt @29:5
 │     │        │           └─ expr
-│     │        │              └─ Assign '=' @33:11
+│     │        │              └─ Assign '=' @29:11
 │     │        │                 ├─ target
-│     │        │                 │  └─ Identifier 'total' @33:5
+│     │        │                 │  └─ Identifier 'total' @29:5
 │     │        │                 └─ value
-│     │        │                    └─ Binary '+' @33:19
+│     │        │                    └─ Binary '+' @29:19
 │     │        │                       ├─ lhs
-│     │        │                       │  └─ Identifier 'total' @33:13
+│     │        │                       │  └─ Identifier 'total' @29:13
 │     │        │                       └─ rhs
-│     │        │                          └─ IntLiteral '400' @33:21
+│     │        │                          └─ IntLiteral '400' @29:21
 │     │        └─ ensure_body
-│     │           └─ ExprStmt @35:5
+│     │           └─ ExprStmt @31:5
 │     │              └─ expr
-│     │                 └─ Assign '=' @35:11
+│     │                 └─ Assign '=' @31:11
 │     │                    ├─ target
-│     │                    │  └─ Identifier 'total' @35:5
+│     │                    │  └─ Identifier 'total' @31:5
 │     │                    └─ value
-│     │                       └─ Binary '+' @35:19
+│     │                       └─ Binary '+' @31:19
 │     │                          ├─ lhs
-│     │                          │  └─ Identifier 'total' @35:13
+│     │                          │  └─ Identifier 'total' @31:13
 │     │                          └─ rhs
-│     │                             └─ IntLiteral '16' @35:21
-│     └─ ExprStmt @38:3
+│     │                             └─ IntLiteral '16' @31:21
+│     └─ ExprStmt @34:3
 │        └─ expr
-│           └─ Identifier 'total' @38:3
-└─ ExprStmt @41:1
+│           └─ Identifier 'total' @34:3
+└─ ExprStmt @37:1
    └─ expr
-      └─ Call @41:10
+      └─ Call @37:10
          ├─ callee
-         │  └─ Identifier 'libc_exit' @41:1
+         │  └─ Member 'exit' @37:5
+         │     └─ object
+         │        └─ Identifier 'LibC' @37:1
          └─ args
-            └─ Identifier 'main' @41:12
+            └─ Identifier 'main' @37:12
 --- exit 0 ---

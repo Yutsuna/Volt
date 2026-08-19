@@ -1,0 +1,57 @@
+module LibC
+
+
+  #-i/o------------------------------------------------------------------------
+
+  @[External( "libc", "open" )]
+  external def open( path : Pointer<Char>, flags : Int32, mode : Int32 ) -> Int32
+
+  @[External( "libc", "close" )]
+  external def close( fd : Int32 ) -> Int32
+
+  @[External( "libc", "read" )]
+  external def read( fd : Int32, buffer : Pointer<Void>, count : UInt64 ) -> Int64
+
+  @[External( "libc", "write" )]
+  external def write( fd : Int32, buffer : Pointer<Void>, count : UInt64 ) -> Int64
+
+  @[External( "libc", "lseek" )]
+  external def lseek( fd : Int32, offset : Int64, whence : Int32 ) -> Int64
+
+  @[External( "libc", "fsync" )]
+  external def fsync( fd : Int32 ) -> Int32
+
+  @[External( "libc", "unlink" )]
+  external def unlink( path : Pointer<Char> ) -> Int32
+
+  @[External( "libc", "exit" )]
+  external def exit( value : Int32 ) -> Void
+
+  #-exceptions-----------------------------------------------------------------
+
+  @[External( "libc", "backtrace" )]
+  external def backtrace( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Int32
+
+  @[External( "libc", "backtrace_symbols" )]
+  external def backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<Char>>
+
+  #-memory---------------------------------------------------------------------
+
+  @[External( "libc", "malloc" )]
+  external def malloc( size : UInt64 ) -> Pointer<Void>
+
+  @[External( "libc", "free" )]
+  external def free( ptr : Pointer<Void> ) -> Void
+
+  @[External( "libc", "memcpy" )]
+  external def memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
+
+  @[External( "libc", "memcmp" )]
+  external def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
+
+  #-string---------------------------------------------------------------------
+
+  @[External( "libc", "strlen" )]
+  external def strlen( str : Pointer<Char> ) -> UInt64
+
+end

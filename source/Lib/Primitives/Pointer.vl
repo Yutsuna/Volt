@@ -1,22 +1,7 @@
-# Bound under a prefixed Volt name, with the C symbol given explicitly: a bare
-# `malloc` / `free` inside this struct would otherwise name the struct's own
-# method, since an unqualified call is a call on `self`.
-
-@[External( "libc", "malloc" )]
-external def libc_malloc( size : UInt64 ) -> Pointer<Void>
-
-@[External( "libc", "free" )]
-external def libc_free( ptr : Pointer<Void> ) -> Void
-
-
 @[Primitive( "ptr", 64 ), Literal( PointerType )]
 struct Pointer<T>
   include Comparable
 
-  # Pointer arithmetic is heterogeneous — offset in elements, result still a
-  # `Pointer<T>` — so it cannot come from `Arithmetic`, whose contracts are all
-  # `( other : self ) -> self`. Bodyless for the same reason as everywhere else:
-  # the `ptr` layout means the backend supplies a GEP.
   abstract def +( offset : UInt64 ) -> Pointer<T>
   abstract def -( offset : UInt64 ) -> Pointer<T>
 
@@ -28,27 +13,15 @@ struct Pointer<T>
     self - 1_u64
   end
 
-  # The pointer's own bit pattern as an integer, and back. Bodyless for the
-  # same reason `+`/`-` are: the `ptr` layout means the backend supplies it —
-  # here, `ptrtoint`/`inttoptr` rather than a `gep`, since neither is an
-  # address computation. Opaque pointers need no real conversion, so this is
-  # free at every target; it exists so a type-erased address (a closure
-  # environment's field, any `Pointer<UInt8>` slot) can be reinterpreted as a
-  # concrete `Pointer<U>` — spelled `Pointer<U>.from_address( p.to_address() )`,
-  # since Volt has no explicit-generic-argument call syntax on an *instance*
-  # method (`p.reinterpret<U>()` parses `<U>` as a stray positional argument,
-  # not a method generic — a real, separate parser gap) — the type-level form
-  # (`Pointer<U>.static_method(...)`) is unaffected and already how
-  # `Pointer<T>.malloc`/`.from_address` are called.
   abstract def to_address() -> UInt64
   abstract def self.from_address( address : UInt64 ) -> Pointer<T>
 
   def self.malloc( count : UInt64 ) -> Pointer<T>
-    libc_malloc( count * sizeof T )
+    LibC.malloc( count * sizeof T )
   end
 
   def free -> Void
-    libc_free( self )
+    LibC.free( self )
   end
 
   def <=>( other : Pointer<T> ) -> Int32
@@ -62,7 +35,7 @@ struct Pointer<T>
   end
 
   def to_string -> String
-    "Pointer<#{T}>[#{self.to_address()}]"
+    "Pointer[#{self.to_address()}]"
   end
 
 end

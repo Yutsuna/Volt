@@ -23,9 +23,7 @@ Program 'samples/Circuits/DiamandDeps/Source/Main.vl'
 │              │              └─ Identifier 'Core' @5:10
 │              └─ args
 │                 ├─ IntLiteral '5432' @5:31
-│                 └─ Member 'data' @5:55
-│                    └─ object
-│                       └─ StringLiteral 'super-secret-key' @5:37
+│                 └─ StringLiteral 'super-secret-key' @5:37
 ├─ ExprStmt @6:1
 │  └─ expr
 │     └─ Assign '=' @6:4

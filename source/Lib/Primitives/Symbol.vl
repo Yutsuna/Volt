@@ -4,7 +4,7 @@
            (SymbolNameEmitter.cpp), exactly like `_V_init_all` in Prelude.vl
 #}
 @[External( "volt", "_V_symbol_name" )]
-external def __volt_symbol_name( value : Symbol ) -> Pointer<UInt8>
+external def __volt_symbol_name( value : Symbol ) -> Pointer<Char>
 
 
 #{

@@ -287,7 +287,23 @@ namespace
         // combinator classified as borrowing.
         if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Node ) )
         {
-            return Locals.Owned.contains( Ident->Name.Value );
+            if ( Locals.Owned.contains( Ident->Name.Value ) )
+            {
+                return true;
+            }
+            if ( Owner.Self.IsValid() )
+            {
+                const TypeStore::MemberRef Found = Store.LookupMember( Owner.Self, Ast.Text( Ident->Name ) );
+                if ( Found.Decl != nullptr )
+                {
+                    return Found.Decl->Kind == EMemberKind::Method and Found.Decl->bReturnsOwned;
+                }
+            }
+            if ( const Member *Found = Store.LookupFunction( Ast.Text( Ident->Name ) ) )
+            {
+                return Found->bReturnsOwned;
+            }
+            return AllNamedReturnOwned( Index, Ast.Text( Ident->Name ) );
         }
 
         // A paren-less invocation, `x.dup` — the same node kind a *place* read
@@ -333,14 +349,16 @@ namespace
             }
             if ( const auto *Ident = std::get_if<Frontend::Identifier>( &Callee ) )
             {
-                // `super` also reaches here spelled as a bare name, which is
-                // how the parser hands back the paren-less form.
-                if ( Ast.Text( Ident->Name ) == "super" )
+                if ( Owner.Self.IsValid() )
                 {
-                    return SuperInvocationReturnsOwned( Store, Owner );
+                    const TypeStore::MemberRef Found = Store.LookupMember( Owner.Self, Ast.Text( Ident->Name ) );
+                    if ( Found.Decl != nullptr )
+                    {
+                        return Found.Decl->Kind == EMemberKind::Method and Found.Decl->bReturnsOwned;
+                    }
                 }
                 const Member *Found = Store.LookupFunction( Ast.Text( Ident->Name ) );
-                return Found != nullptr and Found->bReturnsOwned;
+                return ( Found != nullptr and Found->bReturnsOwned ) or AllNamedReturnOwned( Index, Ast.Text( Ident->Name ) );
             }
             return false;
         }

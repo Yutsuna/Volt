@@ -1,0 +1,63 @@
+s = "Hello World"
+
+# String#data is Pointer<Char>
+ptr : Pointer<Char> = s.to_pointer()
+assert!( ptr != nil )
+
+# String#[] returns Char
+c : Char = s[0]
+assert!( c == 'H' )
+assert!( s[1] == 'e' )
+assert!( s[4] == 'o' )
+assert!( s[5] == ' ' )
+
+# Char arithmetic and comparison
+assert!( 'A' < 'B' )
+assert!( 'A' + 1 == 'B' )
+assert!( 'b' - 1 == 'a' )
+
+# String mutation via []=
+dup_s = s.dup
+dup_s[0] = 'h'
+assert!( dup_s[0] == 'h' )
+assert!( dup_s == "hello World" )
+
+# String transformations
+assert!( "HELLO WORLD".downcase == "hello world" )
+assert!( "hello world".upcase == "HELLO WORLD" )
+assert!( "  hello  ".trim == "hello" )
+
+# from_c_string
+cs = String.from_c_string( "c_string".to_pointer() )
+assert!( cs == "c_string" )
+
+# Pointer to_string
+p_int = Pointer<Int32>.malloc( 1_u64 )
+assert!( p_int.to_string.size > 0 )
+p_int.free
+
+# Hex escapes and Char methods
+del : Char = '\x7F'
+assert!( del.ascii? )
+assert!( del.control? )
+assert!( not del.printable? )
+
+nl : Char = '\n'
+assert!( nl.whitespace? )
+assert!( nl.control? )
+
+bell : Char = '\a'
+assert!( bell.control? )
+
+assert!( 'A'.ascii? )
+assert!( 'A'.uppercase? )
+assert!( 'a'.lowercase? )
+assert!( '9'.digit? )
+assert!( 'F'.hex_digit? )
+assert!( 'A'.downcase == 'a' )
+assert!( 'a'.upcase == 'A' )
+assert!( '7'.to_digit == 7 )
+assert!( 'F'.to_digit( 16 ) == 15 )
+assert!( 'A'.inspect == "A" )
+assert!( '\n'.inspect == "'\\n'" )
+assert!( '\x7F'.inspect == "\x7F" )

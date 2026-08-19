@@ -2,7 +2,7 @@ module IO
 
 
   mixin Writer
-    abstract def write( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+    abstract def write( buffer : Pointer<Void>, count : UInt64 ) -> Int64
 
     def flush -> Void
     end
@@ -16,7 +16,7 @@ module IO
 
     def write_string( str : String ) -> Int64
       return 0 if str.size == 0
-      write( str.data, str.size )
+      write( str.to_pointer(), str.size )
     end
 
     def print( str : String ) -> self

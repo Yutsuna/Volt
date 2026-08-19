@@ -132,15 +132,44 @@ namespace
 // literal forms that can contain one read it here — a char literal is a
 // one-character string as far as escaping goes, so two tables would be two
 // chances to disagree.
-[[nodiscard]] bool DecodeEscape ( char Spelled, char &Out )
+[[nodiscard]] constexpr int HexVal ( char C ) noexcept
+{
+    if ( C >= '0' and C <= '9' )
+    {
+        return C - '0';
+    }
+    if ( C >= 'a' and C <= 'f' )
+    {
+        return C - 'a' + 10;
+    }
+    if ( C >= 'A' and C <= 'F' )
+    {
+        return C - 'A' + 10;
+    }
+    return -1;
+}
+
+[[nodiscard]] constexpr bool DecodeEscape ( char Spelled, char &Out ) noexcept
 {
     switch ( Spelled )
     {
+    case 'a':
+        Out = '\a';
+        return true;
+    case 'b':
+        Out = '\b';
+        return true;
     case 'n':
         Out = '\n';
         return true;
     case 't':
         Out = '\t';
+        return true;
+    case 'v':
+        Out = '\v';
+        return true;
+    case 'f':
+        Out = '\f';
         return true;
     case 'r':
         Out = '\r';
@@ -183,6 +212,27 @@ namespace
         return false;
     }
 
+    if ( ( Text[1] == 'x' or Text[1] == 'X' ) and Text.size() > 2 )
+    {
+        const int H1 = HexVal( Text[2] );
+        if ( H1 < 0 )
+        {
+            return false;
+        }
+        int Val = H1;
+        if ( Text.size() > 3 )
+        {
+            const int H2 = HexVal( Text[3] );
+            if ( H2 < 0 )
+            {
+                return false;
+            }
+            Val = ( Val << 4 ) | H2;
+        }
+        Out = static_cast<std::uint8_t>( Val );
+        return true;
+    }
+
     char Decoded = '\0';
     if ( not DecodeEscape( Text[1], Decoded ) )
     {
@@ -202,12 +252,38 @@ namespace
     Out.reserve( Text.size() );
     for ( std::size_t Index = 0; Index < Text.size(); ++Index )
     {
-        char Decoded = '\0';
-        if ( Text[Index] == '\\' and Index + 1 < Text.size() and DecodeEscape( Text[Index + 1], Decoded ) )
+        if ( Text[Index] == '\\' and Index + 1 < Text.size() )
         {
-            Out.push_back( Decoded );
-            ++Index;
-            continue;
+            const char Next = Text[Index + 1];
+            if ( ( Next == 'x' or Next == 'X' ) and Index + 2 < Text.size() )
+            {
+                const int H1 = HexVal( Text[Index + 2] );
+                if ( H1 >= 0 )
+                {
+                    int Val              = H1;
+                    std::size_t Advanced = 2;
+                    if ( Index + 3 < Text.size() )
+                    {
+                        const int H2 = HexVal( Text[Index + 3] );
+                        if ( H2 >= 0 )
+                        {
+                            Val      = ( Val << 4 ) | H2;
+                            Advanced = 3;
+                        }
+                    }
+                    Out.push_back( static_cast<char>( Val ) );
+                    Index += Advanced;
+                    continue;
+                }
+            }
+
+            char Decoded = '\0';
+            if ( DecodeEscape( Next, Decoded ) )
+            {
+                Out.push_back( Decoded );
+                ++Index;
+                continue;
+            }
         }
         Out.push_back( Text[Index] );
     }

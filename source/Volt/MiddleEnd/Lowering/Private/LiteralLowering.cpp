@@ -253,6 +253,23 @@ void Volt::MiddleEnd::Lowering::LowerHashLits ( TypeCheckerContext &Context )
     }
 }
 
+[[nodiscard]] static constexpr int HexVal ( char C ) noexcept
+{
+    if ( C >= '0' and C <= '9' )
+    {
+        return C - '0';
+    }
+    if ( C >= 'a' and C <= 'f' )
+    {
+        return C - 'a' + 10;
+    }
+    if ( C >= 'A' and C <= 'F' )
+    {
+        return C - 'A' + 10;
+    }
+    return -1;
+}
+
 static std::string DecodeStringText ( std::string_view Text )
 {
     std::string Out;
@@ -261,9 +278,39 @@ static std::string DecodeStringText ( std::string_view Text )
     {
         if ( Text[Index] == '\\' and Index + 1 < Text.size() )
         {
-            const char Escaped = Text[Index + 1];
-            switch ( Escaped )
+            const char Next = Text[Index + 1];
+            if ( ( Next == 'x' or Next == 'X' ) and Index + 2 < Text.size() )
             {
+                const int H1 = HexVal( Text[Index + 2] );
+                if ( H1 >= 0 )
+                {
+                    int Val              = H1;
+                    std::size_t Advanced = 2;
+                    if ( Index + 3 < Text.size() )
+                    {
+                        const int H2 = HexVal( Text[Index + 3] );
+                        if ( H2 >= 0 )
+                        {
+                            Val      = ( Val << 4 ) | H2;
+                            Advanced = 3;
+                        }
+                    }
+                    Out.push_back( static_cast<char>( Val ) );
+                    Index += Advanced;
+                    continue;
+                }
+            }
+
+            switch ( Next )
+            {
+            case 'a':
+                Out.push_back( '\a' );
+                ++Index;
+                continue;
+            case 'b':
+                Out.push_back( '\b' );
+                ++Index;
+                continue;
             case 'n':
                 Out.push_back( '\n' );
                 ++Index;
@@ -276,8 +323,20 @@ static std::string DecodeStringText ( std::string_view Text )
                 Out.push_back( '\t' );
                 ++Index;
                 continue;
+            case 'v':
+                Out.push_back( '\v' );
+                ++Index;
+                continue;
+            case 'f':
+                Out.push_back( '\f' );
+                ++Index;
+                continue;
             case '0':
                 Out.push_back( '\0' );
+                ++Index;
+                continue;
+            case 'e':
+                Out.push_back( '\x1b' );
                 ++Index;
                 continue;
             case '\\':

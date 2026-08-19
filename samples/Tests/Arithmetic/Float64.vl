@@ -1,9 +1,3 @@
-@[External( "libc", "exit" )]
-external def libc_exit( value : Int32 ) -> Void
-
-
-#------------------------------------------------------------------------------
-
 def test_float64 -> Void
   a : Float64 = 100.0
   b : Float64 = 25.0
@@ -37,4 +31,4 @@ def main -> Int32
   0
 end
 
-libc_exit( main() )
+LibC.exit( main() )
