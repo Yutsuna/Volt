@@ -1,53 +1,83 @@
 Program 'samples/Tests/Primitives/CharAndString.vl'
-├─ ExprStmt @3:1
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Assign '=' @3:3
+│     └─ Assign '=' @1:3
 │        ├─ target
-│        │  └─ Identifier 's' @3:1
+│        │  └─ Identifier 's' @1:1
 │        └─ value
-│           └─ StringLiteral 'Hello World' @3:5
-├─ LocalDecl 'ptr' @6:1
+│           └─ StringLiteral 'Hello World' @1:5
+├─ LocalDecl 'ptr' @4:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'Pointer' @6:7
+│  │  └─ TypeRef 'Pointer' @4:7
 │  │     └─ generics
-│  │        └─ TypeRef 'Char' @6:15
+│  │        └─ TypeRef 'Char' @4:15
 │  └─ init
-│     └─ Call @6:35
+│     └─ Call @4:35
 │        └─ callee
-│           └─ Member 'to_pointer' @6:24
+│           └─ Member 'to_pointer' @4:24
 │              └─ object
-│                 └─ Identifier 's' @6:23
-├─ ExprStmt @7:1
+│                 └─ Identifier 's' @4:23
+├─ ExprStmt @5:1
 │  └─ expr
-│     └─ Call @7:8
+│     └─ Call @5:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @7:1
+│        │  └─ Identifier 'assert!' @5:1
 │        └─ args
-│           └─ Binary '!=' @7:14
+│           └─ Binary '!=' @5:14
 │              ├─ lhs
-│              │  └─ Identifier 'ptr' @7:10
+│              │  └─ Identifier 'ptr' @5:10
 │              └─ rhs
-│                 └─ NilLiteral @7:17
-├─ LocalDecl 'c' @10:1
+│                 └─ NilLiteral @5:17
+├─ LocalDecl 'c' @8:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'Char' @10:5
+│  │  └─ TypeRef 'Char' @8:5
 │  └─ init
-│     └─ Index @10:13
+│     └─ Index @8:13
 │        ├─ object
-│        │  └─ Identifier 's' @10:12
+│        │  └─ Identifier 's' @8:12
 │        └─ args
-│           └─ IntLiteral '0' @10:14
+│           └─ IntLiteral '0' @8:14
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Call @9:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @9:1
+│        └─ args
+│           └─ Binary '==' @9:12
+│              ├─ lhs
+│              │  └─ Identifier 'c' @9:10
+│              └─ rhs
+│                 └─ CharLiteral 'H' @9:15
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Binary '==' @10:15
+│              ├─ lhs
+│              │  └─ Index @10:11
+│              │     ├─ object
+│              │     │  └─ Identifier 's' @10:10
+│              │     └─ args
+│              │        └─ IntLiteral '1' @10:12
+│              └─ rhs
+│                 └─ CharLiteral 'e' @10:18
 ├─ ExprStmt @11:1
 │  └─ expr
 │     └─ Call @11:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @11:1
 │        └─ args
-│           └─ Binary '==' @11:12
+│           └─ Binary '==' @11:15
 │              ├─ lhs
-│              │  └─ Identifier 'c' @11:10
+│              │  └─ Index @11:11
+│              │     ├─ object
+│              │     │  └─ Identifier 's' @11:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @11:12
 │              └─ rhs
-│                 └─ CharLiteral 'H' @11:15
+│                 └─ CharLiteral 'o' @11:18
 ├─ ExprStmt @12:1
 │  └─ expr
 │     └─ Call @12:8
@@ -60,346 +90,342 @@ Program 'samples/Tests/Primitives/CharAndString.vl'
 │              │     ├─ object
 │              │     │  └─ Identifier 's' @12:10
 │              │     └─ args
-│              │        └─ IntLiteral '1' @12:12
+│              │        └─ IntLiteral '5' @12:12
 │              └─ rhs
-│                 └─ CharLiteral 'e' @12:18
-├─ ExprStmt @13:1
+│                 └─ CharLiteral ' ' @12:18
+├─ ExprStmt @15:1
 │  └─ expr
-│     └─ Call @13:8
+│     └─ Call @15:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @13:1
+│        │  └─ Identifier 'assert!' @15:1
 │        └─ args
-│           └─ Binary '==' @13:15
+│           └─ Binary '<' @15:14
 │              ├─ lhs
-│              │  └─ Index @13:11
-│              │     ├─ object
-│              │     │  └─ Identifier 's' @13:10
-│              │     └─ args
-│              │        └─ IntLiteral '4' @13:12
+│              │  └─ CharLiteral 'A' @15:10
 │              └─ rhs
-│                 └─ CharLiteral 'o' @13:18
-├─ ExprStmt @14:1
+│                 └─ CharLiteral 'B' @15:16
+├─ ExprStmt @16:1
 │  └─ expr
-│     └─ Call @14:8
+│     └─ Call @16:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @14:1
+│        │  └─ Identifier 'assert!' @16:1
 │        └─ args
-│           └─ Binary '==' @14:15
+│           └─ Binary '==' @16:18
 │              ├─ lhs
-│              │  └─ Index @14:11
-│              │     ├─ object
-│              │     │  └─ Identifier 's' @14:10
-│              │     └─ args
-│              │        └─ IntLiteral '5' @14:12
+│              │  └─ Binary '+' @16:14
+│              │     ├─ lhs
+│              │     │  └─ CharLiteral 'A' @16:10
+│              │     └─ rhs
+│              │        └─ IntLiteral '1' @16:16
 │              └─ rhs
-│                 └─ CharLiteral ' ' @14:18
+│                 └─ CharLiteral 'B' @16:21
 ├─ ExprStmt @17:1
 │  └─ expr
 │     └─ Call @17:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @17:1
 │        └─ args
-│           └─ Binary '<' @17:14
+│           └─ Binary '==' @17:18
 │              ├─ lhs
-│              │  └─ CharLiteral 'A' @17:10
-│              └─ rhs
-│                 └─ CharLiteral 'B' @17:16
-├─ ExprStmt @18:1
-│  └─ expr
-│     └─ Call @18:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @18:1
-│        └─ args
-│           └─ Binary '==' @18:18
-│              ├─ lhs
-│              │  └─ Binary '+' @18:14
+│              │  └─ Binary '-' @17:14
 │              │     ├─ lhs
-│              │     │  └─ CharLiteral 'A' @18:10
+│              │     │  └─ CharLiteral 'b' @17:10
 │              │     └─ rhs
-│              │        └─ IntLiteral '1' @18:16
+│              │        └─ IntLiteral '1' @17:16
 │              └─ rhs
-│                 └─ CharLiteral 'B' @18:21
-├─ ExprStmt @19:1
+│                 └─ CharLiteral 'a' @17:21
+├─ ExprStmt @20:1
 │  └─ expr
-│     └─ Call @19:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @19:1
-│        └─ args
-│           └─ Binary '==' @19:18
-│              ├─ lhs
-│              │  └─ Binary '-' @19:14
-│              │     ├─ lhs
-│              │     │  └─ CharLiteral 'b' @19:10
-│              │     └─ rhs
-│              │        └─ IntLiteral '1' @19:16
-│              └─ rhs
-│                 └─ CharLiteral 'a' @19:21
+│     └─ Assign '=' @20:7
+│        ├─ target
+│        │  └─ Identifier 'dup_s' @20:1
+│        └─ value
+│           └─ Member 'dup' @20:10
+│              └─ object
+│                 └─ Identifier 's' @20:9
+├─ ExprStmt @21:1
+│  └─ expr
+│     └─ Assign '=' @21:10
+│        ├─ target
+│        │  └─ Index @21:6
+│        │     ├─ object
+│        │     │  └─ Identifier 'dup_s' @21:1
+│        │     └─ args
+│        │        └─ IntLiteral '0' @21:7
+│        └─ value
+│           └─ CharLiteral 'h' @21:12
 ├─ ExprStmt @22:1
 │  └─ expr
-│     └─ Assign '=' @22:7
-│        ├─ target
-│        │  └─ Identifier 'dup_s' @22:1
-│        └─ value
-│           └─ Member 'dup' @22:10
-│              └─ object
-│                 └─ Identifier 's' @22:9
+│     └─ Call @22:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @22:1
+│        └─ args
+│           └─ Binary '==' @22:19
+│              ├─ lhs
+│              │  └─ Index @22:15
+│              │     ├─ object
+│              │     │  └─ Identifier 'dup_s' @22:10
+│              │     └─ args
+│              │        └─ IntLiteral '0' @22:16
+│              └─ rhs
+│                 └─ CharLiteral 'h' @22:22
 ├─ ExprStmt @23:1
 │  └─ expr
-│     └─ Assign '=' @23:10
-│        ├─ target
-│        │  └─ Index @23:6
-│        │     ├─ object
-│        │     │  └─ Identifier 'dup_s' @23:1
-│        │     └─ args
-│        │        └─ IntLiteral '0' @23:7
-│        └─ value
-│           └─ CharLiteral 'h' @23:12
-├─ ExprStmt @24:1
-│  └─ expr
-│     └─ Call @24:8
+│     └─ Call @23:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @24:1
+│        │  └─ Identifier 'assert!' @23:1
 │        └─ args
-│           └─ Binary '==' @24:19
+│           └─ Binary '==' @23:16
 │              ├─ lhs
-│              │  └─ Index @24:15
-│              │     ├─ object
-│              │     │  └─ Identifier 'dup_s' @24:10
-│              │     └─ args
-│              │        └─ IntLiteral '0' @24:16
+│              │  └─ Identifier 'dup_s' @23:10
 │              └─ rhs
-│                 └─ CharLiteral 'h' @24:22
-├─ ExprStmt @25:1
+│                 └─ StringLiteral 'hello World' @23:19
+├─ ExprStmt @26:1
 │  └─ expr
-│     └─ Call @25:8
+│     └─ Call @26:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @25:1
+│        │  └─ Identifier 'assert!' @26:1
 │        └─ args
-│           └─ Binary '==' @25:16
+│           └─ Binary '==' @26:33
 │              ├─ lhs
-│              │  └─ Identifier 'dup_s' @25:10
+│              │  └─ Member 'downcase' @26:23
+│              │     └─ object
+│              │        └─ StringLiteral 'HELLO WORLD' @26:10
 │              └─ rhs
-│                 └─ StringLiteral 'hello World' @25:19
+│                 └─ StringLiteral 'hello world' @26:36
+├─ ExprStmt @27:1
+│  └─ expr
+│     └─ Call @27:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @27:1
+│        └─ args
+│           └─ Binary '==' @27:31
+│              ├─ lhs
+│              │  └─ Member 'upcase' @27:23
+│              │     └─ object
+│              │        └─ StringLiteral 'hello world' @27:10
+│              └─ rhs
+│                 └─ StringLiteral 'HELLO WORLD' @27:34
 ├─ ExprStmt @28:1
 │  └─ expr
 │     └─ Call @28:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @28:1
 │        └─ args
-│           └─ Binary '==' @28:33
+│           └─ Binary '==' @28:27
 │              ├─ lhs
-│              │  └─ Member 'downcase' @28:23
+│              │  └─ Member 'trim' @28:21
 │              │     └─ object
-│              │        └─ StringLiteral 'HELLO WORLD' @28:10
+│              │        └─ StringLiteral '  hello  ' @28:10
 │              └─ rhs
-│                 └─ StringLiteral 'hello world' @28:36
-├─ ExprStmt @29:1
+│                 └─ StringLiteral 'hello' @28:30
+├─ ExprStmt @31:1
 │  └─ expr
-│     └─ Call @29:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @29:1
-│        └─ args
-│           └─ Binary '==' @29:31
-│              ├─ lhs
-│              │  └─ Member 'upcase' @29:23
-│              │     └─ object
-│              │        └─ StringLiteral 'hello world' @29:10
-│              └─ rhs
-│                 └─ StringLiteral 'HELLO WORLD' @29:34
-├─ ExprStmt @30:1
-│  └─ expr
-│     └─ Call @30:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @30:1
-│        └─ args
-│           └─ Binary '==' @30:27
-│              ├─ lhs
-│              │  └─ Member 'trim' @30:21
-│              │     └─ object
-│              │        └─ StringLiteral '  hello  ' @30:10
-│              └─ rhs
-│                 └─ StringLiteral 'hello' @30:30
-├─ ExprStmt @33:1
-│  └─ expr
-│     └─ Assign '=' @33:4
+│     └─ Assign '=' @31:4
 │        ├─ target
-│        │  └─ Identifier 'cs' @33:1
+│        │  └─ Identifier 'cs' @31:1
 │        └─ value
-│           └─ Call @33:26
+│           └─ Call @31:26
 │              ├─ callee
-│              │  └─ Member 'from_c_string' @33:12
+│              │  └─ Member 'from_c_string' @31:12
 │              │     └─ object
-│              │        └─ Identifier 'String' @33:6
+│              │        └─ Identifier 'String' @31:6
 │              └─ args
-│                 └─ Call @33:49
+│                 └─ Call @31:49
 │                    └─ callee
-│                       └─ Member 'to_pointer' @33:38
+│                       └─ Member 'to_pointer' @31:38
 │                          └─ object
-│                             └─ StringLiteral 'c_string' @33:28
-├─ ExprStmt @34:1
+│                             └─ StringLiteral 'c_string' @31:28
+├─ ExprStmt @32:1
 │  └─ expr
-│     └─ Call @34:8
+│     └─ Call @32:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @34:1
+│        │  └─ Identifier 'assert!' @32:1
 │        └─ args
-│           └─ Binary '==' @34:13
+│           └─ Binary '==' @32:13
 │              ├─ lhs
-│              │  └─ Identifier 'cs' @34:10
+│              │  └─ Identifier 'cs' @32:10
 │              └─ rhs
-│                 └─ StringLiteral 'c_string' @34:16
+│                 └─ StringLiteral 'c_string' @32:16
+├─ ExprStmt @35:1
+│  └─ expr
+│     └─ Assign '=' @35:7
+│        ├─ target
+│        │  └─ Identifier 'p_int' @35:1
+│        └─ value
+│           └─ Call @35:30
+│              ├─ callee
+│              │  └─ Member 'malloc' @35:23
+│              │     └─ object
+│              │        └─ GenericInst @35:16
+│              │           ├─ base
+│              │           │  └─ Identifier 'Pointer' @35:9
+│              │           └─ args
+│              │              └─ TypeRef 'Int32' @35:17
+│              └─ args
+│                 └─ IntLiteral '1_u64' @35:32
+├─ ExprStmt @36:1
+│  └─ expr
+│     └─ Call @36:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @36:1
+│        └─ args
+│           └─ Binary '>' @36:31
+│              ├─ lhs
+│              │  └─ Member 'size' @36:25
+│              │     └─ object
+│              │        └─ Member 'to_string' @36:15
+│              │           └─ object
+│              │              └─ Identifier 'p_int' @36:10
+│              └─ rhs
+│                 └─ IntLiteral '0' @36:33
 ├─ ExprStmt @37:1
 │  └─ expr
-│     └─ Assign '=' @37:7
-│        ├─ target
-│        │  └─ Identifier 'p_int' @37:1
-│        └─ value
-│           └─ Call @37:30
-│              ├─ callee
-│              │  └─ Member 'malloc' @37:23
-│              │     └─ object
-│              │        └─ GenericInst @37:16
-│              │           ├─ base
-│              │           │  └─ Identifier 'Pointer' @37:9
-│              │           └─ args
-│              │              └─ TypeRef 'Int32' @37:17
-│              └─ args
-│                 └─ IntLiteral '1_u64' @37:32
-├─ ExprStmt @38:1
-│  └─ expr
-│     └─ Call @38:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @38:1
-│        └─ args
-│           └─ Binary '>' @38:31
-│              ├─ lhs
-│              │  └─ Member 'size' @38:25
-│              │     └─ object
-│              │        └─ Member 'to_string' @38:15
-│              │           └─ object
-│              │              └─ Identifier 'p_int' @38:10
-│              └─ rhs
-│                 └─ IntLiteral '0' @38:33
-├─ ExprStmt @39:1
-│  └─ expr
-│     └─ Member 'free' @39:6
+│     └─ Member 'free' @37:6
 │        └─ object
-│           └─ Identifier 'p_int' @39:1
-├─ LocalDecl 'del' @42:1
+│           └─ Identifier 'p_int' @37:1
+├─ LocalDecl 'del' @40:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'Char' @42:7
+│  │  └─ TypeRef 'Char' @40:7
 │  └─ init
-│     └─ CharLiteral '\x7F' @42:14
+│     └─ CharLiteral '\x7F' @40:14
+├─ ExprStmt @41:1
+│  └─ expr
+│     └─ Call @41:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @41:1
+│        └─ args
+│           └─ Member 'ascii?' @41:13
+│              └─ object
+│                 └─ Identifier 'del' @41:10
+├─ ExprStmt @42:1
+│  └─ expr
+│     └─ Call @42:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @42:1
+│        └─ args
+│           └─ Member 'control?' @42:13
+│              └─ object
+│                 └─ Identifier 'del' @42:10
 ├─ ExprStmt @43:1
 │  └─ expr
 │     └─ Call @43:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @43:1
 │        └─ args
-│           └─ Member 'ascii?' @43:13
-│              └─ object
-│                 └─ Identifier 'del' @43:10
-├─ ExprStmt @44:1
-│  └─ expr
-│     └─ Call @44:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @44:1
-│        └─ args
-│           └─ Member 'control?' @44:13
-│              └─ object
-│                 └─ Identifier 'del' @44:10
-├─ ExprStmt @45:1
-│  └─ expr
-│     └─ Call @45:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @45:1
-│        └─ args
-│           └─ Unary 'not' @45:10
+│           └─ Unary 'not' @43:10
 │              └─ operand
-│                 └─ Member 'printable?' @45:17
+│                 └─ Member 'printable?' @43:17
 │                    └─ object
-│                       └─ Identifier 'del' @45:14
-├─ LocalDecl 'nl' @47:1
+│                       └─ Identifier 'del' @43:14
+├─ LocalDecl 'nl' @45:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'Char' @47:6
+│  │  └─ TypeRef 'Char' @45:6
 │  └─ init
-│     └─ CharLiteral '\n' @47:13
-├─ ExprStmt @48:1
+│     └─ CharLiteral '\n' @45:13
+├─ ExprStmt @46:1
 │  └─ expr
-│     └─ Call @48:8
+│     └─ Call @46:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @48:1
+│        │  └─ Identifier 'assert!' @46:1
 │        └─ args
-│           └─ Member 'whitespace?' @48:12
+│           └─ Member 'whitespace?' @46:12
 │              └─ object
-│                 └─ Identifier 'nl' @48:10
-├─ ExprStmt @49:1
+│                 └─ Identifier 'nl' @46:10
+├─ ExprStmt @47:1
 │  └─ expr
-│     └─ Call @49:8
+│     └─ Call @47:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @49:1
+│        │  └─ Identifier 'assert!' @47:1
 │        └─ args
-│           └─ Member 'control?' @49:12
+│           └─ Member 'control?' @47:12
 │              └─ object
-│                 └─ Identifier 'nl' @49:10
-├─ LocalDecl 'bell' @51:1
+│                 └─ Identifier 'nl' @47:10
+├─ LocalDecl 'bell' @49:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'Char' @51:8
+│  │  └─ TypeRef 'Char' @49:8
 │  └─ init
-│     └─ CharLiteral '\a' @51:15
+│     └─ CharLiteral '\a' @49:15
+├─ ExprStmt @50:1
+│  └─ expr
+│     └─ Call @50:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @50:1
+│        └─ args
+│           └─ Member 'control?' @50:14
+│              └─ object
+│                 └─ Identifier 'bell' @50:10
 ├─ ExprStmt @52:1
 │  └─ expr
 │     └─ Call @52:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @52:1
 │        └─ args
-│           └─ Member 'control?' @52:14
+│           └─ Member 'ascii?' @52:13
 │              └─ object
-│                 └─ Identifier 'bell' @52:10
+│                 └─ CharLiteral 'A' @52:10
+├─ ExprStmt @53:1
+│  └─ expr
+│     └─ Call @53:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @53:1
+│        └─ args
+│           └─ Member 'uppercase?' @53:13
+│              └─ object
+│                 └─ CharLiteral 'A' @53:10
 ├─ ExprStmt @54:1
 │  └─ expr
 │     └─ Call @54:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @54:1
 │        └─ args
-│           └─ Member 'ascii?' @54:13
+│           └─ Member 'lowercase?' @54:13
 │              └─ object
-│                 └─ CharLiteral 'A' @54:10
+│                 └─ CharLiteral 'a' @54:10
 ├─ ExprStmt @55:1
 │  └─ expr
 │     └─ Call @55:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @55:1
 │        └─ args
-│           └─ Member 'uppercase?' @55:13
+│           └─ Member 'digit?' @55:13
 │              └─ object
-│                 └─ CharLiteral 'A' @55:10
+│                 └─ CharLiteral '9' @55:10
 ├─ ExprStmt @56:1
 │  └─ expr
 │     └─ Call @56:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @56:1
 │        └─ args
-│           └─ Member 'lowercase?' @56:13
+│           └─ Member 'hex_digit?' @56:13
 │              └─ object
-│                 └─ CharLiteral 'a' @56:10
+│                 └─ CharLiteral 'F' @56:10
 ├─ ExprStmt @57:1
 │  └─ expr
 │     └─ Call @57:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @57:1
 │        └─ args
-│           └─ Member 'digit?' @57:13
-│              └─ object
-│                 └─ CharLiteral '9' @57:10
+│           └─ Binary '==' @57:23
+│              ├─ lhs
+│              │  └─ Member 'downcase' @57:13
+│              │     └─ object
+│              │        └─ CharLiteral 'A' @57:10
+│              └─ rhs
+│                 └─ CharLiteral 'a' @57:26
 ├─ ExprStmt @58:1
 │  └─ expr
 │     └─ Call @58:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @58:1
 │        └─ args
-│           └─ Member 'hex_digit?' @58:13
-│              └─ object
-│                 └─ CharLiteral 'F' @58:10
+│           └─ Binary '==' @58:21
+│              ├─ lhs
+│              │  └─ Member 'upcase' @58:13
+│              │     └─ object
+│              │        └─ CharLiteral 'a' @58:10
+│              └─ rhs
+│                 └─ CharLiteral 'A' @58:24
 ├─ ExprStmt @59:1
 │  └─ expr
 │     └─ Call @59:8
@@ -408,91 +434,65 @@ Program 'samples/Tests/Primitives/CharAndString.vl'
 │        └─ args
 │           └─ Binary '==' @59:23
 │              ├─ lhs
-│              │  └─ Member 'downcase' @59:13
+│              │  └─ Member 'to_digit' @59:13
 │              │     └─ object
-│              │        └─ CharLiteral 'A' @59:10
+│              │        └─ CharLiteral '7' @59:10
 │              └─ rhs
-│                 └─ CharLiteral 'a' @59:26
+│                 └─ IntLiteral '7' @59:26
 ├─ ExprStmt @60:1
 │  └─ expr
 │     └─ Call @60:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @60:1
 │        └─ args
-│           └─ Binary '==' @60:21
+│           └─ Binary '==' @60:29
 │              ├─ lhs
-│              │  └─ Member 'upcase' @60:13
-│              │     └─ object
-│              │        └─ CharLiteral 'a' @60:10
+│              │  └─ Call @60:22
+│              │     ├─ callee
+│              │     │  └─ Member 'to_digit' @60:13
+│              │     │     └─ object
+│              │     │        └─ CharLiteral 'F' @60:10
+│              │     └─ args
+│              │        └─ IntLiteral '16' @60:24
 │              └─ rhs
-│                 └─ CharLiteral 'A' @60:24
+│                 └─ IntLiteral '15' @60:32
 ├─ ExprStmt @61:1
 │  └─ expr
 │     └─ Call @61:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @61:1
 │        └─ args
-│           └─ Binary '==' @61:23
+│           └─ Binary '==' @61:22
 │              ├─ lhs
-│              │  └─ Member 'to_digit' @61:13
+│              │  └─ Member 'inspect' @61:13
 │              │     └─ object
-│              │        └─ CharLiteral '7' @61:10
+│              │        └─ CharLiteral 'A' @61:10
 │              └─ rhs
-│                 └─ IntLiteral '7' @61:26
+│                 └─ StringLiteral 'A' @61:25
 ├─ ExprStmt @62:1
 │  └─ expr
 │     └─ Call @62:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @62:1
 │        └─ args
-│           └─ Binary '==' @62:29
+│           └─ Binary '==' @62:23
 │              ├─ lhs
-│              │  └─ Call @62:22
-│              │     ├─ callee
-│              │     │  └─ Member 'to_digit' @62:13
-│              │     │     └─ object
-│              │     │        └─ CharLiteral 'F' @62:10
-│              │     └─ args
-│              │        └─ IntLiteral '16' @62:24
-│              └─ rhs
-│                 └─ IntLiteral '15' @62:32
-├─ ExprStmt @63:1
-│  └─ expr
-│     └─ Call @63:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @63:1
-│        └─ args
-│           └─ Binary '==' @63:22
-│              ├─ lhs
-│              │  └─ Member 'inspect' @63:13
+│              │  └─ Member 'inspect' @62:14
 │              │     └─ object
-│              │        └─ CharLiteral 'A' @63:10
+│              │        └─ CharLiteral '\n' @62:10
 │              └─ rhs
-│                 └─ StringLiteral 'A' @63:25
-├─ ExprStmt @64:1
-│  └─ expr
-│     └─ Call @64:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @64:1
-│        └─ args
-│           └─ Binary '==' @64:23
-│              ├─ lhs
-│              │  └─ Member 'inspect' @64:14
-│              │     └─ object
-│              │        └─ CharLiteral '\n' @64:10
-│              └─ rhs
-│                 └─ StringLiteral ''\\n'' @64:26
-└─ ExprStmt @65:1
+│                 └─ StringLiteral ''\\n'' @62:26
+└─ ExprStmt @63:1
    └─ expr
-      └─ Call @65:8
+      └─ Call @63:8
          ├─ callee
-         │  └─ Identifier 'assert!' @65:1
+         │  └─ Identifier 'assert!' @63:1
          └─ args
-            └─ Binary '==' @65:25
+            └─ Binary '==' @63:25
                ├─ lhs
-               │  └─ Member 'inspect' @65:16
+               │  └─ Member 'inspect' @63:16
                │     └─ object
-               │        └─ CharLiteral '\x7F' @65:10
+               │        └─ CharLiteral '\x7F' @63:10
                └─ rhs
-                  └─ StringLiteral '\x7F' @65:28
+                  └─ StringLiteral '\x7F' @63:28
 --- exit 0 ---
