@@ -578,6 +578,14 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePostfix ( ExprId Lhs )
             // construct, two spellings.
             Lhs = AttachTrailingBlock( Lhs, ParseDoBlock(), Begin );
         }
+        else if ( Check( TokenKind::PlusPlus ) or Check( TokenKind::MinusMinus ) )
+        {
+            const TokenKind Op = Advance().Kind;
+            Postfix Node;
+            Node.Op      = Op;
+            Node.Operand = Lhs;
+            Lhs          = MakeExpr( Node, RangeSince( Begin ) );
+        }
         else
         {
             break;
