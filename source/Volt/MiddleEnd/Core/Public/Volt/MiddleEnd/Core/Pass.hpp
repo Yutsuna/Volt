@@ -94,6 +94,7 @@ namespace MiddleEnd
             const Volt::Core::SourceManager *Sources   = nullptr;
             IR::UnitCallees *Callees                   = nullptr;
             IR::SynthesizedFunctions &Synth;
+            std::span<const Frontend::AstContext *> AllUnits{};
         };
 
         // A pass is a pure function over a PassContext.
