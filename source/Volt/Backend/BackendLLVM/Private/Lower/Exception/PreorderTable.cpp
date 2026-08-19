@@ -1,4 +1,4 @@
-// AncestryTable.cpp — the Euler pre-order index for O(1) subtype testing.
+// PreorderTable.cpp — the Euler pre-order index for O(1) subtype testing.
 
 #include "Lower/Exception/ExceptionLowering.hpp"
 
