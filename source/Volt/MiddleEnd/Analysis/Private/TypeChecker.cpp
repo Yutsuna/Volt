@@ -2,6 +2,7 @@
 // resolves the members that types make available.
 
 #include "DeclStmtWalker.hpp"
+#include "ExprInferencer.hpp"
 #include "LiteralInferencer.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
@@ -61,6 +62,8 @@ void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
         Analysis::WalkStmt( State, Id );
     }
     Analysis::WalkDecls( State, Context.Ast.TopDecls );
+
+    Analysis::LowerParenlessCalls( State );
 
     // Only after every ConstrainExprType in the file has had its say: a
     // literal passed as a call argument is naturally inferred before its

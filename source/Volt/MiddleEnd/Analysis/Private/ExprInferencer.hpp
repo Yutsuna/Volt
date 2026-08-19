@@ -14,4 +14,9 @@ SemaTypeId CallType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Fr
 
 SemaTypeId GenericInstType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Frontend::GenericInst &Expr );
 
+Frontend::ExprList
+FillDefaultArguments ( TypeCheckerContext &Context, const Resolution &Found, const Frontend::ExprList &GivenArgs );
+
+void LowerParenlessCalls ( TypeCheckerContext &Context );
+
 } // namespace Volt::MiddleEnd::Analysis

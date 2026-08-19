@@ -5,6 +5,7 @@
 #include "LiteralInferencer.hpp"
 #include "MemberResolver.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
+#include "Volt/Frontend/AST/AstClone.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
@@ -526,6 +527,81 @@ void FoldInto ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
 /**
  * Public
  */
+
+Volt::Frontend::ExprList Volt::MiddleEnd::Analysis::FillDefaultArguments ( TypeCheckerContext &Context,
+                                                                           const Resolution &Found,
+                                                                           const Frontend::ExprList &GivenArgs )
+{
+    using namespace Volt::MiddleEnd::TypeSystem;
+    Volt::Frontend::ExprList NewArgs = GivenArgs;
+    if ( Found.Decl == nullptr or Found.Decl->Kind != EMemberKind::Method )
+    {
+        return NewArgs;
+    }
+
+    std::size_t PositionalExpected = 0;
+    for ( std::size_t Index = 0; Index < Found.Decl->Params.Size(); ++Index )
+    {
+        if ( not( Index < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[Index] ) )
+        {
+            ++PositionalExpected;
+        }
+    }
+
+    if ( NewArgs.Size() >= PositionalExpected or GivenArgs.Size() < Found.Decl->MinParams )
+    {
+        return NewArgs;
+    }
+
+    const Frontend::AstContext *SourceAst = nullptr;
+    if ( Found.Decl->Unit < Context.Ctx.AllUnits.size() and Context.Ctx.AllUnits[Found.Decl->Unit] != nullptr )
+    {
+        SourceAst = Context.Ctx.AllUnits[Found.Decl->Unit];
+    }
+    else
+    {
+        SourceAst = &Context.Ctx.Ast;
+    }
+
+    if ( SourceAst == nullptr )
+    {
+        return NewArgs;
+    }
+
+    const auto *MethodNode = std::get_if<Frontend::Method>( &SourceAst->Decl( Found.Decl->Decl ) );
+    if ( MethodNode == nullptr )
+    {
+        return NewArgs;
+    }
+
+    std::size_t PosIdx = 0;
+    for ( std::size_t ParamIdx = 0; ParamIdx < MethodNode->Params.Size(); ++ParamIdx )
+    {
+        const bool bIsBlock = ParamIdx < Found.Decl->ParamIsBlock.Size() and Found.Decl->ParamIsBlock[ParamIdx];
+        if ( bIsBlock )
+        {
+            continue;
+        }
+        if ( PosIdx >= NewArgs.Size() )
+        {
+            const Frontend::ParamId ParamRef = MethodNode->Params[ParamIdx];
+            const Frontend::ExprId DefaultId = SourceAst->GetParam( ParamRef ).Default;
+            if ( DefaultId.IsValid() )
+            {
+                const Frontend::ExprId Cloned = Frontend::CloneExpr( *SourceAst, Context.Ctx.Ast, DefaultId );
+                if ( PosIdx < Found.Params.Size() and Found.Params[PosIdx].IsValid() )
+                {
+                    Context.ConstrainExprType( Cloned, Found.Params[PosIdx] );
+                }
+                static_cast<void>( InferExpr( Context, Cloned ) );
+                NewArgs.PushBack( Cloned );
+            }
+        }
+        ++PosIdx;
+    }
+
+    return NewArgs;
+}
 
 Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::InferExpr ( TypeCheckerContext &Context, Frontend::ExprId Id )
 {
@@ -1223,7 +1299,12 @@ Volt::MiddleEnd::Analysis::CallType ( TypeCheckerContext &Context, Frontend::Exp
     CheckCallArgs( Context, Expr.Loc, Found, Expr.Args );
 
     bool bModifiedArgs         = false;
-    Frontend::ExprList NewArgs = Expr.Args;
+    Frontend::ExprList NewArgs = FillDefaultArguments( Context, Found, Expr.Args );
+    if ( NewArgs.Size() != Expr.Args.Size() )
+    {
+        bModifiedArgs = true;
+    }
+
     for ( std::size_t Index = 0; Index < NewArgs.Size(); ++Index )
     {
         if ( Index < Found.Params.Size() and Found.Params[Index].IsValid() )
@@ -1297,4 +1378,69 @@ Volt::MiddleEnd::Analysis::GenericInstType ( TypeCheckerContext &Context, Fronte
 
     CheckArity( Context, Expr.Loc, Nominal, Args.Size() );
     return Context.MakeType( Nominal, std::move( Args ) );
+}
+
+void Volt::MiddleEnd::Analysis::LowerParenlessCalls ( TypeCheckerContext &Context )
+{
+    std::unordered_set<std::uint32_t> CalleeExprs;
+    const std::size_t OriginalCount = Context.Ctx.Ast.ExprCount();
+    for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        if ( const auto *CallNode = std::get_if<Frontend::Call>( &Context.Ctx.Ast.Expr( Id ) ) )
+        {
+            if ( CallNode->Callee.IsValid() )
+            {
+                CalleeExprs.insert( CallNode->Callee.Value );
+            }
+        }
+    }
+
+    for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+        if ( CalleeExprs.contains( Id.Value ) )
+        {
+            continue;
+        }
+
+        const auto It = Context.CalleeResolution.find( Id.Value );
+        if ( It == Context.CalleeResolution.end() or It->second.Decl == nullptr or
+             It->second.Decl->Kind != MiddleEnd::TypeSystem::EMemberKind::Method )
+        {
+            continue;
+        }
+
+        const Resolution &Found = It->second;
+        if ( Found.Decl->MinParams > 0 )
+        {
+            continue;
+        }
+
+        Frontend::ExprList DefaultArgs = FillDefaultArguments( Context, Found, {} );
+        if ( DefaultArgs.IsEmpty() )
+        {
+            continue;
+        }
+
+        const Frontend::ExprNode NodeCopy        = Context.Ctx.Ast.Expr( Id );
+        const Frontend::ExprId CalleeId          = Context.Ctx.Ast.Add( NodeCopy );
+        Context.CalleeResolution[CalleeId.Value] = Found;
+        if ( const SemaTypeId OldType = Context.Ctx.Values.ExprType( Id ); OldType.IsValid() )
+        {
+            Context.Ctx.Values.SetExprType( CalleeId, OldType );
+        }
+
+        Frontend::Call Synthesized;
+        Synthesized.Loc    = Frontend::LocOf( NodeCopy );
+        Synthesized.Callee = CalleeId;
+        Synthesized.Args   = std::move( DefaultArgs );
+
+        Context.Ctx.Ast.Expr( Id )         = Frontend::ExprNode{ std::move( Synthesized ) };
+        Context.CalleeResolution[Id.Value] = Found;
+        if ( Found.Result.IsValid() )
+        {
+            Context.Ctx.Values.SetExprType( Id, Found.Result );
+        }
+    }
 }
