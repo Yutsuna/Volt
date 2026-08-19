@@ -39,6 +39,7 @@ namespace MiddleEnd
                 Meta::Serialize( W, Entry.bIndirect );
                 Meta::Serialize( W, Entry.VTableSlot );
                 Meta::Serialize( W, Entry.bDynamicDispatch );
+                Meta::Serialize( W, static_cast<std::uint8_t>( Entry.MachineConversion ) );
             }
         }
 
@@ -115,6 +116,12 @@ namespace MiddleEnd
                 {
                     return false;
                 }
+                std::uint8_t McRaw = 0;
+                if ( not Meta::Deserialize( R, McRaw ) )
+                {
+                    return false;
+                }
+                Entry.MachineConversion = static_cast<MiddleEnd::IR::EMachineConversion>( McRaw );
                 Entries.emplace( Key, std::move( Entry ) );
             }
             return true;
