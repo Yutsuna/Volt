@@ -23,8 +23,8 @@ const UnitEntry *MatchUnitSuffix ( std::string_view Source, std::size_t Pos )
     {
         if ( Pos + Unit.Suffix.size() <= Source.size() and Source.substr( Pos, Unit.Suffix.size() ) == Unit.Suffix )
         {
-            const bool bAlpha =
-                ( Unit.Suffix[0] >= 'a' and Unit.Suffix[0] <= 'z' ) or ( Unit.Suffix[0] >= 'A' and Unit.Suffix[0] <= 'Z' );
+            const auto First  = static_cast<unsigned char>( Unit.Suffix[0] );
+            const bool bAlpha = ( First >= 'a' and First <= 'z' ) or ( First >= 'A' and First <= 'Z' ) or First >= 0x80;
             if ( bAlpha and Pos + Unit.Suffix.size() < Source.size() )
             {
                 const char NextChar = Source[Pos + Unit.Suffix.size()];
