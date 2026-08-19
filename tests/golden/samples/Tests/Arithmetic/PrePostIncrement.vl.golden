@@ -1,0 +1,825 @@
+Program 'samples/Tests/Arithmetic/PrePostIncrement.vl'
+├─ Annotation 'External' @1:1
+│  └─ args
+│     ├─ StringLiteral 'libc' @1:13
+│     └─ StringLiteral 'exit' @1:21
+├─ Method 'libc_exit' external @2:10
+│  ├─ params
+│  │  └─ Param 'value' @2:25
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Int32' @2:33
+│  └─ return_type
+│     └─ TypeRef 'Void' @2:44
+├─ Method 'assert!' @4:1
+│  ├─ params
+│  │  └─ Param 'condition' @4:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @4:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @4:36
+│  └─ body
+│     └─ ExprStmt @5:3
+│        └─ expr
+│           └─ If @5:3
+│              ├─ cond
+│              │  └─ Unary 'not' @5:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @5:10
+│              └─ then
+│                 └─ ExprStmt @6:5
+│                    └─ expr
+│                       └─ RaiseExpr @6:5
+│                          └─ exception
+│                             └─ Interp @6:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'FAIL ' @6:11
+│                                   ├─ Identifier '__FILE__' @6:19
+│                                   ├─ StringLiteral ':\tCalled by ' @6:11
+│                                   ├─ Identifier '__FUNCTION__' @6:43
+│                                   ├─ StringLiteral ' at ' @6:11
+│                                   ├─ Identifier '__LINE__' @6:62
+│                                   ├─ StringLiteral ':' @6:11
+│                                   └─ Identifier '__COLUMN__' @6:74
+├─ Class 'Counter' @13:1
+│  └─ body
+│     ├─ Field 'count' getter @14:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @14:18
+│     ├─ Method 'initialize' @16:3
+│     │  └─ params
+│     │     └─ Param 'count' instance_var @16:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @16:28
+│     ├─ Method '++' @19:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Counter' @19:13
+│     │  └─ body
+│     │     └─ ExprStmt @20:5
+│     │        └─ expr
+│     │           └─ Call @20:16
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @20:12
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Counter' @20:5
+│     │              └─ args
+│     │                 └─ Binary '+' @20:25
+│     │                    ├─ lhs
+│     │                    │  └─ InstanceVar '@count' @20:18
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '10' @20:27
+│     └─ Method '--' @23:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Counter' @23:13
+│        └─ body
+│           └─ ExprStmt @24:5
+│              └─ expr
+│                 └─ Call @24:16
+│                    ├─ callee
+│                    │  └─ Member 'new' @24:12
+│                    │     └─ object
+│                    │        └─ Identifier 'Counter' @24:5
+│                    └─ args
+│                       └─ Binary '-' @24:25
+│                          ├─ lhs
+│                          │  └─ InstanceVar '@count' @24:18
+│                          └─ rhs
+│                             └─ IntLiteral '10' @24:27
+├─ Method 'test_primitive_pre_increment' @30:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @30:37
+│  └─ body
+│     ├─ ExprStmt @31:3
+│     │  └─ expr
+│     │     └─ Assign '=' @31:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @31:3
+│     │        └─ value
+│     │           └─ IntLiteral '10' @31:7
+│     ├─ ExprStmt @32:3
+│     │  └─ expr
+│     │     └─ Call @32:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @32:3
+│     │        └─ args
+│     │           └─ Binary '==' @32:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '++' @32:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'x' @32:14
+│     │              └─ rhs
+│     │                 └─ IntLiteral '11' @32:19
+│     ├─ ExprStmt @33:3
+│     │  └─ expr
+│     │     └─ Call @33:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @33:3
+│     │        └─ args
+│     │           └─ Binary '==' @33:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'x' @33:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '11' @33:17
+│     ├─ ExprStmt @35:3
+│     │  └─ expr
+│     │     └─ Assign '=' @35:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'y' @35:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @35:7
+│     ├─ ExprStmt @36:3
+│     │  └─ expr
+│     │     └─ Call @36:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @36:3
+│     │        └─ args
+│     │           └─ Binary '==' @36:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '++' @36:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'y' @36:14
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1' @36:19
+│     └─ ExprStmt @37:3
+│        └─ expr
+│           └─ Call @37:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @37:3
+│              └─ args
+│                 └─ Binary '==' @37:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'y' @37:12
+│                    └─ rhs
+│                       └─ IntLiteral '1' @37:17
+├─ Method 'test_primitive_post_increment' @40:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @40:38
+│  └─ body
+│     ├─ ExprStmt @41:3
+│     │  └─ expr
+│     │     └─ Assign '=' @41:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @41:3
+│     │        └─ value
+│     │           └─ IntLiteral '10' @41:7
+│     ├─ ExprStmt @42:3
+│     │  └─ expr
+│     │     └─ Call @42:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @42:3
+│     │        └─ args
+│     │           └─ Binary '==' @42:16
+│     │              ├─ lhs
+│     │              │  └─ Postfix '++' @42:13
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'x' @42:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '10' @42:19
+│     ├─ ExprStmt @43:3
+│     │  └─ expr
+│     │     └─ Call @43:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @43:3
+│     │        └─ args
+│     │           └─ Binary '==' @43:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'x' @43:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '11' @43:17
+│     ├─ ExprStmt @45:3
+│     │  └─ expr
+│     │     └─ Assign '=' @45:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'y' @45:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @45:7
+│     ├─ ExprStmt @46:3
+│     │  └─ expr
+│     │     └─ Call @46:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @46:3
+│     │        └─ args
+│     │           └─ Binary '==' @46:16
+│     │              ├─ lhs
+│     │              │  └─ Postfix '++' @46:13
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'y' @46:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0' @46:19
+│     └─ ExprStmt @47:3
+│        └─ expr
+│           └─ Call @47:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @47:3
+│              └─ args
+│                 └─ Binary '==' @47:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'y' @47:12
+│                    └─ rhs
+│                       └─ IntLiteral '1' @47:17
+├─ Method 'test_primitive_pre_decrement' @50:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @50:37
+│  └─ body
+│     ├─ ExprStmt @51:3
+│     │  └─ expr
+│     │     └─ Assign '=' @51:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @51:3
+│     │        └─ value
+│     │           └─ IntLiteral '10' @51:7
+│     ├─ ExprStmt @52:3
+│     │  └─ expr
+│     │     └─ Call @52:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @52:3
+│     │        └─ args
+│     │           └─ Binary '==' @52:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '--' @52:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'x' @52:14
+│     │              └─ rhs
+│     │                 └─ IntLiteral '9' @52:19
+│     └─ ExprStmt @53:3
+│        └─ expr
+│           └─ Call @53:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @53:3
+│              └─ args
+│                 └─ Binary '==' @53:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'x' @53:12
+│                    └─ rhs
+│                       └─ IntLiteral '9' @53:17
+├─ Method 'test_primitive_post_decrement' @56:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @56:38
+│  └─ body
+│     ├─ ExprStmt @57:3
+│     │  └─ expr
+│     │     └─ Assign '=' @57:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @57:3
+│     │        └─ value
+│     │           └─ IntLiteral '10' @57:7
+│     ├─ ExprStmt @58:3
+│     │  └─ expr
+│     │     └─ Call @58:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @58:3
+│     │        └─ args
+│     │           └─ Binary '==' @58:16
+│     │              ├─ lhs
+│     │              │  └─ Postfix '--' @58:13
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'x' @58:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '10' @58:19
+│     └─ ExprStmt @59:3
+│        └─ expr
+│           └─ Call @59:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @59:3
+│              └─ args
+│                 └─ Binary '==' @59:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'x' @59:12
+│                    └─ rhs
+│                       └─ IntLiteral '9' @59:17
+├─ Method 'test_in_expressions' @62:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @62:28
+│  └─ body
+│     ├─ ExprStmt @63:3
+│     │  └─ expr
+│     │     └─ Assign '=' @63:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'i' @63:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @63:7
+│     ├─ ExprStmt @64:3
+│     │  └─ expr
+│     │     └─ Assign '=' @64:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @64:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @64:9
+│     ├─ While @65:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @65:11
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'i' @65:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '5' @65:13
+│     │  └─ body
+│     │     └─ ExprStmt @66:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @66:9
+│     │              ├─ target
+│     │              │  └─ Identifier 'sum' @66:5
+│     │              └─ value
+│     │                 └─ Postfix '++' @66:13
+│     │                    └─ operand
+│     │                       └─ Identifier 'i' @66:12
+│     ├─ ExprStmt @68:3
+│     │  └─ expr
+│     │     └─ Call @68:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @68:3
+│     │        └─ args
+│     │           └─ Binary '==' @68:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'i' @68:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '5' @68:17
+│     ├─ ExprStmt @69:3
+│     │  └─ expr
+│     │     └─ Call @69:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @69:3
+│     │        └─ args
+│     │           └─ Binary '==' @69:16
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'sum' @69:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '10' @69:19
+│     ├─ ExprStmt @71:3
+│     │  └─ expr
+│     │     └─ Assign '=' @71:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'j' @71:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @71:7
+│     ├─ ExprStmt @72:3
+│     │  └─ expr
+│     │     └─ Assign '=' @72:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum2' @72:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @72:10
+│     ├─ While @73:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<=' @73:13
+│     │  │     ├─ lhs
+│     │  │     │  └─ Unary '++' @73:9
+│     │  │     │     └─ operand
+│     │  │     │        └─ Identifier 'j' @73:11
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '5' @73:16
+│     │  └─ body
+│     │     └─ ExprStmt @74:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @74:10
+│     │              ├─ target
+│     │              │  └─ Identifier 'sum2' @74:5
+│     │              └─ value
+│     │                 └─ Identifier 'j' @74:13
+│     ├─ ExprStmt @76:3
+│     │  └─ expr
+│     │     └─ Call @76:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @76:3
+│     │        └─ args
+│     │           └─ Binary '==' @76:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'j' @76:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '6' @76:17
+│     └─ ExprStmt @77:3
+│        └─ expr
+│           └─ Call @77:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @77:3
+│              └─ args
+│                 └─ Binary '==' @77:17
+│                    ├─ lhs
+│                    │  └─ Identifier 'sum2' @77:12
+│                    └─ rhs
+│                       └─ IntLiteral '15' @77:20
+├─ Method 'test_custom_type_operators' @80:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @80:35
+│  └─ body
+│     ├─ ExprStmt @81:3
+│     │  └─ expr
+│     │     └─ Assign '=' @81:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @81:3
+│     │        └─ value
+│     │           └─ Call @81:18
+│     │              ├─ callee
+│     │              │  └─ Member 'new' @81:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'Counter' @81:7
+│     │              └─ args
+│     │                 └─ IntLiteral '100' @81:20
+│     ├─ ExprStmt @84:3
+│     │  └─ expr
+│     │     └─ Assign '=' @84:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c2' @84:3
+│     │        └─ value
+│     │           └─ Unary '++' @84:8
+│     │              └─ operand
+│     │                 └─ Identifier 'c' @84:10
+│     ├─ ExprStmt @85:3
+│     │  └─ expr
+│     │     └─ Call @85:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @85:3
+│     │        └─ args
+│     │           └─ Binary '==' @85:20
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @85:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c' @85:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '110' @85:23
+│     ├─ ExprStmt @86:3
+│     │  └─ expr
+│     │     └─ Call @86:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @86:3
+│     │        └─ args
+│     │           └─ Binary '==' @86:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @86:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c2' @86:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '110' @86:24
+│     ├─ ExprStmt @89:3
+│     │  └─ expr
+│     │     └─ Assign '=' @89:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'old' @89:3
+│     │        └─ value
+│     │           └─ Postfix '++' @89:10
+│     │              └─ operand
+│     │                 └─ Identifier 'c' @89:9
+│     ├─ ExprStmt @90:3
+│     │  └─ expr
+│     │     └─ Call @90:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @90:3
+│     │        └─ args
+│     │           └─ Binary '==' @90:22
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @90:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'old' @90:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '110' @90:25
+│     ├─ ExprStmt @91:3
+│     │  └─ expr
+│     │     └─ Call @91:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @91:3
+│     │        └─ args
+│     │           └─ Binary '==' @91:20
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @91:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c' @91:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '120' @91:23
+│     ├─ ExprStmt @94:3
+│     │  └─ expr
+│     │     └─ Assign '=' @94:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'c3' @94:3
+│     │        └─ value
+│     │           └─ Unary '--' @94:8
+│     │              └─ operand
+│     │                 └─ Identifier 'c' @94:10
+│     ├─ ExprStmt @95:3
+│     │  └─ expr
+│     │     └─ Call @95:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @95:3
+│     │        └─ args
+│     │           └─ Binary '==' @95:20
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @95:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c' @95:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '110' @95:23
+│     ├─ ExprStmt @96:3
+│     │  └─ expr
+│     │     └─ Call @96:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @96:3
+│     │        └─ args
+│     │           └─ Binary '==' @96:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @96:14
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c3' @96:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '110' @96:24
+│     ├─ ExprStmt @99:3
+│     │  └─ expr
+│     │     └─ Assign '=' @99:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'old2' @99:3
+│     │        └─ value
+│     │           └─ Postfix '--' @99:11
+│     │              └─ operand
+│     │                 └─ Identifier 'c' @99:10
+│     ├─ ExprStmt @100:3
+│     │  └─ expr
+│     │     └─ Call @100:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @100:3
+│     │        └─ args
+│     │           └─ Binary '==' @100:23
+│     │              ├─ lhs
+│     │              │  └─ Member 'count' @100:16
+│     │              │     └─ object
+│     │              │        └─ Identifier 'old2' @100:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '110' @100:26
+│     └─ ExprStmt @101:3
+│        └─ expr
+│           └─ Call @101:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @101:3
+│              └─ args
+│                 └─ Binary '==' @101:20
+│                    ├─ lhs
+│                    │  └─ Member 'count' @101:13
+│                    │     └─ object
+│                    │        └─ Identifier 'c' @101:12
+│                    └─ rhs
+│                       └─ IntLiteral '100' @101:23
+├─ Method 'test_float_increment' @104:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @104:29
+│  └─ body
+│     ├─ LocalDecl 'f' @105:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'Float64' @105:7
+│     │  └─ init
+│     │     └─ FloatLiteral '1.5' @105:17
+│     ├─ ExprStmt @106:3
+│     │  └─ expr
+│     │     └─ Call @106:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @106:3
+│     │        └─ args
+│     │           └─ Binary '==' @106:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '++' @106:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'f' @106:14
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '2.5' @106:19
+│     ├─ ExprStmt @107:3
+│     │  └─ expr
+│     │     └─ Call @107:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @107:3
+│     │        └─ args
+│     │           └─ Binary '==' @107:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'f' @107:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '2.5' @107:17
+│     ├─ ExprStmt @109:3
+│     │  └─ expr
+│     │     └─ Assign '=' @109:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'old' @109:3
+│     │        └─ value
+│     │           └─ Postfix '++' @109:10
+│     │              └─ operand
+│     │                 └─ Identifier 'f' @109:9
+│     ├─ ExprStmt @110:3
+│     │  └─ expr
+│     │     └─ Call @110:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @110:3
+│     │        └─ args
+│     │           └─ Binary '==' @110:16
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'old' @110:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '2.5' @110:19
+│     ├─ ExprStmt @111:3
+│     │  └─ expr
+│     │     └─ Call @111:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @111:3
+│     │        └─ args
+│     │           └─ Binary '==' @111:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'f' @111:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '3.5' @111:17
+│     ├─ ExprStmt @113:3
+│     │  └─ expr
+│     │     └─ Call @113:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @113:3
+│     │        └─ args
+│     │           └─ Binary '==' @113:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '--' @113:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'f' @113:14
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '2.5' @113:19
+│     ├─ ExprStmt @114:3
+│     │  └─ expr
+│     │     └─ Call @114:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @114:3
+│     │        └─ args
+│     │           └─ Binary '==' @114:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'f' @114:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '2.5' @114:17
+│     ├─ ExprStmt @116:3
+│     │  └─ expr
+│     │     └─ Assign '=' @116:11
+│     │        ├─ target
+│     │        │  └─ Identifier 'old_dec' @116:3
+│     │        └─ value
+│     │           └─ Postfix '--' @116:14
+│     │              └─ operand
+│     │                 └─ Identifier 'f' @116:13
+│     ├─ ExprStmt @117:3
+│     │  └─ expr
+│     │     └─ Call @117:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @117:3
+│     │        └─ args
+│     │           └─ Binary '==' @117:20
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'old_dec' @117:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '2.5' @117:23
+│     └─ ExprStmt @118:3
+│        └─ expr
+│           └─ Call @118:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @118:3
+│              └─ args
+│                 └─ Binary '==' @118:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'f' @118:12
+│                    └─ rhs
+│                       └─ FloatLiteral '1.5' @118:17
+├─ Method 'test_uint_types' @121:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @121:24
+│  └─ body
+│     ├─ LocalDecl 'u' @122:3
+│     │  ├─ decl_type
+│     │  │  └─ TypeRef 'UInt64' @122:7
+│     │  └─ init
+│     │     └─ IntLiteral '100_u64' @122:16
+│     ├─ ExprStmt @123:3
+│     │  └─ expr
+│     │     └─ Call @123:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @123:3
+│     │        └─ args
+│     │           └─ Binary '==' @123:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '++' @123:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'u' @123:14
+│     │              └─ rhs
+│     │                 └─ IntLiteral '101_u64' @123:19
+│     ├─ ExprStmt @124:3
+│     │  └─ expr
+│     │     └─ Call @124:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @124:3
+│     │        └─ args
+│     │           └─ Binary '==' @124:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'u' @124:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '101_u64' @124:17
+│     ├─ ExprStmt @126:3
+│     │  └─ expr
+│     │     └─ Assign '=' @126:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'old' @126:3
+│     │        └─ value
+│     │           └─ Postfix '++' @126:10
+│     │              └─ operand
+│     │                 └─ Identifier 'u' @126:9
+│     ├─ ExprStmt @127:3
+│     │  └─ expr
+│     │     └─ Call @127:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @127:3
+│     │        └─ args
+│     │           └─ Binary '==' @127:16
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'old' @127:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '101_u64' @127:19
+│     ├─ ExprStmt @128:3
+│     │  └─ expr
+│     │     └─ Call @128:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @128:3
+│     │        └─ args
+│     │           └─ Binary '==' @128:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'u' @128:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '102_u64' @128:17
+│     ├─ ExprStmt @130:3
+│     │  └─ expr
+│     │     └─ Call @130:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @130:3
+│     │        └─ args
+│     │           └─ Binary '==' @130:16
+│     │              ├─ lhs
+│     │              │  └─ Unary '--' @130:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'u' @130:14
+│     │              └─ rhs
+│     │                 └─ IntLiteral '101_u64' @130:19
+│     ├─ ExprStmt @131:3
+│     │  └─ expr
+│     │     └─ Call @131:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @131:3
+│     │        └─ args
+│     │           └─ Binary '==' @131:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'u' @131:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '101_u64' @131:17
+│     ├─ ExprStmt @133:3
+│     │  └─ expr
+│     │     └─ Assign '=' @133:11
+│     │        ├─ target
+│     │        │  └─ Identifier 'old_dec' @133:3
+│     │        └─ value
+│     │           └─ Postfix '--' @133:14
+│     │              └─ operand
+│     │                 └─ Identifier 'u' @133:13
+│     ├─ ExprStmt @134:3
+│     │  └─ expr
+│     │     └─ Call @134:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @134:3
+│     │        └─ args
+│     │           └─ Binary '==' @134:20
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'old_dec' @134:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '101_u64' @134:23
+│     └─ ExprStmt @135:3
+│        └─ expr
+│           └─ Call @135:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @135:3
+│              └─ args
+│                 └─ Binary '==' @135:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'u' @135:12
+│                    └─ rhs
+│                       └─ IntLiteral '100_u64' @135:17
+└─ Method 'main' @140:1
+   ├─ return_type
+   │  └─ TypeRef 'Int32' @140:13
+   └─ body
+      ├─ ExprStmt @141:3
+      │  └─ expr
+      │     └─ Identifier 'test_primitive_pre_increment' @141:3
+      ├─ ExprStmt @142:3
+      │  └─ expr
+      │     └─ Identifier 'test_primitive_post_increment' @142:3
+      ├─ ExprStmt @143:3
+      │  └─ expr
+      │     └─ Identifier 'test_primitive_pre_decrement' @143:3
+      ├─ ExprStmt @144:3
+      │  └─ expr
+      │     └─ Identifier 'test_primitive_post_decrement' @144:3
+      ├─ ExprStmt @145:3
+      │  └─ expr
+      │     └─ Identifier 'test_in_expressions' @145:3
+      ├─ ExprStmt @146:3
+      │  └─ expr
+      │     └─ Identifier 'test_custom_type_operators' @146:3
+      ├─ ExprStmt @147:3
+      │  └─ expr
+      │     └─ Identifier 'test_float_increment' @147:3
+      ├─ ExprStmt @148:3
+      │  └─ expr
+      │     └─ Identifier 'test_uint_types' @148:3
+      └─ ExprStmt @149:3
+         └─ expr
+            └─ IntLiteral '0' @149:3
+--- exit 0 ---
