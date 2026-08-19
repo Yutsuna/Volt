@@ -5,7 +5,7 @@
 #include "Core/ModuleContext.hpp"
 #include "Functions/FunctionRegistry.hpp"
 #include "Types/TypeMapper.hpp"
-#include "Volt/BackendCore/Mangler.hpp"
+#include "Volt/BackendCore/VTableLayout.hpp"
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -23,12 +23,15 @@ llvm::GlobalVariable *Volt::Backend::Llvm::VTableRegistry::GetOrCreateVTable ( M
         return nullptr;
     }
 
-    auto &Store                       = *Services->Build->Types;
-    const std::string ConcreteMangled = Volt::Backend::MangleNominal( Store, Concrete );
-    const std::string TraitMangled    = Volt::Backend::MangleNominal( Store, Trait );
-    const std::string VTableName      = "_VTable_" + ConcreteMangled + "_" + TraitMangled;
+    auto &Store = *Services->Build->Types;
+    Volt::Backend::VTableEngine Engine{ Store };
+    const Volt::Backend::VTableDefinition &Def = Engine.GetDefinition( Concrete, Trait );
+    if ( Def.Slots.empty() )
+    {
+        return nullptr;
+    }
 
-    if ( const auto It = Cache.find( VTableName ); It != Cache.end() )
+    if ( const auto It = Cache.find( Def.SymbolName ); It != Cache.end() )
     {
         return It->second;
     }
@@ -37,45 +40,14 @@ llvm::GlobalVariable *Volt::Backend::Llvm::VTableRegistry::GetOrCreateVTable ( M
     llvm::Module &Module       = Services->Ctx->Mod();
     llvm::Type *PtrTy          = llvm::PointerType::get( Context, 0 );
 
-    const auto Slots = Store.VTableSlotsOf( Trait );
     std::vector<llvm::Constant *> Elements;
-    Elements.reserve( 1 + Slots.size() );
+    Elements.reserve( Def.Slots.size() );
 
-    // Slot 0: Finalize (drop_in_place)
-    const bool bTrivial = Store.Type( Concrete ).bTrivialFinalize;
-    if ( bTrivial )
+    for ( const auto &Slot : Def.Slots )
     {
-        Elements.push_back( llvm::ConstantPointerNull::get( llvm::cast<llvm::PointerType>( PtrTy ) ) );
-    }
-    else
-    {
-        const auto *FinDecl = Store.OwnMember( Concrete, "finalize" );
-        if ( FinDecl != nullptr )
+        if ( Slot.Decl != nullptr )
         {
-            llvm::Function *FinFn = Services->Functions->FunctionFor( *FinDecl, Concrete, {} );
-            if ( FinFn != nullptr )
-            {
-                Elements.push_back( FinFn );
-            }
-            else
-            {
-                Elements.push_back( llvm::ConstantPointerNull::get( llvm::cast<llvm::PointerType>( PtrTy ) ) );
-            }
-        }
-        else
-        {
-            Elements.push_back( llvm::ConstantPointerNull::get( llvm::cast<llvm::PointerType>( PtrTy ) ) );
-        }
-    }
-
-    // Slots 1..N: Virtual methods in declaration order
-    for ( const auto MethodSym : Slots )
-    {
-        const std::string_view MethodName = Store.Text( MethodSym );
-        const auto Found                  = Store.LookupMember( Concrete, MethodName );
-        if ( Found.Decl != nullptr )
-        {
-            llvm::Function *Fn = Services->Functions->FunctionFor( *Found.Decl, Concrete, {} );
+            llvm::Function *Fn = Services->Functions->FunctionFor( *Slot.Decl, Concrete, {} );
             if ( Fn != nullptr )
             {
                 Elements.push_back( Fn );
@@ -94,7 +66,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::VTableRegistry::GetOrCreateVTable ( M
     llvm::ArrayType *ArrayTy = llvm::ArrayType::get( PtrTy, Elements.size() );
     llvm::Constant *Init     = llvm::ConstantArray::get( ArrayTy, Elements );
 
-    auto *Global = new llvm::GlobalVariable( Module, ArrayTy, true, llvm::GlobalValue::InternalLinkage, Init, VTableName );
-    Cache.emplace( VTableName, Global );
+    auto *Global = new llvm::GlobalVariable( Module, ArrayTy, true, llvm::GlobalValue::InternalLinkage, Init, Def.SymbolName );
+    Cache.emplace( Def.SymbolName, Global );
     return Global;
 }

@@ -240,23 +240,20 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
             ++Positional;
         }
 
-        // A parameter the call omits is filled from its declared default. No
-        // pass materialises that into the argument list — one that did would
-        // have to run after TypeChecker and type what it creates, which
-        // rules/core-ast.md forbids — so the expression is emitted here, in the
-        // unit that declares it, where TypeChecker already typed it (EnterMethod
-        // infers and constrains every Param::Default). Nothing is decided; a
-        // recorded, already-typed expression is read.
-        llvm::Value *Value = Arg.IsValid() ? EmitExpr( Arg ) : EmitDefaultArgument( *Entry.Decl, Index );
-        if ( Value == nullptr )
+        if ( not Arg.IsValid() )
         {
-            if ( not Arg.IsValid() and not Failed() )
+            if ( not Failed() )
             {
                 static_cast<void>( Fail( "llvm: the call at expression " + std::to_string( Id.Value ) +
                                          " supplies no argument for parameter " + std::to_string( Index ) + " of '" +
-                                         std::string( Svc.Build->Types->Text( Entry.Decl->Name ) ) +
-                                         "', which declares no default" ) );
+                                         std::string( Svc.Build->Types->Text( Entry.Decl->Name ) ) + "'" ) );
             }
+            return nullptr;
+        }
+
+        llvm::Value *Value = EmitExpr( Arg );
+        if ( Value == nullptr )
+        {
             return nullptr;
         }
         Actuals.push_back( Value );

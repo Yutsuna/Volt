@@ -80,13 +80,12 @@ namespace Backend
                 return ExcStorageSize;
             }
 
-            // `NominalId -> its immediate Super's NominalId, or InvalidValue`,
+            // `NominalId -> its PreorderLeft number in Euler tour`,
             // one row per type the store declares, built once from
-            // TypeStore::Type(Id).Super — the same chain Sema's own IsSubclassOf
-            // walks. A `rescue` clause tests membership by walking this at
-            // runtime, since the dynamic side of the test is only known once a
-            // program actually raises.
-            [[nodiscard]] llvm::GlobalVariable *AncestryTable ();
+            // TypeStore::SubtypeInterval(Id). A `rescue` clause tests membership
+            // in O(1) by checking whether the raised type's Left number is
+            // within the target clause's [Left, Right] interval.
+            [[nodiscard]] llvm::GlobalVariable *PreorderTable ();
 
             // --- Emission into a body -----------------------------------------
 
@@ -142,12 +141,12 @@ namespace Backend
 
             EmitterServices *Services = nullptr;
 
-            llvm::GlobalVariable *ExcValue   = nullptr;
-            llvm::GlobalVariable *ExcTag     = nullptr;
-            llvm::GlobalVariable *BrkFlag    = nullptr;
-            llvm::GlobalVariable *ExcStorage = nullptr;
-            std::size_t ExcStorageSize       = 0;
-            llvm::GlobalVariable *Ancestry   = nullptr;
+            llvm::GlobalVariable *ExcValue         = nullptr;
+            llvm::GlobalVariable *ExcTag           = nullptr;
+            llvm::GlobalVariable *BrkFlag          = nullptr;
+            llvm::GlobalVariable *ExcStorage       = nullptr;
+            std::size_t ExcStorageSize             = 0;
+            llvm::GlobalVariable *PreorderTableVar = nullptr;
         };
 
     } // namespace Llvm

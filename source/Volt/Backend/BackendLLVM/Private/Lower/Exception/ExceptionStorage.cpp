@@ -1,14 +1,5 @@
 // ExceptionStorage.cpp — where the in-flight object itself lives, and how wide
 // it has to be.
-//
-// It cannot stay in the raising frame: tier 1 propagates by *returning*, so by
-// the time a `rescue` several frames up copies it out — or the last-resort hook
-// reports it, with every Volt frame already gone — that alloca is dead storage.
-// So `raise` copies the object here first and publishes *this* address.
-//
-// The size is measured, not guessed: every type descending from the one
-// annotated `@[Literal( RaiseExpr )]`, sized by LayoutEngine, the single ABI
-// authority. No type name enters.
 
 #include "Lower/Exception/ExceptionLowering.hpp"
 
@@ -22,30 +13,6 @@
 
 #include <algorithm>
 #include <cstdint>
-
-namespace
-{
-
-// Reflexive and depth-bounded, exactly like the ancestry walk and like Sema's
-// own IsSubclassOf: "is `Id` the root, or does its Super chain reach it". The
-// bound is the same one TypeStore::LookupMember uses — a malformed cyclic
-// hierarchy must not hang codegen.
-[[nodiscard]] bool DescendsFrom ( const Volt::MiddleEnd::TypeSystem::TypeStore &Store,
-                                  Volt::MiddleEnd::TypeSystem::NominalId Id,
-                                  Volt::MiddleEnd::TypeSystem::NominalId Root )
-{
-    for ( std::uint32_t Depth = 0; Id.IsValid() and Depth <= 16; ++Depth )
-    {
-        if ( Id == Root )
-        {
-            return true;
-        }
-        Id = Store.BaseOf( Store.Type( Id ).Super );
-    }
-    return false;
-}
-
-} // namespace
 
 llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSlot ()
 {
@@ -63,11 +30,17 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSl
     std::size_t Alignment = 1;
     if ( const auto Root = Store.LookupNodeKind( "RaiseExpr" ); Root.has_value() and Services->Layouts->has_value() )
     {
+        const auto [RootLeft, RootRight] = Store.SubtypeInterval( *Root );
         for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
         {
             const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
+            const auto [Left, Right] = Store.SubtypeInterval( Id );
+            if ( Left < RootLeft or Left > RootRight )
+            {
+                continue; // O(1) subtype check
+            }
             const MiddleEnd::TypeSystem::LayoutId Shape = Store.Type( Id ).Layout;
-            if ( not Shape.IsValid() or not DescendsFrom( Store, Id, *Root ) )
+            if ( not Shape.IsValid() )
             {
                 continue;
             }

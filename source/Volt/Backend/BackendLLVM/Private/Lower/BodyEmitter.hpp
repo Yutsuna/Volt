@@ -175,11 +175,6 @@ namespace Backend
                                                           std::span<const Frontend::ExprId> Args,
                                                           Frontend::ExprId Block = Frontend::ExprId{} );
 
-            // The declared default for a parameter a call omits, emitted in the
-            // unit that declares it. Null when the parameter has none — which is
-            // the caller's error to report, with the call site in hand.
-            [[nodiscard]] llvm::Value *EmitDefaultArgument ( const MiddleEnd::TypeSystem::Member &Decl, std::size_t Index );
-
         private:
 
             EmitterServices *ServicesPtr = nullptr;

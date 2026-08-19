@@ -1,9 +1,4 @@
-// AncestryTable.cpp — the class hierarchy, emitted once as module data.
-//
-// One row per declared type: its immediate Super's NominalId, or
-// NominalId::InvalidValue for a type with none — the same chain IsSubclassOf
-// walks in Sema (TypeResolve.cpp), reused here as *data* rather than as a
-// function, since the emitter cannot call back into Sema at runtime.
+// AncestryTable.cpp — the Euler pre-order index for O(1) subtype testing.
 
 #include "Lower/Exception/ExceptionLowering.hpp"
 
@@ -17,11 +12,11 @@
 
 #include <vector>
 
-llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::AncestryTable ()
+llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::PreorderTable ()
 {
-    if ( Ancestry != nullptr )
+    if ( PreorderTableVar != nullptr )
     {
-        return Ancestry;
+        return PreorderTableVar;
     }
 
     MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
@@ -34,13 +29,12 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::AncestryTable ()
     for ( std::size_t Index = 0; Index < Count; ++Index )
     {
         const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
-        const MiddleEnd::TypeSystem::NominalId Super = Store.BaseOf( Store.Type( Id ).Super );
-        Rows.push_back(
-            llvm::ConstantInt::get( Int32Ty, Super.IsValid() ? Super.Value : MiddleEnd::TypeSystem::NominalId::InvalidValue ) );
+        const auto [Left, Right] = Store.SubtypeInterval( Id );
+        Rows.push_back( llvm::ConstantInt::get( Int32Ty, Left ) );
     }
 
     llvm::ArrayType *TableType = llvm::ArrayType::get( Int32Ty, Count );
-    Ancestry = new llvm::GlobalVariable( Services->Ctx->Mod(), TableType, true, llvm::GlobalValue::InternalLinkage,
-                                         llvm::ConstantArray::get( TableType, Rows ), "volt.exc.ancestry" );
-    return Ancestry;
+    PreorderTableVar = new llvm::GlobalVariable( Services->Ctx->Mod(), TableType, true, llvm::GlobalValue::InternalLinkage,
+                                                 llvm::ConstantArray::get( TableType, Rows ), "volt.type.preorder" );
+    return PreorderTableVar;
 }
