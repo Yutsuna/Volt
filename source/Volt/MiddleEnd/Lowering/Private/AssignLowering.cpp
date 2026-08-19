@@ -103,37 +103,38 @@ public:
         for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
         {
             const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
-            const auto &Expr = Ast.Expr( Id );
+            const Frontend::ExprKind Kind = KindOf( Ast.Expr( Id ) );
 
-            if ( const auto *AssignNode = std::get_if<Frontend::Assign>( &Expr ) )
+            if ( Kind == Frontend::ExprKind::Assign )
             {
-                if ( BaseOperatorOf( AssignNode->Op ) == Frontend::TokenKind::Error )
+                const Frontend::Assign AssignNode = std::get<Frontend::Assign>( Ast.Expr( Id ) );
+                if ( BaseOperatorOf( AssignNode.Op ) != Frontend::TokenKind::Error )
                 {
-                    continue; // a plain `=`, already a store
-                }
-
-                if ( const std::optional<Frontend::ExprNode> Lowered = LowerCompound( *AssignNode ) )
-                {
-                    Ast.Expr( Id ) = *Lowered;
-                    ++Rewritten;
-                }
-            }
-            else if ( const auto *UnaryNode = std::get_if<Frontend::Unary>( &Expr ) )
-            {
-                if ( UnaryNode->Op == Frontend::TokenKind::PlusPlus or UnaryNode->Op == Frontend::TokenKind::MinusMinus )
-                {
-                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerPreIncDec( *UnaryNode ) )
+                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerCompound( AssignNode ) )
                     {
                         Ast.Expr( Id ) = *Lowered;
                         ++Rewritten;
                     }
                 }
             }
-            else if ( const auto *PostNode = std::get_if<Frontend::Postfix>( &Expr ) )
+            else if ( Kind == Frontend::ExprKind::Unary )
             {
-                if ( PostNode->Op == Frontend::TokenKind::PlusPlus or PostNode->Op == Frontend::TokenKind::MinusMinus )
+                const Frontend::Unary UnaryNode = std::get<Frontend::Unary>( Ast.Expr( Id ) );
+                if ( UnaryNode.Op == Frontend::TokenKind::PlusPlus or UnaryNode.Op == Frontend::TokenKind::MinusMinus )
                 {
-                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerPostIncDec( *PostNode, Id ) )
+                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerPreIncDec( UnaryNode ) )
+                    {
+                        Ast.Expr( Id ) = *Lowered;
+                        ++Rewritten;
+                    }
+                }
+            }
+            else if ( Kind == Frontend::ExprKind::Postfix )
+            {
+                const Frontend::Postfix PostNode = std::get<Frontend::Postfix>( Ast.Expr( Id ) );
+                if ( PostNode.Op == Frontend::TokenKind::PlusPlus or PostNode.Op == Frontend::TokenKind::MinusMinus )
+                {
+                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerPostIncDec( PostNode, Id ) )
                     {
                         Ast.Expr( Id ) = *Lowered;
                         ++Rewritten;
@@ -170,7 +171,7 @@ private:
     // must all be side-effect free.
     [[nodiscard]] std::optional<Frontend::ExprId> CloneForRead ( Frontend::ExprId TargetId )
     {
-        const Frontend::ExprNode &Target = Ast.Expr( TargetId );
+        const Frontend::ExprNode Target = Ast.Expr( TargetId );
 
         if ( IsSideEffectFree( Target ) )
         {
@@ -179,27 +180,29 @@ private:
 
         if ( const auto *Mem = std::get_if<Frontend::Member>( &Target ) )
         {
-            if ( not IsSideEffectFree( Ast.Expr( Mem->Object ) ) )
+            const Frontend::Member MemCopy = *Mem;
+            if ( not IsSideEffectFree( Ast.Expr( MemCopy.Object ) ) )
             {
                 return std::nullopt;
             }
-            return CloneUse( TargetId, Frontend::ExprNode{ *Mem } );
+            return CloneUse( TargetId, Frontend::ExprNode{ MemCopy } );
         }
 
         if ( const auto *Idx = std::get_if<Frontend::Index>( &Target ) )
         {
-            if ( not IsSideEffectFree( Ast.Expr( Idx->Object ) ) )
+            const Frontend::Index IdxCopy = *Idx;
+            if ( not IsSideEffectFree( Ast.Expr( IdxCopy.Object ) ) )
             {
                 return std::nullopt;
             }
-            for ( const Frontend::ExprId Arg : Idx->Args )
+            for ( const Frontend::ExprId Arg : IdxCopy.Args )
             {
                 if ( not IsSideEffectFree( Ast.Expr( Arg ) ) )
                 {
                     return std::nullopt;
                 }
             }
-            return CloneUse( TargetId, Frontend::ExprNode{ *Idx } );
+            return CloneUse( TargetId, Frontend::ExprNode{ IdxCopy } );
         }
 
         return std::nullopt;
