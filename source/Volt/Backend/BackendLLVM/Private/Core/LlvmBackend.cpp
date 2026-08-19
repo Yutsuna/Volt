@@ -36,6 +36,7 @@ Volt::Backend::Llvm::LlvmBackend::State::State ()
     Mono       = std::make_unique<MonoDriver>( Services );
     Pipeline   = std::make_unique<TargetPipeline>( Services );
     Linker     = std::make_unique<LinkerDriver>( Services );
+    VTables    = std::make_unique<VTableRegistry>( Services );
 
     Services.Types      = Types.get();
     Services.Abi        = Abi.get();
@@ -45,6 +46,7 @@ Volt::Backend::Llvm::LlvmBackend::State::State ()
     Services.Closures   = Closures.get();
     Services.Mono       = Mono.get();
     Services.Linker     = Linker.get();
+    Services.VTables    = VTables.get();
 }
 
 Volt::Backend::Llvm::LlvmBackend::LlvmBackend () : Impl( std::make_unique<State>() )
