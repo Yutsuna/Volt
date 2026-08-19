@@ -1,4 +1,6 @@
 #include "MemberResolver.hpp"
+#include "Volt/Frontend/AST/Decl.hpp"
+#include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
 
 #include "Volt/MiddleEnd/TypeSystem/TypeCompat.hpp"
@@ -268,7 +270,59 @@ void Volt::MiddleEnd::Analysis::Reinstantiate ( TypeCheckerContext &Context, Res
         Found.Params.PushBack( Slot );
     }
 
-    Found.Result = Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Found.Receiver, Context.Ctx.Values );
+    if ( Found.Decl->Result.IsValid() )
+    {
+        Found.Result = Instantiate( Context.Ctx.Types, Found.Decl->Result, Applied, Found.Receiver, Context.Ctx.Values );
+    }
+    else if ( not Found.bConstructs and not Found.Owner.IsValid() and Found.Decl->Kind == EMemberKind::Method and
+              not Found.Decl->bAbstract and not Context.bGenericBody )
+    {
+        bool bAllBindingsConcrete = true;
+        for ( const SemaTypeId Binding : Found.Bindings )
+        {
+            if ( not Binding.IsValid() )
+            {
+                bAllBindingsConcrete = false;
+                break;
+            }
+        }
+        if ( Found.Decl->OwnGenerics > 0 and Found.Bindings.IsEmpty() )
+        {
+            bAllBindingsConcrete = false;
+        }
+        if ( bAllBindingsConcrete and Found.Decl->Decl.IsValid() )
+        {
+            const Frontend::AstContext *DeclAst =
+                ( Found.Decl->Unit < Context.Ctx.AllUnits.size() and Context.Ctx.AllUnits[Found.Decl->Unit] != nullptr )
+                    ? Context.Ctx.AllUnits[Found.Decl->Unit]
+                    : &Context.Ctx.Ast;
+            if ( DeclAst != nullptr and Found.Decl->Decl.Value < DeclAst->DeclCount() )
+            {
+                if ( const auto *MethodNode = std::get_if<Frontend::Method>( &DeclAst->Decl( Found.Decl->Decl ) );
+                     MethodNode != nullptr and not MethodNode->ReturnType.IsValid() )
+                {
+                    std::vector<std::uint32_t> FlatArgs;
+                    if ( Found.Receiver.IsValid() and Context.Ctx.Values.Has( Found.Receiver ) )
+                    {
+                        for ( const SemaTypeId Arg : Context.Ctx.Values.Get( Found.Receiver ).Args )
+                        {
+                            TypeSystem::FlattenValueType( Context.Ctx.Values, Arg, FlatArgs );
+                        }
+                    }
+                    for ( const SemaTypeId Binding : Found.Bindings )
+                    {
+                        TypeSystem::FlattenValueType( Context.Ctx.Values, Binding, FlatArgs );
+                    }
+                    const SemaTypeId Ret = TypeSystem::InferMethodReturnType(
+                        Context.Ctx.Types, *DeclAst, Context.Ctx.Scopes, *Found.Decl, Found.Owner, FlatArgs, Context.Ctx.Values );
+                    if ( Ret.IsValid() )
+                    {
+                        Found.Result = Ret;
+                    }
+                }
+            }
+        }
+    }
 }
 
 void Volt::MiddleEnd::Analysis::UnifyArgs ( TypeCheckerContext &Context, Resolution &Found, const Frontend::ExprList &Args )
