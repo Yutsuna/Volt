@@ -1,0 +1,90 @@
+module IO
+
+
+  mixin Reader
+    include Enumerable<String>
+
+    abstract def read( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+
+    def read_fully( buffer : Pointer<UInt8>, count : UInt64 ) -> UInt64
+      total_read = 0_u64
+      while total_read < count
+        n = read( buffer + total_read, count - total_read )
+        break if n <= 0
+        total_read += n
+      end
+      total_read
+    end
+
+    def read_byte -> Int32
+      buf = Pointer<UInt8>.malloc( 1_u64 )
+      n = read( buf, 1_u64 )
+      res = -1
+      if n > 0
+        res = *( buf )
+      end
+      buf.free
+      res
+    end
+
+    def read_line -> String
+      sb = StringBuilder.new( 64_u64 )
+      buf = Pointer<UInt8>.malloc( 1_u64 )
+      found_any = false
+
+      while true
+        n = read( buf, 1_u64 )
+        break if n <= 0
+        found_any = true
+        byte = *( buf )
+
+        case byte
+        when 10_u8 then break # '\n'
+        when 13_u8 then next  # '\r'
+        else sb.append_byte( byte );
+        end
+      end
+
+      buf.free
+      return "" if not found_any
+      sb.build
+    end
+
+    def read_to_string( chunk_size : UInt64 = 4096_u64 ) -> String
+      sb = StringBuilder.new( chunk_size )
+      buf = Pointer<UInt8>.malloc( chunk_size )
+
+      while true
+        n = read( buf, chunk_size )
+        break if n <= 0
+        i = 0_u64
+        while i < n
+          sb.append_byte( *( buf + i ) )
+          i += 1
+        end
+      end
+
+      buf.free
+      sb.build
+    end
+
+    def each( &block : String -> Void ) -> Void
+      while true
+        line = read_line()
+        break if line.empty?
+        block.call( line )
+      end
+    end
+
+    def each_line( &block : String -> Void ) -> Void
+      while true
+        line = read_line()
+        break if line.empty?
+        block.call( line )
+      end
+    end
+
+  end
+
+
+end

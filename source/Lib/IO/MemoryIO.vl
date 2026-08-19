@@ -1,0 +1,96 @@
+module IO
+
+
+  class MemoryIO
+    include Reader
+    include Writer
+    include Seekable
+
+    getter buffer   : Pointer<UInt8>
+    getter capacity : UInt64
+    getter size     : UInt64
+    getter position : UInt64
+
+    def initialize( initial_capacity : UInt64 = 64_u64 )
+      @capacity = initial_capacity == 0_u64 ? 64_u64 : initial_capacity
+      @size = 0_u64
+      @position = 0_u64
+      @buffer = Pointer<UInt8>.malloc( @capacity )
+    end
+
+    def self.from_string( str : String ) -> MemoryIO
+      io = MemoryIO.new( str.size + 1_u64 )
+      io.write_string( str )
+      io.rewind()
+      io
+    end
+
+    def finalize -> Void
+      @buffer.free if @buffer != nil
+    end
+
+    def ensure_capacity( needed : UInt64 ) -> Void
+      return if needed <= @capacity
+      new_cap = @capacity * 2
+      while new_cap < needed
+        new_cap = new_cap * 2
+      end
+      new_buf = Pointer<UInt8>.malloc( new_cap )
+      libc_memcpy( new_buf, @buffer, @size )
+      @buffer.free
+      @buffer = new_buf
+      @capacity = new_cap
+    end
+
+    def read( out_buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+      return 0 if @position >= @size
+      available = @size - @position
+      to_read = count < available ? count : available
+      libc_memcpy( out_buffer, @buffer + @position, to_read )
+      @position += to_read
+      to_read
+    end
+
+    def write( in_buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+      return 0 if count == 0
+      ensure_capacity( @position + count )
+      libc_memcpy( @buffer + @position, in_buffer, count )
+      @position += count
+      @size = @position if @position > @size
+      count
+    end
+
+    def seek( offset : Int64, whence : Int32 = 0 ) -> Int64
+      new_pos = @position
+      case whence
+      when SeekOrigin::Set.to_value     then new_pos = offset < 0 ? 0_u64 : offset
+      when SeekOrigin::Current.to_value then new_pos = @position + offset
+      when SeekOrigin::End.to_value     then new_pos = @size + offset
+      else raise ArgumentError.new( "Invalid seek whence" )
+      end
+
+      new_pos = @size if new_pos > @size
+      @position = new_pos
+      @position
+    end
+
+    def tell -> Int64
+      @position
+    end
+
+    def clear -> Void
+      @size = 0_u64
+      @position = 0_u64
+    end
+
+    def to_string -> String
+      return "" if @size == 0
+      buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+      libc_memcpy( buf, @buffer, @size )
+      *( buf + @size ) = 0_u8
+      String.owned( buf, @size )
+    end
+  end
+
+
+end

@@ -1,0 +1,33 @@
+module IO
+
+
+  enum SeekOrigin : Int32
+    Set     = 0
+    Current = 1
+    End     = 2
+  end
+
+
+  enum OpenMode : Int32
+    Read      = 0       # O_RDONLY
+    Write     = 1       # O_WRONLY
+    ReadWrite = 2       # O_RDWR
+    Create    = 64      # O_CREAT
+    Truncate  = 512     # O_TRUNC
+    Append    = 1024    # O_APPEND
+
+    def self.flags_for( mode : String ) -> Int32
+      case mode
+      when "r"  then OpenMode::Read.to_value
+      when "w"  then OpenMode::Write.to_value | OpenMode::Create.to_value | OpenMode::Truncate.to_value
+      when "a"  then OpenMode::Write.to_value | OpenMode::Create.to_value | OpenMode::Append.to_value
+      when "r+" then OpenMode::ReadWrite.to_value
+      when "w+" then OpenMode::ReadWrite.to_value | OpenMode::Create.to_value | OpenMode::Truncate.to_value
+      when "a+" then OpenMode::ReadWrite.to_value | OpenMode::Create.to_value | OpenMode::Append.to_value
+      else OpenMode::Read.to_value
+      end
+    end
+  end
+
+
+end
