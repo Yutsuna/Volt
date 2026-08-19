@@ -1,0 +1,20 @@
+read_mode = IO::OpenMode::Read
+write_mode = IO::OpenMode::Write
+create_mode = IO::OpenMode::Create
+trunc_mode = IO::OpenMode::Truncate
+append_mode = IO::OpenMode::Append
+
+assert!( read_mode.to_value == 0 )
+assert!( write_mode.to_value == 1 )
+assert!( create_mode.to_value == 64 )
+assert!( trunc_mode.to_value == 512 )
+assert!( append_mode.to_value == 1024 )
+
+# "r" => O_RDONLY = 0
+assert!( IO::OpenMode.flags_for( "r" ) == 0 )
+
+# "w" => O_WRONLY | O_CREAT | O_TRUNC = 1 | 64 | 512 = 577
+assert!( IO::OpenMode.flags_for( "w" ) == 577 )
+
+# "a" => O_WRONLY | O_CREAT | O_APPEND = 1 | 64 | 1024 = 1089
+assert!( IO::OpenMode.flags_for( "a" ) == 1089 )

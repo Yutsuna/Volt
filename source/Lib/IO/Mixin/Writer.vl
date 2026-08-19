@@ -1,0 +1,44 @@
+module IO
+
+
+  mixin Writer
+    abstract def write( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+
+    def flush -> Void
+    end
+
+    def write_byte( byte : UInt8 ) -> Void
+      buf = Pointer<UInt8>.malloc( 1_u64 )
+      *( buf ) = byte
+      write( buf, 1_u64 )
+      buf.free
+    end
+
+    def write_string( str : String ) -> Int64
+      return 0 if str.size == 0
+      write( str.data, str.size )
+    end
+
+    def print( str : String ) -> self
+      write_string( str )
+      self
+    end
+
+    def puts( str : String ) -> self
+      write_string( str )
+      write_byte( 10_u8 ) # '\n'
+      self
+    end
+
+    def putc( byte : UInt8 ) -> self
+      write_byte( byte )
+      self
+    end
+
+    def <<( str : String ) -> self
+      print( str )
+    end
+  end
+
+
+end

@@ -1,0 +1,145 @@
+@[External( "libc", "exit" )]
+external def libc_exit( value : Int32 ) -> Void
+
+
+#------------------------------------------------------------------------------
+# Custom type implementing def ++ and def --
+
+class Counter
+  getter count : Int32
+
+  def initialize( @count : Int32 )
+  end
+
+  def ++ -> Counter
+    Counter.new( @count + 10 )
+  end
+
+  def -- -> Counter
+    Counter.new( @count - 10 )
+  end
+end
+
+#------------------------------------------------------------------------------
+
+def test_primitive_pre_increment -> Void
+  x = 10
+  assert!( ++x == 11 )
+  assert!( x == 11 )
+
+  y = 0
+  assert!( ++y == 1 )
+  assert!( y == 1 )
+end
+
+def test_primitive_post_increment -> Void
+  x = 10
+  assert!( x++ == 10 )
+  assert!( x == 11 )
+
+  y = 0
+  assert!( y++ == 0 )
+  assert!( y == 1 )
+end
+
+def test_primitive_pre_decrement -> Void
+  x = 10
+  assert!( --x == 9 )
+  assert!( x == 9 )
+end
+
+def test_primitive_post_decrement -> Void
+  x = 10
+  assert!( x-- == 10 )
+  assert!( x == 9 )
+end
+
+def test_in_expressions -> Void
+  i = 0
+  sum = 0
+  while i < 5
+    sum += i++
+  end
+  assert!( i == 5 )
+  assert!( sum == 10 )
+
+  j = 0
+  sum2 = 0
+  while ++j <= 5
+    sum2 += j
+  end
+  assert!( j == 6 )
+  assert!( sum2 == 15 )
+end
+
+def test_custom_type_operators -> Void
+  c = Counter.new( 100 )
+
+  # Pre-increment
+  c2 = ++c
+  assert!( c.count == 110 )
+  assert!( c2.count == 110 )
+
+  # Post-increment
+  old = c++
+  assert!( old.count == 110 )
+  assert!( c.count == 120 )
+
+  # Pre-decrement
+  c3 = --c
+  assert!( c.count == 110 )
+  assert!( c3.count == 110 )
+
+  # Post-decrement
+  old2 = c--
+  assert!( old2.count == 110 )
+  assert!( c.count == 100 )
+end
+
+def test_float_increment -> Void
+  f : Float64 = 1.5
+  assert!( ++f == 2.5 )
+  assert!( f == 2.5 )
+
+  old = f++
+  assert!( old == 2.5 )
+  assert!( f == 3.5 )
+
+  assert!( --f == 2.5 )
+  assert!( f == 2.5 )
+
+  old_dec = f--
+  assert!( old_dec == 2.5 )
+  assert!( f == 1.5 )
+end
+
+def test_uint_types -> Void
+  u : UInt64 = 100_u64
+  assert!( ++u == 101_u64 )
+  assert!( u == 101_u64 )
+
+  old = u++
+  assert!( old == 101_u64 )
+  assert!( u == 102_u64 )
+
+  assert!( --u == 101_u64 )
+  assert!( u == 101_u64 )
+
+  old_dec = u--
+  assert!( old_dec == 101_u64 )
+  assert!( u == 100_u64 )
+end
+
+#------------------------------------------------------------------------------
+
+def main -> Int32
+  test_primitive_pre_increment
+  test_primitive_post_increment
+  test_primitive_pre_decrement
+  test_primitive_post_decrement
+  test_in_expressions
+  test_custom_type_operators
+  test_float_increment
+  test_uint_types
+  0
+end

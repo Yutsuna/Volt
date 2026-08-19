@@ -82,6 +82,8 @@ VOLT_INFIX( Percent, 80, 0 )
 VOLT_INFIX( Pow, 90, 1 )
 
 // Prefix operators that lower to a Unary node (`*p` is Deref — structural).
+VOLT_PREFIX( PlusPlus )
+VOLT_PREFIX( MinusMinus )
 VOLT_PREFIX( Minus )
 VOLT_PREFIX( Plus )
 VOLT_PREFIX( Bang )

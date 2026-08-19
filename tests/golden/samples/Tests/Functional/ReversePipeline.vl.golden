@@ -1,283 +1,253 @@
 Program 'samples/Tests/Functional/ReversePipeline.vl'
-├─ Method 'assert!' @1:1
+├─ Method 'double' @1:1
 │  ├─ params
-│  │  └─ Param 'condition' @1:14
+│  │  └─ Param 'x' @1:12
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
+│  │        └─ TypeRef 'Int32' @1:16
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+│  │  └─ TypeRef 'Int32' @1:26
 │  └─ body
 │     └─ ExprStmt @2:3
 │        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ Method 'double' @8:1
-│  ├─ params
-│  │  └─ Param 'x' @8:12
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @8:16
-│  ├─ return_type
-│  │  └─ TypeRef 'Int32' @8:26
-│  └─ body
-│     └─ ExprStmt @9:3
-│        └─ expr
-│           └─ Binary '*' @9:5
+│           └─ Binary '*' @2:5
 │              ├─ lhs
-│              │  └─ Identifier 'x' @9:3
+│              │  └─ Identifier 'x' @2:3
 │              └─ rhs
-│                 └─ IntLiteral '2' @9:7
-├─ Method 'add_three' @12:1
+│                 └─ IntLiteral '2' @2:7
+├─ Method 'add_three' @5:1
 │  ├─ params
-│  │  └─ Param 'x' @12:15
+│  │  └─ Param 'x' @5:15
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @12:19
+│  │        └─ TypeRef 'Int32' @5:19
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @12:29
+│  │  └─ TypeRef 'Int32' @5:29
 │  └─ body
-│     └─ ExprStmt @13:3
+│     └─ ExprStmt @6:3
 │        └─ expr
-│           └─ Binary '+' @13:5
+│           └─ Binary '+' @6:5
 │              ├─ lhs
-│              │  └─ Identifier 'x' @13:3
+│              │  └─ Identifier 'x' @6:3
 │              └─ rhs
-│                 └─ IntLiteral '3' @13:7
-├─ Method 'scale' @16:1
+│                 └─ IntLiteral '3' @6:7
+├─ Method 'scale' @9:1
 │  ├─ params
-│  │  ├─ Param 'x' @16:11
+│  │  ├─ Param 'x' @9:11
 │  │  │  └─ decl_type
-│  │  │     └─ TypeRef 'Int32' @16:15
-│  │  ├─ Param 'factor' @16:22
+│  │  │     └─ TypeRef 'Int32' @9:15
+│  │  ├─ Param 'factor' @9:22
 │  │  │  └─ decl_type
-│  │  │     └─ TypeRef 'Int32' @16:31
-│  │  └─ Param 'offset' @16:38
+│  │  │     └─ TypeRef 'Int32' @9:31
+│  │  └─ Param 'offset' @9:38
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @16:47
+│  │        └─ TypeRef 'Int32' @9:47
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @16:57
+│  │  └─ TypeRef 'Int32' @9:57
 │  └─ body
-│     └─ ExprStmt @17:3
+│     └─ ExprStmt @10:3
 │        └─ expr
-│           └─ Binary '+' @17:16
+│           └─ Binary '+' @10:16
 │              ├─ lhs
-│              │  └─ Binary '*' @17:6
+│              │  └─ Binary '*' @10:6
 │              │     ├─ lhs
-│              │     │  └─ Identifier 'x' @17:4
+│              │     │  └─ Identifier 'x' @10:4
 │              │     └─ rhs
-│              │        └─ Identifier 'factor' @17:8
+│              │        └─ Identifier 'factor' @10:8
 │              └─ rhs
-│                 └─ Identifier 'offset' @17:18
-├─ Module 'MathHelper' @21:1
+│                 └─ Identifier 'offset' @10:18
+├─ Module 'MathHelper' @14:1
 │  └─ body
-│     ├─ Method 'square' self @24:3
+│     ├─ Method 'square' self @17:3
 │     │  ├─ params
-│     │  │  └─ Param 'x' @24:19
+│     │  │  └─ Param 'x' @17:19
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @24:23
+│     │  │        └─ TypeRef 'Int32' @17:23
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @24:33
+│     │  │  └─ TypeRef 'Int32' @17:33
 │     │  └─ body
-│     │     └─ ExprStmt @25:5
+│     │     └─ ExprStmt @18:5
 │     │        └─ expr
-│     │           └─ Binary '*' @25:7
+│     │           └─ Binary '*' @18:7
 │     │              ├─ lhs
-│     │              │  └─ Identifier 'x' @25:5
+│     │              │  └─ Identifier 'x' @18:5
 │     │              └─ rhs
-│     │                 └─ Identifier 'x' @25:9
-│     └─ Method 'add_constant' self @28:3
+│     │                 └─ Identifier 'x' @18:9
+│     └─ Method 'add_constant' self @21:3
 │        ├─ params
-│        │  ├─ Param 'x' @28:25
+│        │  ├─ Param 'x' @21:25
 │        │  │  └─ decl_type
-│        │  │     └─ TypeRef 'Int32' @28:29
-│        │  └─ Param 'const' @28:36
+│        │  │     └─ TypeRef 'Int32' @21:29
+│        │  └─ Param 'const' @21:36
 │        │     └─ decl_type
-│        │        └─ TypeRef 'Int32' @28:44
+│        │        └─ TypeRef 'Int32' @21:44
 │        ├─ return_type
-│        │  └─ TypeRef 'Int32' @28:54
+│        │  └─ TypeRef 'Int32' @21:54
 │        └─ body
-│           └─ ExprStmt @29:5
+│           └─ ExprStmt @22:5
 │              └─ expr
-│                 └─ Binary '+' @29:7
+│                 └─ Binary '+' @22:7
 │                    ├─ lhs
-│                    │  └─ Identifier 'x' @29:5
+│                    │  └─ Identifier 'x' @22:5
 │                    └─ rhs
-│                       └─ Identifier 'const' @29:9
-├─ ExprStmt @38:1
+│                       └─ Identifier 'const' @22:9
+├─ ExprStmt @31:1
 │  └─ expr
-│     └─ Assign '=' @38:15
+│     └─ Assign '=' @31:15
 │        ├─ target
-│        │  └─ Identifier 'res_no_parens' @38:1
+│        │  └─ Identifier 'res_no_parens' @31:1
 │        └─ value
-│           └─ Pipeline @38:24
+│           └─ Pipeline @31:24
 │              ├─ lhs
-│              │  └─ Pipeline @38:37
+│              │  └─ Pipeline @31:37
 │              │     ├─ lhs
-│              │     │  └─ IntLiteral '5' @38:40
+│              │     │  └─ IntLiteral '5' @31:40
 │              │     └─ rhs
-│              │        └─ Identifier 'add_three' @38:27
+│              │        └─ Identifier 'add_three' @31:27
 │              └─ rhs
-│                 └─ Identifier 'double' @38:17
-├─ ExprStmt @39:1
+│                 └─ Identifier 'double' @31:17
+├─ ExprStmt @32:1
 │  └─ expr
-│     └─ Call @39:8
+│     └─ Call @32:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @39:1
+│        │  └─ Identifier 'assert!' @32:1
 │        └─ args
-│           └─ Binary '==' @39:23
+│           └─ Binary '==' @32:23
 │              ├─ lhs
-│              │  └─ Identifier 'res_no_parens' @39:9
+│              │  └─ Identifier 'res_no_parens' @32:9
 │              └─ rhs
-│                 └─ IntLiteral '16' @39:26
-├─ ExprStmt @43:1
+│                 └─ IntLiteral '16' @32:26
+├─ ExprStmt @36:1
 │  └─ expr
-│     └─ Assign '=' @43:3
+│     └─ Assign '=' @36:3
 │        ├─ target
-│        │  └─ Identifier 'x' @43:1
+│        │  └─ Identifier 'x' @36:1
 │        └─ value
-│           └─ Pipeline @43:12
+│           └─ Pipeline @36:12
 │              ├─ lhs
-│              │  └─ IntLiteral '5' @43:15
+│              │  └─ IntLiteral '5' @36:15
 │              └─ rhs
-│                 └─ Identifier 'double' @43:5
-├─ ExprStmt @44:1
+│                 └─ Identifier 'double' @36:5
+├─ ExprStmt @37:1
 │  └─ expr
-│     └─ Call @44:8
+│     └─ Call @37:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @44:1
+│        │  └─ Identifier 'assert!' @37:1
 │        └─ args
-│           └─ Binary '==' @44:11
+│           └─ Binary '==' @37:11
 │              ├─ lhs
-│              │  └─ Identifier 'x' @44:9
+│              │  └─ Identifier 'x' @37:9
 │              └─ rhs
-│                 └─ IntLiteral '10' @44:14
-├─ ExprStmt @48:1
+│                 └─ IntLiteral '10' @37:14
+├─ ExprStmt @41:1
 │  └─ expr
-│     └─ Assign '=' @48:16
+│     └─ Assign '=' @41:16
 │        ├─ target
-│        │  └─ Identifier 'res_multi_args' @48:1
+│        │  └─ Identifier 'res_multi_args' @41:1
 │        └─ value
-│           └─ Pipeline @48:30
+│           └─ Pipeline @41:30
 │              ├─ lhs
-│              │  └─ IntLiteral '10' @48:33
+│              │  └─ IntLiteral '10' @41:33
 │              └─ rhs
-│                 └─ Call @48:23
+│                 └─ Call @41:23
 │                    ├─ callee
-│                    │  └─ Identifier 'scale' @48:18
+│                    │  └─ Identifier 'scale' @41:18
 │                    └─ args
-│                       ├─ IntLiteral '3' @48:24
-│                       └─ IntLiteral '5' @48:27
-├─ ExprStmt @49:1
+│                       ├─ IntLiteral '3' @41:24
+│                       └─ IntLiteral '5' @41:27
+├─ ExprStmt @42:1
 │  └─ expr
-│     └─ Call @49:8
+│     └─ Call @42:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @49:1
+│        │  └─ Identifier 'assert!' @42:1
 │        └─ args
-│           └─ Binary '==' @49:24
+│           └─ Binary '==' @42:24
 │              ├─ lhs
-│              │  └─ Identifier 'res_multi_args' @49:9
+│              │  └─ Identifier 'res_multi_args' @42:9
 │              └─ rhs
-│                 └─ IntLiteral '35' @49:27
+│                 └─ IntLiteral '35' @42:27
+├─ ExprStmt @46:1
+│  └─ expr
+│     └─ Assign '=' @46:12
+│        ├─ target
+│        │  └─ Identifier 'res_module' @46:1
+│        └─ value
+│           └─ Pipeline @46:42
+│              ├─ lhs
+│              │  └─ Pipeline @46:63
+│              │     ├─ lhs
+│              │     │  └─ IntLiteral '4' @46:66
+│              │     └─ rhs
+│              │        └─ Member 'square' @46:55
+│              │           └─ object
+│              │              └─ Identifier 'MathHelper' @46:45
+│              └─ rhs
+│                 └─ Call @46:37
+│                    ├─ callee
+│                    │  └─ Member 'add_constant' @46:24
+│                    │     └─ object
+│                    │        └─ Identifier 'MathHelper' @46:14
+│                    └─ args
+│                       └─ IntLiteral '10' @46:38
+├─ ExprStmt @47:1
+│  └─ expr
+│     └─ Call @47:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @47:1
+│        └─ args
+│           └─ Binary '==' @47:20
+│              ├─ lhs
+│              │  └─ Identifier 'res_module' @47:9
+│              └─ rhs
+│                 └─ IntLiteral '26' @47:23
 ├─ ExprStmt @53:1
 │  └─ expr
-│     └─ Assign '=' @53:12
+│     └─ Assign '=' @53:11
 │        ├─ target
-│        │  └─ Identifier 'res_module' @53:1
+│        │  └─ Identifier 'res_mixed' @53:1
 │        └─ value
-│           └─ Pipeline @53:42
+│           └─ Pipeline @53:20
 │              ├─ lhs
-│              │  └─ Pipeline @53:63
+│              │  └─ Pipeline @53:25
 │              │     ├─ lhs
-│              │     │  └─ IntLiteral '4' @53:66
+│              │     │  └─ IntLiteral '5' @53:23
 │              │     └─ rhs
-│              │        └─ Member 'square' @53:55
-│              │           └─ object
-│              │              └─ Identifier 'MathHelper' @53:45
+│              │        └─ Identifier 'add_three' @53:28
 │              └─ rhs
-│                 └─ Call @53:37
-│                    ├─ callee
-│                    │  └─ Member 'add_constant' @53:24
-│                    │     └─ object
-│                    │        └─ Identifier 'MathHelper' @53:14
-│                    └─ args
-│                       └─ IntLiteral '10' @53:38
+│                 └─ Identifier 'double' @53:13
 ├─ ExprStmt @54:1
 │  └─ expr
 │     └─ Call @54:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @54:1
 │        └─ args
-│           └─ Binary '==' @54:20
+│           └─ Binary '==' @54:19
 │              ├─ lhs
-│              │  └─ Identifier 'res_module' @54:9
+│              │  └─ Identifier 'res_mixed' @54:9
 │              └─ rhs
-│                 └─ IntLiteral '26' @54:23
-├─ ExprStmt @60:1
+│                 └─ IntLiteral '16' @54:22
+├─ ExprStmt @58:1
 │  └─ expr
-│     └─ Assign '=' @60:11
+│     └─ Assign '=' @58:15
 │        ├─ target
-│        │  └─ Identifier 'res_mixed' @60:1
+│        │  └─ Identifier 'res_multiline' @58:1
 │        └─ value
-│           └─ Pipeline @60:20
+│           └─ Pipeline @59:3
 │              ├─ lhs
-│              │  └─ Pipeline @60:25
+│              │  └─ Pipeline @60:3
 │              │     ├─ lhs
-│              │     │  └─ IntLiteral '5' @60:23
+│              │     │  └─ IntLiteral '2' @60:6
 │              │     └─ rhs
-│              │        └─ Identifier 'add_three' @60:28
+│              │        └─ Identifier 'double' @59:6
 │              └─ rhs
-│                 └─ Identifier 'double' @60:13
-├─ ExprStmt @61:1
-│  └─ expr
-│     └─ Call @61:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @61:1
-│        └─ args
-│           └─ Binary '==' @61:19
-│              ├─ lhs
-│              │  └─ Identifier 'res_mixed' @61:9
-│              └─ rhs
-│                 └─ IntLiteral '16' @61:22
-├─ ExprStmt @65:1
-│  └─ expr
-│     └─ Assign '=' @65:15
-│        ├─ target
-│        │  └─ Identifier 'res_multiline' @65:1
-│        └─ value
-│           └─ Pipeline @66:3
-│              ├─ lhs
-│              │  └─ Pipeline @67:3
-│              │     ├─ lhs
-│              │     │  └─ IntLiteral '2' @67:6
-│              │     └─ rhs
-│              │        └─ Identifier 'double' @66:6
-│              └─ rhs
-│                 └─ Identifier 'add_three' @65:17
-└─ ExprStmt @68:1
+│                 └─ Identifier 'add_three' @58:17
+└─ ExprStmt @61:1
    └─ expr
-      └─ Call @68:8
+      └─ Call @61:8
          ├─ callee
-         │  └─ Identifier 'assert!' @68:1
+         │  └─ Identifier 'assert!' @61:1
          └─ args
-            └─ Binary '==' @68:23
+            └─ Binary '==' @61:23
                ├─ lhs
-               │  └─ Identifier 'res_multiline' @68:9
+               │  └─ Identifier 'res_multiline' @61:9
                └─ rhs
-                  └─ IntLiteral '7' @68:26
+                  └─ IntLiteral '7' @61:26
 --- exit 0 ---

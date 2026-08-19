@@ -60,6 +60,8 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         return;
     }
 
+    Fn->setLinkage( llvm::GlobalValue::LinkOnceODRLinkage );
+
     MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
 
     const auto *MethodNode = std::get_if<Frontend::Method>( &DeclUnit->Ast->Decl( Entry->Decl ) );

@@ -19,6 +19,7 @@
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
+#include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/Parser/Pratt.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 #include "Volt/MiddleEnd/Resolver/ScopeTable.hpp"
@@ -102,21 +103,43 @@ public:
         for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
         {
             const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
-            if ( KindOf( Ast.Expr( Id ) ) != Frontend::ExprKind::Assign )
-            {
-                continue;
-            }
+            const Frontend::ExprKind Kind = KindOf( Ast.Expr( Id ) );
 
-            const Frontend::Assign Node = std::get<Frontend::Assign>( Ast.Expr( Id ) );
-            if ( BaseOperatorOf( Node.Op ) == Frontend::TokenKind::Error )
+            if ( Kind == Frontend::ExprKind::Assign )
             {
-                continue; // a plain `=`, already a store
+                const Frontend::Assign AssignNode = std::get<Frontend::Assign>( Ast.Expr( Id ) );
+                if ( BaseOperatorOf( AssignNode.Op ) != Frontend::TokenKind::Error )
+                {
+                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerCompound( AssignNode ) )
+                    {
+                        Ast.Expr( Id ) = *Lowered;
+                        ++Rewritten;
+                    }
+                }
             }
-
-            if ( const std::optional<Frontend::ExprNode> Lowered = LowerCompound( Node ) )
+            else if ( Kind == Frontend::ExprKind::Unary )
             {
-                Ast.Expr( Id ) = *Lowered;
-                ++Rewritten;
+                const Frontend::Unary UnaryNode = std::get<Frontend::Unary>( Ast.Expr( Id ) );
+                if ( UnaryNode.Op == Frontend::TokenKind::PlusPlus or UnaryNode.Op == Frontend::TokenKind::MinusMinus )
+                {
+                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerPreIncDec( UnaryNode ) )
+                    {
+                        Ast.Expr( Id ) = *Lowered;
+                        ++Rewritten;
+                    }
+                }
+            }
+            else if ( Kind == Frontend::ExprKind::Postfix )
+            {
+                const Frontend::Postfix PostNode = std::get<Frontend::Postfix>( Ast.Expr( Id ) );
+                if ( PostNode.Op == Frontend::TokenKind::PlusPlus or PostNode.Op == Frontend::TokenKind::MinusMinus )
+                {
+                    if ( const std::optional<Frontend::ExprNode> Lowered = LowerPostIncDec( PostNode, Id ) )
+                    {
+                        Ast.Expr( Id ) = *Lowered;
+                        ++Rewritten;
+                    }
+                }
             }
         }
 
@@ -148,7 +171,7 @@ private:
     // must all be side-effect free.
     [[nodiscard]] std::optional<Frontend::ExprId> CloneForRead ( Frontend::ExprId TargetId )
     {
-        const Frontend::ExprNode &Target = Ast.Expr( TargetId );
+        const Frontend::ExprNode Target = Ast.Expr( TargetId );
 
         if ( IsSideEffectFree( Target ) )
         {
@@ -157,27 +180,29 @@ private:
 
         if ( const auto *Mem = std::get_if<Frontend::Member>( &Target ) )
         {
-            if ( not IsSideEffectFree( Ast.Expr( Mem->Object ) ) )
+            const Frontend::Member MemCopy = *Mem;
+            if ( not IsSideEffectFree( Ast.Expr( MemCopy.Object ) ) )
             {
                 return std::nullopt;
             }
-            return CloneUse( TargetId, Frontend::ExprNode{ *Mem } );
+            return CloneUse( TargetId, Frontend::ExprNode{ MemCopy } );
         }
 
         if ( const auto *Idx = std::get_if<Frontend::Index>( &Target ) )
         {
-            if ( not IsSideEffectFree( Ast.Expr( Idx->Object ) ) )
+            const Frontend::Index IdxCopy = *Idx;
+            if ( not IsSideEffectFree( Ast.Expr( IdxCopy.Object ) ) )
             {
                 return std::nullopt;
             }
-            for ( const Frontend::ExprId Arg : Idx->Args )
+            for ( const Frontend::ExprId Arg : IdxCopy.Args )
             {
                 if ( not IsSideEffectFree( Ast.Expr( Arg ) ) )
                 {
                     return std::nullopt;
                 }
             }
-            return CloneUse( TargetId, Frontend::ExprNode{ *Idx } );
+            return CloneUse( TargetId, Frontend::ExprNode{ IdxCopy } );
         }
 
         return std::nullopt;
@@ -209,6 +234,116 @@ private:
         Store.Target = Node.Target;
         Store.Value  = Ast.Add( Frontend::ExprNode{ Combined } );
         return Frontend::ExprNode{ Store };
+    }
+
+    [[nodiscard]] std::optional<Frontend::ExprNode> LowerPreIncDec ( const Frontend::Unary &Node )
+    {
+        const std::optional<Frontend::ExprId> Read = CloneForRead( Node.Operand );
+        if ( not Read.has_value() )
+        {
+            Context.Diags.Report(
+                Volt::Core::Diagnostic{ .Severity = Volt::Core::ESeverity::Error,
+                                        .Range    = Node.Loc,
+                                        .Message  = "'" + std::string{ Frontend::TokenSpelling( Node.Op ) } +
+                                                   "' needs a target that can be read twice — assign through a local instead",
+                                        .Notes = {} } );
+            return std::nullopt;
+        }
+
+        Frontend::Unary Inc;
+        Inc.Loc     = Node.Loc;
+        Inc.Op      = Node.Op;
+        Inc.Operand = *Read;
+
+        Frontend::Assign Store;
+        Store.Loc    = Node.Loc;
+        Store.Op     = Frontend::TokenKind::Assign;
+        Store.Target = Node.Operand;
+        Store.Value  = Ast.Add( Frontend::ExprNode{ Inc } );
+        return Frontend::ExprNode{ Store };
+    }
+
+    [[nodiscard]] std::optional<Frontend::ExprNode> LowerPostIncDec ( const Frontend::Postfix &Node, Frontend::ExprId NodeId )
+    {
+        const std::optional<Frontend::ExprId> ReadInitial = CloneForRead( Node.Operand );
+        const std::optional<Frontend::ExprId> ReadForInc  = CloneForRead( Node.Operand );
+        if ( not ReadInitial.has_value() or not ReadForInc.has_value() )
+        {
+            Context.Diags.Report(
+                Volt::Core::Diagnostic{ .Severity = Volt::Core::ESeverity::Error,
+                                        .Range    = Node.Loc,
+                                        .Message  = "'" + std::string{ Frontend::TokenSpelling( Node.Op ) } +
+                                                   "' needs a target that can be read twice — assign through a local instead",
+                                        .Notes = {} } );
+            return std::nullopt;
+        }
+
+        MiddleEnd::Resolver::ScopeId CurrentScope = Context.Scopes.ScopeOfExpr( NodeId );
+        if ( not CurrentScope.IsValid() )
+        {
+            CurrentScope = Context.Scopes.ScopeOfExpr( Node.Operand );
+        }
+        if ( not CurrentScope.IsValid() )
+        {
+            CurrentScope = MiddleEnd::Resolver::ScopeId{ 0 };
+        }
+
+        const Frontend::Symbol TmpName = Ast.MakeUniqueSymbol( "__post_tmp" );
+        const Frontend::ExprId TmpTarget =
+            Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Node.Loc, .Name = TmpName } } );
+
+        Context.Scopes.Declare( CurrentScope, TmpName, MiddleEnd::Resolver::BindingSite{ TmpTarget } );
+        const MiddleEnd::Resolver::Binding *Bound = Context.Scopes.Resolve( CurrentScope, TmpName );
+        if ( Bound != nullptr )
+        {
+            Context.Scopes.BindUse( TmpTarget, *Bound, false );
+        }
+        Context.Scopes.SetScopeOfExpr( TmpTarget, CurrentScope );
+
+        // 1. __post_tmp = x
+        Frontend::Assign SaveAssign;
+        SaveAssign.Loc                = Node.Loc;
+        SaveAssign.Op                 = Frontend::TokenKind::Assign;
+        SaveAssign.Target             = TmpTarget;
+        SaveAssign.Value              = *ReadInitial;
+        const Frontend::ExprId SaveId = Ast.Add( Frontend::ExprNode{ SaveAssign } );
+        const Frontend::StmtId Stmt1  = Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Node.Loc, .Expr = SaveId } } );
+
+        // 2. x = Unary{ Op, x'' }
+        Frontend::Unary Inc;
+        Inc.Loc     = Node.Loc;
+        Inc.Op      = Node.Op;
+        Inc.Operand = *ReadForInc;
+
+        Frontend::Assign Store;
+        Store.Loc                      = Node.Loc;
+        Store.Op                       = Frontend::TokenKind::Assign;
+        Store.Target                   = Node.Operand;
+        Store.Value                    = Ast.Add( Frontend::ExprNode{ Inc } );
+        const Frontend::ExprId StoreId = Ast.Add( Frontend::ExprNode{ Store } );
+        const Frontend::StmtId Stmt2   = Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Node.Loc, .Expr = StoreId } } );
+
+        // 3. __post_tmp
+        const Frontend::ExprId TmpUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Node.Loc, .Name = TmpName } } );
+        if ( Bound != nullptr )
+        {
+            Context.Scopes.BindUse( TmpUse, *Bound, true );
+        }
+        Context.Scopes.SetScopeOfExpr( TmpUse, CurrentScope );
+        const Frontend::StmtId Stmt3 = Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Node.Loc, .Expr = TmpUse } } );
+
+        Frontend::StmtList Body;
+        Body.PushBack( Stmt1 );
+        Body.PushBack( Stmt2 );
+        Body.PushBack( Stmt3 );
+
+        Frontend::BeginExpr BeginNode;
+        BeginNode.Loc           = Node.Loc;
+        BeginNode.Body          = std::move( Body );
+        BeginNode.RescueClauses = {};
+        BeginNode.EnsureBody    = {};
+
+        return Frontend::ExprNode{ BeginNode };
     }
 
     MiddleEnd::Core::PassContext &Context;

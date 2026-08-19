@@ -1,122 +1,96 @@
 Program 'samples/Tests/OOP/DefaultConstructor.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Class 'MyClass' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Class 'MyClass' @7:1
-│  └─ body
-│     ├─ Method 'run' @8:3
+│     ├─ Method 'run' @2:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @8:14
+│     │  │  └─ TypeRef 'String' @2:14
 │     │  └─ body
-│     │     └─ ExprStmt @9:5
+│     │     └─ ExprStmt @3:5
 │     │        └─ expr
-│     │           └─ StringLiteral 'hello!!' @9:5
-│     └─ Method 'initialize' @7:1
-├─ Class 'AnotherClass' @20:1
+│     │           └─ StringLiteral 'hello!!' @3:5
+│     └─ Method 'initialize' @1:1
+├─ Class 'AnotherClass' @14:1
 │  └─ body
-│     ├─ Method 'greeting' @21:3
+│     ├─ Method 'greeting' @15:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @21:19
+│     │  │  └─ TypeRef 'String' @15:19
 │     │  └─ body
-│     │     └─ ExprStmt @22:5
+│     │     └─ ExprStmt @16:5
 │     │        └─ expr
-│     │           └─ StringLiteral 'welcome' @22:5
-│     └─ Method 'initialize' @20:1
-├─ ExprStmt @14:1
+│     │           └─ StringLiteral 'welcome' @16:5
+│     └─ Method 'initialize' @14:1
+├─ ExprStmt @8:1
 │  └─ expr
-│     └─ Call @14:8
+│     └─ Call @8:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @14:1
+│        │  └─ Identifier 'assert!' @8:1
 │        └─ args
-│           └─ Binary '==' @14:30
+│           └─ Binary '==' @8:30
 │              ├─ lhs
-│              │  └─ Member 'run' @14:25
+│              │  └─ Member 'run' @8:25
 │              │     └─ object
-│              │        └─ Member 'new' @14:19
+│              │        └─ Member 'new' @8:19
 │              │           └─ object
-│              │              └─ Identifier 'MyClass' @14:12
+│              │              └─ Identifier 'MyClass' @8:12
 │              └─ rhs
-│                 └─ StringLiteral 'hello!!' @14:33
-├─ ExprStmt @17:1
+│                 └─ StringLiteral 'hello!!' @8:33
+├─ ExprStmt @11:1
 │  └─ expr
-│     └─ Assign '=' @17:6
+│     └─ Assign '=' @11:6
 │        ├─ target
-│        │  └─ Identifier 'inst' @17:1
+│        │  └─ Identifier 'inst' @11:1
 │        └─ value
-│           └─ Member 'new' @17:15
+│           └─ Member 'new' @11:15
 │              └─ object
-│                 └─ Identifier 'MyClass' @17:8
-├─ ExprStmt @18:1
+│                 └─ Identifier 'MyClass' @11:8
+├─ ExprStmt @12:1
 │  └─ expr
-│     └─ Call @18:8
+│     └─ Call @12:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @18:1
+│        │  └─ Identifier 'assert!' @12:1
 │        └─ args
-│           └─ Binary '==' @18:19
+│           └─ Binary '==' @12:19
 │              ├─ lhs
-│              │  └─ Member 'run' @18:14
+│              │  └─ Member 'run' @12:14
 │              │     └─ object
-│              │        └─ Identifier 'inst' @18:10
+│              │        └─ Identifier 'inst' @12:10
 │              └─ rhs
-│                 └─ StringLiteral 'hello!!' @18:22
-├─ ExprStmt @26:1
+│                 └─ StringLiteral 'hello!!' @12:22
+├─ ExprStmt @20:1
 │  └─ expr
-│     └─ Assign '=' @26:3
+│     └─ Assign '=' @20:3
 │        ├─ target
-│        │  └─ Identifier 'a' @26:1
+│        │  └─ Identifier 'a' @20:1
 │        └─ value
-│           └─ Member 'new' @26:17
+│           └─ Member 'new' @20:17
 │              └─ object
-│                 └─ Identifier 'AnotherClass' @26:5
-├─ ExprStmt @27:1
+│                 └─ Identifier 'AnotherClass' @20:5
+├─ ExprStmt @21:1
 │  └─ expr
-│     └─ Call @27:8
+│     └─ Call @21:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @27:1
+│        │  └─ Identifier 'assert!' @21:1
 │        └─ args
-│           └─ Binary '==' @27:21
+│           └─ Binary '==' @21:21
 │              ├─ lhs
-│              │  └─ Member 'greeting' @27:11
+│              │  └─ Member 'greeting' @21:11
 │              │     └─ object
-│              │        └─ Identifier 'a' @27:10
+│              │        └─ Identifier 'a' @21:10
 │              └─ rhs
-│                 └─ StringLiteral 'welcome' @27:24
-└─ ExprStmt @28:1
+│                 └─ StringLiteral 'welcome' @21:24
+└─ ExprStmt @22:1
    └─ expr
-      └─ Call @28:8
+      └─ Call @22:8
          ├─ callee
-         │  └─ Identifier 'assert!' @28:1
+         │  └─ Identifier 'assert!' @22:1
          └─ args
-            └─ Binary '==' @28:40
+            └─ Binary '==' @22:40
                ├─ lhs
-               │  └─ Member 'greeting' @28:30
+               │  └─ Member 'greeting' @22:30
                │     └─ object
-               │        └─ Member 'new' @28:24
+               │        └─ Member 'new' @22:24
                │           └─ object
-               │              └─ Identifier 'AnotherClass' @28:12
+               │              └─ Identifier 'AnotherClass' @22:12
                └─ rhs
-                  └─ StringLiteral 'welcome' @28:43
+                  └─ StringLiteral 'welcome' @22:43
 --- exit 0 ---

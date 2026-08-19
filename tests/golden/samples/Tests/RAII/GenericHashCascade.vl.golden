@@ -1,312 +1,286 @@
 Program 'samples/Tests/RAII/GenericHashCascade.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:6
+│        ├─ target
+│        │  └─ Identifier 'hash' @1:1
+│        └─ value
+│           └─ Member 'new' @1:28
+│              └─ object
+│                 └─ GenericInst @1:12
+│                    ├─ base
+│                    │  └─ Identifier 'Hash' @1:8
+│                    └─ args
+│                       ├─ TypeRef 'String' @1:13
+│                       └─ TypeRef 'String' @1:21
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Call @3:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @3:1
+│        └─ args
+│           └─ Member 'empty?' @3:14
+│              └─ object
+│                 └─ Identifier 'hash' @3:10
+├─ ExprStmt @4:1
+│  └─ expr
+│     └─ Call @4:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @4:1
+│        └─ args
+│           └─ Binary '==' @4:20
+│              ├─ lhs
+│              │  └─ Member 'size' @4:14
+│              │     └─ object
+│              │        └─ Identifier 'hash' @4:10
+│              └─ rhs
+│                 └─ IntLiteral '0_u64' @4:23
+├─ ExprStmt @6:1
+│  └─ expr
+│     └─ Assign '=' @6:15
+│        ├─ target
+│        │  └─ Index @6:5
+│        │     ├─ object
+│        │     │  └─ Identifier 'hash' @6:1
+│        │     └─ args
+│        │        └─ StringLiteral 'one' @6:7
+│        └─ value
+│           └─ StringLiteral 'premier' @6:17
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Assign '=' @7:15
+│        ├─ target
+│        │  └─ Index @7:5
+│        │     ├─ object
+│        │     │  └─ Identifier 'hash' @7:1
+│        │     └─ args
+│        │        └─ StringLiteral 'two' @7:7
+│        └─ value
+│           └─ StringLiteral 'second' @7:17
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Assign '=' @8:17
+│        ├─ target
+│        │  └─ Index @8:5
+│        │     ├─ object
+│        │     │  └─ Identifier 'hash' @8:1
+│        │     └─ args
+│        │        └─ StringLiteral 'three' @8:7
+│        └─ value
+│           └─ StringLiteral 'troisieme' @8:19
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Unary 'not' @10:10
+│              └─ operand
+│                 └─ Member 'empty?' @10:18
+│                    └─ object
+│                       └─ Identifier 'hash' @10:14
+├─ ExprStmt @11:1
+│  └─ expr
+│     └─ Call @11:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @11:1
+│        └─ args
+│           └─ Binary '==' @11:20
+│              ├─ lhs
+│              │  └─ Member 'size' @11:14
+│              │     └─ object
+│              │        └─ Identifier 'hash' @11:10
+│              └─ rhs
+│                 └─ IntLiteral '3_u64' @11:23
+├─ ExprStmt @13:1
+│  └─ expr
+│     └─ Call @13:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @13:1
+│        └─ args
+│           └─ Binary '==' @13:24
+│              ├─ lhs
+│              │  └─ Index @13:14
+│              │     ├─ object
+│              │     │  └─ Identifier 'hash' @13:10
+│              │     └─ args
+│              │        └─ StringLiteral 'one' @13:16
+│              └─ rhs
+│                 └─ StringLiteral 'premier' @13:27
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Call @14:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @14:1
+│        └─ args
+│           └─ Binary '==' @14:24
+│              ├─ lhs
+│              │  └─ Index @14:14
+│              │     ├─ object
+│              │     │  └─ Identifier 'hash' @14:10
+│              │     └─ args
+│              │        └─ StringLiteral 'two' @14:16
+│              └─ rhs
+│                 └─ StringLiteral 'second' @14:27
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Call @15:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @15:1
+│        └─ args
+│           └─ Binary '==' @15:26
+│              ├─ lhs
+│              │  └─ Index @15:14
+│              │     ├─ object
+│              │     │  └─ Identifier 'hash' @15:10
+│              │     └─ args
+│              │        └─ StringLiteral 'three' @15:16
+│              └─ rhs
+│                 └─ StringLiteral 'troisieme' @15:29
+├─ ExprStmt @17:1
+│  └─ expr
+│     └─ Call @17:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @17:1
+│        └─ args
+│           └─ Call @17:24
+│              ├─ callee
+│              │  └─ Member 'contains?' @17:14
+│              │     └─ object
+│              │        └─ Identifier 'hash' @17:10
+│              └─ args
+│                 └─ StringLiteral 'one' @17:26
+├─ ExprStmt @18:1
+│  └─ expr
+│     └─ Call @18:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @18:1
+│        └─ args
+│           └─ Unary 'not' @18:10
+│              └─ operand
+│                 └─ Call @18:28
+│                    ├─ callee
+│                    │  └─ Member 'contains?' @18:18
+│                    │     └─ object
+│                    │        └─ Identifier 'hash' @18:14
+│                    └─ args
+│                       └─ StringLiteral 'four' @18:30
+├─ ExprStmt @20:1
+│  └─ expr
+│     └─ Assign '=' @20:15
+│        ├─ target
+│        │  └─ Index @20:5
+│        │     ├─ object
+│        │     │  └─ Identifier 'hash' @20:1
+│        │     └─ args
+│        │        └─ StringLiteral 'two' @20:7
+│        └─ value
+│           └─ StringLiteral 'deuxieme' @20:17
 ├─ ExprStmt @21:1
 │  └─ expr
-│     └─ Assign '=' @21:6
-│        ├─ target
-│        │  └─ Identifier 'hash' @21:1
-│        └─ value
-│           └─ Member 'new' @21:28
-│              └─ object
-│                 └─ GenericInst @21:12
-│                    ├─ base
-│                    │  └─ Identifier 'Hash' @21:8
-│                    └─ args
-│                       ├─ TypeRef 'String' @21:13
-│                       └─ TypeRef 'String' @21:21
-├─ ExprStmt @23:1
-│  └─ expr
-│     └─ Call @23:8
+│     └─ Call @21:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @23:1
+│        │  └─ Identifier 'assert!' @21:1
 │        └─ args
-│           └─ Member 'empty?' @23:14
-│              └─ object
-│                 └─ Identifier 'hash' @23:10
+│           └─ Binary '==' @21:24
+│              ├─ lhs
+│              │  └─ Index @21:14
+│              │     ├─ object
+│              │     │  └─ Identifier 'hash' @21:10
+│              │     └─ args
+│              │        └─ StringLiteral 'two' @21:16
+│              └─ rhs
+│                 └─ StringLiteral 'deuxieme' @21:27
+├─ ExprStmt @22:1
+│  └─ expr
+│     └─ Call @22:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @22:1
+│        └─ args
+│           └─ Binary '==' @22:20
+│              ├─ lhs
+│              │  └─ Member 'size' @22:14
+│              │     └─ object
+│              │        └─ Identifier 'hash' @22:10
+│              └─ rhs
+│                 └─ IntLiteral '3_u64' @22:23
 ├─ ExprStmt @24:1
 │  └─ expr
-│     └─ Call @24:8
+│     └─ Call @24:12
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @24:1
+│        │  └─ Member 'delete' @24:5
+│        │     └─ object
+│        │        └─ Identifier 'hash' @24:1
 │        └─ args
-│           └─ Binary '==' @24:20
-│              ├─ lhs
-│              │  └─ Member 'size' @24:14
-│              │     └─ object
-│              │        └─ Identifier 'hash' @24:10
-│              └─ rhs
-│                 └─ IntLiteral '0_u64' @24:23
+│           └─ StringLiteral 'two' @24:14
+├─ ExprStmt @25:1
+│  └─ expr
+│     └─ Call @25:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @25:1
+│        └─ args
+│           └─ Unary 'not' @25:10
+│              └─ operand
+│                 └─ Call @25:28
+│                    ├─ callee
+│                    │  └─ Member 'contains?' @25:18
+│                    │     └─ object
+│                    │        └─ Identifier 'hash' @25:14
+│                    └─ args
+│                       └─ StringLiteral 'two' @25:30
 ├─ ExprStmt @26:1
 │  └─ expr
-│     └─ Assign '=' @26:15
-│        ├─ target
-│        │  └─ Index @26:5
-│        │     ├─ object
-│        │     │  └─ Identifier 'hash' @26:1
-│        │     └─ args
-│        │        └─ StringLiteral 'one' @26:7
-│        └─ value
-│           └─ StringLiteral 'premier' @26:17
-├─ ExprStmt @27:1
-│  └─ expr
-│     └─ Assign '=' @27:15
-│        ├─ target
-│        │  └─ Index @27:5
-│        │     ├─ object
-│        │     │  └─ Identifier 'hash' @27:1
-│        │     └─ args
-│        │        └─ StringLiteral 'two' @27:7
-│        └─ value
-│           └─ StringLiteral 'second' @27:17
+│     └─ Call @26:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @26:1
+│        └─ args
+│           └─ Binary '==' @26:20
+│              ├─ lhs
+│              │  └─ Member 'size' @26:14
+│              │     └─ object
+│              │        └─ Identifier 'hash' @26:10
+│              └─ rhs
+│                 └─ IntLiteral '2_u64' @26:23
 ├─ ExprStmt @28:1
 │  └─ expr
-│     └─ Assign '=' @28:17
+│     └─ Assign '=' @28:7
 │        ├─ target
-│        │  └─ Index @28:5
-│        │     ├─ object
-│        │     │  └─ Identifier 'hash' @28:1
-│        │     └─ args
-│        │        └─ StringLiteral 'three' @28:7
+│        │  └─ Identifier 'count' @28:1
 │        └─ value
-│           └─ StringLiteral 'troisieme' @28:19
-├─ ExprStmt @30:1
+│           └─ IntLiteral '0' @28:9
+├─ ExprStmt @29:1
 │  └─ expr
-│     └─ Call @30:8
+│     └─ Call @29:11
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @30:1
-│        └─ args
-│           └─ Unary 'not' @30:10
-│              └─ operand
-│                 └─ Member 'empty?' @30:18
-│                    └─ object
-│                       └─ Identifier 'hash' @30:14
-├─ ExprStmt @31:1
-│  └─ expr
-│     └─ Call @31:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @31:1
-│        └─ args
-│           └─ Binary '==' @31:20
-│              ├─ lhs
-│              │  └─ Member 'size' @31:14
-│              │     └─ object
-│              │        └─ Identifier 'hash' @31:10
-│              └─ rhs
-│                 └─ IntLiteral '3_u64' @31:23
-├─ ExprStmt @33:1
-│  └─ expr
-│     └─ Call @33:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @33:1
-│        └─ args
-│           └─ Binary '==' @33:24
-│              ├─ lhs
-│              │  └─ Index @33:14
-│              │     ├─ object
-│              │     │  └─ Identifier 'hash' @33:10
-│              │     └─ args
-│              │        └─ StringLiteral 'one' @33:16
-│              └─ rhs
-│                 └─ StringLiteral 'premier' @33:27
-├─ ExprStmt @34:1
-│  └─ expr
-│     └─ Call @34:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @34:1
-│        └─ args
-│           └─ Binary '==' @34:24
-│              ├─ lhs
-│              │  └─ Index @34:14
-│              │     ├─ object
-│              │     │  └─ Identifier 'hash' @34:10
-│              │     └─ args
-│              │        └─ StringLiteral 'two' @34:16
-│              └─ rhs
-│                 └─ StringLiteral 'second' @34:27
-├─ ExprStmt @35:1
-│  └─ expr
-│     └─ Call @35:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @35:1
-│        └─ args
-│           └─ Binary '==' @35:26
-│              ├─ lhs
-│              │  └─ Index @35:14
-│              │     ├─ object
-│              │     │  └─ Identifier 'hash' @35:10
-│              │     └─ args
-│              │        └─ StringLiteral 'three' @35:16
-│              └─ rhs
-│                 └─ StringLiteral 'troisieme' @35:29
-├─ ExprStmt @37:1
-│  └─ expr
-│     └─ Call @37:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @37:1
-│        └─ args
-│           └─ Call @37:24
-│              ├─ callee
-│              │  └─ Member 'contains?' @37:14
-│              │     └─ object
-│              │        └─ Identifier 'hash' @37:10
-│              └─ args
-│                 └─ StringLiteral 'one' @37:26
-├─ ExprStmt @38:1
-│  └─ expr
-│     └─ Call @38:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @38:1
-│        └─ args
-│           └─ Unary 'not' @38:10
-│              └─ operand
-│                 └─ Call @38:28
-│                    ├─ callee
-│                    │  └─ Member 'contains?' @38:18
-│                    │     └─ object
-│                    │        └─ Identifier 'hash' @38:14
-│                    └─ args
-│                       └─ StringLiteral 'four' @38:30
-├─ ExprStmt @42:1
-│  └─ expr
-│     └─ Assign '=' @42:15
-│        ├─ target
-│        │  └─ Index @42:5
-│        │     ├─ object
-│        │     │  └─ Identifier 'hash' @42:1
-│        │     └─ args
-│        │        └─ StringLiteral 'two' @42:7
-│        └─ value
-│           └─ StringLiteral 'deuxieme' @42:17
-├─ ExprStmt @43:1
-│  └─ expr
-│     └─ Call @43:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @43:1
-│        └─ args
-│           └─ Binary '==' @43:24
-│              ├─ lhs
-│              │  └─ Index @43:14
-│              │     ├─ object
-│              │     │  └─ Identifier 'hash' @43:10
-│              │     └─ args
-│              │        └─ StringLiteral 'two' @43:16
-│              └─ rhs
-│                 └─ StringLiteral 'deuxieme' @43:27
-├─ ExprStmt @44:1
-│  └─ expr
-│     └─ Call @44:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @44:1
-│        └─ args
-│           └─ Binary '==' @44:20
-│              ├─ lhs
-│              │  └─ Member 'size' @44:14
-│              │     └─ object
-│              │        └─ Identifier 'hash' @44:10
-│              └─ rhs
-│                 └─ IntLiteral '3_u64' @44:23
-├─ ExprStmt @46:1
-│  └─ expr
-│     └─ Call @46:12
-│        ├─ callee
-│        │  └─ Member 'delete' @46:5
+│        │  └─ Member 'each' @29:5
 │        │     └─ object
-│        │        └─ Identifier 'hash' @46:1
-│        └─ args
-│           └─ StringLiteral 'two' @46:14
-├─ ExprStmt @47:1
-│  └─ expr
-│     └─ Call @47:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @47:1
-│        └─ args
-│           └─ Unary 'not' @47:10
-│              └─ operand
-│                 └─ Call @47:28
-│                    ├─ callee
-│                    │  └─ Member 'contains?' @47:18
-│                    │     └─ object
-│                    │        └─ Identifier 'hash' @47:14
-│                    └─ args
-│                       └─ StringLiteral 'two' @47:30
-├─ ExprStmt @48:1
-│  └─ expr
-│     └─ Call @48:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @48:1
-│        └─ args
-│           └─ Binary '==' @48:20
-│              ├─ lhs
-│              │  └─ Member 'size' @48:14
-│              │     └─ object
-│              │        └─ Identifier 'hash' @48:10
-│              └─ rhs
-│                 └─ IntLiteral '2_u64' @48:23
-├─ ExprStmt @50:1
-│  └─ expr
-│     └─ Assign '=' @50:7
-│        ├─ target
-│        │  └─ Identifier 'count' @50:1
-│        └─ value
-│           └─ IntLiteral '0' @50:9
-├─ ExprStmt @51:1
-│  └─ expr
-│     └─ Call @51:11
-│        ├─ callee
-│        │  └─ Member 'each' @51:5
-│        │     └─ object
-│        │        └─ Identifier 'hash' @51:1
+│        │        └─ Identifier 'hash' @29:1
 │        └─ block_arg
-│           └─ Block @51:11
+│           └─ Block @29:11
 │              ├─ params
 │              │  ├─ Param '_k'
 │              │  └─ Param '_v'
 │              └─ body
-│                 └─ ExprStmt @52:3
+│                 └─ ExprStmt @30:3
 │                    └─ expr
-│                       └─ Assign '=' @52:9
+│                       └─ Assign '=' @30:9
 │                          ├─ target
-│                          │  └─ Identifier 'count' @52:3
+│                          │  └─ Identifier 'count' @30:3
 │                          └─ value
-│                             └─ Binary '+' @52:17
+│                             └─ Binary '+' @30:17
 │                                ├─ lhs
-│                                │  └─ Identifier 'count' @52:11
+│                                │  └─ Identifier 'count' @30:11
 │                                └─ rhs
-│                                   └─ IntLiteral '1' @52:19
-└─ ExprStmt @54:1
+│                                   └─ IntLiteral '1' @30:19
+└─ ExprStmt @32:1
    └─ expr
-      └─ Call @54:8
+      └─ Call @32:8
          ├─ callee
-         │  └─ Identifier 'assert!' @54:1
+         │  └─ Identifier 'assert!' @32:1
          └─ args
-            └─ Binary '==' @54:16
+            └─ Binary '==' @32:16
                ├─ lhs
-               │  └─ Identifier 'count' @54:10
+               │  └─ Identifier 'count' @32:10
                └─ rhs
-                  └─ IntLiteral '2' @54:19
+                  └─ IntLiteral '2' @32:19
 --- exit 0 ---

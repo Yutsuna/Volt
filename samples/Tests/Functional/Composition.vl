@@ -1,10 +1,3 @@
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
-  end
-end
-
-
 raw_name = "  VoLt "
 name = raw_name |> (&.trim) >> (&.downcase)
 assert!( name == "volt" )

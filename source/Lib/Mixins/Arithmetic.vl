@@ -29,6 +29,14 @@ mixin Arithmetic
     self >= 0 ? self : -self
   end
 
+  def ++ -> self
+    self + 1
+  end
+
+  def -- -> self
+    self - 1
+  end
+
   def successor -> self
     self + 1
   end

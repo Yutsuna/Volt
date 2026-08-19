@@ -1,0 +1,259 @@
+Program 'samples/Tests/IO/MemoryIOTest.vl'
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:4
+│        ├─ target
+│        │  └─ Identifier 'io' @1:1
+│        └─ value
+│           └─ Call @1:22
+│              ├─ callee
+│              │  └─ Member 'new' @1:18
+│              │     └─ object
+│              │        └─ Member 'MemoryIO' @1:8
+│              │           └─ object
+│              │              └─ Identifier 'IO' @1:6
+│              └─ args
+│                 └─ IntLiteral '16_u64' @1:24
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ Call @2:16
+│        ├─ callee
+│        │  └─ Member 'write_string' @2:3
+│        │     └─ object
+│        │        └─ Identifier 'io' @2:1
+│        └─ args
+│           └─ StringLiteral 'Hello Volt IO!' @2:18
+├─ ExprStmt @4:1
+│  └─ expr
+│     └─ Call @4:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @4:1
+│        └─ args
+│           └─ Binary '==' @4:18
+│              ├─ lhs
+│              │  └─ Member 'size' @4:12
+│              │     └─ object
+│              │        └─ Identifier 'io' @4:10
+│              └─ rhs
+│                 └─ IntLiteral '14_u64' @4:21
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Call @5:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @5:1
+│        └─ args
+│           └─ Binary '==' @5:22
+│              ├─ lhs
+│              │  └─ Member 'position' @5:12
+│              │     └─ object
+│              │        └─ Identifier 'io' @5:10
+│              └─ rhs
+│                 └─ IntLiteral '14_u64' @5:25
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Call @7:10
+│        └─ callee
+│           └─ Member 'rewind' @7:3
+│              └─ object
+│                 └─ Identifier 'io' @7:1
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Call @8:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @8:1
+│        └─ args
+│           └─ Binary '==' @8:22
+│              ├─ lhs
+│              │  └─ Member 'position' @8:12
+│              │     └─ object
+│              │        └─ Identifier 'io' @8:10
+│              └─ rhs
+│                 └─ IntLiteral '0_u64' @8:25
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Assign '=' @10:9
+│        ├─ target
+│        │  └─ Identifier 'content' @10:1
+│        └─ value
+│           └─ Call @10:28
+│              └─ callee
+│                 └─ Member 'read_to_string' @10:13
+│                    └─ object
+│                       └─ Identifier 'io' @10:11
+├─ ExprStmt @11:1
+│  └─ expr
+│     └─ Call @11:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @11:1
+│        └─ args
+│           └─ Binary '==' @11:18
+│              ├─ lhs
+│              │  └─ Identifier 'content' @11:10
+│              └─ rhs
+│                 └─ StringLiteral 'Hello Volt IO!' @11:21
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Assign '=' @14:5
+│        ├─ target
+│        │  └─ Identifier 'io2' @14:1
+│        └─ value
+│           └─ Call @14:31
+│              ├─ callee
+│              │  └─ Member 'from_string' @14:19
+│              │     └─ object
+│              │        └─ Member 'MemoryIO' @14:9
+│              │           └─ object
+│              │              └─ Identifier 'IO' @14:7
+│              └─ args
+│                 └─ StringLiteral 'test data' @14:33
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Assign '=' @15:6
+│        ├─ target
+│        │  └─ Identifier 'line' @15:1
+│        └─ value
+│           └─ Call @15:26
+│              └─ callee
+│                 └─ Member 'read_to_string' @15:11
+│                    └─ object
+│                       └─ Identifier 'io2' @15:8
+├─ ExprStmt @16:1
+│  └─ expr
+│     └─ Call @16:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @16:1
+│        └─ args
+│           └─ Binary '==' @16:15
+│              ├─ lhs
+│              │  └─ Identifier 'line' @16:10
+│              └─ rhs
+│                 └─ StringLiteral 'test data' @16:18
+├─ ExprStmt @19:1
+│  └─ expr
+│     └─ Assign '=' @19:5
+│        ├─ target
+│        │  └─ Identifier 'io3' @19:1
+│        └─ value
+│           └─ Call @19:23
+│              ├─ callee
+│              │  └─ Member 'new' @19:19
+│              │     └─ object
+│              │        └─ Member 'MemoryIO' @19:9
+│              │           └─ object
+│              │              └─ Identifier 'IO' @19:7
+│              └─ args
+│                 └─ IntLiteral '32_u64' @19:25
+├─ ExprStmt @20:1
+│  └─ expr
+│     └─ Binary '<<' @20:5
+│        ├─ lhs
+│        │  └─ Identifier 'io3' @20:1
+│        └─ rhs
+│           └─ StringLiteral 'one' @20:8
+├─ ExprStmt @21:1
+│  └─ expr
+│     └─ Binary '<<' @21:5
+│        ├─ lhs
+│        │  └─ Identifier 'io3' @21:1
+│        └─ rhs
+│           └─ StringLiteral ' ' @21:8
+├─ ExprStmt @22:1
+│  └─ expr
+│     └─ Binary '<<' @22:5
+│        ├─ lhs
+│        │  └─ Identifier 'io3' @22:1
+│        └─ rhs
+│           └─ StringLiteral 'two' @22:8
+├─ ExprStmt @23:1
+│  └─ expr
+│     └─ Call @23:11
+│        └─ callee
+│           └─ Member 'rewind' @23:4
+│              └─ object
+│                 └─ Identifier 'io3' @23:1
+├─ ExprStmt @24:1
+│  └─ expr
+│     └─ Call @24:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @24:1
+│        └─ args
+│           └─ Binary '==' @24:31
+│              ├─ lhs
+│              │  └─ Call @24:28
+│              │     └─ callee
+│              │        └─ Member 'read_to_string' @24:13
+│              │           └─ object
+│              │              └─ Identifier 'io3' @24:10
+│              └─ rhs
+│                 └─ StringLiteral 'one two' @24:34
+├─ ExprStmt @27:1
+│  └─ expr
+│     └─ Assign '=' @27:5
+│        ├─ target
+│        │  └─ Identifier 'io4' @27:1
+│        └─ value
+│           └─ Call @27:23
+│              ├─ callee
+│              │  └─ Member 'new' @27:19
+│              │     └─ object
+│              │        └─ Member 'MemoryIO' @27:9
+│              │           └─ object
+│              │              └─ Identifier 'IO' @27:7
+│              └─ args
+│                 └─ IntLiteral '16_u64' @27:25
+├─ ExprStmt @28:1
+│  └─ expr
+│     └─ Call @28:17
+│        ├─ callee
+│        │  └─ Member 'write_string' @28:4
+│        │     └─ object
+│        │        └─ Identifier 'io4' @28:1
+│        └─ args
+│           └─ StringLiteral 'data' @28:19
+├─ ExprStmt @29:1
+│  └─ expr
+│     └─ Call @29:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @29:1
+│        └─ args
+│           └─ Binary '==' @29:19
+│              ├─ lhs
+│              │  └─ Member 'size' @29:13
+│              │     └─ object
+│              │        └─ Identifier 'io4' @29:10
+│              └─ rhs
+│                 └─ IntLiteral '4_u64' @29:22
+├─ ExprStmt @30:1
+│  └─ expr
+│     └─ Call @30:10
+│        └─ callee
+│           └─ Member 'clear' @30:4
+│              └─ object
+│                 └─ Identifier 'io4' @30:1
+├─ ExprStmt @31:1
+│  └─ expr
+│     └─ Call @31:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @31:1
+│        └─ args
+│           └─ Binary '==' @31:19
+│              ├─ lhs
+│              │  └─ Member 'size' @31:13
+│              │     └─ object
+│              │        └─ Identifier 'io4' @31:10
+│              └─ rhs
+│                 └─ IntLiteral '0_u64' @31:22
+└─ ExprStmt @32:1
+   └─ expr
+      └─ Call @32:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @32:1
+         └─ args
+            └─ Binary '==' @32:23
+               ├─ lhs
+               │  └─ Member 'position' @32:13
+               │     └─ object
+               │        └─ Identifier 'io4' @32:10
+               └─ rhs
+                  └─ IntLiteral '0_u64' @32:26
+--- exit 0 ---

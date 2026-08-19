@@ -1,21 +1,3 @@
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "Assertion failed #{__FILE__}:#{__LINE__}"
-  end
-end
-
-#------------------------------------------------------------------------------
-# Phase 6 fixture, shape 7: an exception raised while temporaries are being
-# built.
-#
-# `sink( a + b, boom( true ) )` constructs the first argument's temporary, then
-# raises while evaluating the second. The already-constructed temporary must
-# cross the full-expression cleanup boundary on the unwind path — this is the
-# case the wrap-in-BeginExpr mechanism exists for, as opposed to the splice
-# used for return/break/next, and the one a "finalize at the end of the
-# statement" design silently gets wrong, since the end of the statement is
-# never reached.
-
 class Tracked
   id : Int32
   log : Pointer<Int32>

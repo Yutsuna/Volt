@@ -127,6 +127,14 @@ namespace Frontend
         ExprId Operand;
     };
 
+    struct Postfix
+    {
+
+        Core::SourceRange Loc;
+        TokenKind Op = TokenKind::Error;
+        ExprId Operand;
+    };
+
     struct Ternary
     {
 

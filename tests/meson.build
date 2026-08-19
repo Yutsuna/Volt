@@ -86,6 +86,7 @@ foreach sample_path : sample_files
     golden_update_targets += custom_target(
         'up_' + rel_sample.underscorify(),
         output: rel_sample.underscorify() + '.stamp',
+        build_always_stale: true,
         command: [
             bash,
             update_script,

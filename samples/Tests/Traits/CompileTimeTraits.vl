@@ -1,18 +1,3 @@
-# Receiver traits — `includes?`, `inherits_from?`, `is_a?`, `has_field?`,
-# `has_method?` — are answered by MiddleEnd::ConstEval::TraitEngine during
-# inference and replaced by the BoolLiteral they came out as.
-#
-# That this file *links at all* is the compile-time part of the test: nothing
-# in source/Lib declares any of these five names, so a trait that survived as
-# an ordinary call would have no symbol to call. The assertions below pin the
-# answers themselves.
-
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "Assertion failed #{__FILE__}:#{__LINE__}"
-  end
-end
-
 mixin Greetable
   def greeting -> String
     "hello"

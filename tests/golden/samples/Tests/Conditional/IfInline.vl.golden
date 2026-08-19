@@ -1,133 +1,103 @@
 Program 'samples/Tests/Conditional/IfInline.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ ExprStmt @8:1
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Assign '=' @8:9
+│     └─ Assign '=' @1:9
 │        ├─ target
-│        │  └─ Identifier 'counter' @8:1
+│        │  └─ Identifier 'counter' @1:1
 │        └─ value
-│           └─ IntLiteral '0' @8:11
-├─ ExprStmt @9:15
+│           └─ IntLiteral '0' @1:11
+├─ ExprStmt @2:15
 │  └─ expr
-│     └─ If @9:15
+│     └─ If @2:15
 │        ├─ cond
-│        │  └─ BoolLiteral true @9:18
+│        │  └─ BoolLiteral true @2:18
 │        └─ then
-│           └─ ExprStmt @9:1
+│           └─ ExprStmt @2:1
 │              └─ expr
-│                 └─ Assign '+=' @9:9
+│                 └─ Assign '+=' @2:9
 │                    ├─ target
-│                    │  └─ Identifier 'counter' @9:1
+│                    │  └─ Identifier 'counter' @2:1
 │                    └─ value
-│                       └─ IntLiteral '10' @9:12
-├─ ExprStmt @10:1
+│                       └─ IntLiteral '10' @2:12
+├─ ExprStmt @3:1
 │  └─ expr
-│     └─ Call @10:8
+│     └─ Call @3:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @10:1
+│        │  └─ Identifier 'assert!' @3:1
 │        └─ args
-│           └─ Binary '==' @10:18
+│           └─ Binary '==' @3:18
 │              ├─ lhs
-│              │  └─ Identifier 'counter' @10:10
+│              │  └─ Identifier 'counter' @3:10
 │              └─ rhs
-│                 └─ IntLiteral '10' @10:21
-├─ ExprStmt @13:15
+│                 └─ IntLiteral '10' @3:21
+├─ ExprStmt @6:15
 │  └─ expr
-│     └─ If @13:15
+│     └─ If @6:15
 │        ├─ cond
-│        │  └─ BoolLiteral false @13:18
+│        │  └─ BoolLiteral false @6:18
 │        └─ then
-│           └─ ExprStmt @13:1
+│           └─ ExprStmt @6:1
 │              └─ expr
-│                 └─ Assign '+=' @13:9
+│                 └─ Assign '+=' @6:9
 │                    ├─ target
-│                    │  └─ Identifier 'counter' @13:1
+│                    │  └─ Identifier 'counter' @6:1
 │                    └─ value
-│                       └─ IntLiteral '10' @13:12
-├─ ExprStmt @14:1
+│                       └─ IntLiteral '10' @6:12
+├─ ExprStmt @7:1
 │  └─ expr
-│     └─ Call @14:8
+│     └─ Call @7:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @14:1
+│        │  └─ Identifier 'assert!' @7:1
 │        └─ args
-│           └─ Binary '==' @14:18
+│           └─ Binary '==' @7:18
 │              ├─ lhs
-│              │  └─ Identifier 'counter' @14:10
+│              │  └─ Identifier 'counter' @7:10
 │              └─ rhs
-│                 └─ IntLiteral '10' @14:21
-├─ ExprStmt @17:24
+│                 └─ IntLiteral '10' @7:21
+├─ ExprStmt @10:24
 │  └─ expr
-│     └─ If @17:24
+│     └─ If @10:24
 │        ├─ cond
-│        │  └─ BoolLiteral true @17:27
+│        │  └─ BoolLiteral true @10:27
 │        └─ then
-│           └─ ExprStmt @17:1
+│           └─ ExprStmt @10:1
 │              └─ expr
-│                 └─ Assign '=' @17:12
+│                 └─ Assign '=' @10:12
 │                    ├─ target
-│                    │  └─ Identifier 'inline_res' @17:1
+│                    │  └─ Identifier 'inline_res' @10:1
 │                    └─ value
-│                       └─ StringLiteral 'success' @17:14
-├─ ExprStmt @18:1
+│                       └─ StringLiteral 'success' @10:14
+├─ ExprStmt @11:1
 │  └─ expr
-│     └─ Call @18:8
+│     └─ Call @11:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @18:1
+│        │  └─ Identifier 'assert!' @11:1
 │        └─ args
-│           └─ Binary '==' @18:21
+│           └─ Binary '==' @11:21
 │              ├─ lhs
-│              │  └─ Identifier 'inline_res' @18:10
+│              │  └─ Identifier 'inline_res' @11:10
 │              └─ rhs
-│                 └─ StringLiteral 'success' @18:24
-├─ ExprStmt @21:30
+│                 └─ StringLiteral 'success' @11:24
+├─ ExprStmt @14:30
 │  └─ expr
-│     └─ If @21:30
+│     └─ If @14:30
 │        ├─ cond
-│        │  └─ BoolLiteral false @21:33
+│        │  └─ BoolLiteral false @14:33
 │        └─ then
-│           └─ ExprStmt @21:1
+│           └─ ExprStmt @14:1
 │              └─ expr
-│                 └─ Assign '=' @21:18
+│                 └─ Assign '=' @14:18
 │                    ├─ target
-│                    │  └─ Identifier 'inline_res_false' @21:1
+│                    │  └─ Identifier 'inline_res_false' @14:1
 │                    └─ value
-│                       └─ StringLiteral 'success' @21:20
-└─ ExprStmt @22:1
+│                       └─ StringLiteral 'success' @14:20
+└─ ExprStmt @15:1
    └─ expr
-      └─ Call @22:8
+      └─ Call @15:8
          ├─ callee
-         │  └─ Identifier 'assert!' @22:1
+         │  └─ Identifier 'assert!' @15:1
          └─ args
-            └─ Member 'empty?' @22:26
+            └─ Member 'empty?' @15:26
                └─ object
-                  └─ Identifier 'inline_res_false' @22:10
+                  └─ Identifier 'inline_res_false' @15:10
 --- exit 0 ---

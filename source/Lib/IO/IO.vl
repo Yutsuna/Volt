@@ -1,0 +1,9 @@
+puts  = ( &.to_string ) >> ( &.data ) >> ( IO.stdout.puts )
+print = ( &.to_string ) >> ( &.data ) >> ( IO.stdout.print )
+
+#{ TODO: Implement assert! macro to include file, line, and column information #}
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "ASSERTION FAILED #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
+  end
+end

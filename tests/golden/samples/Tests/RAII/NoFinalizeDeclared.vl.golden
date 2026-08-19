@@ -1,120 +1,94 @@
 Program 'samples/Tests/RAII/NoFinalizeDeclared.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Struct 'Plain' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Struct 'Plain' @9:1
-│  └─ body
-│     ├─ Field 'tag' getter @10:3
+│     ├─ Field 'tag' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @10:16
-│     └─ Method 'initialize' @12:3
+│     │     └─ TypeRef 'Int32' @2:16
+│     └─ Method 'initialize' @4:3
 │        └─ params
-│           └─ Param 'tag' instance_var @12:19
+│           └─ Param 'tag' instance_var @4:19
 │              └─ decl_type
-│                 └─ TypeRef 'Int32' @12:26
-├─ Method 'use_plain' @16:1
+│                 └─ TypeRef 'Int32' @4:26
+├─ Method 'use_plain' @8:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @16:18
+│  │  └─ TypeRef 'Int32' @8:18
 │  └─ body
-│     ├─ ExprStmt @17:3
+│     ├─ ExprStmt @9:3
 │     │  └─ expr
-│     │     └─ Assign '=' @17:5
+│     │     └─ Assign '=' @9:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'p' @17:3
+│     │        │  └─ Identifier 'p' @9:3
 │     │        └─ value
-│     │           └─ Call @17:16
+│     │           └─ Call @9:16
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @17:12
+│     │              │  └─ Member 'new' @9:12
 │     │              │     └─ object
-│     │              │        └─ Identifier 'Plain' @17:7
+│     │              │        └─ Identifier 'Plain' @9:7
 │     │              └─ args
-│     │                 └─ IntLiteral '42' @17:18
-│     └─ ExprStmt @18:3
+│     │                 └─ IntLiteral '42' @9:18
+│     └─ ExprStmt @10:3
 │        └─ expr
-│           └─ Member 'tag' @18:4
+│           └─ Member 'tag' @10:4
 │              └─ object
-│                 └─ Identifier 'p' @18:3
-├─ Struct 'Holder' @23:1
+│                 └─ Identifier 'p' @10:3
+├─ Struct 'Holder' @15:1
 │  └─ body
-│     ├─ Field 'label' getter @24:3
+│     ├─ Field 'label' getter @16:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @24:18
-│     └─ Method 'initialize' @26:3
+│     │     └─ TypeRef 'String' @16:18
+│     └─ Method 'initialize' @18:3
 │        └─ params
-│           └─ Param 'label' instance_var @26:19
+│           └─ Param 'label' instance_var @18:19
 │              └─ decl_type
-│                 └─ TypeRef 'String' @26:28
-├─ Method 'use_holder' @30:1
+│                 └─ TypeRef 'String' @18:28
+├─ Method 'use_holder' @22:1
 │  ├─ return_type
-│  │  └─ TypeRef 'UInt64' @30:19
+│  │  └─ TypeRef 'UInt64' @22:19
 │  └─ body
-│     ├─ ExprStmt @31:3
+│     ├─ ExprStmt @23:3
 │     │  └─ expr
-│     │     └─ Assign '=' @31:5
+│     │     └─ Assign '=' @23:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'h' @31:3
+│     │        │  └─ Identifier 'h' @23:3
 │     │        └─ value
-│     │           └─ Call @31:17
+│     │           └─ Call @23:17
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @31:13
+│     │              │  └─ Member 'new' @23:13
 │     │              │     └─ object
-│     │              │        └─ Identifier 'Holder' @31:7
+│     │              │        └─ Identifier 'Holder' @23:7
 │     │              └─ args
-│     │                 └─ Binary '+' @31:28
+│     │                 └─ Binary '+' @23:28
 │     │                    ├─ lhs
-│     │                    │  └─ StringLiteral 'hello-' @31:19
+│     │                    │  └─ StringLiteral 'hello-' @23:19
 │     │                    └─ rhs
-│     │                       └─ StringLiteral 'world' @31:30
-│     └─ ExprStmt @32:3
+│     │                       └─ StringLiteral 'world' @23:30
+│     └─ ExprStmt @24:3
 │        └─ expr
-│           └─ Member 'size' @32:10
+│           └─ Member 'size' @24:10
 │              └─ object
-│                 └─ Member 'label' @32:4
+│                 └─ Member 'label' @24:4
 │                    └─ object
-│                       └─ Identifier 'h' @32:3
-├─ ExprStmt @35:1
+│                       └─ Identifier 'h' @24:3
+├─ ExprStmt @27:1
 │  └─ expr
-│     └─ Call @35:8
+│     └─ Call @27:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @35:1
+│        │  └─ Identifier 'assert!' @27:1
 │        └─ args
-│           └─ Binary '==' @35:20
+│           └─ Binary '==' @27:20
 │              ├─ lhs
-│              │  └─ Identifier 'use_plain' @35:10
+│              │  └─ Identifier 'use_plain' @27:10
 │              └─ rhs
-│                 └─ IntLiteral '42' @35:23
-└─ ExprStmt @36:1
+│                 └─ IntLiteral '42' @27:23
+└─ ExprStmt @28:1
    └─ expr
-      └─ Call @36:8
+      └─ Call @28:8
          ├─ callee
-         │  └─ Identifier 'assert!' @36:1
+         │  └─ Identifier 'assert!' @28:1
          └─ args
-            └─ Binary '==' @36:21
+            └─ Binary '==' @28:21
                ├─ lhs
-               │  └─ Identifier 'use_holder' @36:10
+               │  └─ Identifier 'use_holder' @28:10
                └─ rhs
-                  └─ IntLiteral '11_u64' @36:24
+                  └─ IntLiteral '11_u64' @28:24
 --- exit 0 ---

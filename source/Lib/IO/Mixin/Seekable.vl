@@ -1,0 +1,22 @@
+module IO
+
+
+  mixin Seekable
+    abstract def seek( offset : Int64, whence : Int32 = 0 ) -> Int64
+    abstract def tell -> Int64
+
+    def rewind -> Void
+      seek( 0_i64, 0 )
+    end
+
+    def seek_from_current( offset : Int64 ) -> Int64
+      seek( offset, 1 )
+    end
+
+    def seek_from_end( offset : Int64 ) -> Int64
+      seek( offset, 2 )
+    end
+  end
+
+
+end

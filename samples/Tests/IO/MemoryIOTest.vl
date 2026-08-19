@@ -1,0 +1,32 @@
+io = IO::MemoryIO.new( 16_u64 )
+io.write_string( "Hello Volt IO!" )
+
+assert!( io.size == 14_u64 )
+assert!( io.position == 14_u64 )
+
+io.rewind()
+assert!( io.position == 0_u64 )
+
+content = io.read_to_string()
+assert!( content == "Hello Volt IO!" )
+
+
+io2 = IO::MemoryIO.from_string( "test data" )
+line = io2.read_to_string()
+assert!( line == "test data" )
+
+
+io3 = IO::MemoryIO.new( 32_u64 )
+io3 << "one"
+io3 << " "
+io3 << "two"
+io3.rewind()
+assert!( io3.read_to_string() == "one two" )
+
+
+io4 = IO::MemoryIO.new( 16_u64 )
+io4.write_string( "data" )
+assert!( io4.size == 4_u64 )
+io4.clear()
+assert!( io4.size == 0_u64 )
+assert!( io4.position == 0_u64 )

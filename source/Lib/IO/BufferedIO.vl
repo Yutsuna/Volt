@@ -1,0 +1,99 @@
+module IO
+
+
+  class BufferedReader
+    include Reader
+
+    inner    : Dynamic<Reader>
+    buffer   : Pointer<UInt8>
+    capacity : UInt64
+    pos      : UInt64
+    limit    : UInt64
+
+    def initialize( @inner : Dynamic<Reader>, @capacity : UInt64 = 8192_u64 )
+      @buffer = Pointer<UInt8>.malloc( @capacity )
+      @pos    = 0_u64
+      @limit  = 0_u64
+    end
+
+    def finalize -> Void
+      if @buffer != nil
+        @buffer.free
+      end
+    end
+
+    def read( out_buf : Pointer<UInt8>, count : UInt64 ) -> Int64
+      if count == 0_u64
+        return 0_i64
+      end
+
+      if @pos >= @limit
+        result = @inner.read( @buffer, @capacity )
+        if result <= 0_i64
+          return result
+        end
+        @pos   = 0_u64
+        @limit = result
+      end
+
+      available = @limit - @pos
+      to_copy = count
+      if available < count
+        to_copy = available
+      end
+      libc_memcpy( out_buf, @buffer + @pos, to_copy )
+      @pos += to_copy
+      to_copy
+    end
+
+  end
+
+
+  class BufferedWriter
+    include Writer
+
+    inner    : Dynamic<Writer>
+    buffer   : Pointer<UInt8>
+    capacity : UInt64
+    pos      : UInt64
+
+    def initialize( @inner : Dynamic<Writer>, @capacity : UInt64 = 8192_u64 )
+      @buffer = Pointer<UInt8>.malloc( @capacity )
+      @pos    = 0_u64
+    end
+
+    def finalize -> Void
+      flush
+      if @buffer != nil
+        @buffer.free
+      end
+    end
+
+    def flush -> Void
+      if @pos == 0_u64
+        return
+      end
+      _ = @inner.write( @buffer, @pos )
+      @pos = 0_u64
+    end
+
+    def write( in_buf : Pointer<UInt8>, count : UInt64 ) -> Int64
+      if count == 0_u64
+        return 0_i64
+      end
+
+      idx = 0_u64
+      while idx < count
+        if @pos >= @capacity
+          flush
+        end
+        *( @buffer + @pos ) = *( in_buf + idx )
+        ++@pos
+        ++idx
+      end
+      count
+    end
+
+  end
+
+end

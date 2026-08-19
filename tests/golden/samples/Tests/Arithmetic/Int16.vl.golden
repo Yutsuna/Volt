@@ -10,197 +10,225 @@ Program 'samples/Tests/Arithmetic/Int16.vl'
 │  │        └─ TypeRef 'Int32' @2:33
 │  └─ return_type
 │     └─ TypeRef 'Void' @2:44
-├─ Method 'assert!' @4:1
-│  ├─ params
-│  │  └─ Param 'condition' @4:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @4:26
+├─ Method 'test_int16' @7:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @4:36
+│  │  └─ TypeRef 'Void' @7:19
 │  └─ body
-│     └─ ExprStmt @5:3
-│        └─ expr
-│           └─ If @5:3
-│              ├─ cond
-│              │  └─ Unary 'not' @5:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @5:10
-│              └─ then
-│                 └─ ExprStmt @6:5
-│                    └─ expr
-│                       └─ RaiseExpr @6:5
-│                          └─ exception
-│                             └─ Interp @6:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @6:11
-│                                   ├─ Identifier '__FILE__' @6:19
-│                                   ├─ StringLiteral ':\tCalled by ' @6:11
-│                                   ├─ Identifier '__FUNCTION__' @6:43
-│                                   ├─ StringLiteral ' at ' @6:11
-│                                   ├─ Identifier '__LINE__' @6:62
-│                                   ├─ StringLiteral ':' @6:11
-│                                   └─ Identifier '__COLUMN__' @6:74
-├─ Method 'test_int16' @12:1
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @12:19
-│  └─ body
-│     ├─ LocalDecl 'a' @13:3
+│     ├─ LocalDecl 'a' @8:3
 │     │  ├─ decl_type
-│     │  │  └─ TypeRef 'Int16' @13:7
+│     │  │  └─ TypeRef 'Int16' @8:7
 │     │  └─ init
-│     │     └─ IntLiteral '1000' @13:15
-│     ├─ LocalDecl 'b' @14:3
+│     │     └─ IntLiteral '1000' @8:15
+│     ├─ LocalDecl 'b' @9:3
 │     │  ├─ decl_type
-│     │  │  └─ TypeRef 'Int16' @14:7
+│     │  │  └─ TypeRef 'Int16' @9:7
 │     │  └─ init
-│     │     └─ IntLiteral '2000' @14:15
-│     ├─ LocalDecl 'zero' @15:3
+│     │     └─ IntLiteral '2000' @9:15
+│     ├─ LocalDecl 'zero' @10:3
 │     │  ├─ decl_type
-│     │  │  └─ TypeRef 'Int16' @15:10
+│     │  │  └─ TypeRef 'Int16' @10:10
 │     │  └─ init
-│     │     └─ IntLiteral '0' @15:18
-│     ├─ LocalDecl 'neg' @16:3
+│     │     └─ IntLiteral '0' @10:18
+│     ├─ LocalDecl 'neg' @11:3
 │     │  ├─ decl_type
-│     │  │  └─ TypeRef 'Int16' @16:9
+│     │  │  └─ TypeRef 'Int16' @11:9
 │     │  └─ init
-│     │     └─ Unary '-' @16:17
+│     │     └─ Unary '-' @11:17
 │     │        └─ operand
-│     │           └─ IntLiteral '500' @16:18
+│     │           └─ IntLiteral '500' @11:18
+│     ├─ ExprStmt @13:3
+│     │  └─ expr
+│     │     └─ Call @13:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @13:3
+│     │        └─ args
+│     │           └─ Binary '==' @13:18
+│     │              ├─ lhs
+│     │              │  └─ Binary '+' @13:14
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @13:12
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'b' @13:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '3000' @13:21
+│     ├─ ExprStmt @14:3
+│     │  └─ expr
+│     │     └─ Call @14:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @14:3
+│     │        └─ args
+│     │           └─ Binary '==' @14:18
+│     │              ├─ lhs
+│     │              │  └─ Binary '-' @14:14
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'b' @14:12
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'a' @14:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000' @14:21
+│     ├─ ExprStmt @15:3
+│     │  └─ expr
+│     │     └─ Call @15:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @15:3
+│     │        └─ args
+│     │           └─ Binary '==' @15:18
+│     │              ├─ lhs
+│     │              │  └─ Binary '*' @15:14
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @15:12
+│     │              │     └─ rhs
+│     │              │        └─ IntLiteral '2' @15:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '2000' @15:21
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Call @16:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @16:3
+│     │        └─ args
+│     │           └─ Binary '==' @16:18
+│     │              ├─ lhs
+│     │              │  └─ Binary '/' @16:14
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'b' @16:12
+│     │              │     └─ rhs
+│     │              │        └─ IntLiteral '2' @16:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000' @16:21
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Call @17:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @17:3
+│     │        └─ args
+│     │           └─ Binary '==' @17:18
+│     │              ├─ lhs
+│     │              │  └─ Binary '%' @17:14
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'b' @17:12
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'a' @17:16
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0' @17:21
 │     ├─ ExprStmt @18:3
 │     │  └─ expr
 │     │     └─ Call @18:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @18:3
 │     │        └─ args
-│     │           └─ Binary '==' @18:18
+│     │           └─ Binary '==' @18:22
 │     │              ├─ lhs
-│     │              │  └─ Binary '+' @18:14
+│     │              │  └─ Binary '&' @18:16
 │     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'a' @18:12
+│     │              │     │  └─ Identifier 'a' @18:14
 │     │              │     └─ rhs
-│     │              │        └─ Identifier 'b' @18:16
+│     │              │        └─ Identifier 'b' @18:18
 │     │              └─ rhs
-│     │                 └─ IntLiteral '3000' @18:21
+│     │                 └─ IntLiteral '960' @18:25
 │     ├─ ExprStmt @19:3
 │     │  └─ expr
 │     │     └─ Call @19:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @19:3
 │     │        └─ args
-│     │           └─ Binary '==' @19:18
+│     │           └─ Binary '==' @19:22
 │     │              ├─ lhs
-│     │              │  └─ Binary '-' @19:14
+│     │              │  └─ Binary '|' @19:16
 │     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'b' @19:12
+│     │              │     │  └─ Identifier 'a' @19:14
 │     │              │     └─ rhs
-│     │              │        └─ Identifier 'a' @19:16
+│     │              │        └─ Identifier 'b' @19:18
 │     │              └─ rhs
-│     │                 └─ IntLiteral '1000' @19:21
+│     │                 └─ IntLiteral '2040' @19:25
 │     ├─ ExprStmt @20:3
 │     │  └─ expr
 │     │     └─ Call @20:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @20:3
 │     │        └─ args
-│     │           └─ Binary '==' @20:18
+│     │           └─ Binary '==' @20:22
 │     │              ├─ lhs
-│     │              │  └─ Binary '*' @20:14
+│     │              │  └─ Binary '^' @20:16
 │     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'a' @20:12
+│     │              │     │  └─ Identifier 'a' @20:14
 │     │              │     └─ rhs
-│     │              │        └─ IntLiteral '2' @20:16
+│     │              │        └─ Identifier 'b' @20:18
 │     │              └─ rhs
-│     │                 └─ IntLiteral '2000' @20:21
+│     │                 └─ IntLiteral '1080' @20:25
 │     ├─ ExprStmt @21:3
 │     │  └─ expr
 │     │     └─ Call @21:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @21:3
 │     │        └─ args
-│     │           └─ Binary '==' @21:18
+│     │           └─ Binary '==' @21:23
 │     │              ├─ lhs
-│     │              │  └─ Binary '/' @21:14
+│     │              │  └─ Binary '<<' @21:16
 │     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'b' @21:12
+│     │              │     │  └─ Identifier 'a' @21:14
 │     │              │     └─ rhs
-│     │              │        └─ IntLiteral '2' @21:16
+│     │              │        └─ IntLiteral '1' @21:19
 │     │              └─ rhs
-│     │                 └─ IntLiteral '1000' @21:21
+│     │                 └─ IntLiteral '2000' @21:26
 │     ├─ ExprStmt @22:3
 │     │  └─ expr
 │     │     └─ Call @22:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @22:3
 │     │        └─ args
-│     │           └─ Binary '==' @22:18
+│     │           └─ Binary '==' @22:23
 │     │              ├─ lhs
-│     │              │  └─ Binary '%' @22:14
+│     │              │  └─ Binary '>>' @22:16
 │     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'b' @22:12
+│     │              │     │  └─ Identifier 'b' @22:14
 │     │              │     └─ rhs
-│     │              │        └─ Identifier 'a' @22:16
+│     │              │        └─ IntLiteral '1' @22:19
 │     │              └─ rhs
-│     │                 └─ IntLiteral '0' @22:21
+│     │                 └─ IntLiteral '1000' @22:26
 │     ├─ ExprStmt @23:3
 │     │  └─ expr
 │     │     └─ Call @23:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @23:3
 │     │        └─ args
-│     │           └─ Binary '==' @23:22
+│     │           └─ Binary '==' @23:18
 │     │              ├─ lhs
-│     │              │  └─ Binary '&' @23:16
-│     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'a' @23:14
-│     │              │     └─ rhs
-│     │              │        └─ Identifier 'b' @23:18
+│     │              │  └─ Unary '~' @23:12
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'zero' @23:13
 │     │              └─ rhs
-│     │                 └─ IntLiteral '960' @23:25
-│     ├─ ExprStmt @24:3
-│     │  └─ expr
-│     │     └─ Call @24:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @24:3
-│     │        └─ args
-│     │           └─ Binary '==' @24:22
-│     │              ├─ lhs
-│     │              │  └─ Binary '|' @24:16
-│     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'a' @24:14
-│     │              │     └─ rhs
-│     │              │        └─ Identifier 'b' @24:18
-│     │              └─ rhs
-│     │                 └─ IntLiteral '2040' @24:25
+│     │                 └─ Unary '-' @23:21
+│     │                    └─ operand
+│     │                       └─ IntLiteral '1' @23:22
 │     ├─ ExprStmt @25:3
 │     │  └─ expr
 │     │     └─ Call @25:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @25:3
 │     │        └─ args
-│     │           └─ Binary '==' @25:22
+│     │           └─ Binary '==' @25:21
 │     │              ├─ lhs
-│     │              │  └─ Binary '^' @25:16
-│     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'a' @25:14
-│     │              │     └─ rhs
-│     │              │        └─ Identifier 'b' @25:18
+│     │              │  └─ Member 'negate' @25:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'a' @25:12
 │     │              └─ rhs
-│     │                 └─ IntLiteral '1080' @25:25
+│     │                 └─ Unary '-' @25:24
+│     │                    └─ operand
+│     │                       └─ IntLiteral '1000' @25:25
 │     ├─ ExprStmt @26:3
 │     │  └─ expr
 │     │     └─ Call @26:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @26:3
 │     │        └─ args
-│     │           └─ Binary '==' @26:23
+│     │           └─ Binary '==' @26:20
 │     │              ├─ lhs
-│     │              │  └─ Binary '<<' @26:16
-│     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'a' @26:14
-│     │              │     └─ rhs
-│     │              │        └─ IntLiteral '1' @26:19
+│     │              │  └─ Member 'abs' @26:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'neg' @26:12
 │     │              └─ rhs
-│     │                 └─ IntLiteral '2000' @26:26
+│     │                 └─ IntLiteral '500' @26:23
 │     ├─ ExprStmt @27:3
 │     │  └─ expr
 │     │     └─ Call @27:10
@@ -209,11 +237,13 @@ Program 'samples/Tests/Arithmetic/Int16.vl'
 │     │        └─ args
 │     │           └─ Binary '==' @27:23
 │     │              ├─ lhs
-│     │              │  └─ Binary '>>' @27:16
-│     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'b' @27:14
-│     │              │     └─ rhs
-│     │              │        └─ IntLiteral '1' @27:19
+│     │              │  └─ Call @27:17
+│     │              │     ├─ callee
+│     │              │     │  └─ Member 'min' @27:13
+│     │              │     │     └─ object
+│     │              │     │        └─ Identifier 'a' @27:12
+│     │              │     └─ args
+│     │              │        └─ Identifier 'b' @27:19
 │     │              └─ rhs
 │     │                 └─ IntLiteral '1000' @27:26
 │     ├─ ExprStmt @28:3
@@ -222,201 +252,219 @@ Program 'samples/Tests/Arithmetic/Int16.vl'
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @28:3
 │     │        └─ args
-│     │           └─ Binary '==' @28:18
+│     │           └─ Binary '==' @28:23
 │     │              ├─ lhs
-│     │              │  └─ Unary '~' @28:12
-│     │              │     └─ operand
-│     │              │        └─ Identifier 'zero' @28:13
+│     │              │  └─ Call @28:17
+│     │              │     ├─ callee
+│     │              │     │  └─ Member 'max' @28:13
+│     │              │     │     └─ object
+│     │              │     │        └─ Identifier 'a' @28:12
+│     │              │     └─ args
+│     │              │        └─ Identifier 'b' @28:19
 │     │              └─ rhs
-│     │                 └─ Unary '-' @28:21
-│     │                    └─ operand
-│     │                       └─ IntLiteral '1' @28:22
+│     │                 └─ IntLiteral '2000' @28:26
+│     ├─ ExprStmt @29:3
+│     │  └─ expr
+│     │     └─ Call @29:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @29:3
+│     │        └─ args
+│     │           └─ Binary '==' @29:24
+│     │              ├─ lhs
+│     │              │  └─ Member 'successor' @29:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'a' @29:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1001' @29:27
 │     ├─ ExprStmt @30:3
 │     │  └─ expr
 │     │     └─ Call @30:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @30:3
 │     │        └─ args
-│     │           └─ Binary '==' @30:21
+│     │           └─ Binary '==' @30:26
 │     │              ├─ lhs
-│     │              │  └─ Member 'negate' @30:13
+│     │              │  └─ Member 'predecessor' @30:13
 │     │              │     └─ object
 │     │              │        └─ Identifier 'a' @30:12
 │     │              └─ rhs
-│     │                 └─ Unary '-' @30:24
-│     │                    └─ operand
-│     │                       └─ IntLiteral '1000' @30:25
+│     │                 └─ IntLiteral '999' @30:29
 │     ├─ ExprStmt @31:3
 │     │  └─ expr
 │     │     └─ Call @31:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @31:3
 │     │        └─ args
-│     │           └─ Binary '==' @31:20
-│     │              ├─ lhs
-│     │              │  └─ Member 'abs' @31:15
+│     │           └─ Call @31:22
+│     │              ├─ callee
+│     │              │  └─ Member 'between?' @31:13
 │     │              │     └─ object
-│     │              │        └─ Identifier 'neg' @31:12
-│     │              └─ rhs
-│     │                 └─ IntLiteral '500' @31:23
+│     │              │        └─ Identifier 'a' @31:12
+│     │              └─ args
+│     │                 ├─ IntLiteral '500' @31:24
+│     │                 └─ IntLiteral '1500' @31:29
 │     ├─ ExprStmt @32:3
 │     │  └─ expr
 │     │     └─ Call @32:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @32:3
 │     │        └─ args
-│     │           └─ Binary '==' @32:23
-│     │              ├─ lhs
-│     │              │  └─ Call @32:17
-│     │              │     ├─ callee
-│     │              │     │  └─ Member 'min' @32:13
-│     │              │     │     └─ object
-│     │              │     │        └─ Identifier 'a' @32:12
-│     │              │     └─ args
-│     │              │        └─ Identifier 'b' @32:19
-│     │              └─ rhs
-│     │                 └─ IntLiteral '1000' @32:26
+│     │           └─ Member 'zero?' @32:16
+│     │              └─ object
+│     │                 └─ Identifier 'zero' @32:12
 │     ├─ ExprStmt @33:3
 │     │  └─ expr
 │     │     └─ Call @33:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @33:3
 │     │        └─ args
-│     │           └─ Binary '==' @33:23
-│     │              ├─ lhs
-│     │              │  └─ Call @33:17
-│     │              │     ├─ callee
-│     │              │     │  └─ Member 'max' @33:13
-│     │              │     │     └─ object
-│     │              │     │        └─ Identifier 'a' @33:12
-│     │              │     └─ args
-│     │              │        └─ Identifier 'b' @33:19
-│     │              └─ rhs
-│     │                 └─ IntLiteral '2000' @33:26
+│     │           └─ Member 'non_zero?' @33:13
+│     │              └─ object
+│     │                 └─ Identifier 'a' @33:12
 │     ├─ ExprStmt @34:3
 │     │  └─ expr
 │     │     └─ Call @34:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @34:3
 │     │        └─ args
-│     │           └─ Binary '==' @34:24
-│     │              ├─ lhs
-│     │              │  └─ Member 'successor' @34:13
-│     │              │     └─ object
-│     │              │        └─ Identifier 'a' @34:12
-│     │              └─ rhs
-│     │                 └─ IntLiteral '1001' @34:27
+│     │           └─ Member 'positive?' @34:13
+│     │              └─ object
+│     │                 └─ Identifier 'a' @34:12
 │     ├─ ExprStmt @35:3
 │     │  └─ expr
 │     │     └─ Call @35:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @35:3
 │     │        └─ args
-│     │           └─ Binary '==' @35:26
-│     │              ├─ lhs
-│     │              │  └─ Member 'predecessor' @35:13
-│     │              │     └─ object
-│     │              │        └─ Identifier 'a' @35:12
-│     │              └─ rhs
-│     │                 └─ IntLiteral '999' @35:29
+│     │           └─ Member 'negative?' @35:15
+│     │              └─ object
+│     │                 └─ Identifier 'neg' @35:12
 │     ├─ ExprStmt @36:3
 │     │  └─ expr
 │     │     └─ Call @36:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @36:3
 │     │        └─ args
-│     │           └─ Call @36:22
-│     │              ├─ callee
-│     │              │  └─ Member 'between?' @36:13
-│     │              │     └─ object
-│     │              │        └─ Identifier 'a' @36:12
-│     │              └─ args
-│     │                 ├─ IntLiteral '500' @36:24
-│     │                 └─ IntLiteral '1500' @36:29
+│     │           └─ Member 'even?' @36:13
+│     │              └─ object
+│     │                 └─ Identifier 'a' @36:12
 │     ├─ ExprStmt @37:3
 │     │  └─ expr
 │     │     └─ Call @37:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @37:3
 │     │        └─ args
-│     │           └─ Member 'zero?' @37:16
+│     │           └─ Member 'odd?' @37:28
 │     │              └─ object
-│     │                 └─ Identifier 'zero' @37:12
+│     │                 └─ TypedExpr @37:12
+│     │                    ├─ value
+│     │                    │  └─ IntLiteral '1001' @37:14
+│     │                    └─ type
+│     │                       └─ TypeRef 'Int16' @37:21
 │     ├─ ExprStmt @38:3
 │     │  └─ expr
 │     │     └─ Call @38:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @38:3
 │     │        └─ args
-│     │           └─ Member 'non_zero?' @38:13
+│     │           └─ Member 'power_of_two?' @38:28
 │     │              └─ object
-│     │                 └─ Identifier 'a' @38:12
+│     │                 └─ TypedExpr @38:12
+│     │                    ├─ value
+│     │                    │  └─ IntLiteral '1024' @38:14
+│     │                    └─ type
+│     │                       └─ TypeRef 'Int16' @38:21
 │     ├─ ExprStmt @39:3
 │     │  └─ expr
 │     │     └─ Call @39:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @39:3
 │     │        └─ args
-│     │           └─ Member 'positive?' @39:13
-│     │              └─ object
-│     │                 └─ Identifier 'a' @39:12
+│     │           └─ Call @39:27
+│     │              ├─ callee
+│     │              │  └─ Member 'divisible_by?' @39:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'b' @39:12
+│     │              └─ args
+│     │                 └─ Identifier 'a' @39:29
 │     ├─ ExprStmt @40:3
 │     │  └─ expr
 │     │     └─ Call @40:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @40:3
 │     │        └─ args
-│     │           └─ Member 'negative?' @40:15
-│     │              └─ object
-│     │                 └─ Identifier 'neg' @40:12
+│     │           └─ Binary '==' @40:32
+│     │              ├─ lhs
+│     │              │  └─ Call @40:19
+│     │              │     ├─ callee
+│     │              │     │  └─ Member 'clamp' @40:13
+│     │              │     │     └─ object
+│     │              │     │        └─ Identifier 'a' @40:12
+│     │              │     └─ args
+│     │              │        ├─ IntLiteral '200' @40:21
+│     │              │        └─ IntLiteral '800' @40:26
+│     │              └─ rhs
+│     │                 └─ IntLiteral '800' @40:35
 │     ├─ ExprStmt @41:3
 │     │  └─ expr
 │     │     └─ Call @41:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @41:3
 │     │        └─ args
-│     │           └─ Member 'even?' @41:13
-│     │              └─ object
-│     │                 └─ Identifier 'a' @41:12
+│     │           └─ Binary '==' @41:28
+│     │              ├─ lhs
+│     │              │  └─ Call @41:22
+│     │              │     ├─ callee
+│     │              │     │  └─ Member 'distance' @41:13
+│     │              │     │     └─ object
+│     │              │     │        └─ Identifier 'a' @41:12
+│     │              │     └─ args
+│     │              │        └─ Identifier 'b' @41:24
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000' @41:31
 │     ├─ ExprStmt @42:3
 │     │  └─ expr
 │     │     └─ Call @42:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @42:3
 │     │        └─ args
-│     │           └─ Member 'odd?' @42:28
-│     │              └─ object
-│     │                 └─ TypedExpr @42:12
-│     │                    ├─ value
-│     │                    │  └─ IntLiteral '1001' @42:14
-│     │                    └─ type
-│     │                       └─ TypeRef 'Int16' @42:21
+│     │           └─ Binary '==' @42:34
+│     │              ├─ lhs
+│     │              │  └─ Member 'square' @42:26
+│     │              │     └─ object
+│     │              │        └─ TypedExpr @42:12
+│     │              │           ├─ value
+│     │              │           │  └─ IntLiteral '10' @42:14
+│     │              │           └─ type
+│     │              │              └─ TypeRef 'Int16' @42:19
+│     │              └─ rhs
+│     │                 └─ IntLiteral '100' @42:37
 │     ├─ ExprStmt @43:3
 │     │  └─ expr
 │     │     └─ Call @43:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @43:3
 │     │        └─ args
-│     │           └─ Member 'power_of_two?' @43:28
-│     │              └─ object
-│     │                 └─ TypedExpr @43:12
-│     │                    ├─ value
-│     │                    │  └─ IntLiteral '1024' @43:14
-│     │                    └─ type
-│     │                       └─ TypeRef 'Int16' @43:21
+│     │           └─ Binary '==' @43:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'double' @43:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'a' @43:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '2000' @43:24
 │     ├─ ExprStmt @44:3
 │     │  └─ expr
 │     │     └─ Call @44:10
 │     │        ├─ callee
 │     │        │  └─ Identifier 'assert!' @44:3
 │     │        └─ args
-│     │           └─ Call @44:27
-│     │              ├─ callee
-│     │              │  └─ Member 'divisible_by?' @44:13
+│     │           └─ Binary '==' @44:19
+│     │              ├─ lhs
+│     │              │  └─ Member 'half' @44:13
 │     │              │     └─ object
 │     │              │        └─ Identifier 'b' @44:12
-│     │              └─ args
-│     │                 └─ Identifier 'a' @44:29
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000' @44:22
 │     ├─ ExprStmt @45:3
 │     │  └─ expr
 │     │     └─ Call @45:10
@@ -425,131 +473,53 @@ Program 'samples/Tests/Arithmetic/Int16.vl'
 │     │        └─ args
 │     │           └─ Binary '==' @45:32
 │     │              ├─ lhs
-│     │              │  └─ Call @45:19
-│     │              │     ├─ callee
-│     │              │     │  └─ Member 'clamp' @45:13
-│     │              │     │     └─ object
-│     │              │     │        └─ Identifier 'a' @45:12
-│     │              │     └─ args
-│     │              │        ├─ IntLiteral '200' @45:21
-│     │              │        └─ IntLiteral '800' @45:26
-│     │              └─ rhs
-│     │                 └─ IntLiteral '800' @45:35
-│     ├─ ExprStmt @46:3
-│     │  └─ expr
-│     │     └─ Call @46:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @46:3
-│     │        └─ args
-│     │           └─ Binary '==' @46:28
-│     │              ├─ lhs
-│     │              │  └─ Call @46:22
-│     │              │     ├─ callee
-│     │              │     │  └─ Member 'distance' @46:13
-│     │              │     │     └─ object
-│     │              │     │        └─ Identifier 'a' @46:12
-│     │              │     └─ args
-│     │              │        └─ Identifier 'b' @46:24
-│     │              └─ rhs
-│     │                 └─ IntLiteral '1000' @46:31
-│     ├─ ExprStmt @47:3
-│     │  └─ expr
-│     │     └─ Call @47:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @47:3
-│     │        └─ args
-│     │           └─ Binary '==' @47:34
-│     │              ├─ lhs
-│     │              │  └─ Member 'square' @47:26
+│     │              │  └─ Member 'cube' @45:26
 │     │              │     └─ object
-│     │              │        └─ TypedExpr @47:12
+│     │              │        └─ TypedExpr @45:12
 │     │              │           ├─ value
-│     │              │           │  └─ IntLiteral '10' @47:14
+│     │              │           │  └─ IntLiteral '10' @45:14
 │     │              │           └─ type
-│     │              │              └─ TypeRef 'Int16' @47:19
+│     │              │              └─ TypeRef 'Int16' @45:19
 │     │              └─ rhs
-│     │                 └─ IntLiteral '100' @47:37
-│     ├─ ExprStmt @48:3
-│     │  └─ expr
-│     │     └─ Call @48:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @48:3
-│     │        └─ args
-│     │           └─ Binary '==' @48:21
-│     │              ├─ lhs
-│     │              │  └─ Member 'double' @48:13
-│     │              │     └─ object
-│     │              │        └─ Identifier 'a' @48:12
-│     │              └─ rhs
-│     │                 └─ IntLiteral '2000' @48:24
-│     ├─ ExprStmt @49:3
-│     │  └─ expr
-│     │     └─ Call @49:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @49:3
-│     │        └─ args
-│     │           └─ Binary '==' @49:19
-│     │              ├─ lhs
-│     │              │  └─ Member 'half' @49:13
-│     │              │     └─ object
-│     │              │        └─ Identifier 'b' @49:12
-│     │              └─ rhs
-│     │                 └─ IntLiteral '1000' @49:22
-│     ├─ ExprStmt @50:3
-│     │  └─ expr
-│     │     └─ Call @50:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @50:3
-│     │        └─ args
-│     │           └─ Binary '==' @50:32
-│     │              ├─ lhs
-│     │              │  └─ Member 'cube' @50:26
-│     │              │     └─ object
-│     │              │        └─ TypedExpr @50:12
-│     │              │           ├─ value
-│     │              │           │  └─ IntLiteral '10' @50:14
-│     │              │           └─ type
-│     │              │              └─ TypeRef 'Int16' @50:19
-│     │              └─ rhs
-│     │                 └─ IntLiteral '1000' @50:35
-│     └─ ExprStmt @51:3
+│     │                 └─ IntLiteral '1000' @45:35
+│     └─ ExprStmt @46:3
 │        └─ expr
-│           └─ Call @51:10
+│           └─ Call @46:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @51:3
+│              │  └─ Identifier 'assert!' @46:3
 │              └─ args
-│                 └─ Binary '==' @51:35
+│                 └─ Binary '==' @46:35
 │                    ├─ lhs
-│                    │  └─ Call @51:29
+│                    │  └─ Call @46:29
 │                    │     ├─ callee
-│                    │     │  └─ Member 'pow' @51:25
+│                    │     │  └─ Member 'pow' @46:25
 │                    │     │     └─ object
-│                    │     │        └─ TypedExpr @51:12
+│                    │     │        └─ TypedExpr @46:12
 │                    │     │           ├─ value
-│                    │     │           │  └─ IntLiteral '3' @51:14
+│                    │     │           │  └─ IntLiteral '3' @46:14
 │                    │     │           └─ type
-│                    │     │              └─ TypeRef 'Int16' @51:18
+│                    │     │              └─ TypeRef 'Int16' @46:18
 │                    │     └─ args
-│                    │        └─ IntLiteral '3' @51:31
+│                    │        └─ IntLiteral '3' @46:31
 │                    └─ rhs
-│                       └─ IntLiteral '27' @51:38
-├─ Method 'main' @56:1
+│                       └─ IntLiteral '27' @46:38
+├─ Method 'main' @51:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @56:13
+│  │  └─ TypeRef 'Int32' @51:13
 │  └─ body
-│     ├─ ExprStmt @57:3
+│     ├─ ExprStmt @52:3
 │     │  └─ expr
-│     │     └─ Identifier 'test_int16' @57:3
-│     └─ ExprStmt @58:3
+│     │     └─ Identifier 'test_int16' @52:3
+│     └─ ExprStmt @53:3
 │        └─ expr
-│           └─ IntLiteral '0' @58:3
-└─ ExprStmt @61:1
+│           └─ IntLiteral '0' @53:3
+└─ ExprStmt @56:1
    └─ expr
-      └─ Call @61:10
+      └─ Call @56:10
          ├─ callee
-         │  └─ Identifier 'libc_exit' @61:1
+         │  └─ Identifier 'libc_exit' @56:1
          └─ args
-            └─ Call @61:16
+            └─ Call @56:16
                └─ callee
-                  └─ Identifier 'main' @61:12
+                  └─ Identifier 'main' @56:12
 --- exit 0 ---

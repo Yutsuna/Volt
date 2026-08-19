@@ -1,0 +1,29 @@
+module IO
+
+
+  class IOError < Exception
+    def initialize( message : String = "I/O error occurred" )
+      super( message )
+    end
+  end
+
+  class EOFError < IOError
+    def initialize( message : String = "End of file reached" )
+      super( message )
+    end
+  end
+
+  class FileNotFoundError < IOError
+    def initialize( message : String = "File not found" )
+      super( message )
+    end
+  end
+
+  class PermissionDeniedError < IOError
+    def initialize( message : String = "Permission denied" )
+      super( message )
+    end
+  end
+
+
+end

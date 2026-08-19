@@ -1,0 +1,7 @@
+seek_set = IO::SeekOrigin::Set
+seek_cur = IO::SeekOrigin::Current
+seek_end = IO::SeekOrigin::End
+
+assert!( seek_set.to_value == 0 )
+assert!( seek_cur.to_value == 1 )
+assert!( seek_end.to_value == 2 )

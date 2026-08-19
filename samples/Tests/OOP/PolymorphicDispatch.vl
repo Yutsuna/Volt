@@ -1,19 +1,10 @@
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "Assertion failed #{__FILE__}:#{__LINE__}"
-  end
-end
-
-
 mixin Shape
-
   abstract def name -> String
   abstract def area -> Int32
 
   def describe -> String
     "#{self.name} with area #{area}"
   end
-
 end
 
 
@@ -69,4 +60,3 @@ assert!( s.describe == "Square with area 9" )
 assert!( c.describe == "Circle with area 12" )
 
 assert!( r.area + s.area + c.area == 41 )
-

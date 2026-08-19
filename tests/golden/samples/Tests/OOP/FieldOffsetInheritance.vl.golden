@@ -1,278 +1,252 @@
 Program 'samples/Tests/OOP/FieldOffsetInheritance.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Class 'LevelA' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Class 'LevelA' @8:1
-│  └─ body
-│     ├─ Field 'a8' getter @9:3
+│     ├─ Field 'a8' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'UInt8' @9:15
-│     ├─ Field 'a64' getter @10:3
+│     │     └─ TypeRef 'UInt8' @2:15
+│     ├─ Field 'a64' getter @3:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int64' @10:16
-│     ├─ Method 'initialize' @12:3
+│     │     └─ TypeRef 'Int64' @3:16
+│     ├─ Method 'initialize' @5:3
 │     │  └─ params
-│     │     ├─ Param 'a8' instance_var @12:19
+│     │     ├─ Param 'a8' instance_var @5:19
 │     │     │  └─ decl_type
-│     │     │     └─ TypeRef 'UInt8' @12:25
-│     │     └─ Param 'a64' instance_var @12:32
+│     │     │     └─ TypeRef 'UInt8' @5:25
+│     │     └─ Param 'a64' instance_var @5:32
 │     │        └─ decl_type
-│     │           └─ TypeRef 'Int64' @12:39
-│     └─ Method 'check_base' @15:3
+│     │           └─ TypeRef 'Int64' @5:39
+│     └─ Method 'check_base' @8:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Bool' @15:21
+│        │  └─ TypeRef 'Bool' @8:21
 │        └─ body
-│           └─ ExprStmt @16:5
+│           └─ ExprStmt @9:5
 │              └─ expr
-│                 └─ Binary 'and' @16:18
+│                 └─ Binary 'and' @9:18
 │                    ├─ lhs
-│                    │  └─ Binary '==' @16:9
+│                    │  └─ Binary '==' @9:9
 │                    │     ├─ lhs
-│                    │     │  └─ InstanceVar '@a8' @16:5
+│                    │     │  └─ InstanceVar '@a8' @9:5
 │                    │     └─ rhs
-│                    │        └─ IntLiteral '42_u8' @16:12
+│                    │        └─ IntLiteral '42_u8' @9:12
 │                    └─ rhs
-│                       └─ Binary '==' @16:27
+│                       └─ Binary '==' @9:27
 │                          ├─ lhs
-│                          │  └─ InstanceVar '@a64' @16:22
+│                          │  └─ InstanceVar '@a64' @9:22
 │                          └─ rhs
-│                             └─ IntLiteral '10000000000_i64' @16:30
-├─ Class 'LevelB' @21:1
+│                             └─ IntLiteral '10000000000_i64' @9:30
+├─ Class 'LevelB' @14:1
 │  ├─ super
-│  │  └─ TypeRef 'LevelA' @21:16
+│  │  └─ TypeRef 'LevelA' @14:16
 │  └─ body
-│     ├─ Field 'b_str' getter @22:3
+│     ├─ Field 'b_str' getter @15:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @22:18
-│     ├─ Field 'b32' getter @23:3
+│     │     └─ TypeRef 'String' @15:18
+│     ├─ Field 'b32' getter @16:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @23:16
-│     ├─ Method 'initialize' @25:3
+│     │     └─ TypeRef 'Int32' @16:16
+│     ├─ Method 'initialize' @18:3
 │     │  ├─ params
-│     │  │  ├─ Param 'a8' @25:19
+│     │  │  ├─ Param 'a8' @18:19
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'UInt8' @25:24
-│     │  │  ├─ Param 'a64' @25:31
+│     │  │  │     └─ TypeRef 'UInt8' @18:24
+│     │  │  ├─ Param 'a64' @18:31
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'Int64' @25:37
-│     │  │  ├─ Param 'b_str' instance_var @25:44
+│     │  │  │     └─ TypeRef 'Int64' @18:37
+│     │  │  ├─ Param 'b_str' instance_var @18:44
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'String' @25:53
-│     │  │  └─ Param 'b32' instance_var @25:61
+│     │  │  │     └─ TypeRef 'String' @18:53
+│     │  │  └─ Param 'b32' instance_var @18:61
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @25:68
+│     │  │        └─ TypeRef 'Int32' @18:68
 │     │  └─ body
-│     │     └─ ExprStmt @26:5
+│     │     └─ ExprStmt @19:5
 │     │        └─ expr
-│     │           └─ Call @26:5
+│     │           └─ Call @19:5
 │     │              ├─ callee
-│     │              │  └─ SuperExpr @26:5
+│     │              │  └─ SuperExpr @19:5
 │     │              └─ args
-│     │                 ├─ Identifier 'a8' @26:12
-│     │                 └─ Identifier 'a64' @26:16
-│     └─ Method 'check_level_b' @29:3
+│     │                 ├─ Identifier 'a8' @19:12
+│     │                 └─ Identifier 'a64' @19:16
+│     └─ Method 'check_level_b' @22:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Bool' @29:24
+│        │  └─ TypeRef 'Bool' @22:24
 │        └─ body
-│           └─ ExprStmt @30:5
+│           └─ ExprStmt @23:5
 │              └─ expr
-│                 └─ Binary 'and' @30:42
+│                 └─ Binary 'and' @23:42
 │                    ├─ lhs
-│                    │  └─ Binary 'and' @30:18
+│                    │  └─ Binary 'and' @23:18
 │                    │     ├─ lhs
-│                    │     │  └─ Call @30:15
+│                    │     │  └─ Call @23:15
 │                    │     │     └─ callee
-│                    │     │        └─ Identifier 'check_base' @30:5
+│                    │     │        └─ Identifier 'check_base' @23:5
 │                    │     └─ rhs
-│                    │        └─ Binary '==' @30:29
+│                    │        └─ Binary '==' @23:29
 │                    │           ├─ lhs
-│                    │           │  └─ InstanceVar '@b_str' @30:22
+│                    │           │  └─ InstanceVar '@b_str' @23:22
 │                    │           └─ rhs
-│                    │              └─ StringLiteral 'voltage' @30:32
+│                    │              └─ StringLiteral 'voltage' @23:32
 │                    └─ rhs
-│                       └─ Binary '==' @30:51
+│                       └─ Binary '==' @23:51
 │                          ├─ lhs
-│                          │  └─ InstanceVar '@b32' @30:46
+│                          │  └─ InstanceVar '@b32' @23:46
 │                          └─ rhs
-│                             └─ IntLiteral '999' @30:54
-├─ Class 'LevelC' @35:1
+│                             └─ IntLiteral '999' @23:54
+├─ Class 'LevelC' @28:1
 │  ├─ super
-│  │  └─ TypeRef 'LevelB' @35:16
+│  │  └─ TypeRef 'LevelB' @28:16
 │  └─ body
-│     ├─ Field 'c_float' getter @36:3
+│     ├─ Field 'c_float' getter @29:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Float64' @36:20
-│     ├─ Method 'initialize' @38:3
+│     │     └─ TypeRef 'Float64' @29:20
+│     ├─ Method 'initialize' @31:3
 │     │  ├─ params
-│     │  │  ├─ Param 'a8' @38:19
+│     │  │  ├─ Param 'a8' @31:19
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'UInt8' @38:24
-│     │  │  ├─ Param 'a64' @38:31
+│     │  │  │     └─ TypeRef 'UInt8' @31:24
+│     │  │  ├─ Param 'a64' @31:31
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'Int64' @38:37
-│     │  │  ├─ Param 'b_str' @38:44
+│     │  │  │     └─ TypeRef 'Int64' @31:37
+│     │  │  ├─ Param 'b_str' @31:44
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'String' @38:52
-│     │  │  ├─ Param 'b32' @38:60
+│     │  │  │     └─ TypeRef 'String' @31:52
+│     │  │  ├─ Param 'b32' @31:60
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'Int32' @38:66
-│     │  │  └─ Param 'c_float' instance_var @38:73
+│     │  │  │     └─ TypeRef 'Int32' @31:66
+│     │  │  └─ Param 'c_float' instance_var @31:73
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Float64' @38:84
+│     │  │        └─ TypeRef 'Float64' @31:84
 │     │  └─ body
-│     │     └─ ExprStmt @39:5
+│     │     └─ ExprStmt @32:5
 │     │        └─ expr
-│     │           └─ Call @39:5
+│     │           └─ Call @32:5
 │     │              ├─ callee
-│     │              │  └─ SuperExpr @39:5
+│     │              │  └─ SuperExpr @32:5
 │     │              └─ args
-│     │                 ├─ Identifier 'a8' @39:12
-│     │                 ├─ Identifier 'a64' @39:16
-│     │                 ├─ Identifier 'b_str' @39:21
-│     │                 └─ Identifier 'b32' @39:28
-│     └─ Method 'check_all' @42:3
+│     │                 ├─ Identifier 'a8' @32:12
+│     │                 ├─ Identifier 'a64' @32:16
+│     │                 ├─ Identifier 'b_str' @32:21
+│     │                 └─ Identifier 'b32' @32:28
+│     └─ Method 'check_all' @35:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Bool' @42:20
+│        │  └─ TypeRef 'Bool' @35:20
 │        └─ body
-│           └─ ExprStmt @43:5
+│           └─ ExprStmt @36:5
 │              └─ expr
-│                 └─ Binary 'and' @43:21
+│                 └─ Binary 'and' @36:21
 │                    ├─ lhs
-│                    │  └─ Call @43:18
+│                    │  └─ Call @36:18
 │                    │     └─ callee
-│                    │        └─ Identifier 'check_level_b' @43:5
+│                    │        └─ Identifier 'check_level_b' @36:5
 │                    └─ rhs
-│                       └─ Binary '==' @43:34
+│                       └─ Binary '==' @36:34
 │                          ├─ lhs
-│                          │  └─ InstanceVar '@c_float' @43:25
+│                          │  └─ InstanceVar '@c_float' @36:25
 │                          └─ rhs
-│                             └─ FloatLiteral '3.1415' @43:37
+│                             └─ FloatLiteral '3.1415' @36:37
+├─ ExprStmt @41:1
+│  └─ expr
+│     └─ Assign '=' @41:5
+│        ├─ target
+│        │  └─ Identifier 'obj' @41:1
+│        └─ value
+│           └─ Call @41:17
+│              ├─ callee
+│              │  └─ Member 'new' @41:13
+│              │     └─ object
+│              │        └─ Identifier 'LevelC' @41:7
+│              └─ args
+│                 ├─ IntLiteral '42_u8' @41:19
+│                 ├─ IntLiteral '10000000000_i64' @41:26
+│                 ├─ StringLiteral 'voltage' @41:43
+│                 ├─ IntLiteral '999' @41:54
+│                 └─ FloatLiteral '3.1415' @41:59
+├─ ExprStmt @44:1
+│  └─ expr
+│     └─ Call @44:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @44:1
+│        └─ args
+│           └─ Binary '==' @44:17
+│              ├─ lhs
+│              │  └─ Member 'a8' @44:13
+│              │     └─ object
+│              │        └─ Identifier 'obj' @44:10
+│              └─ rhs
+│                 └─ IntLiteral '42_u8' @44:20
+├─ ExprStmt @45:1
+│  └─ expr
+│     └─ Call @45:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @45:1
+│        └─ args
+│           └─ Binary '==' @45:18
+│              ├─ lhs
+│              │  └─ Member 'a64' @45:13
+│              │     └─ object
+│              │        └─ Identifier 'obj' @45:10
+│              └─ rhs
+│                 └─ IntLiteral '10000000000_i64' @45:21
+├─ ExprStmt @46:1
+│  └─ expr
+│     └─ Call @46:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @46:1
+│        └─ args
+│           └─ Binary '==' @46:20
+│              ├─ lhs
+│              │  └─ Member 'b_str' @46:13
+│              │     └─ object
+│              │        └─ Identifier 'obj' @46:10
+│              └─ rhs
+│                 └─ StringLiteral 'voltage' @46:23
+├─ ExprStmt @47:1
+│  └─ expr
+│     └─ Call @47:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @47:1
+│        └─ args
+│           └─ Binary '==' @47:18
+│              ├─ lhs
+│              │  └─ Member 'b32' @47:13
+│              │     └─ object
+│              │        └─ Identifier 'obj' @47:10
+│              └─ rhs
+│                 └─ IntLiteral '999' @47:21
 ├─ ExprStmt @48:1
 │  └─ expr
-│     └─ Assign '=' @48:5
-│        ├─ target
-│        │  └─ Identifier 'obj' @48:1
-│        └─ value
-│           └─ Call @48:17
-│              ├─ callee
-│              │  └─ Member 'new' @48:13
-│              │     └─ object
-│              │        └─ Identifier 'LevelC' @48:7
-│              └─ args
-│                 ├─ IntLiteral '42_u8' @48:19
-│                 ├─ IntLiteral '10000000000_i64' @48:26
-│                 ├─ StringLiteral 'voltage' @48:43
-│                 ├─ IntLiteral '999' @48:54
-│                 └─ FloatLiteral '3.1415' @48:59
-├─ ExprStmt @51:1
-│  └─ expr
-│     └─ Call @51:8
+│     └─ Call @48:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @51:1
+│        │  └─ Identifier 'assert!' @48:1
 │        └─ args
-│           └─ Binary '==' @51:17
+│           └─ Binary '==' @48:22
 │              ├─ lhs
-│              │  └─ Member 'a8' @51:13
+│              │  └─ Member 'c_float' @48:13
 │              │     └─ object
-│              │        └─ Identifier 'obj' @51:10
+│              │        └─ Identifier 'obj' @48:10
 │              └─ rhs
-│                 └─ IntLiteral '42_u8' @51:20
-├─ ExprStmt @52:1
+│                 └─ FloatLiteral '3.1415' @48:25
+├─ ExprStmt @49:1
 │  └─ expr
-│     └─ Call @52:8
+│     └─ Call @49:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @52:1
+│        │  └─ Identifier 'assert!' @49:1
 │        └─ args
-│           └─ Binary '==' @52:18
-│              ├─ lhs
-│              │  └─ Member 'a64' @52:13
-│              │     └─ object
-│              │        └─ Identifier 'obj' @52:10
-│              └─ rhs
-│                 └─ IntLiteral '10000000000_i64' @52:21
-├─ ExprStmt @53:1
-│  └─ expr
-│     └─ Call @53:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @53:1
-│        └─ args
-│           └─ Binary '==' @53:20
-│              ├─ lhs
-│              │  └─ Member 'b_str' @53:13
-│              │     └─ object
-│              │        └─ Identifier 'obj' @53:10
-│              └─ rhs
-│                 └─ StringLiteral 'voltage' @53:23
-├─ ExprStmt @54:1
-│  └─ expr
-│     └─ Call @54:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @54:1
-│        └─ args
-│           └─ Binary '==' @54:18
-│              ├─ lhs
-│              │  └─ Member 'b32' @54:13
-│              │     └─ object
-│              │        └─ Identifier 'obj' @54:10
-│              └─ rhs
-│                 └─ IntLiteral '999' @54:21
-├─ ExprStmt @55:1
-│  └─ expr
-│     └─ Call @55:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @55:1
-│        └─ args
-│           └─ Binary '==' @55:22
-│              ├─ lhs
-│              │  └─ Member 'c_float' @55:13
-│              │     └─ object
-│              │        └─ Identifier 'obj' @55:10
-│              └─ rhs
-│                 └─ FloatLiteral '3.1415' @55:25
-├─ ExprStmt @56:1
-│  └─ expr
-│     └─ Call @56:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @56:1
-│        └─ args
-│           └─ Member 'check_all' @56:13
+│           └─ Member 'check_all' @49:13
 │              └─ object
-│                 └─ Identifier 'obj' @56:10
-├─ LocalDecl 'base_ref' @59:1
+│                 └─ Identifier 'obj' @49:10
+├─ LocalDecl 'base_ref' @52:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'LevelA' @59:12
+│  │  └─ TypeRef 'LevelA' @52:12
 │  └─ init
-│     └─ Identifier 'obj' @59:21
-└─ ExprStmt @60:1
+│     └─ Identifier 'obj' @52:21
+└─ ExprStmt @53:1
    └─ expr
-      └─ Call @60:8
+      └─ Call @53:8
          ├─ callee
-         │  └─ Identifier 'assert!' @60:1
+         │  └─ Identifier 'assert!' @53:1
          └─ args
-            └─ Member 'check_base' @60:18
+            └─ Member 'check_base' @53:18
                └─ object
-                  └─ Identifier 'base_ref' @60:10
+                  └─ Identifier 'base_ref' @53:10
 --- exit 0 ---
