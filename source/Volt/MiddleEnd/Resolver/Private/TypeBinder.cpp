@@ -1632,6 +1632,94 @@ namespace MiddleEnd::Resolver
         }
     }
 
+    namespace
+    {
+
+        void ComputeVTableSlotsFor ( TypeStore &Store, NominalId Id, std::vector<bool> &Done )
+        {
+            if ( not Id.IsValid() or Id.Value >= Done.size() or Done[Id.Value] )
+            {
+                return;
+            }
+            Done[Id.Value] = true;
+
+            const auto &Type = Store.Type( Id );
+            if ( Type.Super.IsValid() )
+            {
+                const auto SuperSig = Store.Sig( Type.Super );
+                if ( SuperSig.Base.IsValid() )
+                {
+                    ComputeVTableSlotsFor( Store, SuperSig.Base, Done );
+                }
+            }
+            for ( const auto Inc : Type.Includes )
+            {
+                const auto IncSig = Store.Sig( Inc );
+                if ( IncSig.Base.IsValid() )
+                {
+                    ComputeVTableSlotsFor( Store, IncSig.Base, Done );
+                }
+            }
+
+            ::Volt::Core::SmallVec<Symbol, 8> Slots;
+            auto AddSlot = [&] ( Symbol Sym )
+            {
+                if ( std::ranges::none_of( Slots, [&] ( Symbol Existing ) { return Existing == Sym; } ) )
+                {
+                    Slots.PushBack( Sym );
+                }
+            };
+
+            for ( const auto Inc : Type.Includes )
+            {
+                const auto IncSig = Store.Sig( Inc );
+                if ( IncSig.Base.IsValid() )
+                {
+                    for ( const auto Sym : Store.VTableSlotsOf( IncSig.Base ) )
+                    {
+                        AddSlot( Sym );
+                    }
+                }
+            }
+
+            if ( Type.Super.IsValid() )
+            {
+                const auto SuperSig = Store.Sig( Type.Super );
+                if ( SuperSig.Base.IsValid() )
+                {
+                    for ( const auto Sym : Store.VTableSlotsOf( SuperSig.Base ) )
+                    {
+                        AddSlot( Sym );
+                    }
+                }
+            }
+
+            for ( const auto &Member : Type.Members )
+            {
+                if ( Member.Kind == EMemberKind::Method and not Member.bSelf )
+                {
+                    const std::string_view NameText = Store.Text( Member.Name );
+                    if ( NameText != "initialize" and NameText != FinalizeName )
+                    {
+                        AddSlot( Member.Name );
+                    }
+                }
+            }
+
+            Store.SetVTableSlots( Id, std::move( Slots ) );
+        }
+
+    } // namespace
+
+    void ComputeAllVTableSlots ( TypeStore &Store )
+    {
+        std::vector<bool> Done( Store.TypeCount(), false );
+        for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+        {
+            ComputeVTableSlotsFor( Store, NominalId{ static_cast<NominalId::ValueType>( Index ) }, Done );
+        }
+    }
+
 } // namespace MiddleEnd::Resolver
 
 } // namespace Volt

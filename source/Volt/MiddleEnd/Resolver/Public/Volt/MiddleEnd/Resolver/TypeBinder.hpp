@@ -45,6 +45,8 @@ namespace MiddleEnd::Resolver
     VOLT_MIDDLEEND_RESOLVER_EXPORT void SynthesizeFinalizeStubs ( std::span<Frontend::AstContext *const> Units,
                                                                   TypeStore &Store );
 
+    VOLT_MIDDLEEND_RESOLVER_EXPORT void ComputeAllVTableSlots ( TypeStore &Store );
+
 } // namespace MiddleEnd::Resolver
 
 } // namespace Volt
