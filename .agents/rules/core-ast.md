@@ -269,8 +269,6 @@ refusal is not debt, a silence would be:
 - **`Array#to_string` / `Hash#to_string`** — need bounds on generic parameters
   (`T : Stringable`), which Volt does not have. `"#{ arr }"` reports
   `type Array has no member 'to_string'`.
-- **`Symbol#to_string`** — the *name* behind a symbol needs a runtime interner
-  table, which is backend work.
 - **Un-annotated lambda parameters with no expected type** — needs a
   bidirectional solver; a separate project, with no impact on the backends.
   `samples/Tests/Functional/{Lambda,PointFree}.vl` are the fixtures (the old

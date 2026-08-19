@@ -122,7 +122,7 @@ construction see and `rules/core-ast.md`'s
 | `IntLiteral` `FloatLiteral` `CharLiteral` `BoolLiteral` | `ConstantInt` / `ConstantFP` of the claimed type's primitive layout |
 | `NilLiteral` | null of the claiming type's layout (`ptr` today) |
 | `StringLiteral` | private constant bytes + the claiming type's aggregate `{ data, size }` |
-| `SymbolLiteral` | interned u32 constant (interner table is a runtime concern, refused loudly for `to_string` — core-ast.md) |
+| `SymbolLiteral` | `ConstantInt` of the claiming type's layout, minted from the *name* by `BackendCore/SymbolRegistry.hpp` — never `Core::Symbol`, which is interned per file. `Functions/SymbolNameEmitter.cpp` emits the reverse table as `_V_symbol_name`, which is what `Symbol#to_string` calls |
 | `Identifier` | local slot load (`alloca` + mem2reg) or free-function reference via `CalleeEntry` |
 | `InstanceVar` | GEP on `self` at `LayoutEngine::FieldOffset` |
 | `SelfExpr` / `SuperExpr` | first parameter of the method function / same, statically dispatched to the parent's method |
