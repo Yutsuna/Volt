@@ -534,6 +534,8 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             MiddleEnd::Resolver::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
         }
 
+        MiddleEnd::Resolver::ComputeAllVTableSlots( Types );
+
         Diagnostics.Merge( std::move( SeamBag ) );
 
         if ( bStdlibCacheHit )

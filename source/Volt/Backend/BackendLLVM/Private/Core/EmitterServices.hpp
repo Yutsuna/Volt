@@ -46,6 +46,7 @@ namespace Backend
         class MonoDriver;
         class SignatureBuilder;
         class TypeMapper;
+        class VTableRegistry;
 
         // Key for top-level module global variables: combines the unit's
         // ordinal and the BindingSite so that AST node indices from different
@@ -129,6 +130,7 @@ namespace Backend
             ClosureLowering *Closures     = nullptr;
             MonoDriver *Mono              = nullptr;
             LinkerDriver *Linker          = nullptr;
+            VTableRegistry *VTables       = nullptr;
 
             // --- Build-wide caches that belong to no single service ----------
             ModuleGlobalMap *ModuleGlobals   = nullptr;

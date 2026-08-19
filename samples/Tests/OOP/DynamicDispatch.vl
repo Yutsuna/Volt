@@ -1,0 +1,103 @@
+def assert!( condition : Bool ) -> Void
+  if not condition
+    raise "Assertion failed #{__FILE__}:#{__LINE__}"
+  end
+end
+
+mixin Shape
+  abstract def area -> Int32
+end
+
+class Rectangle
+  include Shape
+
+  getter width : Int32
+  getter height : Int32
+
+  def initialize( @width : Int32, @height : Int32 )
+  end
+
+  def area -> Int32
+    @width * @height
+  end
+end
+
+class Circle
+  include Shape
+
+  getter radius : Int32
+
+  def initialize( @radius : Int32 )
+  end
+
+  def area -> Int32
+    3 * @radius * @radius
+  end
+end
+
+def total_area( s1 : Dynamic<Shape>, s2 : Dynamic<Shape> ) -> Int32
+  s1.area + s2.area
+end
+
+r = Rectangle.new( 4, 5 )
+c = Circle.new( 3 )
+
+dyn_r : Dynamic<Shape> = r
+dyn_c : Dynamic<Shape> = c
+
+assert!( dyn_r.area == 20 )
+assert!( dyn_c.area == 27 )
+assert!( total_area( r, c ) == 47 )
+
+mixin Greeter
+  abstract def greet( times : Int32 ) -> Int32
+  abstract def farewell -> Int32
+end
+
+class Human
+  include Greeter
+  getter id : Int32
+  def initialize( @id : Int32 )
+  end
+  def greet( times : Int32 ) -> Int32
+    @id * times
+  end
+  def farewell -> Int32
+    @id + 100
+  end
+end
+
+class Robot
+  include Greeter
+  getter code : Int32
+  def initialize( @code : Int32 )
+  end
+  def greet( times : Int32 ) -> Int32
+    @code * times * 2
+  end
+  def farewell -> Int32
+    @code + 200
+  end
+end
+
+h = Human.new( 5 )
+b = Robot.new( 3 )
+
+dyn_h : Dynamic<Greeter> = h
+dyn_b : Dynamic<Greeter> = b
+
+assert!( dyn_h.greet( 2 ) == 10 )
+assert!( dyn_h.farewell == 105 )
+assert!( dyn_b.greet( 2 ) == 12 )
+assert!( dyn_b.farewell == 203 )
+
+greeters = Array<Dynamic<Greeter>>.new
+greeters.push( h )
+greeters.push( b )
+
+greet_sum = 0
+greeters.each do |g|
+  greet_sum += g.greet( 3 )
+end
+assert!( greet_sum == 33 )
+

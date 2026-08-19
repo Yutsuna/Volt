@@ -4,6 +4,8 @@
 
 #include "Core/DiagnosticSink.hpp"
 #include "Core/EmitterServices.hpp"
+#include "Core/ModuleContext.hpp"
+#include "Functions/VTableRegistry.hpp"
 #include "Lower/BodyEmitter.hpp"
 #include "Lower/Exception/ExceptionLowering.hpp"
 #include "Lower/FunctionFrame.hpp"
@@ -87,6 +89,44 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitExpr ( Frontend::ExprId Id )
             [this, Id] ( const Frontend::SizeOf & ) -> llvm::Value * { return EmitSizeOf( *this, Id ); },
             [this, Id] ( const Frontend::TypeTrait &Node ) -> llvm::Value * { return EmitTypeTrait( *this, Id, Node ); },
             [this] ( const Frontend::FuncAddr &Node ) -> llvm::Value * { return EmitFuncAddr( *this, Node ); },
+            [this, Id] ( const Frontend::DynamicUpcast &Node ) -> llvm::Value *
+            {
+                llvm::Value *DataPtr = EmitExpr( Node.Value );
+                if ( DataPtr == nullptr or Frame().Values == nullptr )
+                {
+                    return nullptr;
+                }
+                const auto &Values    = *Frame().Values;
+                const auto ValType    = Values.ExprType( Node.Value );
+                const auto UpcastType = Values.ExprType( Id );
+                if ( not Values.Has( ValType ) or not Values.Has( UpcastType ) )
+                {
+                    return nullptr;
+                }
+                const auto ConcreteNominal = Values.Get( ValType ).Base;
+                const auto &UpcastVal      = Values.Get( UpcastType );
+                if ( UpcastVal.Args.IsEmpty() or not UpcastVal.Args[0].IsValid() )
+                {
+                    return nullptr;
+                }
+                const auto TraitNominal = Values.Get( UpcastVal.Args[0] ).Base;
+
+                llvm::LLVMContext &Context = Ctx().Context();
+                llvm::IRBuilder<> &Builder = Ctx().Builder();
+                llvm::Type *PtrTy          = llvm::PointerType::get( Context, 0 );
+                llvm::StructType *PairType = llvm::StructType::get( Context, { PtrTy, PtrTy }, false );
+
+                llvm::GlobalVariable *VTable = Services().VTables->GetOrCreateVTable( ConcreteNominal, TraitNominal );
+                llvm::AllocaInst *Temp       = MakeTemp( PairType, "dyn.upcast" );
+                if ( Temp == nullptr )
+                {
+                    return nullptr;
+                }
+
+                static_cast<void>( Builder.CreateStore( DataPtr, Builder.CreateStructGEP( PairType, Temp, 0, "dyn.data" ) ) );
+                static_cast<void>( Builder.CreateStore( VTable, Builder.CreateStructGEP( PairType, Temp, 1, "dyn.vtable" ) ) );
+                return Temp;
+            },
 
             // `( Value : Type )` — TypeChecker already constrained `Value` to
             // `Type` and stamped both with the same SemaTypeId (core-ast.md), so

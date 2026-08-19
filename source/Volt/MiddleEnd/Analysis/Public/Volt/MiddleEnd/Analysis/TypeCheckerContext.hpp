@@ -54,7 +54,9 @@ struct Resolution
     bool bConstructs = false;
     // `f( x )` on a callable. See CalleeEntry::bIndirect — decided here, in
     // the one place that knows the receiver claims the FuncType node kind.
-    bool bIndirect = false;
+    bool bIndirect           = false;
+    std::uint32_t VTableSlot = 0;
+    bool bDynamicDispatch    = false;
 };
 
 struct VOLT_MIDDLEEND_ANALYSIS_EXPORT TypeCheckerContext

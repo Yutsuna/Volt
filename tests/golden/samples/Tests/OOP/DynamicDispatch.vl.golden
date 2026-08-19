@@ -1,0 +1,470 @@
+Program 'samples/Tests/OOP/DynamicDispatch.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
+├─ Mixin 'Shape' @7:1
+│  └─ body
+│     └─ Method 'area' abstract @8:12
+│        └─ return_type
+│           └─ TypeRef 'Int32' @8:24
+├─ Class 'Rectangle' @11:1
+│  └─ body
+│     ├─ Include @12:3
+│     │  └─ target
+│     │     └─ TypeRef 'Shape' @12:11
+│     ├─ Field 'width' getter @14:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @14:18
+│     ├─ Field 'height' getter @15:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @15:19
+│     ├─ Method 'initialize' @17:3
+│     │  └─ params
+│     │     ├─ Param 'width' instance_var @17:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @17:28
+│     │     └─ Param 'height' instance_var @17:35
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @17:45
+│     └─ Method 'area' @20:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @20:15
+│        └─ body
+│           └─ ExprStmt @21:5
+│              └─ expr
+│                 └─ Binary '*' @21:12
+│                    ├─ lhs
+│                    │  └─ InstanceVar '@width' @21:5
+│                    └─ rhs
+│                       └─ InstanceVar '@height' @21:14
+├─ Class 'Circle' @25:1
+│  └─ body
+│     ├─ Include @26:3
+│     │  └─ target
+│     │     └─ TypeRef 'Shape' @26:11
+│     ├─ Field 'radius' getter @28:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @28:19
+│     ├─ Method 'initialize' @30:3
+│     │  └─ params
+│     │     └─ Param 'radius' instance_var @30:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @30:29
+│     └─ Method 'area' @33:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @33:15
+│        └─ body
+│           └─ ExprStmt @34:5
+│              └─ expr
+│                 └─ Binary '*' @34:17
+│                    ├─ lhs
+│                    │  └─ Binary '*' @34:7
+│                    │     ├─ lhs
+│                    │     │  └─ IntLiteral '3' @34:5
+│                    │     └─ rhs
+│                    │        └─ InstanceVar '@radius' @34:9
+│                    └─ rhs
+│                       └─ InstanceVar '@radius' @34:19
+├─ Method 'total_area' @38:1
+│  ├─ params
+│  │  ├─ Param 's1' @38:17
+│  │  │  └─ decl_type
+│  │  │     └─ TypeRef 'Dynamic' @38:22
+│  │  │        └─ generics
+│  │  │           └─ TypeRef 'Shape' @38:30
+│  │  └─ Param 's2' @38:38
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Dynamic' @38:43
+│  │           └─ generics
+│  │              └─ TypeRef 'Shape' @38:51
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @38:63
+│  └─ body
+│     └─ ExprStmt @39:3
+│        └─ expr
+│           └─ Binary '+' @39:11
+│              ├─ lhs
+│              │  └─ Member 'area' @39:5
+│              │     └─ object
+│              │        └─ Identifier 's1' @39:3
+│              └─ rhs
+│                 └─ Member 'area' @39:15
+│                    └─ object
+│                       └─ Identifier 's2' @39:13
+├─ Mixin 'Greeter' @52:1
+│  └─ body
+│     ├─ Method 'greet' abstract @53:12
+│     │  ├─ params
+│     │  │  └─ Param 'times' @53:23
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Int32' @53:31
+│     │  └─ return_type
+│     │     └─ TypeRef 'Int32' @53:42
+│     └─ Method 'farewell' abstract @54:12
+│        └─ return_type
+│           └─ TypeRef 'Int32' @54:28
+├─ Class 'Human' @57:1
+│  └─ body
+│     ├─ Include @58:3
+│     │  └─ target
+│     │     └─ TypeRef 'Greeter' @58:11
+│     ├─ Field 'id' getter @59:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @59:15
+│     ├─ Method 'initialize' @60:3
+│     │  └─ params
+│     │     └─ Param 'id' instance_var @60:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @60:25
+│     ├─ Method 'greet' @62:3
+│     │  ├─ params
+│     │  │  └─ Param 'times' @62:14
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Int32' @62:22
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @62:33
+│     │  └─ body
+│     │     └─ ExprStmt @63:5
+│     │        └─ expr
+│     │           └─ Binary '*' @63:9
+│     │              ├─ lhs
+│     │              │  └─ InstanceVar '@id' @63:5
+│     │              └─ rhs
+│     │                 └─ Identifier 'times' @63:11
+│     └─ Method 'farewell' @65:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @65:19
+│        └─ body
+│           └─ ExprStmt @66:5
+│              └─ expr
+│                 └─ Binary '+' @66:9
+│                    ├─ lhs
+│                    │  └─ InstanceVar '@id' @66:5
+│                    └─ rhs
+│                       └─ IntLiteral '100' @66:11
+├─ Class 'Robot' @70:1
+│  └─ body
+│     ├─ Include @71:3
+│     │  └─ target
+│     │     └─ TypeRef 'Greeter' @71:11
+│     ├─ Field 'code' getter @72:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @72:17
+│     ├─ Method 'initialize' @73:3
+│     │  └─ params
+│     │     └─ Param 'code' instance_var @73:19
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @73:27
+│     ├─ Method 'greet' @75:3
+│     │  ├─ params
+│     │  │  └─ Param 'times' @75:14
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Int32' @75:22
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @75:33
+│     │  └─ body
+│     │     └─ ExprStmt @76:5
+│     │        └─ expr
+│     │           └─ Binary '*' @76:19
+│     │              ├─ lhs
+│     │              │  └─ Binary '*' @76:11
+│     │              │     ├─ lhs
+│     │              │     │  └─ InstanceVar '@code' @76:5
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'times' @76:13
+│     │              └─ rhs
+│     │                 └─ IntLiteral '2' @76:21
+│     └─ Method 'farewell' @78:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @78:19
+│        └─ body
+│           └─ ExprStmt @79:5
+│              └─ expr
+│                 └─ Binary '+' @79:11
+│                    ├─ lhs
+│                    │  └─ InstanceVar '@code' @79:5
+│                    └─ rhs
+│                       └─ IntLiteral '200' @79:13
+├─ ExprStmt @42:1
+│  └─ expr
+│     └─ Assign '=' @42:3
+│        ├─ target
+│        │  └─ Identifier 'r' @42:1
+│        └─ value
+│           └─ Call @42:18
+│              ├─ callee
+│              │  └─ Member 'new' @42:14
+│              │     └─ object
+│              │        └─ Identifier 'Rectangle' @42:5
+│              └─ args
+│                 ├─ IntLiteral '4' @42:20
+│                 └─ IntLiteral '5' @42:23
+├─ ExprStmt @43:1
+│  └─ expr
+│     └─ Assign '=' @43:3
+│        ├─ target
+│        │  └─ Identifier 'c' @43:1
+│        └─ value
+│           └─ Call @43:15
+│              ├─ callee
+│              │  └─ Member 'new' @43:11
+│              │     └─ object
+│              │        └─ Identifier 'Circle' @43:5
+│              └─ args
+│                 └─ IntLiteral '3' @43:17
+├─ LocalDecl 'dyn_r' @45:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Dynamic' @45:9
+│  │     └─ generics
+│  │        └─ TypeRef 'Shape' @45:17
+│  └─ init
+│     └─ Identifier 'r' @45:26
+├─ LocalDecl 'dyn_c' @46:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Dynamic' @46:9
+│  │     └─ generics
+│  │        └─ TypeRef 'Shape' @46:17
+│  └─ init
+│     └─ Identifier 'c' @46:26
+├─ ExprStmt @48:1
+│  └─ expr
+│     └─ Call @48:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @48:1
+│        └─ args
+│           └─ Binary '==' @48:21
+│              ├─ lhs
+│              │  └─ Member 'area' @48:15
+│              │     └─ object
+│              │        └─ Identifier 'dyn_r' @48:10
+│              └─ rhs
+│                 └─ IntLiteral '20' @48:24
+├─ ExprStmt @49:1
+│  └─ expr
+│     └─ Call @49:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @49:1
+│        └─ args
+│           └─ Binary '==' @49:21
+│              ├─ lhs
+│              │  └─ Member 'area' @49:15
+│              │     └─ object
+│              │        └─ Identifier 'dyn_c' @49:10
+│              └─ rhs
+│                 └─ IntLiteral '27' @49:24
+├─ ExprStmt @50:1
+│  └─ expr
+│     └─ Call @50:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @50:1
+│        └─ args
+│           └─ Binary '==' @50:29
+│              ├─ lhs
+│              │  └─ Call @50:20
+│              │     ├─ callee
+│              │     │  └─ Identifier 'total_area' @50:10
+│              │     └─ args
+│              │        ├─ Identifier 'r' @50:22
+│              │        └─ Identifier 'c' @50:25
+│              └─ rhs
+│                 └─ IntLiteral '47' @50:32
+├─ ExprStmt @83:1
+│  └─ expr
+│     └─ Assign '=' @83:3
+│        ├─ target
+│        │  └─ Identifier 'h' @83:1
+│        └─ value
+│           └─ Call @83:14
+│              ├─ callee
+│              │  └─ Member 'new' @83:10
+│              │     └─ object
+│              │        └─ Identifier 'Human' @83:5
+│              └─ args
+│                 └─ IntLiteral '5' @83:16
+├─ ExprStmt @84:1
+│  └─ expr
+│     └─ Assign '=' @84:3
+│        ├─ target
+│        │  └─ Identifier 'b' @84:1
+│        └─ value
+│           └─ Call @84:14
+│              ├─ callee
+│              │  └─ Member 'new' @84:10
+│              │     └─ object
+│              │        └─ Identifier 'Robot' @84:5
+│              └─ args
+│                 └─ IntLiteral '3' @84:16
+├─ LocalDecl 'dyn_h' @86:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Dynamic' @86:9
+│  │     └─ generics
+│  │        └─ TypeRef 'Greeter' @86:17
+│  └─ init
+│     └─ Identifier 'h' @86:28
+├─ LocalDecl 'dyn_b' @87:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Dynamic' @87:9
+│  │     └─ generics
+│  │        └─ TypeRef 'Greeter' @87:17
+│  └─ init
+│     └─ Identifier 'b' @87:28
+├─ ExprStmt @89:1
+│  └─ expr
+│     └─ Call @89:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @89:1
+│        └─ args
+│           └─ Binary '==' @89:27
+│              ├─ lhs
+│              │  └─ Call @89:21
+│              │     ├─ callee
+│              │     │  └─ Member 'greet' @89:15
+│              │     │     └─ object
+│              │     │        └─ Identifier 'dyn_h' @89:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @89:23
+│              └─ rhs
+│                 └─ IntLiteral '10' @89:30
+├─ ExprStmt @90:1
+│  └─ expr
+│     └─ Call @90:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @90:1
+│        └─ args
+│           └─ Binary '==' @90:25
+│              ├─ lhs
+│              │  └─ Member 'farewell' @90:15
+│              │     └─ object
+│              │        └─ Identifier 'dyn_h' @90:10
+│              └─ rhs
+│                 └─ IntLiteral '105' @90:28
+├─ ExprStmt @91:1
+│  └─ expr
+│     └─ Call @91:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @91:1
+│        └─ args
+│           └─ Binary '==' @91:27
+│              ├─ lhs
+│              │  └─ Call @91:21
+│              │     ├─ callee
+│              │     │  └─ Member 'greet' @91:15
+│              │     │     └─ object
+│              │     │        └─ Identifier 'dyn_b' @91:10
+│              │     └─ args
+│              │        └─ IntLiteral '2' @91:23
+│              └─ rhs
+│                 └─ IntLiteral '12' @91:30
+├─ ExprStmt @92:1
+│  └─ expr
+│     └─ Call @92:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @92:1
+│        └─ args
+│           └─ Binary '==' @92:25
+│              ├─ lhs
+│              │  └─ Member 'farewell' @92:15
+│              │     └─ object
+│              │        └─ Identifier 'dyn_b' @92:10
+│              └─ rhs
+│                 └─ IntLiteral '203' @92:28
+├─ ExprStmt @94:1
+│  └─ expr
+│     └─ Assign '=' @94:10
+│        ├─ target
+│        │  └─ Identifier 'greeters' @94:1
+│        └─ value
+│           └─ Member 'new' @94:35
+│              └─ object
+│                 └─ GenericInst @94:17
+│                    ├─ base
+│                    │  └─ Identifier 'Array' @94:12
+│                    └─ args
+│                       └─ TypeRef 'Dynamic' @94:18
+│                          └─ generics
+│                             └─ TypeRef 'Greeter' @94:26
+├─ ExprStmt @95:1
+│  └─ expr
+│     └─ Call @95:14
+│        ├─ callee
+│        │  └─ Member 'push' @95:9
+│        │     └─ object
+│        │        └─ Identifier 'greeters' @95:1
+│        └─ args
+│           └─ Identifier 'h' @95:16
+├─ ExprStmt @96:1
+│  └─ expr
+│     └─ Call @96:14
+│        ├─ callee
+│        │  └─ Member 'push' @96:9
+│        │     └─ object
+│        │        └─ Identifier 'greeters' @96:1
+│        └─ args
+│           └─ Identifier 'b' @96:16
+├─ ExprStmt @98:1
+│  └─ expr
+│     └─ Assign '=' @98:11
+│        ├─ target
+│        │  └─ Identifier 'greet_sum' @98:1
+│        └─ value
+│           └─ IntLiteral '0' @98:13
+├─ ExprStmt @99:1
+│  └─ expr
+│     └─ Call @99:15
+│        ├─ callee
+│        │  └─ Member 'each' @99:9
+│        │     └─ object
+│        │        └─ Identifier 'greeters' @99:1
+│        └─ block_arg
+│           └─ Block @99:15
+│              ├─ params
+│              │  └─ Param 'g'
+│              └─ body
+│                 └─ ExprStmt @100:3
+│                    └─ expr
+│                       └─ Assign '+=' @100:13
+│                          ├─ target
+│                          │  └─ Identifier 'greet_sum' @100:3
+│                          └─ value
+│                             └─ Call @100:23
+│                                ├─ callee
+│                                │  └─ Member 'greet' @100:17
+│                                │     └─ object
+│                                │        └─ Identifier 'g' @100:16
+│                                └─ args
+│                                   └─ IntLiteral '3' @100:25
+└─ ExprStmt @102:1
+   └─ expr
+      └─ Call @102:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @102:1
+         └─ args
+            └─ Binary '==' @102:20
+               ├─ lhs
+               │  └─ Identifier 'greet_sum' @102:10
+               └─ rhs
+                  └─ IntLiteral '33' @102:23
+--- exit 0 ---

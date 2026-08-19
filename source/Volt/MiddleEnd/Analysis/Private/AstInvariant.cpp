@@ -155,6 +155,7 @@ private:
                     },
                     [&] ( const Frontend::Unary &Node ) { Mark( Node.Operand ); },
                     [&] ( const Frontend::Deref &Node ) { Mark( Node.Operand ); },
+                    [&] ( const Frontend::DynamicUpcast &Node ) { Mark( Node.Value ); },
                     [&] ( const Frontend::Ternary &Node )
                     {
                         Mark( Node.Cond );

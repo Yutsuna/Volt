@@ -351,6 +351,17 @@ void Volt::MiddleEnd::Analysis::WalkStmt ( TypeCheckerContext &Context, Frontend
                 {
                     Context.UninitializedLocals.erase( Node.Name );
                 }
+
+                if ( Node.Init.IsValid() and Written.IsValid() )
+                {
+                    const Frontend::ExprId Coerced = CoerceToDynamic( Context, Node.Init, Written );
+                    if ( Coerced.Value != Node.Init.Value )
+                    {
+                        Frontend::LocalDecl Updated = Node;
+                        Updated.Init                = Coerced;
+                        Context.Ctx.Ast.Stmt( Id )  = Frontend::StmtNode{ std::move( Updated ) };
+                    }
+                }
             },
             [&] ( const Frontend::Return &Node )
             {
@@ -364,6 +375,17 @@ void Volt::MiddleEnd::Analysis::WalkStmt ( TypeCheckerContext &Context, Frontend
                     Context.ConstrainExprType( Node.Value, Context.CurrentMethodReturnType );
                 }
                 CheckAssignable( Context, Node.Value, Context.CurrentMethodReturnType, EAssignSite::Return );
+
+                if ( Node.Value.IsValid() and Context.CurrentMethodReturnType.IsValid() )
+                {
+                    const Frontend::ExprId Coerced = CoerceToDynamic( Context, Node.Value, Context.CurrentMethodReturnType );
+                    if ( Coerced.Value != Node.Value.Value )
+                    {
+                        Frontend::Return Updated   = Node;
+                        Updated.Value              = Coerced;
+                        Context.Ctx.Ast.Stmt( Id ) = Frontend::StmtNode{ std::move( Updated ) };
+                    }
+                }
             },
             [&] ( const auto &Node ) { WalkChildren( Context, Node ); },
         },

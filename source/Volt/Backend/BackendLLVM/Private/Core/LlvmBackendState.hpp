@@ -26,6 +26,7 @@
 #include "Core/ModuleContext.hpp"
 #include "Functions/FunctionRegistry.hpp"
 #include "Functions/SignatureBuilder.hpp"
+#include "Functions/VTableRegistry.hpp"
 #include "Lower/Closure/ClosureLowering.hpp"
 #include "Lower/Exception/ExceptionLowering.hpp"
 #include "Lower/Mono/MonoDriver.hpp"
@@ -77,6 +78,7 @@ struct Volt::Backend::Llvm::LlvmBackend::State
     std::unique_ptr<MonoDriver> Mono;
     std::unique_ptr<TargetPipeline> Pipeline;
     std::unique_ptr<LinkerDriver> Linker;
+    std::unique_ptr<VTableRegistry> VTables;
 
     // --- Convenience ---------------------------------------------------------
 
