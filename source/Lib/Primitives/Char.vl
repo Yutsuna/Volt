@@ -18,12 +18,95 @@ struct Char
     self
   end
 
-  # One byte, not a decimal rendering: `"#{ 'A' }"` must read "A", not "65".
-  # Char therefore cannot `include Stringable` — its digits are not its value.
+  def digit? -> Bool
+    self >= '0' and self <= '9'
+  end
+
+  def lowercase? -> Bool
+    self >= 'a' and self <= 'z'
+  end
+
+  def uppercase? -> Bool
+    self >= 'A' and self <= 'Z'
+  end
+
+  def alpha? -> Bool
+    self.lowercase? or self.uppercase?
+  end
+
+  def alphanumeric? -> Bool
+    self.alpha? or self.digit?
+  end
+
+  def hex_digit? -> Bool
+    self.digit? or ( self >= 'a' and self <= 'f' ) or ( self >= 'A' and self <= 'F' )
+  end
+
+  def octal_digit? -> Bool
+    self >= '0' and self <= '7'
+  end
+
+  def whitespace? -> Bool
+    self == ' ' or ( self >= '\t' and self <= '\r' )
+  end
+
+  def ascii? -> Bool
+    self <= '\x7F'
+  end
+
+  def printable? -> Bool
+    self >= ' ' and self <= '~'
+  end
+
+  def control? -> Bool
+    self < ' ' or self == '\x7F'
+  end
+
+  def downcase -> Char
+    if self.uppercase? then self + 32_u8 else self end
+  end
+
+  def upcase -> Char
+    if self.lowercase? then self - 32_u8 else self end
+  end
+
+  def to_digit -> Int32
+    if digit? then ( self - '0' ) else -1 end
+  end
+
+  def to_digit( radix : Int32 ) -> Int32
+    val = -1
+    if digit?
+      val = self - '0'
+    elsif lowercase?
+      val = self - 'a' + 10
+    elsif uppercase?
+      val = self - 'A' + 10
+    end
+    ( val >= 0 and val < radix ) ? val : -1
+  end
+
   def to_string -> String
     buf = Pointer<Char>.malloc( 2_u64 )
     *( buf ) = self
     *( buf + 1_u64 ) = '\0'
     String.new( buf, 1_u64, true )
   end
+
+  def inspect -> String
+    case self
+    when '\0' then "'\\0'"
+    when '\a' then "'\\a'"
+    when '\b' then "'\\b'"
+    when '\t' then "'\\t'"
+    when '\n' then "'\\n'"
+    when '\v' then "'\\v'"
+    when '\f' then "'\\f'"
+    when '\r' then "'\\r'"
+    when '\\' then "'\\\\'"
+    when '\'' then "'\\''"
+    else           to_string
+    end
+  end
+
 end
