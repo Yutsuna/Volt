@@ -206,7 +206,8 @@ namespace
 // `Frontend::Method` and `MiddleEnd::TypeSystem::Member` each gained an
 // `EVisibility`, and all three are reflected aggregate dumps, so the same
 // byte-shift reasoning as 05 and 07 applies to every cached AST *and* store.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453130ULL; // "VOLTFE10"
+// Bumped to 11 when we added the IO/ library
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453131ULL; // "VOLTFE11"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
