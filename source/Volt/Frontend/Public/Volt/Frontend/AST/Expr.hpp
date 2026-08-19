@@ -247,6 +247,16 @@ namespace Frontend
         DeclId Target;
     };
 
+    // Dynamic upcast of a concrete instance expression to a fat pointer.
+    // Synthesized by MiddleEnd coercion; backend emits pure machine `{ data, vtable }`.
+    struct DynamicUpcast
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+        TypeId TargetTrait;
+    };
+
     // `( Value : Type )` — an explicit type ascription, not a cast: it
     // constrains an otherwise-unconstrained value (chiefly an int/float
     // literal) to `Type` instead of the default the literal would infer.

@@ -56,6 +56,7 @@ VOLT_EXPR( GenericInst )
 VOLT_EXPR( SizeOf )
 VOLT_EXPR( TypeTrait )
 VOLT_EXPR( FuncAddr )
+VOLT_EXPR( DynamicUpcast )
 VOLT_EXPR( TypedExpr )
 VOLT_EXPR( Deref )
 VOLT_EXPR_SUGAR( Interp )
@@ -105,6 +106,7 @@ VOLT_TYPE( NilableType )
 VOLT_TYPE( FixedArrayType )
 VOLT_TYPE( FuncType )
 VOLT_TYPE( TypeOfType )
+VOLT_TYPE( DynamicType )
 
 #undef VOLT_EXPR
 #undef VOLT_EXPR_SUGAR

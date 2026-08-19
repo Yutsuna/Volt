@@ -82,6 +82,14 @@ namespace Frontend
         ExprId Value;
     };
 
+    // `Dynamic<T>` / `&Trait` — dynamic polymorphic fat pointer.
+    struct DynamicType
+    {
+
+        Core::SourceRange Loc;
+        TypeId Trait;
+    };
+
     enum class TypeKind
     {
 
