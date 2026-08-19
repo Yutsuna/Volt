@@ -68,6 +68,7 @@ namespace MiddleEnd::Resolver
             // be empty (no generics at all) or hold invalid TypeIds
             // (unbounded parameters).
             const Frontend::TypeList *GenericBounds = nullptr;
+            bool bMixin                             = false;
         };
 
         // Walk the declarations of one scope, invoking Visit for every
@@ -127,7 +128,8 @@ namespace MiddleEnd::Resolver
                                              .Generics      = &Type.Generics,
                                              .Body          = &Type.Body,
                                              .Super         = Frontend::TypeId{},
-                                             .GenericBounds = &Type.GenericBounds },
+                                             .GenericBounds = &Type.GenericBounds,
+                                             .bMixin        = true },
                                    Pending );
                         },
                         [&] ( const Frontend::Enum &Type )
@@ -772,6 +774,7 @@ namespace MiddleEnd::Resolver
                 // attribute that may stay unresolved (generics, aggregates
                 // whose fields are not bound yet). Type checking never needs it.
                 const NominalId Id = Store.DeclareType( Decl.Name, Unit, Decl.Id );
+                Store.SetIsMixin( Id, Decl.bMixin );
                 ++Bound;
 
                 ::Volt::Core::SmallVec<Symbol, 2> Params;
