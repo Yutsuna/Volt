@@ -1,0 +1,264 @@
+Program 'samples/Tests/OOP/PolymorphicDispatch.vl'
+├─ Method 'assert!' @1:1
+│  ├─ params
+│  │  └─ Param 'condition' @1:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Bool' @1:26
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:36
+│  └─ body
+│     └─ ExprStmt @2:3
+│        └─ expr
+│           └─ If @2:3
+│              ├─ cond
+│              │  └─ Unary 'not' @2:6
+│              │     └─ operand
+│              │        └─ Identifier 'condition' @2:10
+│              └─ then
+│                 └─ ExprStmt @3:5
+│                    └─ expr
+│                       └─ RaiseExpr @3:5
+│                          └─ exception
+│                             └─ Interp @3:11
+│                                └─ parts
+│                                   ├─ StringLiteral 'Assertion failed ' @3:11
+│                                   ├─ Identifier '__FILE__' @3:31
+│                                   ├─ StringLiteral ':' @3:11
+│                                   └─ Identifier '__LINE__' @3:43
+├─ Class 'Shape' @8:1
+│  └─ body
+│     ├─ Field 'name' getter @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @10:17
+│     ├─ Method 'initialize' @12:3
+│     │  └─ params
+│     │     └─ Param 'name' instance_var @12:19
+│     ├─ Method 'area' abstract @15:12
+│     │  └─ return_type
+│     │     └─ TypeRef 'Int32' @15:24
+│     └─ Method 'describe' @17:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @17:19
+│        └─ body
+│           └─ ExprStmt @18:5
+│              └─ expr
+│                 └─ Interp @18:5
+│                    └─ parts
+│                       ├─ InstanceVar '@name' @18:8
+│                       ├─ StringLiteral ' with area ' @18:5
+│                       └─ Identifier 'area' @18:27
+├─ Class 'Rectangle' @24:1
+│  ├─ super
+│  │  └─ TypeRef 'Shape' @24:19
+│  └─ body
+│     ├─ Field 'width' getter @26:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @26:18
+│     ├─ Field 'height' getter @27:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @27:19
+│     ├─ Method 'initialize' @29:3
+│     │  ├─ params
+│     │  │  ├─ Param 'name' @29:19
+│     │  │  │  └─ decl_type
+│     │  │  │     └─ TypeRef 'String' @29:26
+│     │  │  ├─ Param 'width' instance_var @29:34
+│     │  │  └─ Param 'height' instance_var @29:42
+│     │  └─ body
+│     │     ├─ ExprStmt @30:5
+│     │     │  └─ expr
+│     │     │     └─ SuperExpr @30:5
+│     │     └─ ExprStmt @30:11
+│     │        └─ expr
+│     │           └─ Identifier 'name' @30:11
+│     └─ Method 'area' @33:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @33:15
+│        └─ body
+│           └─ ExprStmt @34:5
+│              └─ expr
+│                 └─ Binary '*' @34:12
+│                    ├─ lhs
+│                    │  └─ InstanceVar '@width' @34:5
+│                    └─ rhs
+│                       └─ InstanceVar '@height' @34:14
+├─ Class 'Square' @40:1
+│  ├─ super
+│  │  └─ TypeRef 'Rectangle' @40:16
+│  └─ body
+│     └─ Method 'initialize' @42:3
+│        ├─ params
+│        │  └─ Param 'size' @42:19
+│        │     └─ decl_type
+│        │        └─ TypeRef 'Int32' @42:26
+│        └─ body
+│           └─ ExprStmt @43:3
+│              └─ expr
+│                 └─ Call @43:3
+│                    ├─ callee
+│                    │  └─ SuperExpr @43:3
+│                    └─ args
+│                       ├─ StringLiteral 'Square' @43:10
+│                       ├─ Identifier 'size' @43:20
+│                       └─ Identifier 'size' @43:26
+├─ Class 'Circle' @49:1
+│  ├─ super
+│  │  └─ TypeRef 'Shape' @49:16
+│  └─ body
+│     ├─ Field 'radius' getter @51:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @51:19
+│     ├─ Method 'initialize' @53:3
+│     │  ├─ params
+│     │  │  └─ Param 'radius' instance_var @53:19
+│     │  └─ body
+│     │     └─ ExprStmt @54:5
+│     │        └─ expr
+│     │           └─ Call @54:5
+│     │              ├─ callee
+│     │              │  └─ SuperExpr @54:5
+│     │              └─ args
+│     │                 └─ StringLiteral 'Circle' @54:12
+│     └─ Method 'area' @57:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @57:15
+│        └─ body
+│           └─ ExprStmt @58:5
+│              └─ expr
+│                 └─ Binary '*' @58:17
+│                    ├─ lhs
+│                    │  └─ Binary '*' @58:7
+│                    │     ├─ lhs
+│                    │     │  └─ IntLiteral '3' @58:5
+│                    │     └─ rhs
+│                    │        └─ InstanceVar '@radius' @58:9
+│                    └─ rhs
+│                       └─ InstanceVar '@radius' @58:19
+├─ Method 'total_area' @64:1
+│  ├─ params
+│  │  └─ Param 'shapes' @64:17
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Array' @64:26
+│  │           └─ generics
+│  │              └─ TypeRef 'Shape' @64:32
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @64:44
+│  └─ body
+│     ├─ ExprStmt @65:3
+│     │  └─ expr
+│     │     └─ Assign '=' @65:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @65:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @65:9
+│     ├─ ExprStmt @66:3
+│     │  └─ expr
+│     │     └─ Call @66:15
+│     │        ├─ callee
+│     │        │  └─ Member 'each' @66:9
+│     │        │     └─ object
+│     │        │        └─ Identifier 'shapes' @66:3
+│     │        └─ block_arg
+│     │           └─ Block @66:15
+│     │              ├─ params
+│     │              │  └─ Param 'shape'
+│     │              └─ body
+│     │                 └─ ExprStmt @66:25
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @66:29
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'sum' @66:25
+│     │                          └─ value
+│     │                             └─ Member 'area' @66:37
+│     │                                └─ object
+│     │                                   └─ Identifier 'shape' @66:32
+│     └─ ExprStmt @67:3
+│        └─ expr
+│           └─ Identifier 'sum' @67:3
+├─ LocalDecl 'r' @71:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Shape' @71:5
+│  └─ init
+│     └─ Call @71:26
+│        ├─ callee
+│        │  └─ Member 'new' @71:22
+│        │     └─ object
+│        │        └─ Identifier 'Rectangle' @71:13
+│        └─ args
+│           ├─ StringLiteral 'Rect' @71:28
+│           ├─ IntLiteral '4' @71:36
+│           └─ IntLiteral '5' @71:39
+├─ LocalDecl 's' @72:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Shape' @72:5
+│  └─ init
+│     └─ Member 'new' @72:19
+│        └─ object
+│           └─ Identifier 'Square' @72:13
+├─ ExprStmt @72:24
+│  └─ expr
+│     └─ IntLiteral '3' @72:24
+├─ LocalDecl 'c' @73:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'Shape' @73:5
+│  └─ init
+│     └─ Member 'new' @73:19
+│        └─ object
+│           └─ Identifier 'Circle' @73:13
+├─ ExprStmt @73:24
+│  └─ expr
+│     └─ IntLiteral '2' @73:24
+├─ ExprStmt @75:1
+│  └─ expr
+│     └─ Assign '=' @75:8
+│        ├─ target
+│        │  └─ Identifier 'shapes' @75:1
+│        └─ value
+│           └─ Call @75:26
+│              ├─ callee
+│              │  └─ Member 'new' @75:22
+│              │     └─ object
+│              │        └─ GenericInst @75:15
+│              │           ├─ base
+│              │           │  └─ Identifier 'Array' @75:10
+│              │           └─ args
+│              │              └─ TypeRef 'Shape' @75:16
+│              └─ args
+│                 └─ IntLiteral '3' @75:28
+├─ ExprStmt @76:1
+│  └─ expr
+│     └─ Binary '<<' @76:8
+│        ├─ lhs
+│        │  └─ Identifier 'shapes' @76:1
+│        └─ rhs
+│           └─ Identifier 'r' @76:11
+├─ ExprStmt @77:1
+│  └─ expr
+│     └─ Binary '<<' @77:8
+│        ├─ lhs
+│        │  └─ Identifier 'shapes' @77:1
+│        └─ rhs
+│           └─ Identifier 's' @77:11
+├─ ExprStmt @78:1
+│  └─ expr
+│     └─ Binary '<<' @78:8
+│        ├─ lhs
+│        │  └─ Identifier 'shapes' @78:1
+│        └─ rhs
+│           └─ Identifier 'c' @78:11
+└─ ExprStmt @81:1
+   └─ expr
+      └─ Call @81:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @81:1
+         └─ args
+            └─ Binary '==' @81:31
+               ├─ lhs
+               │  └─ Call @81:20
+               │     ├─ callee
+               │     │  └─ Identifier 'total_area' @81:10
+               │     └─ args
+               │        └─ Identifier 'shapes' @81:22
+               └─ rhs
+                  └─ IntLiteral '41' @81:34
+--- exit 0 ---

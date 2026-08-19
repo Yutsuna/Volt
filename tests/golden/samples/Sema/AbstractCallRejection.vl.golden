@@ -1,0 +1,49 @@
+Program 'samples/Sema/AbstractCallRejection.vl'
+├─ Class 'AbstractShape' @5:1
+│  └─ body
+│     ├─ Method 'area' abstract @6:12
+│     │  └─ return_type
+│     │     └─ TypeRef 'Int32' @6:24
+│     └─ Method 'initialize' @5:1
+├─ Class 'Rect' @9:1
+│  ├─ super
+│  │  └─ TypeRef 'AbstractShape' @9:14
+│  └─ body
+│     ├─ Field 'width' getter @10:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @10:18
+│     ├─ Field 'height' getter @11:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @11:19
+│     ├─ Method 'initialize' @13:3
+│     │  └─ params
+│     │     ├─ Param 'width' instance_var @13:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @13:28
+│     │     └─ Param 'height' instance_var @13:35
+│     │        └─ decl_type
+│     │           └─ TypeRef 'Int32' @13:45
+│     └─ Method 'area' @16:3
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @16:15
+│        └─ body
+│           └─ ExprStmt @17:5
+│              └─ expr
+│                 └─ Binary '*' @17:12
+│                    ├─ lhs
+│                    │  └─ InstanceVar '@width' @17:5
+│                    └─ rhs
+│                       └─ InstanceVar '@height' @17:14
+└─ LocalDecl 's' @21:1
+   ├─ decl_type
+   │  └─ TypeRef 'AbstractShape' @21:5
+   └─ init
+      └─ Call @21:29
+         ├─ callee
+         │  └─ Member 'new' @21:25
+         │     └─ object
+         │        └─ Identifier 'Rect' @21:21
+         └─ args
+            ├─ IntLiteral '4' @21:31
+            └─ IntLiteral '5' @21:34
+--- exit 0 ---
