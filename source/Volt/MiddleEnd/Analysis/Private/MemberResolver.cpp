@@ -97,11 +97,28 @@ Volt::MiddleEnd::Analysis::LookupOn ( TypeCheckerContext &Context, SemaTypeId Re
     // a constructor yields the thing constructed. Its declared result is the
     // Void every initializer writes, so the receiver has to be substituted
     // back in, or `Array<U>.new` would be untyped.
-    bool bConstructor = false;
+    bool bConstructor         = false;
+    bool bDynamicCall         = false;
+    std::uint32_t DynamicSlot = 0;
     if ( Found.Decl == nullptr and CleanName == ConstructorCall )
     {
         Found        = LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, Receiver, Receiver, ConstructorName );
         bConstructor = Found.Decl != nullptr;
+    }
+    if ( Found.Decl == nullptr and Context.Ctx.Values.Has( Receiver ) and IsDynamicType( Context, Receiver ) )
+    {
+        const auto &ReceiverVal = Context.Ctx.Values.Get( Receiver );
+        if ( not ReceiverVal.Args.IsEmpty() and ReceiverVal.Args[0].IsValid() )
+        {
+            const SemaTypeId TraitType = ReceiverVal.Args[0];
+            Found                      = LookupMemberOn( Context.Ctx.Types, Context.Ctx.Values, TraitType, TraitType, CleanName );
+            if ( Found.Decl != nullptr )
+            {
+                const NominalId TraitNominal = Context.Ctx.Values.Get( TraitType ).Base;
+                DynamicSlot                  = Context.Ctx.Types.VTableSlotOf( TraitNominal, Found.Decl->Name );
+                bDynamicCall                 = true;
+            }
+        }
     }
     if ( Found.Decl == nullptr )
     {
@@ -150,13 +167,16 @@ Volt::MiddleEnd::Analysis::LookupOn ( TypeCheckerContext &Context, SemaTypeId Re
     // After those come the method's own generics, as holes: `def map<U>`
     // adds one slot nothing here can fill. Inference at the call site
     // closes them and recomputes, which is what Reinstantiate is for.
-    Resolution Out{ .Decl       = Found.Decl,
-                    .Owner      = DeclaringBase,
-                    .Result     = SemaTypeId{},
-                    .Params     = {},
-                    .BlockParam = SemaTypeId{},
-                    .Bindings   = Context.Ctx.Values.Get( Found.Owner ).Args,
-                    .Receiver   = Receiver };
+    Resolution Out{ .Decl             = Found.Decl,
+                    .Owner            = DeclaringBase,
+                    .Result           = SemaTypeId{},
+                    .Params           = {},
+                    .BlockParam       = SemaTypeId{},
+                    .Bindings         = Context.Ctx.Values.Get( Found.Owner ).Args,
+                    .Receiver         = Receiver,
+                    .bIndirect        = bDynamicCall,
+                    .VTableSlot       = DynamicSlot,
+                    .bDynamicDispatch = bDynamicCall };
     for ( std::uint32_t Slot = 0; Slot < Found.Decl->OwnGenerics; ++Slot )
     {
         Out.Bindings.PushBack( SemaTypeId{} );
@@ -221,8 +241,9 @@ void Volt::MiddleEnd::Analysis::Reinstantiate ( TypeCheckerContext &Context, Res
 {
     // An indirect callee's signature came from its receiver's type arguments,
     // not from `Decl->Params`; recomputing it from the declaration would
-    // overwrite it with the empty contract.
-    if ( Found.Decl == nullptr or Found.bIndirect )
+    // overwrite it with the empty contract. For dynamic dispatch, however,
+    // the signature comes from the trait's method declaration.
+    if ( Found.Decl == nullptr or ( Found.bIndirect and not Found.bDynamicDispatch ) )
     {
         return;
     }
@@ -391,6 +412,50 @@ bool Volt::MiddleEnd::Analysis::IsCallableType ( const TypeCheckerContext &Conte
     return Callable.has_value() and *Callable == Base;
 }
 
+bool Volt::MiddleEnd::Analysis::IsDynamicType ( const TypeCheckerContext &Context, SemaTypeId Receiver )
+{
+    if ( not Context.Ctx.Values.Has( Receiver ) )
+    {
+        return false;
+    }
+    const NominalId Base = Context.Ctx.Values.Get( Receiver ).Base;
+    if ( not Base.IsValid() )
+    {
+        return false;
+    }
+    const auto DynamicKind = Context.Ctx.Types.LookupNodeKind( "DynamicType" );
+    return DynamicKind.has_value() and *DynamicKind == Base;
+}
+
+Volt::Frontend::ExprId
+Volt::MiddleEnd::Analysis::CoerceToDynamic ( TypeCheckerContext &Context, Volt::Frontend::ExprId ValExpr, SemaTypeId TargetType )
+{
+    if ( not ValExpr.IsValid() or not Context.Ctx.Values.Has( TargetType ) )
+    {
+        return ValExpr;
+    }
+    const SemaTypeId ValType = Context.Ctx.Values.ExprType( ValExpr );
+    if ( not Context.Ctx.Values.Has( ValType ) )
+    {
+        return ValExpr;
+    }
+    const auto &TargetVal = Context.Ctx.Values.Get( TargetType );
+    const auto &ValVal    = Context.Ctx.Values.Get( ValType );
+    if ( Context.Ctx.Types.IsNodeKind( "DynamicType", TargetVal.Base ) and
+         not Context.Ctx.Types.IsNodeKind( "DynamicType", ValVal.Base ) and not TargetVal.Args.IsEmpty() and
+         TargetVal.Args[0].IsValid() )
+    {
+        const Frontend::ExprId UpcastId = Context.Ctx.Ast.Add( Frontend::ExprNode{ Frontend::DynamicUpcast{
+            .Loc         = Frontend::LocOf( Context.Ctx.Ast.Expr( ValExpr ) ),
+            .Value       = ValExpr,
+            .TargetTrait = Frontend::TypeId{},
+        } } );
+        Context.Ctx.Values.SetExprType( UpcastId, TargetType );
+        return UpcastId;
+    }
+    return ValExpr;
+}
+
 Volt::MiddleEnd::Analysis::Resolution Volt::MiddleEnd::Analysis::LookupCallOn ( TypeCheckerContext &Context, SemaTypeId Receiver )
 {
     if ( not IsCallableType( Context, Receiver ) )
@@ -453,7 +518,7 @@ bool Volt::MiddleEnd::Analysis::IsBuiltinOpOn ( const TypeCheckerContext &Contex
 }
 
 bool Volt::MiddleEnd::Analysis::IsMachineSuppliedOn ( const TypeCheckerContext &Context,
-                                                     Volt::MiddleEnd::TypeSystem::NominalId Base )
+                                                      Volt::MiddleEnd::TypeSystem::NominalId Base )
 {
     using namespace Volt::MiddleEnd::TypeSystem;
 

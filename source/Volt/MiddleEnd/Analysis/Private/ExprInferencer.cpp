@@ -625,9 +625,9 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                             if ( not IsMachineSuppliedOn( Context, ReceiverBase ) )
                             {
                                 Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
-                                                "cannot call abstract method '" + std::string{ Context.Ctx.Ast.Text( Expr.Name ) } +
-                                                    "' on type " + Context.NameOfValue( Context.SelfValue ) +
-                                                    " without dynamic dispatch" );
+                                                "cannot call abstract method '" +
+                                                    std::string{ Context.Ctx.Ast.Text( Expr.Name ) } + "' on type " +
+                                                    Context.NameOfValue( Context.SelfValue ) + " without dynamic dispatch" );
                                 return SemaTypeId{};
                             }
                         }
@@ -876,6 +876,14 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                     Context.ConstrainExprType( Expr.Value, TargetType );
                 }
                 CheckAssignable( Context, Expr.Value, TargetType, EAssignSite::Assign );
+
+                const Frontend::ExprId Coerced = CoerceToDynamic( Context, Expr.Value, TargetType );
+                if ( Coerced.Value != Expr.Value.Value )
+                {
+                    Frontend::Assign Updated   = Expr;
+                    Updated.Value              = Coerced;
+                    Context.Ctx.Ast.Expr( Id ) = Frontend::ExprNode{ std::move( Updated ) };
+                }
                 return Value;
             },
             [&] ( const Frontend::Ternary &Expr ) -> SemaTypeId
@@ -1213,6 +1221,27 @@ Volt::MiddleEnd::Analysis::CallType ( TypeCheckerContext &Context, Frontend::Exp
     }
     UnifyArgs( Context, Found, Expr.Args );
     CheckCallArgs( Context, Expr.Loc, Found, Expr.Args );
+
+    bool bModifiedArgs         = false;
+    Frontend::ExprList NewArgs = Expr.Args;
+    for ( std::size_t Index = 0; Index < NewArgs.Size(); ++Index )
+    {
+        if ( Index < Found.Params.Size() and Found.Params[Index].IsValid() )
+        {
+            const Frontend::ExprId Coerced = CoerceToDynamic( Context, NewArgs[Index], Found.Params[Index] );
+            if ( Coerced.Value != NewArgs[Index].Value )
+            {
+                NewArgs[Index] = Coerced;
+                bModifiedArgs  = true;
+            }
+        }
+    }
+    if ( bModifiedArgs )
+    {
+        Frontend::Call Updated     = Expr;
+        Updated.Args               = std::move( NewArgs );
+        Context.Ctx.Ast.Expr( Id ) = Frontend::ExprNode{ std::move( Updated ) };
+    }
 
     if ( Expr.BlockArg.IsValid() )
     {

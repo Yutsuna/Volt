@@ -44,6 +44,12 @@ constexpr std::string_view ConstructorName = "initialize";
 // vocabulary, unlike a Volt type name (rules/zero-hardcode.md).
 [[nodiscard]] bool IsCallableType ( const TypeCheckerContext &Context, SemaTypeId Receiver );
 
+// Whether `Receiver` is a dynamic polymorphic fat pointer type (`@[Literal( DynamicType )]`).
+[[nodiscard]] bool IsDynamicType ( const TypeCheckerContext &Context, SemaTypeId Receiver );
+
+// If TargetType is Dynamic<Trait> and ValExpr is a concrete type, wraps ValExpr in DynamicUpcast.
+[[nodiscard]] Frontend::ExprId CoerceToDynamic ( TypeCheckerContext &Context, Frontend::ExprId ValExpr, SemaTypeId TargetType );
+
 // Does the nominal collapse to a Primitive or Pointer layout, so that abstract
 // operations on it are supplied by the machine/backend rather than by a body?
 [[nodiscard]] bool IsMachineSuppliedOn ( const TypeCheckerContext &Context, TypeSystem::NominalId Base );
