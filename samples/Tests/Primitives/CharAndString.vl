@@ -1,0 +1,34 @@
+# Test Char and String Pointer<Char> semantics
+
+s = "Hello World"
+
+# String#data is Pointer<Char>
+ptr : Pointer<Char> = s.data
+assert!( ptr != nil )
+
+# String#[] returns Char
+c : Char = s[0]
+assert!( c == 'H' )
+assert!( s[1] == 'e' )
+assert!( s[4] == 'o' )
+assert!( s[5] == ' ' )
+
+# Char arithmetic and comparison
+assert!( 'A' < 'B' )
+assert!( 'A' + 1 == 'B' )
+assert!( 'b' - 1 == 'a' )
+
+# String mutation via []=
+dup_s = s.dup
+dup_s[0] = 'h'
+assert!( dup_s[0] == 'h' )
+assert!( dup_s == "hello World" )
+
+# String transformations
+assert!( "HELLO WORLD".downcase == "hello world" )
+assert!( "hello world".upcase == "HELLO WORLD" )
+assert!( "  hello  ".trim == "hello" )
+
+# from_c_string
+cs = String.from_c_string( "c_string".data )
+assert!( cs == "c_string" )

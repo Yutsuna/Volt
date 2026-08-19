@@ -11,9 +11,9 @@ Program 'samples/Circuits/DiamandDeps/Source/Auth/Service.vl'
             │     └─ TypeRef 'Core::AppConfig' @8:14
             ├─ Method 'initialize' @10:5
             │  └─ params
-            │     └─ Param 'config' instance_var @10:20
+            │     └─ Param 'config' instance_var @10:21
             │        └─ decl_type
-            │           └─ TypeRef 'Core::AppConfig' @10:30
+            │           └─ TypeRef 'Core::AppConfig' @10:31
             └─ Method 'verify_token' @13:5
                ├─ return_type
                │  └─ TypeRef 'Bool' @13:25
