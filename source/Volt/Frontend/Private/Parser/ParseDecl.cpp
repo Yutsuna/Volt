@@ -43,6 +43,8 @@ namespace
     case Volt::Frontend::TokenKind::LBracket:
     case Volt::Frontend::TokenKind::Spaceship:
     case Volt::Frontend::TokenKind::Bang:
+    case Volt::Frontend::TokenKind::PlusPlus:
+    case Volt::Frontend::TokenKind::MinusMinus:
     case Volt::Frontend::TokenKind::Plus:
     case Volt::Frontend::TokenKind::Minus:
     case Volt::Frontend::TokenKind::Star:
