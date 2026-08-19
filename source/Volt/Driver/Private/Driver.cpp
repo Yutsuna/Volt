@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <fstream>
 #include <limits>
+#include <span>
 #include <sstream>
 #include <string_view>
 #include <thread>
@@ -341,43 +342,36 @@ void Volt::Driver::Driver::ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     Frontend::SynthesizeDefaultConstructors( Unit.Ast );
 }
 
-namespace
-{
-
-// The per-unit pass context, identical for both halves of the sema run — the
-// split is in *which* passes execute, never in what they are handed.
-[[nodiscard]] Volt::MiddleEnd::Core::PassContext MakeSemaContext ( Volt::Driver::CompileUnit &Unit,
-                                                                   Volt::Core::DiagEngine::Bag &Bag,
-                                                                   Volt::MiddleEnd::TypeSystem::TypeStore &Types,
-                                                                   Volt::MiddleEnd::Resolver::InterfaceRegistry &Registry,
-                                                                   Volt::Core::SourceManager &Sources )
-{
-    // Passes (JsxLowering included) run per file over local state; the
-    // published Registry is the only shared input, and it is read-only.
-    return Volt::MiddleEnd::Core::PassContext{ .Ast     = Unit.Ast,
-                                               .Types   = Types,
-                                               .Values  = Unit.Types,
-                                               .Scopes  = Unit.Scopes,
-                                               .Diags   = Bag,
-                                               .Stats   = Unit.Stats,
-                                               .Globals = &Registry,
-                                               .Sources = &Sources,
-                                               .Callees = &Unit.Callees,
-                                               .Synth   = Unit.Synth };
-}
-
-} // namespace
-
 void Volt::Driver::Driver::RunSemaLoweringOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
-    MiddleEnd::Core::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
+    MiddleEnd::Core::PassContext Context{ .Ast      = Unit.Ast,
+                                          .Types    = Types,
+                                          .Values   = Unit.Types,
+                                          .Scopes   = Unit.Scopes,
+                                          .Diags    = Bag,
+                                          .Stats    = Unit.Stats,
+                                          .Globals  = &Registry,
+                                          .Sources  = &Sources,
+                                          .Callees  = &Unit.Callees,
+                                          .Synth    = Unit.Synth,
+                                          .AllUnits = DriverUnitAsts };
     static_cast<void>(
         MiddleEnd::Core::RunPasses( Context, std::numeric_limits<int>::min(), MiddleEnd::Core::LoweredSeamOrder() ) );
 }
 
 void Volt::Driver::Driver::RunSemaTypedOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag )
 {
-    MiddleEnd::Core::PassContext Context = MakeSemaContext( Unit, Bag, Types, Registry, Sources );
+    MiddleEnd::Core::PassContext Context{ .Ast      = Unit.Ast,
+                                          .Types    = Types,
+                                          .Values   = Unit.Types,
+                                          .Scopes   = Unit.Scopes,
+                                          .Diags    = Bag,
+                                          .Stats    = Unit.Stats,
+                                          .Globals  = &Registry,
+                                          .Sources  = &Sources,
+                                          .Callees  = &Unit.Callees,
+                                          .Synth    = Unit.Synth,
+                                          .AllUnits = DriverUnitAsts };
     static_cast<void>(
         MiddleEnd::Core::RunPasses( Context, MiddleEnd::Core::LoweredSeamOrder(), std::numeric_limits<int>::max() ) );
 }
@@ -469,6 +463,13 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
     // cache-loaded stdlib prefix, which is already parsed).
     ForEachUnitParallel( &Driver::ParseOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
 
+    DriverUnitAsts.clear();
+    DriverUnitAsts.reserve( Units.size() );
+    for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+    {
+        DriverUnitAsts.push_back( &Units[Index].Ast );
+    }
+
     if ( Pipeline == EPipeline::Full )
     {
         // serial: publish each unit's top-level interface. This is
@@ -536,6 +537,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         }
 
         MiddleEnd::Resolver::ComputeAllVTableSlots( Types );
+        Types.ComputeSubtypeIntervals();
 
         Diagnostics.Merge( std::move( SeamBag ) );
 
