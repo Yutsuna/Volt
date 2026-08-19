@@ -80,7 +80,7 @@ using SynthesizedFunction = Volt::MiddleEnd::IR::SynthesizedFunction;
 // once the name is recognised as one. Null for anything that declares none.
 [[nodiscard]] const Frontend::SymbolList *GenericsOf ( const Frontend::AstContext &Ast, Frontend::DeclId Id )
 {
-    if ( not Id.IsValid() )
+    if ( not Id.IsValid() or Id.Value >= Ast.DeclCount() )
     {
         return nullptr;
     }
@@ -191,7 +191,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     }
 
     Analysis::InstantiationCache &Cache = Analysis::InstantiationCache::Global();
-    if ( std::optional<InstantiatedBody> Cached = Cache.Lookup( Key ); Cached.has_value() )
+    if ( std::optional<InstantiatedBody> Cached = Cache.Lookup( Key ); Cached.has_value() and Cached->bFullInstantiation )
     {
         return std::move( *Cached );
     }
@@ -244,6 +244,11 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
         .Callees = &Result.Callees,
         .Synth   = Result.Synth,
     };
+
+    if ( not Entry.Decl.IsValid() or Entry.Decl.Value >= Ast.DeclCount() )
+    {
+        return Result;
+    }
 
     const auto *MethodNode = std::get_if<Frontend::Method>( &Ast.Decl( Entry.Decl ) );
     if ( MethodNode == nullptr )
@@ -303,6 +308,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     Context.CurrentMethodReturnType = Instantiate( Store, Entry.Result, ReceiverArgs, Self, Result.Values );
 
     const SemaTypeId Trailing = Analysis::TrailingType( Context, MethodNode->Body );
+    Result.ReturnType         = Trailing;
     if ( MethodNode->Body.Size() > 0 )
     {
         if ( const auto *Last = std::get_if<Frontend::ExprStmt>( &Ast.Stmt( MethodNode->Body[MethodNode->Body.Size() - 1] ) );
@@ -398,6 +404,171 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
                                          .MachineConversion = Found.MachineConversion } );
     }
 
+    Result.bFullInstantiation = true;
     Cache.Insert( std::move( Key ), Result );
     return Result;
+}
+
+void Volt::MiddleEnd::TypeSystem::FlattenValueType ( const UnitTypes &Values, SemaTypeId Id, std::vector<std::uint32_t> &Out )
+{
+    if ( not Values.Has( Id ) )
+    {
+        return;
+    }
+
+    const SemaType &Value = Values.Get( Id );
+    Out.push_back( Value.Base.Value );
+    Out.push_back( static_cast<std::uint32_t>( Value.Args.Size() ) );
+    for ( const SemaTypeId Arg : Value.Args )
+    {
+        FlattenValueType( Values, Arg, Out );
+    }
+}
+
+namespace
+{
+
+[[nodiscard]] SemaTypeId InternFrom ( const UnitTypes &Source, SemaTypeId Id, UnitTypes &Dest )
+{
+    if ( not Source.Has( Id ) )
+    {
+        return SemaTypeId{};
+    }
+    const SemaType &Type = Source.Get( Id );
+    ::Volt::Core::SmallVec<SemaTypeId, 2> Args;
+    for ( const SemaTypeId Arg : Type.Args )
+    {
+        Args.PushBack( InternFrom( Source, Arg, Dest ) );
+    }
+    return Dest.Intern( SemaType{ .Base = Type.Base, .Args = std::move( Args ) } );
+}
+
+} // namespace
+
+Volt::MiddleEnd::TypeSystem::SemaTypeId
+Volt::MiddleEnd::TypeSystem::InferMethodReturnType ( const TypeStore &Store,
+                                                     const Frontend::AstContext &Ast,
+                                                     const ScopeTable &Scopes,
+                                                     const Member &Entry,
+                                                     NominalId Owner,
+                                                     std::span<const std::uint32_t> FlatArgs,
+                                                     UnitTypes &DestValues )
+{
+    if ( not Entry.Decl.IsValid() or Entry.Decl.Value >= Ast.DeclCount() )
+    {
+        return SemaTypeId{};
+    }
+
+    const auto *MethodNode = std::get_if<Frontend::Method>( &Ast.Decl( Entry.Decl ) );
+    if ( MethodNode == nullptr )
+    {
+        return SemaTypeId{};
+    }
+
+    DestValues.BindUniverse( Store.Universe() );
+
+    UnitTypes LocalValues;
+    LocalValues.BindUniverse( Store.Universe() );
+
+    ::Volt::Core::SmallVec<SemaTypeId, 2> ReceiverArgs;
+    std::span<const std::uint32_t> Cursor = FlatArgs;
+    while ( not Cursor.empty() )
+    {
+        ReceiverArgs.PushBack( InternNext( LocalValues, Cursor ) );
+    }
+
+    Analysis::MonoKey Key{
+        .Generation = Store.Generation(), .Unit = Entry.Unit, .Template = Entry.Decl, .Owner = Owner, .CanonicalArgs = {} };
+    for ( const SemaTypeId Arg : ReceiverArgs )
+    {
+        Key.CanonicalArgs.PushBack( Arg );
+    }
+
+    Analysis::InstantiationCache &Cache = Analysis::InstantiationCache::Global();
+    if ( std::optional<InstantiatedBody> Cached = Cache.Lookup( Key ); Cached.has_value() )
+    {
+        if ( Cached->ReturnType.IsValid() )
+        {
+            return InternFrom( Cached->Values, Cached->ReturnType, DestValues );
+        }
+    }
+
+    if ( not Cache.Enter( Key ) )
+    {
+        return SemaTypeId{};
+    }
+    const InFlightScope InFlight( Cache, Key );
+
+    Frontend::SymbolList CombinedGenerics;
+    if ( const Frontend::SymbolList *TypeGenerics = GenericsOf( Ast, DeclaringTypeOf( Store, Entry ) ); TypeGenerics != nullptr )
+    {
+        for ( const Frontend::Symbol Name : *TypeGenerics )
+        {
+            CombinedGenerics.PushBack( Name );
+        }
+    }
+    for ( const Frontend::Symbol Name : MethodNode->Generics )
+    {
+        CombinedGenerics.PushBack( Name );
+    }
+
+    ::Volt::Core::DiagEngine::Bag ScratchDiags;
+    PassStats ScratchStats;
+    IR::UnitCallees ScratchCallees;
+    IR::SynthesizedFunctions ScratchSynth;
+
+    PassContext ScratchCtx{
+        .Ast     = const_cast<Frontend::AstContext &>( Ast ),
+        .Types   = Store,
+        .Values  = LocalValues,
+        .Scopes  = const_cast<ScopeTable &>( Scopes ),
+        .Diags   = ScratchDiags,
+        .Stats   = ScratchStats,
+        .Globals = nullptr,
+        .Sources = nullptr,
+        .Callees = &ScratchCallees,
+        .Synth   = ScratchSynth,
+    };
+
+    Analysis::TypeCheckerContext Context{ ScratchCtx, Analysis::MetadataExprs( Ast ) };
+    const std::size_t OwnerGenericCount = Owner.IsValid() ? Store.Type( Owner ).Params.Size() : 0;
+    ::Volt::Core::SmallVec<SemaTypeId, 2> OwnerArgs;
+    for ( std::size_t Index = 0; Index < OwnerGenericCount and Index < ReceiverArgs.Size(); ++Index )
+    {
+        OwnerArgs.PushBack( ReceiverArgs[Index] );
+    }
+    const SemaTypeId Self =
+        Owner.IsValid() ? LocalValues.Intern( SemaType{ .Base = Owner, .Args = std::move( OwnerArgs ) } ) : SemaTypeId{};
+
+    Context.SelfType     = Owner;
+    Context.SelfValue    = Self;
+    Context.Substitution = ReceiverArgs;
+    Context.SelfGenerics = &CombinedGenerics;
+
+    std::size_t Index = 0;
+    for ( const Frontend::ParamId ParamRef : MethodNode->Params )
+    {
+        if ( Index >= Entry.Params.Size() )
+        {
+            break;
+        }
+        const SemaTypeId ParamType = Instantiate( Store, Entry.Params[Index], ReceiverArgs, Self, LocalValues );
+        const BindingSite Site{ ParamRef };
+        Context.LocalTypes[Site]                          = ParamType;
+        Context.LocalSites[Ast.GetParam( ParamRef ).Name] = Site;
+        Context.Locals[Ast.GetParam( ParamRef ).Name]     = ParamType;
+        LocalValues.SetSiteType( Site, ParamType );
+        ++Index;
+    }
+    Context.CurrentMethodReturnType = Instantiate( Store, Entry.Result, ReceiverArgs, Self, LocalValues );
+
+    const SemaTypeId Trailing = Analysis::TrailingType( Context, MethodNode->Body );
+
+    InstantiatedBody MinimalResult;
+    MinimalResult.ReturnType = Trailing;
+    const SemaTypeId Ret     = InternFrom( LocalValues, Trailing, DestValues );
+    MinimalResult.Values     = std::move( LocalValues );
+    Cache.Insert( std::move( Key ), std::move( MinimalResult ) );
+
+    return Ret;
 }
