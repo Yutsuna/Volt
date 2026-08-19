@@ -1,13 +1,3 @@
-@[External( "libc", "memcpy" )]
-external def libc_memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
-
-@[External( "libc", "memcmp" )]
-external def libc_memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
-
-@[External( "libc", "strlen" )]
-external def libc_strlen( str : Pointer<UInt8> ) -> UInt64
-
-
 @[Literal( StringLiteral )]
 struct String
   include Comparable
@@ -29,12 +19,12 @@ struct String
   end
 
   def self.from_c_string( ptr : Pointer<UInt8> ) -> String
-    String.new( ptr, libc_strlen( ptr ) )
+    String.new( ptr, LibC.strlen( ptr ) )
   end
 
   def dup -> String
     buf = Pointer<UInt8>.malloc( @size + 1_u64 )
-    libc_memcpy( buf, @data, @size )
+    LibC.memcpy( buf, @data, @size )
     *( buf + @size ) = 0_u8
     String.owned( buf, @size )
   end
@@ -53,7 +43,7 @@ struct String
 
   def <=>( other : String ) -> Int32
     min_size = @size < other.size ? @size : other.size
-    cmp = libc_memcmp( @data, other.data, min_size )
+    cmp = LibC.memcmp( @data, other.data, min_size )
     return cmp unless cmp == 0
 
     if @size < other.size
@@ -68,8 +58,8 @@ struct String
   def +( other : String ) -> String
     total = @size + other.size
     buf = Pointer<UInt8>.malloc( total + 1_u64 )
-    libc_memcpy( buf, @data, @size )
-    libc_memcpy( buf + @size, other.data, other.size )
+    LibC.memcpy( buf, @data, @size )
+    LibC.memcpy( buf + @size, other.data, other.size )
     *( buf + total ) = 0_u8
     String.owned( buf, total )
   end
@@ -105,7 +95,7 @@ struct String
 
     len = finish - start
     buf = Pointer<UInt8>.malloc( len + 1_u64 )
-    libc_memcpy( buf, @data + start, len )
+    LibC.memcpy( buf, @data + start, len )
     *( buf + len ) = 0_u8
     String.owned( buf, len )
   end

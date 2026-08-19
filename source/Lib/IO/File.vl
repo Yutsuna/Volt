@@ -1,25 +1,3 @@
-@[External( "libc", "open" )]
-external def libc_open( path : Pointer<UInt8>, flags : Int32, mode : Int32 ) -> Int32
-
-@[External( "libc", "close" )]
-external def libc_close( fd : Int32 ) -> Int32
-
-@[External( "libc", "read" )]
-external def libc_read( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-
-@[External( "libc", "write" )]
-external def libc_write( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
-
-@[External( "libc", "lseek" )]
-external def libc_lseek( fd : Int32, offset : Int64, whence : Int32 ) -> Int64
-
-@[External( "libc", "fsync" )]
-external def libc_fsync( fd : Int32 ) -> Int32
-
-@[External( "libc", "unlink" )]
-external def libc_unlink( path : Pointer<UInt8> ) -> Int32
-
-
 class File
   include IO::Reader
   include IO::Writer
@@ -32,7 +10,7 @@ class File
   def initialize( @path : String, mode : String = "r" )
     flags = IO::OpenMode.flags_for( mode )
     perm = 420 # 0644 octal (rw-r--r--)
-    @fd = libc_open( @path.data, flags, perm )
+    @fd = LibC.open( @path.data, flags, perm )
     if @fd < 0
       raise IO::IOError.new( "Cannot open file: " + @path )
     end
@@ -68,7 +46,7 @@ class File
   end
 
   def self.delete( path : String ) -> Bool
-    libc_unlink( path.data ) == 0
+    LibC.unlink( path.data ) == 0
   end
 
   def finalize -> Void
@@ -77,17 +55,17 @@ class File
 
   def read( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
     raise IO::IOError.new( "File is closed" ) if @is_closed
-    libc_read( @fd, buffer, count )
+    LibC.read( @fd, buffer, count )
   end
 
   def write( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
     raise IO::IOError.new( "File is closed" ) if @is_closed
-    libc_write( @fd, buffer, count )
+    LibC.write( @fd, buffer, count )
   end
 
   def seek( offset : Int64, whence : Int32 = 0 ) -> Int64
     raise IO::IOError.new( "File is closed" ) if @is_closed
-    libc_lseek( @fd, offset, whence )
+    LibC.lseek( @fd, offset, whence )
   end
 
   def tell -> Int64
@@ -95,12 +73,12 @@ class File
   end
 
   def flush -> Void
-    libc_fsync( @fd ) unless @is_closed
+    LibC.fsync( @fd ) unless @is_closed
   end
 
   def close -> Void
     return if @is_closed
-    libc_close( @fd )
+    LibC.close( @fd )
     @is_closed = true
   end
 end

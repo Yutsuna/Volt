@@ -41,7 +41,7 @@ module IO
       if available < count
         to_copy = available
       end
-      libc_memcpy( out_buf, @buffer + @pos, to_copy )
+      LibC.memcpy( out_buf, @buffer + @pos, to_copy )
       @pos += to_copy
       to_copy
     end

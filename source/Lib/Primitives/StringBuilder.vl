@@ -1,7 +1,3 @@
-@[External( "libc", "memcpy" )]
-external def libc_memcpy( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
-
-
 struct StringBuilder
   buffer   : Pointer<UInt8>
   size     : UInt64
@@ -24,7 +20,7 @@ struct StringBuilder
       new_cap = new_cap * 2
     end
     new_buf = Pointer<UInt8>.malloc( new_cap )
-    libc_memcpy( new_buf, @buffer, @size )
+    LibC.memcpy( new_buf, @buffer, @size )
     @buffer.free
     @buffer = new_buf
     @capacity = new_cap
@@ -32,7 +28,7 @@ struct StringBuilder
 
   def append( str : String ) -> self
     grow_to( @size + str.size )
-    libc_memcpy( @buffer + @size, str.data, str.size )
+    LibC.memcpy( @buffer + @size, str.data, str.size )
     @size += str.size
     self
   end
@@ -50,7 +46,7 @@ struct StringBuilder
 
   def build -> String
     buf = Pointer<UInt8>.malloc( @size + 1_u64 )
-    libc_memcpy( buf, @buffer, @size )
+    LibC.memcpy( buf, @buffer, @size )
     *( buf + @size ) = 0_u8
     String.owned( buf, @size )
   end
