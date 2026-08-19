@@ -68,8 +68,16 @@ void Volt::Backend::Llvm::BodyEmitter::EmitStore ( llvm::Value *Address,
         // correctly i64 — trusting Shape there would reject a store that is
         // right. Shape is the fallback for an address carrying no type of its
         // own, a GEP into an aggregate, where it is the field's own layout.
+        // An aggregate answer is the *wrong* answer, not a wider one: `Shape`
+        // is a scalar in this branch, so a slot that is a struct or an array
+        // cannot be what this store writes. It happens because
+        // `CreateStructGEP( T, Base, 0 )` constant-folds to `Base` when `Base`
+        // is a Constant, so writing the *first* field of a unit-scope object
+        // hands EmitStore the object's own global — the one field access whose
+        // address arrives with its GEP folded away. There the field's own
+        // layout, which is exactly what `Shape` carries, is the authority.
         llvm::Type *Slot = SlotTypeOf( Address );
-        if ( Slot == nullptr )
+        if ( Slot == nullptr or Slot->isAggregateType() )
         {
             Slot = Types().TypeOfLayout( Shape );
         }
