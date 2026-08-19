@@ -14,6 +14,7 @@ volt_middleend_typesystem_export = configure_file(
 volt_middleend_typesystem_lib = static_library(
     'VoltMiddleEndTypeSystem',
     files(
+        'Private/TypeStore.cpp',
         'Private/TypeStoreSerialize.cpp',
         'Private/SemaTypeSerialize.cpp',
         'Private/TypeUniverse.cpp',

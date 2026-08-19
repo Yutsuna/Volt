@@ -276,6 +276,10 @@ namespace MiddleEnd
             // Slots 1..N correspond to the Symbols stored here.
             // Computed once in TypeBinder.cpp Phase B (zero allocation during lookup).
             ::Volt::Core::SmallVec<Symbol, 8> VTableSlots;
+
+            // Pre-computed Euler tour interval [Left, Right] for O(1) subtype testing.
+            std::uint32_t PreorderLeft  = 0;
+            std::uint32_t PreorderRight = 0;
         };
 
         // Owns every declared type, the layouts they resolve to, and the
@@ -440,6 +444,18 @@ namespace MiddleEnd
                 }
                 return 0;
             }
+
+            [[nodiscard]] std::pair<std::uint32_t, std::uint32_t> SubtypeInterval ( NominalId Id ) const
+            {
+                if ( not Id.IsValid() )
+                {
+                    return { 0, 0 };
+                }
+                const NominalType &Nom = Types.Get( Id );
+                return { Nom.PreorderLeft, Nom.PreorderRight };
+            }
+
+            void ComputeSubtypeIntervals ();
 
             [[nodiscard]] std::optional<NominalId> LookupTypeByDecl ( std::uint32_t Unit, Frontend::DeclId Decl ) const
             {
