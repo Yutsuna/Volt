@@ -1,119 +1,110 @@
 Program 'samples/Tests/OOP/Inheritance.vl'
-├─ Annotation 'External' @1:1
-│  └─ args
-│     ├─ StringLiteral 'libc' @1:13
-│     └─ StringLiteral 'exit' @1:21
-├─ Method 'libc_exit' external @2:10
-│  ├─ params
-│  │  └─ Param 'value' @2:25
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @2:33
-│  └─ return_type
-│     └─ TypeRef 'Void' @2:44
-├─ Class 'Base' @6:1
+├─ Class 'Base' @1:1
 │  └─ body
-│     ├─ Field 'a' getter @7:3
+│     ├─ Field 'a' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @7:14
-│     ├─ Field 'b' getter @8:3
+│     │     └─ TypeRef 'Int32' @2:14
+│     ├─ Field 'b' getter @3:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @8:14
-│     ├─ Method 'initialize' @10:3
+│     │     └─ TypeRef 'Int32' @3:14
+│     ├─ Method 'initialize' @5:3
 │     │  └─ params
-│     │     ├─ Param 'a' instance_var @10:19
+│     │     ├─ Param 'a' instance_var @5:19
 │     │     │  └─ decl_type
-│     │     │     └─ TypeRef 'Int32' @10:24
-│     │     └─ Param 'b' instance_var @10:31
+│     │     │     └─ TypeRef 'Int32' @5:24
+│     │     └─ Param 'b' instance_var @5:31
 │     │        └─ decl_type
-│     │           └─ TypeRef 'Int32' @10:36
-│     └─ Method 'sum' @13:3
+│     │           └─ TypeRef 'Int32' @5:36
+│     └─ Method 'sum' @8:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Int32' @13:14
+│        │  └─ TypeRef 'Int32' @8:14
 │        └─ body
-│           └─ ExprStmt @14:5
+│           └─ ExprStmt @9:5
 │              └─ expr
-│                 └─ Binary '+' @14:8
+│                 └─ Binary '+' @9:8
 │                    ├─ lhs
-│                    │  └─ InstanceVar '@a' @14:5
+│                    │  └─ InstanceVar '@a' @9:5
 │                    └─ rhs
-│                       └─ InstanceVar '@b' @14:10
-├─ Class 'Derived' @19:1
+│                       └─ InstanceVar '@b' @9:10
+├─ Class 'Derived' @14:1
 │  ├─ super
-│  │  └─ TypeRef 'Base' @19:17
+│  │  └─ TypeRef 'Base' @14:17
 │  └─ body
-│     ├─ Field 'c' getter @20:3
+│     ├─ Field 'c' getter @15:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @20:14
-│     ├─ Method 'initialize' @22:3
+│     │     └─ TypeRef 'Int32' @15:14
+│     ├─ Method 'initialize' @17:3
 │     │  ├─ params
-│     │  │  ├─ Param 'a' @22:19
+│     │  │  ├─ Param 'a' @17:19
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'Int32' @22:23
-│     │  │  ├─ Param 'b' @22:30
+│     │  │  │     └─ TypeRef 'Int32' @17:23
+│     │  │  ├─ Param 'b' @17:30
 │     │  │  │  └─ decl_type
-│     │  │  │     └─ TypeRef 'Int32' @22:34
-│     │  │  └─ Param 'c' instance_var @22:41
+│     │  │  │     └─ TypeRef 'Int32' @17:34
+│     │  │  └─ Param 'c' instance_var @17:41
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @22:46
+│     │  │        └─ TypeRef 'Int32' @17:46
 │     │  └─ body
-│     │     └─ ExprStmt @23:5
+│     │     └─ ExprStmt @18:5
 │     │        └─ expr
-│     │           └─ Call @23:5
+│     │           └─ Call @18:5
 │     │              ├─ callee
-│     │              │  └─ SuperExpr @23:5
+│     │              │  └─ SuperExpr @18:5
 │     │              └─ args
-│     │                 ├─ Identifier 'a' @23:12
-│     │                 └─ Identifier 'b' @23:15
-│     └─ Method 'total' @26:3
+│     │                 ├─ Identifier 'a' @18:12
+│     │                 └─ Identifier 'b' @18:15
+│     └─ Method 'total' @21:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Int32' @26:16
+│        │  └─ TypeRef 'Int32' @21:16
 │        └─ body
-│           └─ ExprStmt @27:5
+│           └─ ExprStmt @22:5
 │              └─ expr
-│                 └─ Binary '+' @27:11
+│                 └─ Binary '+' @22:11
 │                    ├─ lhs
-│                    │  └─ Call @27:8
+│                    │  └─ Call @22:8
 │                    │     └─ callee
-│                    │        └─ Identifier 'sum' @27:5
+│                    │        └─ Identifier 'sum' @22:5
 │                    └─ rhs
-│                       └─ InstanceVar '@c' @27:13
-├─ Method 'main' @32:1
+│                       └─ InstanceVar '@c' @22:13
+├─ Method 'main' @27:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @32:13
+│  │  └─ TypeRef 'Int32' @27:13
 │  └─ body
-│     ├─ ExprStmt @33:3
+│     ├─ ExprStmt @28:3
 │     │  └─ expr
-│     │     └─ Assign '=' @33:5
+│     │     └─ Assign '=' @28:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'd' @33:3
+│     │        │  └─ Identifier 'd' @28:3
 │     │        └─ value
-│     │           └─ Call @33:18
+│     │           └─ Call @28:18
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @33:14
+│     │              │  └─ Member 'new' @28:14
 │     │              │     └─ object
-│     │              │        └─ Identifier 'Derived' @33:7
+│     │              │        └─ Identifier 'Derived' @28:7
 │     │              └─ args
-│     │                 ├─ IntLiteral '3' @33:20
-│     │                 ├─ IntLiteral '4' @33:23
-│     │                 └─ IntLiteral '5' @33:26
-│     └─ ExprStmt @34:3
+│     │                 ├─ IntLiteral '3' @28:20
+│     │                 ├─ IntLiteral '4' @28:23
+│     │                 └─ IntLiteral '5' @28:26
+│     └─ ExprStmt @29:3
 │        └─ expr
-│           └─ Binary '+' @34:13
+│           └─ Binary '+' @29:13
 │              ├─ lhs
-│              │  └─ Call @34:10
+│              │  └─ Call @29:10
 │              │     └─ callee
-│              │        └─ Member 'total' @34:4
+│              │        └─ Member 'total' @29:4
 │              │           └─ object
-│              │              └─ Identifier 'd' @34:3
+│              │              └─ Identifier 'd' @29:3
 │              └─ rhs
-│                 └─ Member 'a' @34:16
+│                 └─ Member 'a' @29:16
 │                    └─ object
-│                       └─ Identifier 'd' @34:15
-└─ ExprStmt @38:1
+│                       └─ Identifier 'd' @29:15
+└─ ExprStmt @33:1
    └─ expr
-      └─ Call @38:10
+      └─ Call @33:10
          ├─ callee
-         │  └─ Identifier 'libc_exit' @38:1
+         │  └─ Member 'exit' @33:5
+         │     └─ object
+         │        └─ Identifier 'LibC' @33:1
          └─ args
-            └─ Identifier 'main' @38:12
+            └─ Identifier 'main' @33:12
 --- exit 0 ---

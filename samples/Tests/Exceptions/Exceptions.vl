@@ -1,7 +1,3 @@
-@[External( "libc", "exit" )]
-external def libc_exit( value : Int32 ) -> Void
-
-
 def deep -> Void
   raise ArgumentError.new( "from deep" )
 end
@@ -38,4 +34,4 @@ def main -> Int32
   total
 end
 
-libc_exit( main )
+LibC.exit( main )

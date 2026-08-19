@@ -1,7 +1,3 @@
-@[External( "libc", "exit" )]
-external def libc_exit( value : Int32 ) -> Void
-
-
 struct Vec2
   getter x : Int32
   getter y : Int32
@@ -25,4 +21,4 @@ def main -> Int32
 end
 
 
-libc_exit( main )
+LibC.exit( main )

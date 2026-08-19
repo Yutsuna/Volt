@@ -1,96 +1,87 @@
 Program 'samples/Tests/Pointer/PointerMallocFree.vl'
-├─ Annotation 'External' @1:1
-│  └─ args
-│     ├─ StringLiteral 'libc' @1:13
-│     └─ StringLiteral 'exit' @1:21
-├─ Method 'libc_exit' external @2:10
-│  ├─ params
-│  │  └─ Param 'value' @2:25
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @2:33
-│  └─ return_type
-│     └─ TypeRef 'Void' @2:44
-├─ Method 'main' @5:1
+├─ Method 'main' @1:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @5:13
+│  │  └─ TypeRef 'Int32' @1:13
 │  └─ body
-│     ├─ ExprStmt @6:3
+│     ├─ ExprStmt @2:3
 │     │  └─ expr
-│     │     └─ Assign '=' @6:9
+│     │     └─ Assign '=' @2:9
 │     │        ├─ target
-│     │        │  └─ Identifier 'p_int' @6:3
+│     │        │  └─ Identifier 'p_int' @2:3
 │     │        └─ value
-│     │           └─ Call @6:32
+│     │           └─ Call @2:32
 │     │              ├─ callee
-│     │              │  └─ Member 'malloc' @6:25
+│     │              │  └─ Member 'malloc' @2:25
 │     │              │     └─ object
-│     │              │        └─ GenericInst @6:18
+│     │              │        └─ GenericInst @2:18
 │     │              │           ├─ base
-│     │              │           │  └─ Identifier 'Pointer' @6:11
+│     │              │           │  └─ Identifier 'Pointer' @2:11
 │     │              │           └─ args
-│     │              │              └─ TypeRef 'Int32' @6:19
+│     │              │              └─ TypeRef 'Int32' @2:19
 │     │              └─ args
-│     │                 └─ IntLiteral '1' @6:34
+│     │                 └─ IntLiteral '1' @2:34
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:10
+│     │        ├─ target
+│     │        │  └─ Identifier 'p_byte' @3:3
+│     │        └─ value
+│     │           └─ Call @3:33
+│     │              ├─ callee
+│     │              │  └─ Member 'malloc' @3:26
+│     │              │     └─ object
+│     │              │        └─ GenericInst @3:19
+│     │              │           ├─ base
+│     │              │           │  └─ Identifier 'Pointer' @3:12
+│     │              │           └─ args
+│     │              │              └─ TypeRef 'UInt8' @3:20
+│     │              └─ args
+│     │                 └─ IntLiteral '256' @3:35
+│     ├─ ExprStmt @5:3
+│     │  └─ expr
+│     │     └─ Assign '=' @5:6
+│     │        ├─ target
+│     │        │  └─ Identifier 'ok' @5:3
+│     │        └─ value
+│     │           └─ Binary 'and' @5:23
+│     │              ├─ lhs
+│     │              │  └─ Binary '!=' @5:15
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'p_int' @5:9
+│     │              │     └─ rhs
+│     │              │        └─ NilLiteral @5:18
+│     │              └─ rhs
+│     │                 └─ Binary '!=' @5:35
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'p_byte' @5:28
+│     │                    └─ rhs
+│     │                       └─ NilLiteral @5:38
 │     ├─ ExprStmt @7:3
 │     │  └─ expr
-│     │     └─ Assign '=' @7:10
-│     │        ├─ target
-│     │        │  └─ Identifier 'p_byte' @7:3
-│     │        └─ value
-│     │           └─ Call @7:33
-│     │              ├─ callee
-│     │              │  └─ Member 'malloc' @7:26
-│     │              │     └─ object
-│     │              │        └─ GenericInst @7:19
-│     │              │           ├─ base
-│     │              │           │  └─ Identifier 'Pointer' @7:12
-│     │              │           └─ args
-│     │              │              └─ TypeRef 'UInt8' @7:20
-│     │              └─ args
-│     │                 └─ IntLiteral '256' @7:35
-│     ├─ ExprStmt @9:3
-│     │  └─ expr
-│     │     └─ Assign '=' @9:6
-│     │        ├─ target
-│     │        │  └─ Identifier 'ok' @9:3
-│     │        └─ value
-│     │           └─ Binary 'and' @9:23
-│     │              ├─ lhs
-│     │              │  └─ Binary '!=' @9:15
-│     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'p_int' @9:9
-│     │              │     └─ rhs
-│     │              │        └─ NilLiteral @9:18
-│     │              └─ rhs
-│     │                 └─ Binary '!=' @9:35
-│     │                    ├─ lhs
-│     │                    │  └─ Identifier 'p_byte' @9:28
-│     │                    └─ rhs
-│     │                       └─ NilLiteral @9:38
-│     ├─ ExprStmt @11:3
-│     │  └─ expr
-│     │     └─ Member 'free' @11:8
+│     │     └─ Member 'free' @7:8
 │     │        └─ object
-│     │           └─ Identifier 'p_int' @11:3
-│     ├─ ExprStmt @12:3
+│     │           └─ Identifier 'p_int' @7:3
+│     ├─ ExprStmt @8:3
 │     │  └─ expr
-│     │     └─ Member 'free' @12:9
+│     │     └─ Member 'free' @8:9
 │     │        └─ object
-│     │           └─ Identifier 'p_byte' @12:3
-│     └─ ExprStmt @14:3
+│     │           └─ Identifier 'p_byte' @8:3
+│     └─ ExprStmt @10:3
 │        └─ expr
-│           └─ Ternary @14:6
+│           └─ Ternary @10:6
 │              ├─ cond
-│              │  └─ Identifier 'ok' @14:3
+│              │  └─ Identifier 'ok' @10:3
 │              ├─ then
-│              │  └─ IntLiteral '0' @14:8
+│              │  └─ IntLiteral '0' @10:8
 │              └─ else
-│                 └─ IntLiteral '1' @14:12
-└─ ExprStmt @18:1
+│                 └─ IntLiteral '1' @10:12
+└─ ExprStmt @14:1
    └─ expr
-      └─ Call @18:10
+      └─ Call @14:10
          ├─ callee
-         │  └─ Identifier 'libc_exit' @18:1
+         │  └─ Member 'exit' @14:5
+         │     └─ object
+         │        └─ Identifier 'LibC' @14:1
          └─ args
-            └─ Identifier 'main' @18:12
+            └─ Identifier 'main' @14:12
 --- exit 0 ---

@@ -1,99 +1,90 @@
 Program 'samples/Tests/OOP/Struct.vl'
-├─ Annotation 'External' @1:1
-│  └─ args
-│     ├─ StringLiteral 'libc' @1:13
-│     └─ StringLiteral 'exit' @1:21
-├─ Method 'libc_exit' external @2:10
-│  ├─ params
-│  │  └─ Param 'value' @2:25
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @2:33
-│  └─ return_type
-│     └─ TypeRef 'Void' @2:44
-├─ Struct 'Vec2' @5:1
+├─ Struct 'Vec2' @1:1
 │  └─ body
-│     ├─ Field 'x' getter @6:3
+│     ├─ Field 'x' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @6:14
-│     ├─ Field 'y' getter @7:3
+│     │     └─ TypeRef 'Int32' @2:14
+│     ├─ Field 'y' getter @3:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @7:14
-│     ├─ Method 'initialize' @9:3
+│     │     └─ TypeRef 'Int32' @3:14
+│     ├─ Method 'initialize' @5:3
 │     │  └─ params
-│     │     ├─ Param 'x' instance_var @9:19
+│     │     ├─ Param 'x' instance_var @5:19
 │     │     │  └─ decl_type
-│     │     │     └─ TypeRef 'Int32' @9:24
-│     │     └─ Param 'y' instance_var @9:31
+│     │     │     └─ TypeRef 'Int32' @5:24
+│     │     └─ Param 'y' instance_var @5:31
 │     │        └─ decl_type
-│     │           └─ TypeRef 'Int32' @9:36
-│     ├─ Method 'sum' @12:3
+│     │           └─ TypeRef 'Int32' @5:36
+│     ├─ Method 'sum' @8:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @12:14
+│     │  │  └─ TypeRef 'Int32' @8:14
 │     │  └─ body
-│     │     └─ ExprStmt @13:5
+│     │     └─ ExprStmt @9:5
 │     │        └─ expr
-│     │           └─ Binary '+' @13:8
+│     │           └─ Binary '+' @9:8
 │     │              ├─ lhs
-│     │              │  └─ InstanceVar '@x' @13:5
+│     │              │  └─ InstanceVar '@x' @9:5
 │     │              └─ rhs
-│     │                 └─ InstanceVar '@y' @13:10
-│     └─ Method 'shifted' @16:3
+│     │                 └─ InstanceVar '@y' @9:10
+│     └─ Method 'shifted' @12:3
 │        ├─ params
-│        │  └─ Param 'delta' @16:16
+│        │  └─ Param 'delta' @12:16
 │        │     └─ decl_type
-│        │        └─ TypeRef 'Int32' @16:24
+│        │        └─ TypeRef 'Int32' @12:24
 │        ├─ return_type
-│        │  └─ TypeRef 'Int32' @16:35
+│        │  └─ TypeRef 'Int32' @12:35
 │        └─ body
-│           └─ ExprStmt @17:5
+│           └─ ExprStmt @13:5
 │              └─ expr
-│                 └─ Binary '+' @17:13
+│                 └─ Binary '+' @13:13
 │                    ├─ lhs
-│                    │  └─ Binary '+' @17:8
+│                    │  └─ Binary '+' @13:8
 │                    │     ├─ lhs
-│                    │     │  └─ InstanceVar '@x' @17:5
+│                    │     │  └─ InstanceVar '@x' @13:5
 │                    │     └─ rhs
-│                    │        └─ InstanceVar '@y' @17:10
+│                    │        └─ InstanceVar '@y' @13:10
 │                    └─ rhs
-│                       └─ Identifier 'delta' @17:15
-├─ Method 'main' @22:1
+│                       └─ Identifier 'delta' @13:15
+├─ Method 'main' @18:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @22:13
+│  │  └─ TypeRef 'Int32' @18:13
 │  └─ body
-│     ├─ ExprStmt @23:3
+│     ├─ ExprStmt @19:3
 │     │  └─ expr
-│     │     └─ Assign '=' @23:5
+│     │     └─ Assign '=' @19:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'v' @23:3
+│     │        │  └─ Identifier 'v' @19:3
 │     │        └─ value
-│     │           └─ Call @23:15
+│     │           └─ Call @19:15
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @23:11
+│     │              │  └─ Member 'new' @19:11
 │     │              │     └─ object
-│     │              │        └─ Identifier 'Vec2' @23:7
+│     │              │        └─ Identifier 'Vec2' @19:7
 │     │              └─ args
-│     │                 ├─ IntLiteral '3' @23:17
-│     │                 └─ IntLiteral '4' @23:20
-│     └─ ExprStmt @24:3
+│     │                 ├─ IntLiteral '3' @19:17
+│     │                 └─ IntLiteral '4' @19:20
+│     └─ ExprStmt @20:3
 │        └─ expr
-│           └─ Binary '+' @24:9
+│           └─ Binary '+' @20:9
 │              ├─ lhs
-│              │  └─ Member 'sum' @24:4
+│              │  └─ Member 'sum' @20:4
 │              │     └─ object
-│              │        └─ Identifier 'v' @24:3
+│              │        └─ Identifier 'v' @20:3
 │              └─ rhs
-│                 └─ Call @24:20
+│                 └─ Call @20:20
 │                    ├─ callee
-│                    │  └─ Member 'shifted' @24:12
+│                    │  └─ Member 'shifted' @20:12
 │                    │     └─ object
-│                    │        └─ Identifier 'v' @24:11
+│                    │        └─ Identifier 'v' @20:11
 │                    └─ args
-│                       └─ IntLiteral '5' @24:22
-└─ ExprStmt @28:1
+│                       └─ IntLiteral '5' @20:22
+└─ ExprStmt @24:1
    └─ expr
-      └─ Call @28:10
+      └─ Call @24:10
          ├─ callee
-         │  └─ Identifier 'libc_exit' @28:1
+         │  └─ Member 'exit' @24:5
+         │     └─ object
+         │        └─ Identifier 'LibC' @24:1
          └─ args
-            └─ Identifier 'main' @28:12
+            └─ Identifier 'main' @24:12
 --- exit 0 ---

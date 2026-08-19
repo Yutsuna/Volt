@@ -1,54 +1,45 @@
 Program 'samples/Tests/Pointer/PointerParam.vl'
-├─ Annotation 'External' @1:1
-│  └─ args
-│     ├─ StringLiteral 'libc' @1:13
-│     └─ StringLiteral 'exit' @1:21
-├─ Method 'libc_exit' external @2:10
+├─ Method 'is_nil' @1:1
 │  ├─ params
-│  │  └─ Param 'value' @2:25
+│  │  └─ Param 'p' @1:13
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Int32' @2:33
-│  └─ return_type
-│     └─ TypeRef 'Void' @2:44
-├─ Method 'is_nil' @5:1
-│  ├─ params
-│  │  └─ Param 'p' @5:13
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Pointer' @5:17
+│  │        └─ TypeRef 'Pointer' @1:17
 │  │           └─ generics
-│  │              └─ TypeRef 'Int32' @5:25
+│  │              └─ TypeRef 'Int32' @1:25
 │  ├─ return_type
-│  │  └─ TypeRef 'Bool' @5:37
+│  │  └─ TypeRef 'Bool' @1:37
 │  └─ body
-│     └─ ExprStmt @6:3
+│     └─ ExprStmt @2:3
 │        └─ expr
-│           └─ Binary '==' @6:5
+│           └─ Binary '==' @2:5
 │              ├─ lhs
-│              │  └─ Identifier 'p' @6:3
+│              │  └─ Identifier 'p' @2:3
 │              └─ rhs
-│                 └─ NilLiteral @6:8
-├─ Method 'main' @10:1
+│                 └─ NilLiteral @2:8
+├─ Method 'main' @6:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @10:13
+│  │  └─ TypeRef 'Int32' @6:13
 │  └─ body
-│     └─ ExprStmt @11:3
+│     └─ ExprStmt @7:3
 │        └─ expr
-│           └─ Ternary @11:17
+│           └─ Ternary @7:17
 │              ├─ cond
-│              │  └─ Call @11:9
+│              │  └─ Call @7:9
 │              │     ├─ callee
-│              │     │  └─ Identifier 'is_nil' @11:3
+│              │     │  └─ Identifier 'is_nil' @7:3
 │              │     └─ args
-│              │        └─ NilLiteral @11:11
+│              │        └─ NilLiteral @7:11
 │              ├─ then
-│              │  └─ IntLiteral '9' @11:19
+│              │  └─ IntLiteral '9' @7:19
 │              └─ else
-│                 └─ IntLiteral '0' @11:23
-└─ ExprStmt @15:1
+│                 └─ IntLiteral '0' @7:23
+└─ ExprStmt @11:1
    └─ expr
-      └─ Call @15:10
+      └─ Call @11:10
          ├─ callee
-         │  └─ Identifier 'libc_exit' @15:1
+         │  └─ Member 'exit' @11:5
+         │     └─ object
+         │        └─ Identifier 'LibC' @11:1
          └─ args
-            └─ Identifier 'main' @15:12
+            └─ Identifier 'main' @11:12
 --- exit 0 ---

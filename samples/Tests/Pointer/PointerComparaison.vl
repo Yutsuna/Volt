@@ -1,7 +1,3 @@
-@[External( "libc", "exit" )]
-external def libc_exit( value : Int32 ) -> Void
-
-
 def main -> Int32
   p1 = Pointer<UInt64>.malloc( 4 )
   p2 = p1 + 2
@@ -22,4 +18,4 @@ def main -> Int32
 end
 
 
-libc_exit( main )
+LibC.exit( main )
