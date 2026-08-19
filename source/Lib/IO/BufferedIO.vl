@@ -22,7 +22,7 @@ module IO
       end
     end
 
-    def read( out_buf : Pointer<UInt8>, count : UInt64 ) -> Int64
+    def read( out_buf : Pointer<Void>, count : UInt64 ) -> Int64
       if count == 0_u64
         return 0_i64
       end
@@ -77,17 +77,18 @@ module IO
       @pos = 0_u64
     end
 
-    def write( in_buf : Pointer<UInt8>, count : UInt64 ) -> Int64
+    def write( in_buf : Pointer<Void>, count : UInt64 ) -> Int64
       if count == 0_u64
         return 0_i64
       end
 
+      src = Pointer<UInt8>.from_address( in_buf.to_address() )
       idx = 0_u64
       while idx < count
         if @pos >= @capacity
           flush
         end
-        *( @buffer + @pos ) = *( in_buf + idx )
+        *( @buffer + @pos ) = *( src + idx )
         ++@pos
         ++idx
       end

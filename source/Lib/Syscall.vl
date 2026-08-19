@@ -4,16 +4,16 @@ module LibC
   #-i/o------------------------------------------------------------------------
 
   @[External( "libc", "open" )]
-  external def open( path : Pointer<UInt8>, flags : Int32, mode : Int32 ) -> Int32
+  external def open( path : Pointer<Char>, flags : Int32, mode : Int32 ) -> Int32
 
   @[External( "libc", "close" )]
   external def close( fd : Int32 ) -> Int32
 
   @[External( "libc", "read" )]
-  external def read( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+  external def read( fd : Int32, buffer : Pointer<Void>, count : UInt64 ) -> Int64
 
   @[External( "libc", "write" )]
-  external def write( fd : Int32, buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+  external def write( fd : Int32, buffer : Pointer<Void>, count : UInt64 ) -> Int64
 
   @[External( "libc", "lseek" )]
   external def lseek( fd : Int32, offset : Int64, whence : Int32 ) -> Int64
@@ -22,7 +22,7 @@ module LibC
   external def fsync( fd : Int32 ) -> Int32
 
   @[External( "libc", "unlink" )]
-  external def unlink( path : Pointer<UInt8> ) -> Int32
+  external def unlink( path : Pointer<Char> ) -> Int32
 
   @[External( "libc", "exit" )]
   external def exit( value : Int32 ) -> Void
@@ -33,7 +33,7 @@ module LibC
   external def backtrace( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Int32
 
   @[External( "libc", "backtrace_symbols" )]
-  external def backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<UInt8>>
+  external def backtrace_symbols( buffer : Pointer<Pointer<Void>>, size : Int32 ) -> Pointer<Pointer<Char>>
 
   #-memory---------------------------------------------------------------------
 
@@ -52,6 +52,6 @@ module LibC
   #-string---------------------------------------------------------------------
 
   @[External( "libc", "strlen" )]
-  external def strlen( str : Pointer<UInt8> ) -> UInt64
+  external def strlen( str : Pointer<Char> ) -> UInt64
 
 end

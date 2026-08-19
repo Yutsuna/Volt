@@ -4,12 +4,13 @@ module IO
   mixin Reader
     include Enumerable<String>
 
-    abstract def read( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+    abstract def read( buffer : Pointer<Void>, count : UInt64 ) -> Int64
 
-    def read_fully( buffer : Pointer<UInt8>, count : UInt64 ) -> UInt64
+    def read_fully( buffer : Pointer<Void>, count : UInt64 ) -> UInt64
       total_read = 0_u64
+      ptr = Pointer<UInt8>.from_address( buffer.to_address() )
       while total_read < count
-        n = read( buffer + total_read, count - total_read )
+        n = read( ptr + total_read, count - total_read )
         break if n <= 0
         total_read += n
       end

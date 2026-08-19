@@ -42,7 +42,7 @@ module IO
       @capacity = new_cap
     end
 
-    def read( out_buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+    def read( out_buffer : Pointer<Void>, count : UInt64 ) -> Int64
       return 0 if @position >= @size
       available = @size - @position
       to_read = count < available ? count : available
@@ -51,7 +51,7 @@ module IO
       to_read
     end
 
-    def write( in_buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+    def write( in_buffer : Pointer<Void>, count : UInt64 ) -> Int64
       return 0 if count == 0
       ensure_capacity( @position + count )
       LibC.memcpy( @buffer + @position, in_buffer, count )
@@ -85,9 +85,9 @@ module IO
 
     def to_string -> String
       return "" if @size == 0
-      buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+      buf = Pointer<Char>.malloc( @size + 1_u64 )
       LibC.memcpy( buf, @buffer, @size )
-      *( buf + @size ) = 0_u8
+      *( buf + @size ) = '\0'
       String.owned( buf, @size )
     end
   end

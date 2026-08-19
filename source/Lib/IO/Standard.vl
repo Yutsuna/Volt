@@ -10,11 +10,11 @@ module IO
     def initialize( @fd : Int32 )
     end
 
-    def read( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+    def read( buffer : Pointer<Void>, count : UInt64 ) -> Int64
       LibC.read( @fd, buffer, count )
     end
 
-    def write( buffer : Pointer<UInt8>, count : UInt64 ) -> Int64
+    def write( buffer : Pointer<Void>, count : UInt64 ) -> Int64
       LibC.write( @fd, buffer, count )
     end
 

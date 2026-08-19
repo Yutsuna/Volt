@@ -2,6 +2,7 @@
 struct Char
   include Comparable
   include Hashable
+  include Arithmetic
 
   def <=>( other : Char ) -> Int32
     if self < other
@@ -20,9 +21,9 @@ struct Char
   # One byte, not a decimal rendering: `"#{ 'A' }"` must read "A", not "65".
   # Char therefore cannot `include Stringable` — its digits are not its value.
   def to_string -> String
-    buf = Pointer<UInt8>.malloc( 2_u64 )
+    buf = Pointer<Char>.malloc( 2_u64 )
     *( buf ) = self
-    *( buf + 1_u64 ) = 0_u8
+    *( buf + 1_u64 ) = '\0'
     String.new( buf, 1_u64, true )
   end
 end

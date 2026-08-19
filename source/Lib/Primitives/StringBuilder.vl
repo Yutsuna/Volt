@@ -1,12 +1,12 @@
 struct StringBuilder
-  buffer   : Pointer<UInt8>
+  buffer   : Pointer<Char>
   size     : UInt64
   capacity : UInt64
 
   def initialize( initial_capacity : UInt64 = 16 )
     @size = 0
     @capacity = initial_capacity
-    @buffer = Pointer<UInt8>.malloc( @capacity )
+    @buffer = Pointer<Char>.malloc( @capacity )
   end
 
   def finalize -> Void
@@ -19,7 +19,7 @@ struct StringBuilder
     while new_cap < needed
       new_cap = new_cap * 2
     end
-    new_buf = Pointer<UInt8>.malloc( new_cap )
+    new_buf = Pointer<Char>.malloc( new_cap )
     LibC.memcpy( new_buf, @buffer, @size )
     @buffer.free
     @buffer = new_buf
@@ -45,9 +45,9 @@ struct StringBuilder
   end
 
   def build -> String
-    buf = Pointer<UInt8>.malloc( @size + 1_u64 )
+    buf = Pointer<Char>.malloc( @size + 1_u64 )
     LibC.memcpy( buf, @buffer, @size )
-    *( buf + @size ) = 0_u8
+    *( buf + @size ) = '\0'
     String.owned( buf, @size )
   end
 end
