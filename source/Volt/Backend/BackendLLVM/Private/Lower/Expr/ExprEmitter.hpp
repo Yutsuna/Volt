@@ -119,18 +119,6 @@ namespace Backend
                                                           std::span<const Frontend::ExprId> Args,
                                                           Frontend::ExprId Block );
 
-        // The same shape as InstructionTables' `+`/`-` exemption — an `abstract`
-        // member with a `Primitive`/`Pointer` receiver has no body because the
-        // backend supplies one — generalised from an operator token to a
-        // member's own spelling, since `to_address`/`from_address` are ordinary
-        // named methods, not operators, so the token-keyed bypass does not reach
-        // them: an ordinary dot-call always goes through EmitResolvedCall.
-        [[nodiscard]] llvm::Value *EmitNamedConversion ( BodyEmitter &Emitter,
-                                                         Frontend::ExprId Id,
-                                                         const MiddleEnd::IR::CalleeEntry &Entry,
-                                                         Frontend::ExprId Receiver,
-                                                         std::span<const Frontend::ExprId> Args );
-
     } // namespace Llvm
 
 } // namespace Backend

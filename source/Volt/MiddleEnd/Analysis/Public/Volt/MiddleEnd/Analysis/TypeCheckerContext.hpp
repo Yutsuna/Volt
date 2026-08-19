@@ -5,6 +5,7 @@
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/MiddleEnd/Analysis/AnalysisTypes.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/IR/CalleeMap.hpp"
 #include "Volt/MiddleEnd/Resolver/ScopeTable.hpp"
 #include "Volt/MiddleEnd/TypeSystem/MemoryLayout.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
@@ -54,9 +55,10 @@ struct Resolution
     bool bConstructs = false;
     // `f( x )` on a callable. See CalleeEntry::bIndirect — decided here, in
     // the one place that knows the receiver claims the FuncType node kind.
-    bool bIndirect           = false;
-    std::uint32_t VTableSlot = 0;
-    bool bDynamicDispatch    = false;
+    bool bIndirect                                            = false;
+    std::uint32_t VTableSlot                                  = 0;
+    bool bDynamicDispatch                                     = false;
+    Volt::MiddleEnd::IR::EMachineConversion MachineConversion = Volt::MiddleEnd::IR::EMachineConversion::None;
 };
 
 struct VOLT_MIDDLEEND_ANALYSIS_EXPORT TypeCheckerContext

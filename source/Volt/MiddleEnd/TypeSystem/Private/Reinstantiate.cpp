@@ -385,14 +385,17 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     for ( const auto &[Value, Found] : Context.CalleeResolution )
     {
         Result.Callees.Set( Frontend::ExprId{ static_cast<std::uint32_t>( Value ) },
-                            CalleeEntry{ .Decl        = Found.Decl,
-                                         .Result      = Found.Result,
-                                         .Params      = Found.Params,
-                                         .BlockParam  = Found.BlockParam,
-                                         .Bindings    = Found.Bindings,
-                                         .Receiver    = Found.Receiver,
-                                         .bConstructs = Found.bConstructs,
-                                         .bIndirect   = Found.bIndirect } );
+                            CalleeEntry{ .Decl              = Found.Decl,
+                                         .Result            = Found.Result,
+                                         .Params            = Found.Params,
+                                         .BlockParam        = Found.BlockParam,
+                                         .Bindings          = Found.Bindings,
+                                         .Receiver          = Found.Receiver,
+                                         .bConstructs       = Found.bConstructs,
+                                         .bIndirect         = Found.bIndirect,
+                                         .VTableSlot        = Found.VTableSlot,
+                                         .bDynamicDispatch  = Found.bDynamicDispatch,
+                                         .MachineConversion = Found.MachineConversion } );
     }
 
     Cache.Insert( std::move( Key ), Result );

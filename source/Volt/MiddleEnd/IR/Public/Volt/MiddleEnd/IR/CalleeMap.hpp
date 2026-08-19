@@ -36,6 +36,16 @@ namespace MiddleEnd
     namespace IR
     {
 
+        // The machine conversion an abstract member on a Pointer/Primitive
+        // receiver maps to, decided by MemberResolver from the receiver's
+        // LayoutKind and the member's signature shape — never by name.
+        enum class EMachineConversion : std::uint8_t
+        {
+            None,     // ordinary call (has a body, or is a builtin op)
+            PtrToInt, // instance, 0 params → ptrtoint self
+            IntToPtr, // static,   1 param  → inttoptr arg[0]
+        };
+
         // One resolved callee, with its already-instantiated signature.
         struct CalleeEntry
         {
@@ -45,10 +55,11 @@ namespace MiddleEnd
             TypeSystem::SemaTypeId BlockParam;
             ::Volt::Core::SmallVec<TypeSystem::SemaTypeId, 2> Bindings;
             TypeSystem::SemaTypeId Receiver;
-            bool bConstructs         = false;
-            bool bIndirect           = false;
-            std::uint32_t VTableSlot = 0;
-            bool bDynamicDispatch    = false;
+            bool bConstructs                     = false;
+            bool bIndirect                       = false;
+            std::uint32_t VTableSlot             = 0;
+            bool bDynamicDispatch                = false;
+            EMachineConversion MachineConversion = EMachineConversion::None;
         };
 
         // Every callee one compile unit resolved, keyed by the callee expression's ExprId.

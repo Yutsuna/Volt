@@ -7,6 +7,7 @@
 #include "Lower/Exception/ExceptionLowering.hpp"
 
 #include "Core/ModuleContext.hpp"
+#include "Volt/BackendCore/UnwindTransport.hpp"
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -24,7 +25,8 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionValueSlot
     llvm::LLVMContext &Context = Services->Ctx->Context();
     llvm::Type *Address        = llvm::PointerType::get( Context, 0 );
     ExcValue = new llvm::GlobalVariable( Services->Ctx->Mod(), Address, false, llvm::GlobalValue::LinkOnceODRLinkage,
-                                         llvm::Constant::getNullValue( Address ), "volt.exc.value" );
+                                         llvm::Constant::getNullValue( Address ),
+                                         std::string( Volt::Backend::UnwindTransport::ExceptionValueSlot ) );
     ExcValue->setThreadLocal( true );
     return ExcValue;
 }
@@ -40,7 +42,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::ExceptionTagSlot (
     llvm::Type *Int32Ty        = llvm::Type::getInt32Ty( Context );
     ExcTag = new llvm::GlobalVariable( Services->Ctx->Mod(), Int32Ty, false, llvm::GlobalValue::LinkOnceODRLinkage,
                                        llvm::ConstantInt::get( Int32Ty, MiddleEnd::TypeSystem::NominalId::InvalidValue ),
-                                       "volt.exc.tag" );
+                                       std::string( Volt::Backend::UnwindTransport::ExceptionTagSlot ) );
     ExcTag->setThreadLocal( true );
     return ExcTag;
 }
@@ -55,7 +57,8 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::BreakFlagSlot ()
     llvm::LLVMContext &Context = Services->Ctx->Context();
     llvm::Type *BoolTy         = llvm::Type::getInt1Ty( Context );
     BrkFlag = new llvm::GlobalVariable( Services->Ctx->Mod(), BoolTy, false, llvm::GlobalValue::LinkOnceODRLinkage,
-                                        llvm::ConstantInt::getFalse( BoolTy ), "volt.brk.flag" );
+                                        llvm::ConstantInt::getFalse( BoolTy ),
+                                        std::string( Volt::Backend::UnwindTransport::BreakFlagSlot ) );
     BrkFlag->setThreadLocal( true );
     return BrkFlag;
 }

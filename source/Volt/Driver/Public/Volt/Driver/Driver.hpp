@@ -407,6 +407,7 @@ namespace Driver
         // nothing outside it. Filled serially, then read-only.
         MiddleEnd::TypeSystem::TypeStore Types;
         std::deque<CompileUnit> Units;
+        std::vector<const Frontend::AstContext *> DriverUnitAsts;
         Core::FileId DriverFile;
         std::uint64_t FrontendKey = 0;
         // Set by CompileFiles/CompileCircuit before CompileRefs runs — the

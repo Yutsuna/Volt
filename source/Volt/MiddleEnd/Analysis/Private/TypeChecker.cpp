@@ -2,6 +2,7 @@
 // resolves the members that types make available.
 
 #include "DeclStmtWalker.hpp"
+#include "ExprInferencer.hpp"
 #include "LiteralInferencer.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
@@ -62,6 +63,8 @@ void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
     }
     Analysis::WalkDecls( State, Context.Ast.TopDecls );
 
+    Analysis::LowerParenlessCalls( State );
+
     // Only after every ConstrainExprType in the file has had its say: a
     // literal passed as a call argument is naturally inferred before its
     // parameter's type ever reaches it (CallType's own comment — "arguments
@@ -105,16 +108,17 @@ void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
         for ( const auto &[Value, Found] : State.CalleeResolution )
         {
             Context.Callees->Set( Frontend::ExprId{ Value },
-                                  Volt::MiddleEnd::IR::CalleeEntry{ .Decl             = Found.Decl,
-                                                                    .Result           = Found.Result,
-                                                                    .Params           = Found.Params,
-                                                                    .BlockParam       = Found.BlockParam,
-                                                                    .Bindings         = Found.Bindings,
-                                                                    .Receiver         = Found.Receiver,
-                                                                    .bConstructs      = Found.bConstructs,
-                                                                    .bIndirect        = Found.bIndirect,
-                                                                    .VTableSlot       = Found.VTableSlot,
-                                                                    .bDynamicDispatch = Found.bDynamicDispatch } );
+                                  Volt::MiddleEnd::IR::CalleeEntry{ .Decl              = Found.Decl,
+                                                                    .Result            = Found.Result,
+                                                                    .Params            = Found.Params,
+                                                                    .BlockParam        = Found.BlockParam,
+                                                                    .Bindings          = Found.Bindings,
+                                                                    .Receiver          = Found.Receiver,
+                                                                    .bConstructs       = Found.bConstructs,
+                                                                    .bIndirect         = Found.bIndirect,
+                                                                    .VTableSlot        = Found.VTableSlot,
+                                                                    .bDynamicDispatch  = Found.bDynamicDispatch,
+                                                                    .MachineConversion = Found.MachineConversion } );
         }
     }
 }

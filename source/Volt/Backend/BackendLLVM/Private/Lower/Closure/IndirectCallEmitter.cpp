@@ -15,6 +15,7 @@
 #include "Lower/FunctionFrame.hpp"
 #include "Types/TypeMapper.hpp"
 
+#include "Volt/BackendCore/ClosureABI.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
@@ -95,10 +96,12 @@ llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitte
         return nullptr;
     }
 
-    llvm::StructType *Shape  = ClosurePairType();
-    llvm::Type *Address      = llvm::PointerType::get( Context, 0 );
-    llvm::Value *Code        = Builder.CreateLoad( Address, Builder.CreateStructGEP( Shape, Pair, 0, "callee.code" ), "code" );
-    llvm::Value *Environment = Builder.CreateLoad( Address, Builder.CreateStructGEP( Shape, Pair, 1, "callee.env" ), "env" );
+    llvm::StructType *Shape = ClosurePairType();
+    llvm::Type *Address     = llvm::PointerType::get( Context, 0 );
+    llvm::Value *Code       = Builder.CreateLoad(
+        Address, Builder.CreateStructGEP( Shape, Pair, Backend::ClosureABI::CodeSlot, "callee.code" ), "code" );
+    llvm::Value *Environment =
+        Builder.CreateLoad( Address, Builder.CreateStructGEP( Shape, Pair, Backend::ClosureABI::EnvSlot, "callee.env" ), "env" );
 
     llvm::FunctionType *Signature = llvm::FunctionType::get( Result, Slots, false );
     std::vector<llvm::Value *> Actuals;

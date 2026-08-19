@@ -1,6 +1,7 @@
 // ExceptionChecks.cpp — the post-call checks.
 //
-// Two of them, and the difference is the whole of the `break` protocol:
+// Two of them, and the difference is the whole of the `break` protocol
+// (see Volt/BackendCore/UnwindTransport.hpp for the backend-neutral specification):
 //
 //   EmitExceptionCheck  tests the exception tag only. Read by exactly one call
 //                       site — a call that bound a trailing `do…end` — because
