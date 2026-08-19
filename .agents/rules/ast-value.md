@@ -21,3 +21,13 @@ crucially — **one context per file**, so parse + sema are fully parallel.
 Never introduce `std::shared_ptr`/`unique_ptr`/raw owning pointers into AST
 nodes. Cross-file data (module names in the circuit graph) is plain `std::string`,
 not interned symbols, since symbols are per-file.
+
+That last clause is load-bearing for *values*, not just for storage. A
+`Core::Symbol` is a spelling handle in one `CompileUnit`'s own `StringInterner`,
+so two files that write the same text hold two unrelated integers. Emitting one
+as a runtime value makes a program that silently disagrees with itself: a Volt
+`:symbol` used to compile to its `SymbolLiteral::Name` handle, and `:pending`
+returned from one unit compared `!=` against `:pending` written in another. A
+value that has to mean the same thing in every unit is derived from the *text*
+— `Backend::SymbolValueOf` (`BackendCore/SymbolRegistry.hpp`) — and never from
+the handle.

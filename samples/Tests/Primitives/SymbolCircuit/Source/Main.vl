@@ -1,0 +1,5 @@
+@[Link("Producer")]
+
+assert!( Producer::pending == :pending )
+assert!( Producer::pending.to_string == "pending" )
+assert!( Producer::name_of( :completed ) == "completed" )

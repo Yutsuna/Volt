@@ -133,6 +133,14 @@ namespace Backend
         // and returns immediately.
         [[nodiscard]] bool EmitInitAll ( EmitterServices &Services );
 
+        // Gives `_V_symbol_name` (declared, never defined, by the stdlib
+        // Symbol's `@[External( "volt", "_V_symbol_name" )]`) its body: the
+        // build's whole symbol table, as a switch from the value SymbolRegistry
+        // minted back to the NUL-terminated name that minted it. Emitted only
+        // where `_V_init_all` is, so a precompiled stdlib archive — built with
+        // no entry symbol — never carries a second definition of it.
+        [[nodiscard]] bool EmitSymbolNames ( EmitterServices &Services );
+
         // The C-linkage shim the runtime starts at, calling the Volt function
         // EmitOptions names as the entry. False only when it failed and the
         // diagnostic already says why.

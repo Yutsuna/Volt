@@ -1,5 +1,11 @@
-puts  = ( &.to_string ) >> ( &.data ) >> ( IO.stdout.puts )
-print = ( &.to_string ) >> ( &.data ) >> ( IO.stdout.print )
+def puts<T>( value : T ) -> IO::StandardStream
+  IO.stdout.puts( value.to_string )
+end
+
+def print<T>( value : T ) -> IO::StandardStream
+  IO.stdout.print( value.to_string )
+end
+
 
 #{ TODO: Implement assert! macro to include file, line, and column information #}
 def assert!( condition : Bool ) -> Void

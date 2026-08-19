@@ -1,0 +1,451 @@
+Program 'samples/Tests/Primitives/Symbols.vl'
+├─ Class 'Order' @1:1
+│  └─ body
+│     ├─ Field 'status' property @3:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Symbol' @3:21
+│     ├─ Method 'initialize' @5:3
+│     │  └─ body
+│     │     └─ ExprStmt @6:5
+│     │        └─ expr
+│     │           └─ Assign '=' @6:13
+│     │              ├─ target
+│     │              │  └─ InstanceVar '@status' @6:5
+│     │              └─ value
+│     │                 └─ SymbolLiteral ':pending' @6:15
+│     ├─ Method 'process' @9:3
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Void' @9:18
+│     │  └─ body
+│     │     └─ ExprStmt @10:5
+│     │        └─ expr
+│     │           └─ Assign '=' @10:13
+│     │              ├─ target
+│     │              │  └─ InstanceVar '@status' @10:5
+│     │              └─ value
+│     │                 └─ SymbolLiteral ':processing' @10:15
+│     └─ Method 'label' @13:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @13:16
+│        └─ body
+│           └─ ExprStmt @14:5
+│              └─ expr
+│                 └─ CaseExpr @14:5
+│                    ├─ target
+│                    │  └─ InstanceVar '@status' @14:10
+│                    ├─ clauses
+│                    │  ├─ WhenClause @15:5
+│                    │  │  ├─ patterns
+│                    │  │  │  └─ SymbolLiteral ':pending' @15:10
+│                    │  │  └─ body
+│                    │  │     └─ ExprStmt @15:28
+│                    │  │        └─ expr
+│                    │  │           └─ StringLiteral 'waiting' @15:28
+│                    │  ├─ WhenClause @16:5
+│                    │  │  ├─ patterns
+│                    │  │  │  └─ SymbolLiteral ':processing' @16:10
+│                    │  │  └─ body
+│                    │  │     └─ ExprStmt @16:28
+│                    │  │        └─ expr
+│                    │  │           └─ StringLiteral 'running' @16:28
+│                    │  └─ WhenClause @17:5
+│                    │     ├─ patterns
+│                    │     │  └─ SymbolLiteral ':completed' @17:10
+│                    │     └─ body
+│                    │        └─ ExprStmt @17:28
+│                    │           └─ expr
+│                    │              └─ StringLiteral 'done' @17:28
+│                    └─ else_body
+│                       └─ ExprStmt @18:28
+│                          └─ expr
+│                             └─ StringLiteral 'unknown' @18:28
+├─ Method 'export_label' @25:1
+│  ├─ params
+│  │  └─ Param 'format' @25:19
+│  │     └─ decl_type
+│  │        └─ TypeRef 'Symbol' @25:28
+│  ├─ return_type
+│  │  └─ TypeRef 'String' @25:40
+│  └─ body
+│     └─ ExprStmt @26:3
+│        └─ expr
+│           └─ CaseExpr @26:3
+│              ├─ target
+│              │  └─ Identifier 'format' @26:8
+│              ├─ clauses
+│              │  ├─ WhenClause @27:3
+│              │  │  ├─ patterns
+│              │  │  │  └─ SymbolLiteral ':json' @27:8
+│              │  │  └─ body
+│              │  │     └─ ExprStmt @27:19
+│              │  │        └─ expr
+│              │  │           └─ StringLiteral 'JSON' @27:19
+│              │  └─ WhenClause @28:3
+│              │     ├─ patterns
+│              │     │  └─ SymbolLiteral ':xml' @28:8
+│              │     └─ body
+│              │        └─ ExprStmt @28:19
+│              │           └─ expr
+│              │              └─ StringLiteral 'XML' @28:19
+│              └─ else_body
+│                 └─ ExprStmt @29:19
+│                    └─ expr
+│                       └─ StringLiteral '?' @29:19
+├─ ExprStmt @37:1
+│  └─ expr
+│     └─ Call @37:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @37:1
+│        └─ args
+│           └─ Binary '==' @37:19
+│              ├─ lhs
+│              │  └─ SymbolLiteral ':pending' @37:10
+│              └─ rhs
+│                 └─ SymbolLiteral ':pending' @37:22
+├─ ExprStmt @38:1
+│  └─ expr
+│     └─ Call @38:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @38:1
+│        └─ args
+│           └─ Binary '!=' @38:19
+│              ├─ lhs
+│              │  └─ SymbolLiteral ':pending' @38:10
+│              └─ rhs
+│                 └─ SymbolLiteral ':completed' @38:22
+├─ ExprStmt @40:1
+│  └─ expr
+│     └─ Assign '=' @40:8
+│        ├─ target
+│        │  └─ Identifier 'status' @40:1
+│        └─ value
+│           └─ SymbolLiteral ':pending' @40:10
+├─ ExprStmt @41:1
+│  └─ expr
+│     └─ Call @41:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @41:1
+│        └─ args
+│           └─ Binary '==' @41:17
+│              ├─ lhs
+│              │  └─ Identifier 'status' @41:10
+│              └─ rhs
+│                 └─ SymbolLiteral ':pending' @41:20
+├─ ExprStmt @46:1
+│  └─ expr
+│     └─ Call @46:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @46:1
+│        └─ args
+│           └─ Binary '==' @46:29
+│              ├─ lhs
+│              │  └─ Member 'to_string' @46:18
+│              │     └─ object
+│              │        └─ SymbolLiteral ':pending' @46:10
+│              └─ rhs
+│                 └─ StringLiteral 'pending' @46:32
+├─ ExprStmt @47:1
+│  └─ expr
+│     └─ Call @47:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @47:1
+│        └─ args
+│           └─ Binary '==' @47:33
+│              ├─ lhs
+│              │  └─ Member 'to_string' @47:22
+│              │     └─ object
+│              │        └─ SymbolLiteral ':hello_world' @47:10
+│              └─ rhs
+│                 └─ StringLiteral 'hello_world' @47:36
+├─ ExprStmt @48:1
+│  └─ expr
+│     └─ Call @48:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @48:1
+│        └─ args
+│           └─ Binary '==' @48:28
+│              ├─ lhs
+│              │  └─ Member 'to_string' @48:17
+│              │     └─ object
+│              │        └─ SymbolLiteral ':empty?' @48:10
+│              └─ rhs
+│                 └─ StringLiteral 'empty?' @48:31
+├─ ExprStmt @49:1
+│  └─ expr
+│     └─ Call @49:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @49:1
+│        └─ args
+│           └─ Binary '==' @49:27
+│              ├─ lhs
+│              │  └─ Member 'inspect' @49:18
+│              │     └─ object
+│              │        └─ SymbolLiteral ':pending' @49:10
+│              └─ rhs
+│                 └─ StringLiteral ':pending' @49:30
+├─ ExprStmt @54:1
+│  └─ expr
+│     └─ Call @54:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @54:1
+│        └─ args
+│           └─ Binary '==' @54:24
+│              ├─ lhs
+│              │  └─ Member 'hash' @54:18
+│              │     └─ object
+│              │        └─ SymbolLiteral ':pending' @54:10
+│              └─ rhs
+│                 └─ Member 'hash' @54:35
+│                    └─ object
+│                       └─ SymbolLiteral ':pending' @54:27
+├─ ExprStmt @55:1
+│  └─ expr
+│     └─ Call @55:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @55:1
+│        └─ args
+│           └─ Binary '==' @55:36
+│              ├─ lhs
+│              │  └─ Binary '<=>' @55:21
+│              │     ├─ lhs
+│              │     │  └─ SymbolLiteral ':pending' @55:12
+│              │     └─ rhs
+│              │        └─ SymbolLiteral ':pending' @55:25
+│              └─ rhs
+│                 └─ IntLiteral '0' @55:39
+├─ ExprStmt @56:1
+│  └─ expr
+│     └─ Call @56:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @56:1
+│        └─ args
+│           └─ Binary 'or' @56:22
+│              ├─ lhs
+│              │  └─ Binary '<' @56:15
+│              │     ├─ lhs
+│              │     │  └─ SymbolLiteral ':a' @56:12
+│              │     └─ rhs
+│              │        └─ SymbolLiteral ':b' @56:17
+│              └─ rhs
+│                 └─ Binary '<' @56:30
+│                    ├─ lhs
+│                    │  └─ SymbolLiteral ':b' @56:27
+│                    └─ rhs
+│                       └─ SymbolLiteral ':a' @56:32
+├─ ExprStmt @61:1
+│  └─ expr
+│     └─ Assign '=' @61:9
+│        ├─ target
+│        │  └─ Identifier 'metrics' @61:1
+│        └─ value
+│           └─ Member 'new' @61:30
+│              └─ object
+│                 └─ GenericInst @61:15
+│                    ├─ base
+│                    │  └─ Identifier 'Hash' @61:11
+│                    └─ args
+│                       ├─ TypeRef 'Symbol' @61:16
+│                       └─ TypeRef 'Int32' @61:24
+├─ ExprStmt @62:1
+│  └─ expr
+│     └─ Assign '=' @62:17
+│        ├─ target
+│        │  └─ Index @62:8
+│        │     ├─ object
+│        │     │  └─ Identifier 'metrics' @62:1
+│        │     └─ args
+│        │        └─ SymbolLiteral ':cpu' @62:10
+│        └─ value
+│           └─ IntLiteral '45' @62:19
+├─ ExprStmt @63:1
+│  └─ expr
+│     └─ Assign '=' @63:20
+│        ├─ target
+│        │  └─ Index @63:8
+│        │     ├─ object
+│        │     │  └─ Identifier 'metrics' @63:1
+│        │     └─ args
+│        │        └─ SymbolLiteral ':memory' @63:10
+│        └─ value
+│           └─ IntLiteral '2048' @63:22
+├─ ExprStmt @65:1
+│  └─ expr
+│     └─ Call @65:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @65:1
+│        └─ args
+│           └─ Binary '==' @65:26
+│              ├─ lhs
+│              │  └─ Index @65:17
+│              │     ├─ object
+│              │     │  └─ Identifier 'metrics' @65:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':cpu' @65:19
+│              └─ rhs
+│                 └─ IntLiteral '45' @65:29
+├─ ExprStmt @66:1
+│  └─ expr
+│     └─ Call @66:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @66:1
+│        └─ args
+│           └─ Binary '==' @66:29
+│              ├─ lhs
+│              │  └─ Index @66:17
+│              │     ├─ object
+│              │     │  └─ Identifier 'metrics' @66:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':memory' @66:19
+│              └─ rhs
+│                 └─ IntLiteral '2048' @66:32
+├─ ExprStmt @68:1
+│  └─ expr
+│     └─ Assign '=' @68:6
+│        ├─ target
+│        │  └─ Identifier 'user' @68:1
+│        └─ value
+│           └─ HashLit @68:8
+│              ├─ keys
+│              │  ├─ SymbolLiteral ':name' @68:10
+│              │  └─ SymbolLiteral ':role' @68:28
+│              └─ values
+│                 ├─ StringLiteral 'Alice' @68:19
+│                 └─ StringLiteral 'Admin' @68:37
+├─ ExprStmt @69:1
+│  └─ expr
+│     └─ Call @69:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @69:1
+│        └─ args
+│           └─ Binary '==' @69:24
+│              ├─ lhs
+│              │  └─ Index @69:14
+│              │     ├─ object
+│              │     │  └─ Identifier 'user' @69:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':name' @69:16
+│              └─ rhs
+│                 └─ StringLiteral 'Alice' @69:27
+├─ ExprStmt @70:1
+│  └─ expr
+│     └─ Call @70:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @70:1
+│        └─ args
+│           └─ Binary '==' @70:24
+│              ├─ lhs
+│              │  └─ Index @70:14
+│              │     ├─ object
+│              │     │  └─ Identifier 'user' @70:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':role' @70:16
+│              └─ rhs
+│                 └─ StringLiteral 'Admin' @70:27
+├─ ExprStmt @75:1
+│  └─ expr
+│     └─ Assign '=' @75:7
+│        ├─ target
+│        │  └─ Identifier 'order' @75:1
+│        └─ value
+│           └─ Member 'new' @75:14
+│              └─ object
+│                 └─ Identifier 'Order' @75:9
+├─ ExprStmt @76:1
+│  └─ expr
+│     └─ Call @76:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @76:1
+│        └─ args
+│           └─ Binary '==' @76:22
+│              ├─ lhs
+│              │  └─ Member 'label' @76:15
+│              │     └─ object
+│              │        └─ Identifier 'order' @76:10
+│              └─ rhs
+│                 └─ StringLiteral 'waiting' @76:25
+├─ ExprStmt @78:1
+│  └─ expr
+│     └─ Member 'process' @78:6
+│        └─ object
+│           └─ Identifier 'order' @78:1
+├─ ExprStmt @79:1
+│  └─ expr
+│     └─ Call @79:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @79:1
+│        └─ args
+│           └─ Binary '==' @79:22
+│              ├─ lhs
+│              │  └─ Member 'label' @79:15
+│              │     └─ object
+│              │        └─ Identifier 'order' @79:10
+│              └─ rhs
+│                 └─ StringLiteral 'running' @79:25
+├─ ExprStmt @83:1
+│  └─ expr
+│     └─ Assign '=' @83:14
+│        ├─ target
+│        │  └─ Member 'status' @83:6
+│        │     └─ object
+│        │        └─ Identifier 'order' @83:1
+│        └─ value
+│           └─ SymbolLiteral ':completed' @83:16
+├─ ExprStmt @84:1
+│  └─ expr
+│     └─ Call @84:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @84:1
+│        └─ args
+│           └─ Binary '==' @84:22
+│              ├─ lhs
+│              │  └─ Member 'label' @84:15
+│              │     └─ object
+│              │        └─ Identifier 'order' @84:10
+│              └─ rhs
+│                 └─ StringLiteral 'done' @84:25
+├─ ExprStmt @86:1
+│  └─ expr
+│     └─ Call @86:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @86:1
+│        └─ args
+│           └─ Binary '==' @86:32
+│              ├─ lhs
+│              │  └─ Call @86:22
+│              │     ├─ callee
+│              │     │  └─ Identifier 'export_label' @86:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':json' @86:24
+│              └─ rhs
+│                 └─ StringLiteral 'JSON' @86:35
+├─ ExprStmt @87:1
+│  └─ expr
+│     └─ Call @87:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @87:1
+│        └─ args
+│           └─ Binary '==' @87:31
+│              ├─ lhs
+│              │  └─ Call @87:22
+│              │     ├─ callee
+│              │     │  └─ Identifier 'export_label' @87:10
+│              │     └─ args
+│              │        └─ SymbolLiteral ':xml' @87:24
+│              └─ rhs
+│                 └─ StringLiteral 'XML' @87:34
+└─ ExprStmt @88:1
+   └─ expr
+      └─ Call @88:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @88:1
+         └─ args
+            └─ Binary '==' @88:31
+               ├─ lhs
+               │  └─ Call @88:22
+               │     ├─ callee
+               │     │  └─ Identifier 'export_label' @88:10
+               │     └─ args
+               │        └─ SymbolLiteral ':csv' @88:24
+               └─ rhs
+                  └─ StringLiteral '?' @88:34
+--- exit 0 ---

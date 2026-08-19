@@ -1,0 +1,9 @@
+circuit "SymbolIdentity"
+{
+  runtime "0.1.0"
+  entrypoint "Source/Main.vl"
+
+  modules(
+    "Producer" => "Source/Producer",
+  )
+}

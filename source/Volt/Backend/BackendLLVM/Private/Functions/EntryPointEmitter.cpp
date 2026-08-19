@@ -103,6 +103,15 @@ bool Volt::Backend::Llvm::EmitEntryPoint ( EmitterServices &Services )
         return false;
     }
 
+    // Same seam, same reason: a table of every `:symbol` in the build is a fact
+    // only the build has, and the stdlib declares the one symbol that asks for
+    // it. Guarded behind the entry point so a library build (no CRT entry, e.g.
+    // the precompiled stdlib archive) never emits a second definition of it.
+    if ( not EmitSymbolNames( Services ) )
+    {
+        return false;
+    }
+
     // The Volt free function the C runtime hands control to
     // (source/Lib/Prelude.vl's `__volt_entry`, by default). DeclareAll has
     // already emitted its `llvm::Function` by the time Finalize reaches this

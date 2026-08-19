@@ -1,3 +1,16 @@
+#{
+  @brief The name table behind `Symbol#to_string`.
+  @details `_V_symbol_name` is a symbol the backend itself defines
+           (SymbolNameEmitter.cpp), exactly like `_V_init_all` in Prelude.vl
+#}
+@[External( "volt", "_V_symbol_name" )]
+external def __volt_symbol_name( value : Symbol ) -> Pointer<UInt8>
+
+
+#{
+  @brief An interned name, compared by identity.
+  @details A symbol is its name and nothing else
+#}
 @[Primitive( "u64", 64 ), Literal( SymbolLiteral )]
 struct Symbol
   include Comparable
@@ -16,4 +29,28 @@ struct Symbol
   def hash -> UInt64
     self
   end
+
+  #{
+    @brief The name behind the symbol, without its colon.
+    @details `:pending.to_string` is `"pending"`, the same string the source wrote.
+  #}
+  def to_string -> String
+    String.from_c_string( __volt_symbol_name( self ) )
+  end
+
+  #{
+    @brief The symbol as it is written in source, colon and all.
+  #}
+  def inspect -> String
+    ":" + to_string
+  end
+
+  #{
+    @brief True when the symbol names nothing this program ever wrote.
+    @details Only reachable through a value that came from somewhere other than a literal
+  #}
+  def empty? -> Bool
+    to_string.empty?
+  end
+
 end

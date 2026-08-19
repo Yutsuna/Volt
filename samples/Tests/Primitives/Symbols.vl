@@ -1,0 +1,88 @@
+class Order
+
+  property status : Symbol
+
+  def initialize
+    @status = :pending
+  end
+
+  def process -> Void
+    @status = :processing
+  end
+
+  def label -> String
+    case @status
+    when :pending     then "waiting"
+    when :processing  then "running"
+    when :completed   then "done"
+    else                   "unknown"
+    end
+  end
+
+end
+
+
+def export_label( format : Symbol ) -> String
+  case format
+  when :json then "JSON"
+  when :xml  then "XML"
+  else            "?"
+  end
+end
+
+
+#------------------------------------------------------------------------------
+# Identity
+
+assert!( :pending == :pending )
+assert!( :pending != :completed )
+
+status = :pending
+assert!( status == :pending )
+
+#------------------------------------------------------------------------------
+# The name behind the symbol
+
+assert!( :pending.to_string == "pending" )
+assert!( :hello_world.to_string == "hello_world" )
+assert!( :empty?.to_string == "empty?" )
+assert!( :pending.inspect == ":pending" )
+
+#------------------------------------------------------------------------------
+# Comparable, and the hash a Hash key needs
+
+assert!( :pending.hash == :pending.hash )
+assert!( ( :pending <=> :pending ) == 0 )
+assert!( ( :a < :b ) or ( :b < :a ) )
+
+#------------------------------------------------------------------------------
+# As a Hash key
+
+metrics = Hash<Symbol, Int32>.new
+metrics[ :cpu ] = 45
+metrics[ :memory ] = 2048
+
+assert!( metrics[ :cpu ] == 45 )
+assert!( metrics[ :memory ] == 2048 )
+
+user = { :name => "Alice", :role => "Admin" }
+assert!( user[ :name ] == "Alice" )
+assert!( user[ :role ] == "Admin" )
+
+#------------------------------------------------------------------------------
+# As a field, through a setter, and through `case`
+
+order = Order.new
+assert!( order.label == "waiting" )
+
+order.process
+assert!( order.label == "running" )
+
+# The write that used to miscompile: assigning through a setter into the *first*
+# field of a unit-scope object, whose address arrives with its GEP folded away.
+order.status = :completed
+assert!( order.label == "done" )
+
+assert!( export_label( :json ) == "JSON" )
+assert!( export_label( :xml ) == "XML" )
+assert!( export_label( :csv ) == "?" )
