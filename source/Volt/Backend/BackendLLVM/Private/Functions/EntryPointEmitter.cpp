@@ -12,6 +12,7 @@
 #include "Core/DiagnosticSink.hpp"
 #include "Core/ModuleContext.hpp"
 #include "Lower/Exception/ExceptionLowering.hpp"
+#include "Volt/BackendCore/InitAllSynthesizer.hpp"
 
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/Constants.h>
@@ -52,19 +53,18 @@ bool Volt::Backend::Llvm::EmitInitAll ( EmitterServices &Services )
 
     if ( Services.Build != nullptr )
     {
-        for ( std::size_t Index = 0; Index < Services.Build->Units.size(); ++Index )
+        const auto Steps = Backend::SynthesizeInitAll( Services.Build->Units );
+        for ( const auto &Step : Steps )
         {
-            const UnitView &Unit       = Services.Build->Units[Index];
-            const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
-            llvm::Function *InitFn     = Mod.getFunction( InitName );
+            llvm::Function *InitFn = Mod.getFunction( Step.Symbol );
             if ( InitFn == nullptr )
             {
                 llvm::FunctionType *FnTy = llvm::FunctionType::get( Services.Ctx->Builder().getVoidTy(), false );
-                InitFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, InitName, &Mod );
+                InitFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, Step.Symbol, &Mod );
             }
             static_cast<void>( Shell.CreateCall( InitFn ) );
 
-            if ( Index + 1 < Services.Build->Units.size() )
+            if ( not Step.bLast )
             {
                 llvm::Value *Tag     = Shell.CreateLoad( Int32Ty, Services.Exceptions->ExceptionTagSlot(), "exc.tag" );
                 llvm::Value *Pending = Shell.CreateICmpNE(
