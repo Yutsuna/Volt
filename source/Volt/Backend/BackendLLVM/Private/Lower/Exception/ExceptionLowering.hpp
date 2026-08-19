@@ -114,6 +114,7 @@ namespace Backend
             // for a call it bound a trailing block to, because *that* call site
             // is where a `break` inside the block is consumed, not propagated
             // further — see EmitUnwindCheck for the sites that propagate both.
+            // (Protocol specification: Volt/BackendCore/UnwindTransport.hpp).
             void EmitExceptionCheck ( BodyEmitter &Emitter );
 
             // `EmitExceptionCheck`'s superset: also propagates a `break` in
