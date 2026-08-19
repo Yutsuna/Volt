@@ -1,0 +1,213 @@
+Program 'samples/Tests/Literals/FrequenciesAndRates.vl'
+├─ Method 'test_frequencies' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:25
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Call @2:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @2:3
+│     │        └─ args
+│     │           └─ Binary '==' @2:16
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1' @2:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1' @2:19
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Call @3:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @3:3
+│     │        └─ args
+│     │           └─ Binary '==' @3:18
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '440' @3:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '440' @3:21
+│     ├─ ExprStmt @4:3
+│     │  └─ expr
+│     │     └─ Call @4:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @4:3
+│     │        └─ args
+│     │           └─ Binary '==' @4:17
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000' @4:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000' @4:20
+│     ├─ ExprStmt @5:3
+│     │  └─ expr
+│     │     └─ Call @5:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @5:3
+│     │        └─ args
+│     │           └─ Binary '==' @5:20
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '44100.0' @5:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '44100.0' @5:23
+│     ├─ ExprStmt @6:3
+│     │  └─ expr
+│     │     └─ Call @6:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @6:3
+│     │        └─ args
+│     │           └─ Binary '==' @6:18
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '48000' @6:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '48000' @6:21
+│     ├─ ExprStmt @7:3
+│     │  └─ expr
+│     │     └─ Call @7:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @7:3
+│     │        └─ args
+│     │           └─ Binary '==' @7:17
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000000' @7:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000000' @7:20
+│     ├─ ExprStmt @8:3
+│     │  └─ expr
+│     │     └─ Call @8:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @8:3
+│     │        └─ args
+│     │           └─ Binary '==' @8:19
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '100000000' @8:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '100000000' @8:22
+│     ├─ ExprStmt @9:3
+│     │  └─ expr
+│     │     └─ Call @9:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @9:3
+│     │        └─ args
+│     │           └─ Binary '==' @9:17
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000000000' @9:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000000000' @9:20
+│     └─ ExprStmt @10:3
+│        └─ expr
+│           └─ Call @10:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @10:3
+│              └─ args
+│                 └─ Binary '==' @10:19
+│                    ├─ lhs
+│                    │  └─ FloatLiteral '2.4e+09' @10:12
+│                    └─ rhs
+│                       └─ FloatLiteral '2400000000.0' @10:22
+├─ Method 'test_data_rates' @13:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @13:24
+│  └─ body
+│     ├─ ExprStmt @14:3
+│     │  └─ expr
+│     │     └─ Call @14:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @14:3
+│     │        └─ args
+│     │           └─ Binary '==' @14:17
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1' @14:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1' @14:20
+│     ├─ ExprStmt @15:3
+│     │  └─ expr
+│     │     └─ Call @15:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @15:3
+│     │        └─ args
+│     │           └─ Binary '==' @15:20
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '9600' @15:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '9600' @15:23
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Call @16:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @16:3
+│     │        └─ args
+│     │           └─ Binary '==' @16:18
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000' @16:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000' @16:21
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Call @17:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @17:3
+│     │        └─ args
+│     │           └─ Binary '==' @17:20
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '128000' @17:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '128000' @17:23
+│     ├─ ExprStmt @18:3
+│     │  └─ expr
+│     │     └─ Call @18:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @18:3
+│     │        └─ args
+│     │           └─ Binary '==' @18:18
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000000' @18:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000000' @18:21
+│     ├─ ExprStmt @19:3
+│     │  └─ expr
+│     │     └─ Call @19:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @19:3
+│     │        └─ args
+│     │           └─ Binary '==' @19:21
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000000000' @19:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000000000' @19:24
+│     ├─ ExprStmt @20:3
+│     │  └─ expr
+│     │     └─ Call @20:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @20:3
+│     │        └─ args
+│     │           └─ Binary '==' @20:18
+│     │              ├─ lhs
+│     │              │  └─ IntLiteral '1000000000' @20:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1000000000' @20:21
+│     └─ ExprStmt @21:3
+│        └─ expr
+│           └─ Call @21:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @21:3
+│              └─ args
+│                 └─ Binary '==' @21:19
+│                    ├─ lhs
+│                    │  └─ IntLiteral '10000000000' @21:12
+│                    └─ rhs
+│                       └─ IntLiteral '10000000000_u64' @21:22
+├─ Method 'main' @24:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @24:13
+│  └─ body
+│     ├─ ExprStmt @25:3
+│     │  └─ expr
+│     │     └─ Identifier 'test_frequencies' @25:3
+│     ├─ ExprStmt @26:3
+│     │  └─ expr
+│     │     └─ Identifier 'test_data_rates' @26:3
+│     └─ ExprStmt @27:3
+│        └─ expr
+│           └─ IntLiteral '0' @27:3
+└─ ExprStmt @30:1
+   └─ expr
+      └─ Identifier 'main' @30:1
+--- exit 0 ---

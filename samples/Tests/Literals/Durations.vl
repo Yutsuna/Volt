@@ -1,0 +1,29 @@
+def test_millisecond_base_units -> Void
+  assert!( 1ms == 1 )
+  assert!( 500ms == 500 )
+  assert!( 1000ms == 1s )
+  assert!( 60s == 60000 )
+  assert!( 1m == 60s )
+  assert!( 60m == 3600000 )
+  assert!( 1h == 60m )
+  assert!( 24h == 86400000 )
+  assert!( 1d == 24h )
+  assert!( 7d == 604800000 )
+end
+
+def test_sub_millisecond_units -> Void
+  assert!( 1000us == 1.0 )
+  assert!( 500us == 0.5 )
+  assert!( 1000µs == 1.0 )
+  assert!( 1000μs == 1.0 )
+  assert!( 1000000ns == 1.0 )
+  assert!( 500000ns == 0.5 )
+end
+
+def main -> Int32
+  test_millisecond_base_units
+  test_sub_millisecond_units
+  0
+end
+
+main

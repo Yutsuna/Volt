@@ -1,0 +1,39 @@
+def test_iec_binary_sizes -> Void
+  assert!( 10B == 10_u64 )
+  assert!( 1KiB == 1024_u64 )
+  assert!( 4KiB == 4096_u64 )
+  assert!( 1MiB == 1048576_u64 )
+  assert!( 2MiB == 2097152_u64 )
+  assert!( 1GiB == 1073741824_u64 )
+  assert!( 2GiB == 2147483648_u64 )
+  assert!( 1TiB == 1099511627776_u64 )
+  assert!( 1PiB == 1125899906842624_u64 )
+  assert!( 1EiB == 1152921504606846976_u64 )
+end
+
+def test_si_decimal_sizes -> Void
+  assert!( 1KB == 1000_u64 )
+  assert!( 5KB == 5000_u64 )
+  assert!( 1Ko == 1000_u64 )
+  assert!( 5Ko == 5000_u64 )
+  assert!( 1MB == 1000000_u64 )
+  assert!( 10MB == 10000000_u64 )
+  assert!( 1Mo == 1000000_u64 )
+  assert!( 10Mo == 10000000_u64 )
+  assert!( 1GB == 1000000000_u64 )
+  assert!( 1Go == 1000000000_u64 )
+  assert!( 1TB == 1000000000000_u64 )
+  assert!( 1To == 1000000000000_u64 )
+  assert!( 1PB == 1000000000000000_u64 )
+  assert!( 1Po == 1000000000000000_u64 )
+  assert!( 1EB == 1000000000000000000_u64 )
+  assert!( 1Eo == 1000000000000000000_u64 )
+end
+
+def main -> Int32
+  test_iec_binary_sizes
+  test_si_decimal_sizes
+  0
+end
+
+main
