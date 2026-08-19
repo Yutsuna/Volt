@@ -263,6 +263,7 @@ namespace MiddleEnd
             // `Raii::IsFinalizeCandidateNominal` — which is now the *only*
             // question the RAII sweeps ask about a type.
             bool bTrivialFinalize = true;
+            bool bMixin           = false;
 
             // Per generic parameter, the AST field names feeding it when a node
             // kind is lowered to this type. Empty = the default convention (the
@@ -383,6 +384,27 @@ namespace MiddleEnd
             void AddMember ( NominalId Id, Member Entry )
             {
                 Types.Get( Id ).Members.push_back( std::move( Entry ) );
+            }
+
+            void SetIsMixin ( NominalId Id, bool bMixin )
+            {
+                Types.Get( Id ).bMixin = bMixin;
+            }
+
+            [[nodiscard]] bool IsMixin ( NominalId Id ) const
+            {
+                return Id.IsValid() and Types.Get( Id ).bMixin;
+            }
+
+            [[nodiscard]] bool HasAbstractMembers ( NominalId Nominal ) const
+            {
+                if ( not Nominal.IsValid() )
+                {
+                    return false;
+                }
+                const auto &Members = Type( Nominal ).Members;
+                return std::ranges::any_of( Members, [] ( const Member &Entry )
+                                            { return Entry.Kind == EMemberKind::Method and Entry.bAbstract; } );
             }
 
             [[nodiscard]] std::optional<NominalId> LookupTypeByDecl ( std::uint32_t Unit, Frontend::DeclId Decl ) const

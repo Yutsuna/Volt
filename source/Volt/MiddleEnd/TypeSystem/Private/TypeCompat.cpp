@@ -172,7 +172,12 @@ namespace
         {
             return false;
         }
-        return ConformsTo( Context.Ctx.Types, Context.Ctx.Values.Get( Value ).Base, TargetVal.Base );
+        const NominalId TargetBase = TargetVal.Base;
+        if ( not TargetBase.IsValid() or Context.Ctx.Types.HasAbstractMembers( TargetBase ) )
+        {
+            return false;
+        }
+        return ConformsTo( Context.Ctx.Types, Context.Ctx.Values.Get( Value ).Base, TargetBase );
     }
 
 } // namespace
