@@ -23,8 +23,8 @@ VOLT_UNIT( "GHz", Freq, 1000000000ULL, false )
 VOLT_UNIT( "bps", Rate, 1ULL, false )
 VOLT_UNIT( "deg", Angle, ( 3.141592653589793238462643383279502884 / 180.0 ), true )
 VOLT_UNIT( "rad", Angle, 1.0, true )
-VOLT_UNIT( "\xC2\xB5s", Duration, 0.001, true )
-VOLT_UNIT( "\xCE\xBCs", Duration, 0.001, true )
+VOLT_UNIT( "\xC2\xB5s", Duration, ( 1.0 / 1000.0 ), true )
+VOLT_UNIT( "\xCE\xBCs", Duration, ( 1.0 / 1000.0 ), true )
 
 // --- 2 chars ---
 VOLT_UNIT( "KB", DataSize, 1000ULL, false )
@@ -40,8 +40,8 @@ VOLT_UNIT( "Po", DataSize, 1000000000000000ULL, false )
 VOLT_UNIT( "EB", DataSize, 1000000000000000000ULL, false )
 VOLT_UNIT( "Eo", DataSize, 1000000000000000000ULL, false )
 VOLT_UNIT( "ms", Duration, 1ULL, false )
-VOLT_UNIT( "us", Duration, 0.001, true )
-VOLT_UNIT( "ns", Duration, 0.000001, true )
+VOLT_UNIT( "us", Duration, ( 1.0 / 1000.0 ), true )
+VOLT_UNIT( "ns", Duration, ( 1.0 / 1000000.0 ), true )
 VOLT_UNIT( "Hz", Freq, 1ULL, false )
 
 // --- 1 char ---
@@ -50,6 +50,6 @@ VOLT_UNIT( "s", Duration, 1000ULL, false )
 VOLT_UNIT( "m", Duration, 60000ULL, false )
 VOLT_UNIT( "h", Duration, 3600000ULL, false )
 VOLT_UNIT( "d", Duration, 86400000ULL, false )
-VOLT_UNIT( "%", Ratio, 0.01, true )
+VOLT_UNIT( "%", Ratio, ( 1.0 / 100.0 ), true )
 
 #undef VOLT_UNIT
