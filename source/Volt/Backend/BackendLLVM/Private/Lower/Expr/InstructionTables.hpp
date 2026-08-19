@@ -75,6 +75,10 @@ namespace Backend
             FNeg,       // fneg x
             BitNot,     // x xor -1
             LogicalNot, // x xor true — the i1 case
+            Inc,        // x + 1
+            FInc,       // x + 1.0
+            Dec,        // x - 1
+            FDec,       // x - 1.0
         };
 
         struct BinOpRow

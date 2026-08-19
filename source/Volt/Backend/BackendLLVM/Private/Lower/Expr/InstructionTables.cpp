@@ -86,18 +86,24 @@ constexpr CmpRow Cmps[] = {
 
 constexpr UnOpRow UnOps[] = {
     // --- Signed integers ---------------------------------------------------
+    { EOpFamily::SInt, TokenKind::PlusPlus, EUnaryOp::Inc },
+    { EOpFamily::SInt, TokenKind::MinusMinus, EUnaryOp::Dec },
     { EOpFamily::SInt, TokenKind::Minus, EUnaryOp::Neg },
     { EOpFamily::SInt, TokenKind::Tilde, EUnaryOp::BitNot },
     { EOpFamily::SInt, TokenKind::Bang, EUnaryOp::LogicalNot },
     { EOpFamily::SInt, TokenKind::KwNot, EUnaryOp::LogicalNot },
 
     // --- Unsigned integers -------------------------------------------------
+    { EOpFamily::UInt, TokenKind::PlusPlus, EUnaryOp::Inc },
+    { EOpFamily::UInt, TokenKind::MinusMinus, EUnaryOp::Dec },
     { EOpFamily::UInt, TokenKind::Minus, EUnaryOp::Neg },
     { EOpFamily::UInt, TokenKind::Tilde, EUnaryOp::BitNot },
     { EOpFamily::UInt, TokenKind::Bang, EUnaryOp::LogicalNot },
     { EOpFamily::UInt, TokenKind::KwNot, EUnaryOp::LogicalNot },
 
     // --- Floats ------------------------------------------------------------
+    { EOpFamily::Float, TokenKind::PlusPlus, EUnaryOp::FInc },
+    { EOpFamily::Float, TokenKind::MinusMinus, EUnaryOp::FDec },
     { EOpFamily::Float, TokenKind::Minus, EUnaryOp::FNeg },
 };
 

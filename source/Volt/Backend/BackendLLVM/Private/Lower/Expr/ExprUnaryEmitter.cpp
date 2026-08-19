@@ -43,6 +43,14 @@ llvm::Value *Volt::Backend::Llvm::EmitUnary ( BodyEmitter &Emitter, Frontend::Ex
 
     switch ( Row->Kind )
     {
+    case EUnaryOp::Inc:
+        return Builder.CreateAdd( Operand, llvm::ConstantInt::get( Operand->getType(), 1 ) );
+    case EUnaryOp::FInc:
+        return Builder.CreateFAdd( Operand, llvm::ConstantFP::get( Operand->getType(), 1.0 ) );
+    case EUnaryOp::Dec:
+        return Builder.CreateSub( Operand, llvm::ConstantInt::get( Operand->getType(), 1 ) );
+    case EUnaryOp::FDec:
+        return Builder.CreateFSub( Operand, llvm::ConstantFP::get( Operand->getType(), 1.0 ) );
     case EUnaryOp::Neg:
         return Builder.CreateNeg( Operand );
     case EUnaryOp::FNeg:
