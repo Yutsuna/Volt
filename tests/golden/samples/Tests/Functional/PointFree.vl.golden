@@ -1,11 +1,55 @@
 Program 'samples/Tests/Functional/PointFree.vl'
+├─ Class 'Item' @41:1
+│  └─ body
+│     ├─ Field 'name' @42:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @42:10
+│     ├─ Field 'score' @43:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @43:11
+│     ├─ Method 'initialize' @45:3
+│     │  ├─ params
+│     │  │  ├─ Param 'name' @45:19
+│     │  │  │  └─ decl_type
+│     │  │  │     └─ TypeRef 'String' @45:26
+│     │  │  └─ Param 'score' @45:34
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'Int32' @45:42
+│     │  └─ body
+│     │     ├─ ExprStmt @46:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @46:11
+│     │     │        ├─ target
+│     │     │        │  └─ InstanceVar '@name' @46:5
+│     │     │        └─ value
+│     │     │           └─ Identifier 'name' @46:13
+│     │     └─ ExprStmt @47:5
+│     │        └─ expr
+│     │           └─ Assign '=' @47:12
+│     │              ├─ target
+│     │              │  └─ InstanceVar '@score' @47:5
+│     │              └─ value
+│     │                 └─ Identifier 'score' @47:14
+│     └─ Method 'formatted_score' @50:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @50:26
+│        └─ body
+│           └─ ExprStmt @51:5
+│              └─ expr
+│                 └─ Call @51:28
+│                    ├─ callee
+│                    │  └─ Member 'prefix' @51:21
+│                    │     └─ object
+│                    │        └─ Member 'to_string' @51:11
+│                    │           └─ object
+│                    │              └─ InstanceVar '@score' @51:5
+│                    └─ args
+│                       └─ StringLiteral 'Score: ' @51:30
 ├─ Method 'calc_pointfree' [T_1] @2:29
 │  ├─ params
 │  │  └─ Param 'fn_tmp_0' @2:29
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_1' @2:29
-│  ├─ return_type
-│  │  └─ TypeRef 'T_1' @2:29
 │  └─ body
 │     └─ ExprStmt @2:29
 │        └─ expr
@@ -23,8 +67,6 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  │  └─ Param 'fn_tmp_2' @11:16
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_3' @11:16
-│  ├─ return_type
-│  │  └─ TypeRef 'String' @11:20
 │  └─ body
 │     └─ ExprStmt @11:16
 │        └─ expr
@@ -48,8 +90,6 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  │  └─ Param 'fn_tmp_4' @25:24
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_5' @25:24
-│  ├─ return_type
-│  │  └─ TypeRef 'String' @25:29
 │  └─ body
 │     └─ ExprStmt @25:24
 │        └─ expr
@@ -69,8 +109,6 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │  │  └─ Param 'fn_tmp_6' @34:37
 │  │     └─ decl_type
 │  │        └─ TypeRef 'T_7' @34:37
-│  ├─ return_type
-│  │  └─ TypeRef 'String' @34:42
 │  └─ body
 │     └─ ExprStmt @34:37
 │        └─ expr
@@ -85,6 +123,25 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │                    └─ Identifier 'fn_tmp_6' @34:37
 │              └─ args
 │                 └─ StringLiteral 'Value: ' @34:52
+├─ Method 'get_item_score' [T_9] @56:38
+│  ├─ params
+│  │  └─ Param 'fn_tmp_8' @56:38
+│  │     └─ decl_type
+│  │        └─ TypeRef 'T_9' @56:38
+│  └─ body
+│     └─ ExprStmt @56:38
+│        └─ expr
+│           └─ Call @56:42
+│              ├─ callee
+│              │  └─ Member 'prefix' @56:42
+│              │     └─ object
+│              │        └─ Call @56:19
+│              │           └─ callee
+│              │              └─ Member 'formatted_score' @56:19
+│              │                 └─ object
+│              │                    └─ Identifier 'fn_tmp_8' @56:38
+│              └─ args
+│                 └─ StringLiteral '[Item] ' @56:52
 ├─ ExprStmt @1:1
 │  └─ expr
 │     └─ Assign '=' @1:14
@@ -409,19 +466,63 @@ Program 'samples/Tests/Functional/PointFree.vl'
 │              │              └─ IntLiteral '3' @38:36
 │              └─ rhs
 │                 └─ StringLiteral 'Value: [1, 2, 3]' @38:44
-└─ ExprStmt @39:1
+├─ ExprStmt @39:1
+│  └─ expr
+│     └─ Call @39:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @39:1
+│        └─ args
+│           └─ Binary '==' @39:38
+│              ├─ lhs
+│              │  └─ Call @39:27
+│              │     ├─ callee
+│              │     │  └─ Identifier 'no_type_pointfree' @39:10
+│              │     └─ args
+│              │        └─ StringLiteral 'Volt' @39:29
+│              └─ rhs
+│                 └─ StringLiteral 'Value: Volt' @39:41
+├─ ExprStmt @55:1
+│  └─ expr
+│     └─ Assign '=' @55:6
+│        ├─ target
+│        │  └─ Identifier 'item' @55:1
+│        └─ value
+│           └─ Call @55:16
+│              ├─ callee
+│              │  └─ Member 'new' @55:12
+│              │     └─ object
+│              │        └─ Identifier 'Item' @55:8
+│              └─ args
+│                 ├─ StringLiteral 'Potion' @55:18
+│                 └─ IntLiteral '100' @55:28
+├─ ExprStmt @57:1
+│  └─ expr
+│     └─ Call @57:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @57:1
+│        └─ args
+│           └─ Binary '==' @57:33
+│              ├─ lhs
+│              │  └─ Call @57:24
+│              │     ├─ callee
+│              │     │  └─ Identifier 'get_item_score' @57:10
+│              │     └─ args
+│              │        └─ Identifier 'item' @57:26
+│              └─ rhs
+│                 └─ StringLiteral '[Item] Score: 100' @57:36
+└─ ExprStmt @58:1
    └─ expr
-      └─ Call @39:8
+      └─ Call @58:8
          ├─ callee
-         │  └─ Identifier 'assert!' @39:1
+         │  └─ Identifier 'assert!' @58:1
          └─ args
-            └─ Binary '==' @39:38
+            └─ Binary '==' @58:33
                ├─ lhs
-               │  └─ Call @39:27
-               │     ├─ callee
-               │     │  └─ Identifier 'no_type_pointfree' @39:10
-               │     └─ args
-               │        └─ StringLiteral 'Volt' @39:29
+               │  └─ Pipeline @58:15
+               │     ├─ lhs
+               │     │  └─ Identifier 'item' @58:10
+               │     └─ rhs
+               │        └─ Identifier 'get_item_score' @58:18
                └─ rhs
-                  └─ StringLiteral 'Value: Volt' @39:41
+                  └─ StringLiteral '[Item] Score: 100' @58:36
 --- exit 0 ---

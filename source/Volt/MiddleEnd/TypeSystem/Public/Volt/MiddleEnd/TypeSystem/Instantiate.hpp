@@ -66,7 +66,12 @@ struct InstantiatedBody
     UnitCallees Callees;
     SynthesizedFunctions Synth;
     ExprRedirectMap Redirects;
+    SemaTypeId ReturnType{};
+    bool bFullInstantiation = false;
 };
+
+VOLT_MIDDLEEND_TYPESYSTEM_EXPORT void
+FlattenValueType ( const UnitTypes &Values, SemaTypeId Id, std::vector<std::uint32_t> &Out );
 
 // Re-type `Entry`'s declared body — found via `Entry.Decl` in `Ast`,
 // which must be the AstContext of `Entry.Unit` — with `self` and its
@@ -91,5 +96,24 @@ struct InstantiatedBody
                                                                                     const Member &Entry,
                                                                                     NominalId Owner,
                                                                                     std::span<const std::uint32_t> FlatArgs );
+
+[[nodiscard]] VOLT_MIDDLEEND_TYPESYSTEM_EXPORT SemaTypeId InferMethodReturnType ( const TypeStore &Store,
+                                                                                  const Frontend::AstContext &Ast,
+                                                                                  const ScopeTable &Scopes,
+                                                                                  const Member &Entry,
+                                                                                  NominalId Owner,
+                                                                                  std::span<const std::uint32_t> FlatArgs,
+                                                                                  UnitTypes &Values );
+
+[[nodiscard]] inline SemaTypeId InferMethodReturnType ( const TypeStore &Store,
+                                                        const Frontend::AstContext &Ast,
+                                                        const ScopeTable &Scopes,
+                                                        const Member &Entry,
+                                                        NominalId Owner,
+                                                        std::span<const std::uint32_t> FlatArgs )
+{
+    UnitTypes LocalValues;
+    return InferMethodReturnType( Store, Ast, Scopes, Entry, Owner, FlatArgs, LocalValues );
+}
 
 } // namespace Volt::MiddleEnd::TypeSystem

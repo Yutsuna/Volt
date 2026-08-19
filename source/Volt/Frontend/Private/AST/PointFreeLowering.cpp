@@ -8,6 +8,7 @@
 
 #include <cstdio>
 #include <optional>
+#include <span>
 #include <variant>
 #include <vector>
 
@@ -156,16 +157,14 @@ BuildSectionBody ( Frontend::AstContext &Context, Frontend::ExprId SectionId, Fr
     return BuildStep( Context, Comp.Rhs, InnerExpr, Consumed );
 }
 
-// A composition's result type is whatever its rightmost step returns, never
-// the input type `T` — `(&.to_string) >> (&.data) >> libc_puts` yields
-// `Int32`, not the `String` it started from. That rightmost step is the
-// composition's own `Rhs` (parsed left-associative, so `Comp.Rhs` is already
-// the last one applied); recurse through it when it is itself a nested
-// Composition, and stop at a bare `Identifier` naming a top-level `def` in
-// this same file, whose declared `-> T` is read back verbatim — no type
-// resolution, just the same TypeId the callee itself declared. A Section (or
-// any other shape) has no statically-known result without evaluating a
-// receiver type, so it falls back to the caller's default of `T`.
+// A composition's result type is whatever its rightmost step returns.
+// That rightmost step is the composition's own `Rhs` (parsed left-associative,
+// so `Comp.Rhs` is already the last one applied); recurse through it when it is
+// itself a nested Composition, and stop at a bare `Identifier` naming a
+// top-level `def` in this same file, whose declared `-> ReturnType` is read back
+// verbatim. When no explicit return type exists statically in the AST, returns
+// nullopt so MiddleEnd (TypeBinder / ReinstantiateBody) deduces it dynamically
+// from the body.
 [[nodiscard]] std::optional<Frontend::TypeId> TryResolveChainReturnType ( Frontend::AstContext &Context, Frontend::ExprId Id )
 {
     if ( const auto *Comp = std::get_if<Frontend::Composition>( &Context.Expr( Id ) ) )
@@ -175,70 +174,11 @@ BuildSectionBody ( Frontend::AstContext &Context, Frontend::ExprId SectionId, Fr
 
     if ( const auto *Sec = std::get_if<Frontend::Section>( &Context.Expr( Id ) ) )
     {
-        if ( Sec->bNegated )
-        {
-            Frontend::TypeRef TRef;
-            TRef.Loc = Sec->Loc;
-            TRef.Path.PushBack( Context.Strings().Intern( "Bool" ) );
-            return Context.Add( TRef );
-        }
-
         if ( Sec->Kind == Frontend::ESectionKind::StaticCapture )
         {
             return TryResolveChainReturnType( Context, Sec->TargetExpr );
         }
-
-        if ( Sec->Kind == Frontend::ESectionKind::Operator )
-        {
-            if ( Sec->Op == Frontend::TokenKind::EqEq or Sec->Op == Frontend::TokenKind::NotEq or
-                 Sec->Op == Frontend::TokenKind::Lt or Sec->Op == Frontend::TokenKind::Le or Sec->Op == Frontend::TokenKind::Gt or
-                 Sec->Op == Frontend::TokenKind::Ge )
-            {
-                Frontend::TypeRef TRef;
-                TRef.Loc = Sec->Loc;
-                TRef.Path.PushBack( Context.Strings().Intern( "Bool" ) );
-                return Context.Add( TRef );
-            }
-            return std::nullopt;
-        }
-
-        if ( Sec->Kind == Frontend::ESectionKind::InstanceMethod )
-        {
-            const std::string Name = std::string{ Context.Text( Sec->Target ) };
-            if ( Name == "to_string" or Name == "prefix" or Name == "trim" or Name == "downcase" or Name == "upcase" or
-                 Name == "inspect" or Name == "concat" or Name == "to_s" )
-            {
-                Frontend::TypeRef TRef;
-                TRef.Loc = Sec->Loc;
-                TRef.Path.PushBack( Context.Strings().Intern( "String" ) );
-                return Context.Add( TRef );
-            }
-            if ( Name == "data" )
-            {
-                Frontend::TypeRef TRef;
-                TRef.Loc = Sec->Loc;
-                TRef.Path.PushBack( Context.Strings().Intern( "Pointer" ) );
-                Frontend::TypeRef ArgTRef;
-                ArgTRef.Loc = Sec->Loc;
-                ArgTRef.Path.PushBack( Context.Strings().Intern( "UInt8" ) );
-                TRef.Generics.PushBack( Context.Add( ArgTRef ) );
-                return Context.Add( TRef );
-            }
-            if ( Name == "empty?" or Name == "nil?" or Name == "zero?" or Name == "valid?" )
-            {
-                Frontend::TypeRef TRef;
-                TRef.Loc = Sec->Loc;
-                TRef.Path.PushBack( Context.Strings().Intern( "Bool" ) );
-                return Context.Add( TRef );
-            }
-            if ( Name == "length" or Name == "size" or Name == "count" or Name == "hash" )
-            {
-                Frontend::TypeRef TRef;
-                TRef.Loc = Sec->Loc;
-                TRef.Path.PushBack( Context.Strings().Intern( "Int32" ) );
-                return Context.Add( TRef );
-            }
-        }
+        return std::nullopt;
     }
 
     const auto *Ident = std::get_if<Frontend::Identifier>( &Context.Expr( Id ) );
@@ -247,7 +187,7 @@ BuildSectionBody ( Frontend::AstContext &Context, Frontend::ExprId SectionId, Fr
         return std::nullopt;
     }
 
-    auto FindInDecls = [&] ( auto &SelfRef, const std::vector<Frontend::DeclId> &Decls ) -> std::optional<Frontend::TypeId>
+    auto FindInDecls = [&] ( auto &SelfRef, std::span<const Frontend::DeclId> Decls ) -> std::optional<Frontend::TypeId>
     {
         for ( const Frontend::DeclId DeclId : Decls )
         {
@@ -265,24 +205,21 @@ BuildSectionBody ( Frontend::AstContext &Context, Frontend::ExprId SectionId, Fr
             }
             else if ( const auto *Cls = std::get_if<Frontend::Class>( &Node ) )
             {
-                std::vector<Frontend::DeclId> BodyDecls{ Cls->Body.begin(), Cls->Body.end() };
-                if ( const auto Res = SelfRef( SelfRef, BodyDecls ) )
+                if ( const auto Res = SelfRef( SelfRef, std::span{ Cls->Body.begin(), Cls->Body.end() } ) )
                 {
                     return Res;
                 }
             }
             else if ( const auto *Str = std::get_if<Frontend::Struct>( &Node ) )
             {
-                std::vector<Frontend::DeclId> BodyDecls{ Str->Body.begin(), Str->Body.end() };
-                if ( const auto Res = SelfRef( SelfRef, BodyDecls ) )
+                if ( const auto Res = SelfRef( SelfRef, std::span{ Str->Body.begin(), Str->Body.end() } ) )
                 {
                     return Res;
                 }
             }
             else if ( const auto *Mix = std::get_if<Frontend::Mixin>( &Node ) )
             {
-                std::vector<Frontend::DeclId> BodyDecls{ Mix->Body.begin(), Mix->Body.end() };
-                if ( const auto Res = SelfRef( SelfRef, BodyDecls ) )
+                if ( const auto Res = SelfRef( SelfRef, std::span{ Mix->Body.begin(), Mix->Body.end() } ) )
                 {
                     return Res;
                 }
@@ -341,13 +278,6 @@ void Volt::Frontend::LowerPointFreeDefs ( AstContext &Context )
             // Type nodes are immutable after parsing, so sharing the Id
             // across two decls' signatures is safe.
             ReturnTId = *ResolvedReturnType;
-        }
-        else
-        {
-            TypeRef ReturnTRef;
-            ReturnTRef.Loc = Loc;
-            ReturnTRef.Path.PushBack( TSym );
-            ReturnTId = Context.Add( ReturnTRef );
         }
 
         Param ParamNode;

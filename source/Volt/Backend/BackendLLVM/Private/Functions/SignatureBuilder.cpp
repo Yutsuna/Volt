@@ -6,6 +6,8 @@
 #include "Core/ModuleContext.hpp"
 #include "Types/TypeMapper.hpp"
 
+#include "Volt/MiddleEnd/TypeSystem/Instantiate.hpp"
+
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Type.h>
 
@@ -79,8 +81,37 @@ llvm::FunctionType *Volt::Backend::Llvm::SignatureBuilder::FunctionTypeOf ( cons
     // No result signature means no return type: a `def` with no `-> T` has none
     // (rules/core-ast.md), and that is the same shape as a declared return whose
     // nominal the stdlib never defines. Both are `void`; neither is guessed at.
+    // For a monomorphised method with an inferred return type, read it from
+    // the instantiated overlay.
     llvm::Type *Result =
         Entry.Result.IsValid() ? Types.TypeOfLayout( SignatureLayoutOf( Store, Entry.Result, Owner, FlatArgs ) ) : nullptr;
+    if ( Result == nullptr and not Owner.IsValid() and not FlatArgs.empty() and Entry.Decl.IsValid() and
+         Services->Build != nullptr )
+    {
+        const UnitView *DeclUnit = nullptr;
+        for ( const UnitView &View : Services->Build->Units )
+        {
+            if ( View.Ordinal == Entry.Unit )
+            {
+                DeclUnit = &View;
+                break;
+            }
+        }
+        if ( DeclUnit != nullptr and DeclUnit->Ast != nullptr and DeclUnit->Scopes != nullptr )
+        {
+            const auto *MethodNode = std::get_if<Frontend::Method>( &DeclUnit->Ast->Decl( Entry.Decl ) );
+            if ( MethodNode != nullptr and not MethodNode->ReturnType.IsValid() )
+            {
+                MiddleEnd::TypeSystem::UnitTypes Values;
+                const MiddleEnd::TypeSystem::SemaTypeId RetType = MiddleEnd::TypeSystem::InferMethodReturnType(
+                    Store, *DeclUnit->Ast, *DeclUnit->Scopes, Entry, Owner, FlatArgs, Values );
+                if ( RetType.IsValid() )
+                {
+                    Result = Types.TypeOfLayout( Types.LayoutOfValue( Values, RetType ) );
+                }
+            }
+        }
+    }
     if ( Result == nullptr )
     {
         Result = llvm::Type::getVoidTy( Context );
