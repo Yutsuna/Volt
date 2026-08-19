@@ -1,0 +1,30 @@
+def test_frequencies -> Void
+  assert!( 1Hz == 1 )
+  assert!( 440Hz == 440 )
+  assert!( 1kHz == 1000 )
+  assert!( 44.1kHz == 44100.0 )
+  assert!( 48kHz == 48000 )
+  assert!( 1MHz == 1000000 )
+  assert!( 100MHz == 100000000 )
+  assert!( 1GHz == 1000000000 )
+  assert!( 2.4GHz == 2400000000.0 )
+end
+
+def test_data_rates -> Void
+  assert!( 1bps == 1 )
+  assert!( 9600bps == 9600 )
+  assert!( 1kbps == 1000 )
+  assert!( 128kbps == 128000 )
+  assert!( 1Mbps == 1000000 )
+  assert!( 1000Mbps == 1Gbps )
+  assert!( 1Gbps == 1000000000 )
+  assert!( 10Gbps == 10000000000_u64 )
+end
+
+def main -> Int32
+  test_frequencies
+  test_data_rates
+  0
+end
+
+main

@@ -1,7 +1,11 @@
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
+#include "Volt/Frontend/Lexer/UnitTable.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -228,7 +232,8 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexNumber ( std::size_t Start )
             }
         }
 
-        if ( Peek() == 'e' or Peek() == 'E' )
+        if ( ( Peek() == 'e' or Peek() == 'E' ) and
+             ( IsDigit( Peek( 1 ) ) or ( ( Peek( 1 ) == '+' or Peek( 1 ) == '-' ) and IsDigit( Peek( 2 ) ) ) ) )
         {
             bFloat = true;
             ++Pos;
@@ -236,25 +241,105 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexNumber ( std::size_t Start )
             {
                 ++Pos;
             }
-            while ( IsDigit( Peek() ) )
+            while ( IsDigit( Peek() ) or ( Peek() == '_' and IsDigit( Peek( 1 ) ) ) )
             {
                 ++Pos;
             }
         }
     }
 
-    // Typed suffix: `_u64`, `_i32`, `_f64`, ...
+    const std::size_t NumEnd    = Pos;
+    const std::string_view Text = Source.substr( Start, NumEnd - Start );
+
+    // Check for unit suffixes (e.g. `1KiB`, `1000ms`, `180deg`, `80%`, `1kHz`, `1Gbps`)
+    if ( const UnitEntry *Unit = MatchUnitSuffix( Source, Pos ) )
+    {
+        Pos += Unit->Suffix.size();
+
+        char CleanBuf[64];
+        std::size_t CleanLen = 0;
+        bool bOverflowDigits = false;
+        for ( const char Ch : Text )
+        {
+            if ( Ch != '_' )
+            {
+                if ( CleanLen + 1 >= sizeof( CleanBuf ) )
+                {
+                    bOverflowDigits = true;
+                    break;
+                }
+                CleanBuf[CleanLen++] = Ch;
+            }
+        }
+        if ( bOverflowDigits )
+        {
+            Diagnostics.Error( RangeFrom( Start ), "number literal exceeds maximum supported length" );
+            return MakeText( TokenKind::Error, Start );
+        }
+
+        char OutBuf[64];
+        UnitFoldResult Folded =
+            FoldUnitLiteral( std::string_view( CleanBuf, CleanLen ), bFloat, *Unit, OutBuf, sizeof( OutBuf ) );
+        if ( Folded.bOverflow )
+        {
+            Diagnostics.Error( RangeFrom( Start ), "integer literal overflow during unit folding" );
+        }
+
+        char *OutPtr = OutBuf + Folded.WrittenSize;
+
+        // Append optional typed suffix (`_u64`, `_i32`, `_f64`)
+        if ( Peek() == '_' and ( Peek( 1 ) == 'u' or Peek( 1 ) == 'i' or Peek( 1 ) == 'f' ) )
+        {
+            if ( Peek( 1 ) == 'f' )
+            {
+                Folded.bFloat = true;
+            }
+            const std::size_t TypeStart = Pos;
+            Pos += 2;
+            while ( IsIdentCont( Peek() ) )
+            {
+                ++Pos;
+            }
+            const std::string_view TypeSuffix = Source.substr( TypeStart, Pos - TypeStart );
+            const std::size_t CopyLen =
+                std::min( TypeSuffix.size(), sizeof( OutBuf ) - static_cast<std::size_t>( OutPtr - OutBuf ) );
+            std::memcpy( OutPtr, TypeSuffix.data(), CopyLen );
+            OutPtr += CopyLen;
+        }
+
+        Token Result;
+        Result.Kind   = Folded.bFloat ? TokenKind::FloatLiteral : TokenKind::IntLiteral;
+        Result.Range  = RangeFrom( Start );
+        Result.Lexeme = Interner.Intern( std::string_view( OutBuf, static_cast<std::size_t>( OutPtr - OutBuf ) ) );
+        return Result;
+    }
+
+    // Typed suffix without unit: `_u64`, `_i32`, `_f64`, ...
     if ( Peek() == '_' and ( Peek( 1 ) == 'u' or Peek( 1 ) == 'i' or Peek( 1 ) == 'f' ) )
     {
         if ( Peek( 1 ) == 'f' )
         {
             bFloat = true;
         }
-        ++Pos; // consume '_'
+        Pos += 2;
         while ( IsIdentCont( Peek() ) )
         {
             ++Pos;
         }
+        return MakeText( bFloat ? TokenKind::FloatLiteral : TokenKind::IntLiteral, Start );
+    }
+
+    // Unrecognized alphanumeric suffix attached to number (e.g. `123xyz`)
+    if ( IsIdentStart( Peek() ) )
+    {
+        const std::size_t BadStart = Pos;
+        while ( IsIdentCont( Peek() ) )
+        {
+            ++Pos;
+        }
+        const std::string_view BadSuffix = Source.substr( BadStart, Pos - BadStart );
+        Diagnostics.Error( RangeFrom( Start ), "unrecognized literal suffix '" + std::string( BadSuffix ) + "'" );
+        return MakeText( TokenKind::Error, Start );
     }
 
     return MakeText( bFloat ? TokenKind::FloatLiteral : TokenKind::IntLiteral, Start );

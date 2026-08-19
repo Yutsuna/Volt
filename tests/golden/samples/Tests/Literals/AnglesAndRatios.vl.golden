@@ -1,0 +1,169 @@
+Program 'samples/Tests/Literals/AnglesAndRatios.vl'
+├─ Method 'test_percentages' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:25
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Call @2:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @2:3
+│     │        └─ args
+│     │           └─ Binary '==' @2:15
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '0.0' @2:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '0.0' @2:18
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Call @3:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @3:3
+│     │        └─ args
+│     │           └─ Binary '==' @3:16
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '0.5' @3:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '0.5' @3:19
+│     ├─ ExprStmt @4:3
+│     │  └─ expr
+│     │     └─ Call @4:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @4:3
+│     │        └─ args
+│     │           └─ Binary '==' @4:16
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '0.8' @4:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '0.8' @4:19
+│     ├─ ExprStmt @5:3
+│     │  └─ expr
+│     │     └─ Call @5:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @5:3
+│     │        └─ args
+│     │           └─ Binary '==' @5:17
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '1.0' @5:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '1.0' @5:20
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ Call @6:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @6:3
+│              └─ args
+│                 └─ Binary '==' @6:17
+│                    ├─ lhs
+│                    │  └─ FloatLiteral '1.5' @6:12
+│                    └─ rhs
+│                       └─ FloatLiteral '1.5' @6:20
+├─ Method 'test_angles_in_radians' @9:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @9:31
+│  └─ body
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Call @10:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @10:3
+│     │        └─ args
+│     │           └─ Binary '==' @10:17
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '0.0' @10:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '0.0' @10:20
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Call @11:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @11:3
+│     │        └─ args
+│     │           └─ Binary '==' @11:17
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '1.0' @11:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '1.0' @11:20
+│     ├─ ExprStmt @12:3
+│     │  └─ expr
+│     │     └─ Call @12:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @12:3
+│     │        └─ args
+│     │           └─ Binary '==' @12:17
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '0.0' @12:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '0.0' @12:20
+│     ├─ ExprStmt @13:3
+│     │  └─ expr
+│     │     └─ Call @13:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @13:3
+│     │        └─ args
+│     │           └─ Binary '==' @13:18
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '0.0' @13:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '0.0' @13:21
+│     ├─ ExprStmt @14:3
+│     │  └─ expr
+│     │     └─ Call @14:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @14:3
+│     │        └─ args
+│     │           └─ Binary '==' @14:21
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '1.5707963267948966' @14:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '1.5707963267948966' @14:24
+│     ├─ ExprStmt @15:3
+│     │  └─ expr
+│     │     └─ Call @15:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @15:3
+│     │        └─ args
+│     │           └─ Binary '==' @15:20
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '3.141592653589793' @15:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '3.141592653589793' @15:23
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Call @16:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @16:3
+│     │        └─ args
+│     │           └─ Binary '==' @16:18
+│     │              ├─ lhs
+│     │              │  └─ FloatLiteral '6.283185307179586' @16:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '6.283185307179586' @16:21
+│     └─ ExprStmt @17:3
+│        └─ expr
+│           └─ Call @17:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @17:3
+│              └─ args
+│                 └─ Binary '==' @17:18
+│                    ├─ lhs
+│                    │  └─ FloatLiteral '12.566370614359172' @17:12
+│                    └─ rhs
+│                       └─ FloatLiteral '12.566370614359172' @17:21
+├─ Method 'main' @20:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @20:13
+│  └─ body
+│     ├─ ExprStmt @21:3
+│     │  └─ expr
+│     │     └─ Identifier 'test_percentages' @21:3
+│     ├─ ExprStmt @22:3
+│     │  └─ expr
+│     │     └─ Identifier 'test_angles_in_radians' @22:3
+│     └─ ExprStmt @23:3
+│        └─ expr
+│           └─ IntLiteral '0' @23:3
+└─ ExprStmt @26:1
+   └─ expr
+      └─ Identifier 'main' @26:1
+--- exit 0 ---
