@@ -16,7 +16,7 @@ module IO
 
     def write_string( str : String ) -> Int64
       return 0 if str.size == 0
-      write( str.data, str.size )
+      write( str.to_pointer(), str.size )
     end
 
     def print( str : String ) -> self

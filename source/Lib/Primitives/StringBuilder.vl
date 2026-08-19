@@ -28,7 +28,7 @@ struct StringBuilder
 
   def append( str : String ) -> self
     grow_to( @size + str.size )
-    LibC.memcpy( @buffer + @size, str.data, str.size )
+    LibC.memcpy( @buffer + @size, str.to_pointer(), str.size )
     @size += str.size
     self
   end

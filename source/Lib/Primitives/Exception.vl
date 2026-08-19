@@ -66,7 +66,7 @@ class Exception
     sb.append( @message )
     sb.append_byte( 10_u8 )
     text = sb.build
-    LibC.write( 2, text.data, text.size )
+    LibC.write( 2, text.to_pointer(), text.size )
   end
 
   def format_backtrace -> String

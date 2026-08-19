@@ -10,7 +10,7 @@ class File
   def initialize( @path : String, mode : String = "r" )
     flags = IO::OpenMode.flags_for( mode )
     perm = 420 # 0644 octal (rw-r--r--)
-    @fd = LibC.open( @path.data, flags, perm )
+    @fd = LibC.open( @path.to_pointer(), flags, perm )
     if @fd < 0
       raise IO::IOError.new( "Cannot open file: " + @path )
     end
@@ -46,7 +46,7 @@ class File
   end
 
   def self.delete( path : String ) -> Bool
-    LibC.unlink( path.data ) == 0
+    LibC.unlink( path.to_pointer() ) == 0
   end
 
   def finalize -> Void

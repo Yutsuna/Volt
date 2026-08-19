@@ -3,7 +3,7 @@ struct String
   include Comparable
   include Hashable
 
-  getter data  : Pointer<Char>
+  private data  : Pointer<Char>
   getter size  : UInt64
   owns_buffer  : Bool
 
@@ -43,7 +43,7 @@ struct String
 
   def <=>( other : String ) -> Int32
     min_size = @size < other.size ? @size : other.size
-    cmp = LibC.memcmp( @data, other.data, min_size )
+    cmp = LibC.memcmp( @data, other.to_pointer(), min_size )
     return cmp unless cmp == 0
 
     if @size < other.size
@@ -59,7 +59,7 @@ struct String
     total = @size + other.size
     buf = Pointer<Char>.malloc( total + 1_u64 )
     LibC.memcpy( buf, @data, @size )
-    LibC.memcpy( buf + @size, other.data, other.size )
+    LibC.memcpy( buf + @size, other.to_pointer(), other.size )
     *( buf + total ) = '\0'
     String.owned( buf, total )
   end
@@ -76,6 +76,10 @@ struct String
 
   def to_string -> String
     self
+  end
+
+  def to_pointer -> Pointer<Char>
+    @data
   end
 
   def trim -> String
