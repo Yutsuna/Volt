@@ -70,11 +70,7 @@ struct Char
     if self.lowercase? then self - 32_u8 else self end
   end
 
-  def to_digit -> Int32
-    if digit? then ( self - '0' ) else -1 end
-  end
-
-  def to_digit( radix : Int32 ) -> Int32
+  def to_digit( radix : Int32 = 10 ) -> Int32
     val = -1
     if digit?
       val = self - '0'
