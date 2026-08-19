@@ -45,8 +45,10 @@ namespace MiddleEnd
             TypeSystem::SemaTypeId BlockParam;
             ::Volt::Core::SmallVec<TypeSystem::SemaTypeId, 2> Bindings;
             TypeSystem::SemaTypeId Receiver;
-            bool bConstructs = false;
-            bool bIndirect   = false;
+            bool bConstructs         = false;
+            bool bIndirect           = false;
+            std::uint32_t VTableSlot = 0;
+            bool bDynamicDispatch    = false;
         };
 
         // Every callee one compile unit resolved, keyed by the callee expression's ExprId.

@@ -37,6 +37,8 @@ namespace MiddleEnd
                 Meta::Serialize( W, Entry.Receiver );
                 Meta::Serialize( W, Entry.bConstructs );
                 Meta::Serialize( W, Entry.bIndirect );
+                Meta::Serialize( W, Entry.VTableSlot );
+                Meta::Serialize( W, Entry.bDynamicDispatch );
             }
         }
 
@@ -102,6 +104,14 @@ namespace MiddleEnd
                     return false;
                 }
                 if ( not Meta::Deserialize( R, Entry.bIndirect ) )
+                {
+                    return false;
+                }
+                if ( not Meta::Deserialize( R, Entry.VTableSlot ) )
+                {
+                    return false;
+                }
+                if ( not Meta::Deserialize( R, Entry.bDynamicDispatch ) )
                 {
                     return false;
                 }
