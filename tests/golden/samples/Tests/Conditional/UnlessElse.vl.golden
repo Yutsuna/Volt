@@ -1,125 +1,95 @@
 Program 'samples/Tests/Conditional/UnlessElse.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:10
+│        ├─ target
+│        │  └─ Identifier 'executed' @1:1
+│        └─ value
+│           └─ BoolLiteral false @1:12
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ If @2:1
+│        ├─ cond
+│        │  └─ Unary 'not' @2:1
+│        │     └─ operand
+│        │        └─ BoolLiteral false @2:8
+│        └─ then
+│           └─ ExprStmt @3:3
+│              └─ expr
+│                 └─ Assign '=' @3:12
+│                    ├─ target
+│                    │  └─ Identifier 'executed' @3:3
+│                    └─ value
+│                       └─ BoolLiteral true @3:14
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Call @5:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @5:1
+│        └─ args
+│           └─ Binary '==' @5:19
+│              ├─ lhs
+│              │  └─ Identifier 'executed' @5:10
+│              └─ rhs
+│                 └─ BoolLiteral true @5:22
 ├─ ExprStmt @8:1
 │  └─ expr
-│     └─ Assign '=' @8:10
+│     └─ Assign '=' @8:8
 │        ├─ target
-│        │  └─ Identifier 'executed' @8:1
+│        │  └─ Identifier 'status' @8:1
 │        └─ value
-│           └─ BoolLiteral false @8:12
-├─ ExprStmt @9:1
-│  └─ expr
-│     └─ If @9:1
-│        ├─ cond
-│        │  └─ Unary 'not' @9:1
-│        │     └─ operand
-│        │        └─ BoolLiteral false @9:8
-│        └─ then
-│           └─ ExprStmt @10:3
-│              └─ expr
-│                 └─ Assign '=' @10:12
-│                    ├─ target
-│                    │  └─ Identifier 'executed' @10:3
-│                    └─ value
-│                       └─ BoolLiteral true @10:14
-├─ ExprStmt @12:1
-│  └─ expr
-│     └─ Call @12:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @12:1
-│        └─ args
-│           └─ Binary '==' @12:19
-│              ├─ lhs
-│              │  └─ Identifier 'executed' @12:10
-│              └─ rhs
-│                 └─ BoolLiteral true @12:22
-├─ ExprStmt @15:1
-│  └─ expr
-│     └─ Assign '=' @15:8
-│        ├─ target
-│        │  └─ Identifier 'status' @15:1
-│        └─ value
-│           └─ If @15:10
+│           └─ If @8:10
 │              ├─ cond
-│              │  └─ Unary 'not' @15:10
+│              │  └─ Unary 'not' @8:10
 │              │     └─ operand
-│              │        └─ BoolLiteral true @15:17
+│              │        └─ BoolLiteral true @8:17
 │              ├─ then
-│              │  └─ ExprStmt @16:3
+│              │  └─ ExprStmt @9:3
 │              │     └─ expr
-│              │        └─ StringLiteral 'active' @16:3
+│              │        └─ StringLiteral 'active' @9:3
 │              └─ else
-│                 └─ ExprStmt @18:3
+│                 └─ ExprStmt @11:3
 │                    └─ expr
-│                       └─ StringLiteral 'inactive' @18:3
-├─ ExprStmt @20:1
+│                       └─ StringLiteral 'inactive' @11:3
+├─ ExprStmt @13:1
 │  └─ expr
-│     └─ Call @20:8
+│     └─ Call @13:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @20:1
+│        │  └─ Identifier 'assert!' @13:1
 │        └─ args
-│           └─ Binary '==' @20:17
+│           └─ Binary '==' @13:17
 │              ├─ lhs
-│              │  └─ Identifier 'status' @20:10
+│              │  └─ Identifier 'status' @13:10
 │              └─ rhs
-│                 └─ StringLiteral 'inactive' @20:20
-├─ ExprStmt @23:1
+│                 └─ StringLiteral 'inactive' @13:20
+├─ ExprStmt @16:1
 │  └─ expr
-│     └─ Assign '=' @23:17
+│     └─ Assign '=' @16:17
 │        ├─ target
-│        │  └─ Identifier 'res_unless_then' @23:1
+│        │  └─ Identifier 'res_unless_then' @16:1
 │        └─ value
-│           └─ If @23:19
+│           └─ If @16:19
 │              ├─ cond
-│              │  └─ Unary 'not' @23:19
+│              │  └─ Unary 'not' @16:19
 │              │     └─ operand
-│              │        └─ BoolLiteral false @23:26
+│              │        └─ BoolLiteral false @16:26
 │              ├─ then
-│              │  └─ ExprStmt @23:37
+│              │  └─ ExprStmt @16:37
 │              │     └─ expr
-│              │        └─ StringLiteral 'ok' @23:37
+│              │        └─ StringLiteral 'ok' @16:37
 │              └─ else
-│                 └─ ExprStmt @23:47
+│                 └─ ExprStmt @16:47
 │                    └─ expr
-│                       └─ StringLiteral 'ko' @23:47
-└─ ExprStmt @24:1
+│                       └─ StringLiteral 'ko' @16:47
+└─ ExprStmt @17:1
    └─ expr
-      └─ Call @24:8
+      └─ Call @17:8
          ├─ callee
-         │  └─ Identifier 'assert!' @24:1
+         │  └─ Identifier 'assert!' @17:1
          └─ args
-            └─ Binary '==' @24:26
+            └─ Binary '==' @17:26
                ├─ lhs
-               │  └─ Identifier 'res_unless_then' @24:10
+               │  └─ Identifier 'res_unless_then' @17:10
                └─ rhs
-                  └─ StringLiteral 'ok' @24:29
+                  └─ StringLiteral 'ok' @17:29
 --- exit 0 ---

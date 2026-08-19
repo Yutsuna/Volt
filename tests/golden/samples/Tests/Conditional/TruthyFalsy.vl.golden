@@ -1,81 +1,51 @@
 Program 'samples/Tests/Conditional/TruthyFalsy.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:10
+│        ├─ target
+│        │  └─ Identifier 'executed' @1:1
+│        └─ value
+│           └─ BoolLiteral false @1:12
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ If @2:1
+│        ├─ cond
+│        │  └─ BoolLiteral false @2:4
+│        └─ then
+│           └─ ExprStmt @3:3
+│              └─ expr
+│                 └─ Assign '=' @3:12
+│                    ├─ target
+│                    │  └─ Identifier 'executed' @3:3
+│                    └─ value
+│                       └─ BoolLiteral true @3:14
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Call @5:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @5:1
+│        └─ args
+│           └─ Unary 'not' @5:9
+│              └─ operand
+│                 └─ Identifier 'executed' @5:13
 ├─ ExprStmt @8:1
 │  └─ expr
-│     └─ Assign '=' @8:10
-│        ├─ target
-│        │  └─ Identifier 'executed' @8:1
-│        └─ value
-│           └─ BoolLiteral false @8:12
-├─ ExprStmt @9:1
-│  └─ expr
-│     └─ If @9:1
+│     └─ If @8:1
 │        ├─ cond
-│        │  └─ BoolLiteral false @9:4
+│        │  └─ BoolLiteral true @8:4
 │        └─ then
-│           └─ ExprStmt @10:3
+│           └─ ExprStmt @9:3
 │              └─ expr
-│                 └─ Assign '=' @10:12
+│                 └─ Assign '=' @9:12
 │                    ├─ target
-│                    │  └─ Identifier 'executed' @10:3
+│                    │  └─ Identifier 'executed' @9:3
 │                    └─ value
-│                       └─ BoolLiteral true @10:14
-├─ ExprStmt @12:1
-│  └─ expr
-│     └─ Call @12:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @12:1
-│        └─ args
-│           └─ Unary 'not' @12:9
-│              └─ operand
-│                 └─ Identifier 'executed' @12:13
-├─ ExprStmt @15:1
-│  └─ expr
-│     └─ If @15:1
-│        ├─ cond
-│        │  └─ BoolLiteral true @15:4
-│        └─ then
-│           └─ ExprStmt @16:3
-│              └─ expr
-│                 └─ Assign '=' @16:12
-│                    ├─ target
-│                    │  └─ Identifier 'executed' @16:3
-│                    └─ value
-│                       └─ BoolLiteral true @16:14
-└─ ExprStmt @18:1
+│                       └─ BoolLiteral true @9:14
+└─ ExprStmt @11:1
    └─ expr
-      └─ Call @18:8
+      └─ Call @11:8
          ├─ callee
-         │  └─ Identifier 'assert!' @18:1
+         │  └─ Identifier 'assert!' @11:1
          └─ args
-            └─ Identifier 'executed' @18:9
+            └─ Identifier 'executed' @11:9
 --- exit 0 ---

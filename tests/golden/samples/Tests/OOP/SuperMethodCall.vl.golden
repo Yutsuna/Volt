@@ -1,97 +1,95 @@
 Program 'samples/Tests/OOP/SuperMethodCall.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Class 'FilterBase' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Class 'FilterBase' @8:1
-│  └─ body
-│     ├─ Method 'process' @9:3
+│     ├─ Method 'process' @2:3
 │     │  ├─ params
-│     │  │  └─ Param 'input' @9:16
+│     │  │  └─ Param 'input' @2:16
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'String' @9:24
+│     │  │        └─ TypeRef 'String' @2:24
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @9:36
+│     │  │  └─ TypeRef 'String' @2:36
 │     │  └─ body
-│     │     └─ ExprStmt @10:5
+│     │     └─ ExprStmt @3:5
 │     │        └─ expr
-│     │           └─ Binary '+' @10:17
+│     │           └─ Binary '+' @3:17
 │     │              ├─ lhs
-│     │              │  └─ Binary '+' @10:9
+│     │              │  └─ Binary '+' @3:9
 │     │              │     ├─ lhs
-│     │              │     │  └─ StringLiteral '[' @10:5
+│     │              │     │  └─ StringLiteral '[' @3:5
 │     │              │     └─ rhs
-│     │              │        └─ Identifier 'input' @10:11
+│     │              │        └─ Identifier 'input' @3:11
 │     │              └─ rhs
-│     │                 └─ StringLiteral ']' @10:19
-│     ├─ Method 'compute' @13:3
+│     │                 └─ StringLiteral ']' @3:19
+│     ├─ Method 'compute' @6:3
 │     │  ├─ params
-│     │  │  └─ Param 'val' @13:16
+│     │  │  └─ Param 'val' @6:16
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @13:22
+│     │  │        └─ TypeRef 'Int32' @6:22
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @13:33
+│     │  │  └─ TypeRef 'Int32' @6:33
+│     │  └─ body
+│     │     └─ ExprStmt @7:5
+│     │        └─ expr
+│     │           └─ Binary '+' @7:9
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'val' @7:5
+│     │              └─ rhs
+│     │                 └─ IntLiteral '10' @7:11
+│     └─ Method 'initialize' @1:1
+├─ Class 'PrefixFilter' @12:1
+│  ├─ super
+│  │  └─ TypeRef 'FilterBase' @12:22
+│  └─ body
+│     ├─ Method 'process' @13:3
+│     │  ├─ params
+│     │  │  └─ Param 'input' @13:16
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'String' @13:24
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'String' @13:36
 │     │  └─ body
 │     │     └─ ExprStmt @14:5
 │     │        └─ expr
-│     │           └─ Binary '+' @14:9
-│     │              ├─ lhs
-│     │              │  └─ Identifier 'val' @14:5
-│     │              └─ rhs
-│     │                 └─ IntLiteral '10' @14:11
-│     └─ Method 'initialize' @8:1
-├─ Class 'PrefixFilter' @19:1
-│  ├─ super
-│  │  └─ TypeRef 'FilterBase' @19:22
-│  └─ body
-│     ├─ Method 'process' @20:3
-│     │  ├─ params
-│     │  │  └─ Param 'input' @20:16
-│     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'String' @20:24
-│     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @20:36
-│     │  └─ body
-│     │     └─ ExprStmt @21:5
-│     │        └─ expr
-│     │           └─ Call @21:5
+│     │           └─ Call @14:5
 │     │              ├─ callee
-│     │              │  └─ SuperExpr @21:5
+│     │              │  └─ SuperExpr @14:5
 │     │              └─ args
-│     │                 └─ Binary '+' @21:22
+│     │                 └─ Binary '+' @14:22
 │     │                    ├─ lhs
-│     │                    │  └─ StringLiteral 'PREFIX_' @21:12
+│     │                    │  └─ StringLiteral 'PREFIX_' @14:12
 │     │                    └─ rhs
-│     │                       └─ Identifier 'input' @21:24
-│     ├─ Method 'compute' @24:3
+│     │                       └─ Identifier 'input' @14:24
+│     ├─ Method 'compute' @17:3
 │     │  ├─ params
-│     │  │  └─ Param 'val' @24:16
+│     │  │  └─ Param 'val' @17:16
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @24:22
+│     │  │        └─ TypeRef 'Int32' @17:22
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @24:33
+│     │  │  └─ TypeRef 'Int32' @17:33
+│     │  └─ body
+│     │     └─ ExprStmt @18:5
+│     │        └─ expr
+│     │           └─ Call @18:5
+│     │              ├─ callee
+│     │              │  └─ SuperExpr @18:5
+│     │              └─ args
+│     │                 └─ Binary '*' @18:16
+│     │                    ├─ lhs
+│     │                    │  └─ Identifier 'val' @18:12
+│     │                    └─ rhs
+│     │                       └─ IntLiteral '2' @18:18
+│     └─ Method 'initialize' @12:1
+├─ Class 'SecureFilter' @23:1
+│  ├─ super
+│  │  └─ TypeRef 'PrefixFilter' @23:22
+│  └─ body
+│     ├─ Method 'process' @24:3
+│     │  ├─ params
+│     │  │  └─ Param 'input' @24:16
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'String' @24:24
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'String' @24:36
 │     │  └─ body
 │     │     └─ ExprStmt @25:5
 │     │        └─ expr
@@ -99,98 +97,74 @@ Program 'samples/Tests/OOP/SuperMethodCall.vl'
 │     │              ├─ callee
 │     │              │  └─ SuperExpr @25:5
 │     │              └─ args
-│     │                 └─ Binary '*' @25:16
-│     │                    ├─ lhs
-│     │                    │  └─ Identifier 'val' @25:12
-│     │                    └─ rhs
-│     │                       └─ IntLiteral '2' @25:18
-│     └─ Method 'initialize' @19:1
-├─ Class 'SecureFilter' @30:1
-│  ├─ super
-│  │  └─ TypeRef 'PrefixFilter' @30:22
-│  └─ body
-│     ├─ Method 'process' @31:3
-│     │  ├─ params
-│     │  │  └─ Param 'input' @31:16
-│     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'String' @31:24
-│     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @31:36
-│     │  └─ body
-│     │     └─ ExprStmt @32:5
-│     │        └─ expr
-│     │           └─ Call @32:5
-│     │              ├─ callee
-│     │              │  └─ SuperExpr @32:5
-│     │              └─ args
-│     │                 └─ Member 'trim' @32:17
+│     │                 └─ Member 'trim' @25:17
 │     │                    └─ object
-│     │                       └─ Identifier 'input' @32:12
-│     ├─ Method 'compute' @35:3
+│     │                       └─ Identifier 'input' @25:12
+│     ├─ Method 'compute' @28:3
 │     │  ├─ params
-│     │  │  └─ Param 'val' @35:16
+│     │  │  └─ Param 'val' @28:16
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'Int32' @35:22
+│     │  │        └─ TypeRef 'Int32' @28:22
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @35:33
+│     │  │  └─ TypeRef 'Int32' @28:33
 │     │  └─ body
-│     │     └─ ExprStmt @36:5
+│     │     └─ ExprStmt @29:5
 │     │        └─ expr
-│     │           └─ Binary '+' @36:22
+│     │           └─ Binary '+' @29:22
 │     │              ├─ lhs
-│     │              │  └─ Call @36:5
+│     │              │  └─ Call @29:5
 │     │              │     ├─ callee
-│     │              │     │  └─ SuperExpr @36:5
+│     │              │     │  └─ SuperExpr @29:5
 │     │              │     └─ args
-│     │              │        └─ Binary '+' @36:16
+│     │              │        └─ Binary '+' @29:16
 │     │              │           ├─ lhs
-│     │              │           │  └─ Identifier 'val' @36:12
+│     │              │           │  └─ Identifier 'val' @29:12
 │     │              │           └─ rhs
-│     │              │              └─ IntLiteral '5' @36:18
+│     │              │              └─ IntLiteral '5' @29:18
 │     │              └─ rhs
-│     │                 └─ IntLiteral '100' @36:24
-│     └─ Method 'initialize' @30:1
-├─ ExprStmt @41:1
+│     │                 └─ IntLiteral '100' @29:24
+│     └─ Method 'initialize' @23:1
+├─ ExprStmt @34:1
 │  └─ expr
-│     └─ Assign '=' @41:8
+│     └─ Assign '=' @34:8
 │        ├─ target
-│        │  └─ Identifier 'filter' @41:1
+│        │  └─ Identifier 'filter' @34:1
 │        └─ value
-│           └─ Member 'new' @41:22
+│           └─ Member 'new' @34:22
 │              └─ object
-│                 └─ Identifier 'SecureFilter' @41:10
-├─ ExprStmt @43:1
+│                 └─ Identifier 'SecureFilter' @34:10
+├─ ExprStmt @36:1
 │  └─ expr
-│     └─ Call @43:8
+│     └─ Call @36:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @43:1
+│        │  └─ Identifier 'assert!' @36:1
 │        └─ args
-│           └─ Binary '==' @43:39
+│           └─ Binary '==' @36:39
 │              ├─ lhs
-│              │  └─ Call @43:24
+│              │  └─ Call @36:24
 │              │     ├─ callee
-│              │     │  └─ Member 'process' @43:16
+│              │     │  └─ Member 'process' @36:16
 │              │     │     └─ object
-│              │     │        └─ Identifier 'filter' @43:10
+│              │     │        └─ Identifier 'filter' @36:10
 │              │     └─ args
-│              │        └─ StringLiteral '  test  ' @43:26
+│              │        └─ StringLiteral '  test  ' @36:26
 │              └─ rhs
-│                 └─ StringLiteral '[PREFIX_test]' @43:42
-└─ ExprStmt @44:1
+│                 └─ StringLiteral '[PREFIX_test]' @36:42
+└─ ExprStmt @37:1
    └─ expr
-      └─ Call @44:8
+      └─ Call @37:8
          ├─ callee
-         │  └─ Identifier 'assert!' @44:1
+         │  └─ Identifier 'assert!' @37:1
          └─ args
-            └─ Binary '==' @44:30
+            └─ Binary '==' @37:30
                ├─ lhs
-               │  └─ Call @44:24
+               │  └─ Call @37:24
                │     ├─ callee
-               │     │  └─ Member 'compute' @44:16
+               │     │  └─ Member 'compute' @37:16
                │     │     └─ object
-               │     │        └─ Identifier 'filter' @44:10
+               │     │        └─ Identifier 'filter' @37:10
                │     └─ args
-               │        └─ IntLiteral '3' @44:26
+               │        └─ IntLiteral '3' @37:26
                └─ rhs
-                  └─ IntLiteral '126' @44:33
+                  └─ IntLiteral '126' @37:33
 --- exit 0 ---

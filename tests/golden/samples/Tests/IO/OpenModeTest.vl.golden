@@ -1,0 +1,179 @@
+Program 'samples/Tests/IO/OpenModeTest.vl'
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:11
+│        ├─ target
+│        │  └─ Identifier 'read_mode' @1:1
+│        └─ value
+│           └─ Member 'Read' @1:25
+│              └─ object
+│                 └─ Member 'OpenMode' @1:15
+│                    └─ object
+│                       └─ Identifier 'IO' @1:13
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ Assign '=' @2:12
+│        ├─ target
+│        │  └─ Identifier 'write_mode' @2:1
+│        └─ value
+│           └─ Member 'Write' @2:26
+│              └─ object
+│                 └─ Member 'OpenMode' @2:16
+│                    └─ object
+│                       └─ Identifier 'IO' @2:14
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Assign '=' @3:13
+│        ├─ target
+│        │  └─ Identifier 'create_mode' @3:1
+│        └─ value
+│           └─ Member 'Create' @3:27
+│              └─ object
+│                 └─ Member 'OpenMode' @3:17
+│                    └─ object
+│                       └─ Identifier 'IO' @3:15
+├─ ExprStmt @4:1
+│  └─ expr
+│     └─ Assign '=' @4:12
+│        ├─ target
+│        │  └─ Identifier 'trunc_mode' @4:1
+│        └─ value
+│           └─ Member 'Truncate' @4:26
+│              └─ object
+│                 └─ Member 'OpenMode' @4:16
+│                    └─ object
+│                       └─ Identifier 'IO' @4:14
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Assign '=' @5:13
+│        ├─ target
+│        │  └─ Identifier 'append_mode' @5:1
+│        └─ value
+│           └─ Member 'Append' @5:27
+│              └─ object
+│                 └─ Member 'OpenMode' @5:17
+│                    └─ object
+│                       └─ Identifier 'IO' @5:15
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Call @7:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @7:1
+│        └─ args
+│           └─ Binary '==' @7:29
+│              ├─ lhs
+│              │  └─ Member 'to_value' @7:19
+│              │     └─ object
+│              │        └─ Identifier 'read_mode' @7:10
+│              └─ rhs
+│                 └─ IntLiteral '0' @7:32
+├─ ExprStmt @8:1
+│  └─ expr
+│     └─ Call @8:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @8:1
+│        └─ args
+│           └─ Binary '==' @8:30
+│              ├─ lhs
+│              │  └─ Member 'to_value' @8:20
+│              │     └─ object
+│              │        └─ Identifier 'write_mode' @8:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @8:33
+├─ ExprStmt @9:1
+│  └─ expr
+│     └─ Call @9:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @9:1
+│        └─ args
+│           └─ Binary '==' @9:31
+│              ├─ lhs
+│              │  └─ Member 'to_value' @9:21
+│              │     └─ object
+│              │        └─ Identifier 'create_mode' @9:10
+│              └─ rhs
+│                 └─ IntLiteral '64' @9:34
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Binary '==' @10:30
+│              ├─ lhs
+│              │  └─ Member 'to_value' @10:20
+│              │     └─ object
+│              │        └─ Identifier 'trunc_mode' @10:10
+│              └─ rhs
+│                 └─ IntLiteral '512' @10:33
+├─ ExprStmt @11:1
+│  └─ expr
+│     └─ Call @11:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @11:1
+│        └─ args
+│           └─ Binary '==' @11:31
+│              ├─ lhs
+│              │  └─ Member 'to_value' @11:21
+│              │     └─ object
+│              │        └─ Identifier 'append_mode' @11:10
+│              └─ rhs
+│                 └─ IntLiteral '1024' @11:34
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Call @14:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @14:1
+│        └─ args
+│           └─ Binary '==' @14:40
+│              ├─ lhs
+│              │  └─ Call @14:32
+│              │     ├─ callee
+│              │     │  └─ Member 'flags_for' @14:22
+│              │     │     └─ object
+│              │     │        └─ Member 'OpenMode' @14:12
+│              │     │           └─ object
+│              │     │              └─ Identifier 'IO' @14:10
+│              │     └─ args
+│              │        └─ StringLiteral 'r' @14:34
+│              └─ rhs
+│                 └─ IntLiteral '0' @14:43
+├─ ExprStmt @17:1
+│  └─ expr
+│     └─ Call @17:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @17:1
+│        └─ args
+│           └─ Binary '==' @17:40
+│              ├─ lhs
+│              │  └─ Call @17:32
+│              │     ├─ callee
+│              │     │  └─ Member 'flags_for' @17:22
+│              │     │     └─ object
+│              │     │        └─ Member 'OpenMode' @17:12
+│              │     │           └─ object
+│              │     │              └─ Identifier 'IO' @17:10
+│              │     └─ args
+│              │        └─ StringLiteral 'w' @17:34
+│              └─ rhs
+│                 └─ IntLiteral '577' @17:43
+└─ ExprStmt @20:1
+   └─ expr
+      └─ Call @20:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @20:1
+         └─ args
+            └─ Binary '==' @20:40
+               ├─ lhs
+               │  └─ Call @20:32
+               │     ├─ callee
+               │     │  └─ Member 'flags_for' @20:22
+               │     │     └─ object
+               │     │        └─ Member 'OpenMode' @20:12
+               │     │           └─ object
+               │     │              └─ Identifier 'IO' @20:10
+               │     └─ args
+               │        └─ StringLiteral 'a' @20:34
+               └─ rhs
+                  └─ IntLiteral '1089' @20:43
+--- exit 0 ---

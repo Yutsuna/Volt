@@ -1,465 +1,439 @@
 Program 'samples/Tests/ControlFlow/UntilLoop.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
+├─ Method 'test_until_standard' @1:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+│  │  └─ TypeRef 'Void' @1:28
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Method 'test_until_standard' @8:1
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @8:28
-│  └─ body
-│     ├─ ExprStmt @9:3
+│     ├─ ExprStmt @2:3
 │     │  └─ expr
-│     │     └─ Assign '=' @9:5
+│     │     └─ Assign '=' @2:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'i' @9:3
+│     │        │  └─ Identifier 'i' @2:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @9:7
-│     ├─ While @10:3
+│     │           └─ IntLiteral '0' @2:7
+│     ├─ While @3:3
 │     │  ├─ cond
-│     │  │  └─ Unary 'not' @10:3
+│     │  │  └─ Unary 'not' @3:3
 │     │  │     └─ operand
-│     │  │        └─ Binary '>=' @10:11
+│     │  │        └─ Binary '>=' @3:11
 │     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'i' @10:9
+│     │  │           │  └─ Identifier 'i' @3:9
 │     │  │           └─ rhs
-│     │  │              └─ IntLiteral '10' @10:14
+│     │  │              └─ IntLiteral '10' @3:14
 │     │  └─ body
-│     │     └─ ExprStmt @11:5
+│     │     └─ ExprStmt @4:5
 │     │        └─ expr
-│     │           └─ Assign '+=' @11:7
+│     │           └─ Assign '+=' @4:7
 │     │              ├─ target
-│     │              │  └─ Identifier 'i' @11:5
+│     │              │  └─ Identifier 'i' @4:5
 │     │              └─ value
-│     │                 └─ IntLiteral '1' @11:10
-│     └─ ExprStmt @14:3
+│     │                 └─ IntLiteral '1' @4:10
+│     └─ ExprStmt @7:3
 │        └─ expr
-│           └─ Call @14:10
+│           └─ Call @7:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @14:3
+│              │  └─ Identifier 'assert!' @7:3
 │              └─ args
-│                 └─ Binary '==' @14:14
+│                 └─ Binary '==' @7:14
 │                    ├─ lhs
-│                    │  └─ Identifier 'i' @14:12
+│                    │  └─ Identifier 'i' @7:12
 │                    └─ rhs
-│                       └─ IntLiteral '10' @14:17
-├─ Method 'test_until_modifier' @18:1
+│                       └─ IntLiteral '10' @7:17
+├─ Method 'test_until_modifier' @11:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @18:28
+│  │  └─ TypeRef 'Void' @11:28
 │  └─ body
-│     ├─ ExprStmt @19:3
+│     ├─ ExprStmt @12:3
 │     │  └─ expr
-│     │     └─ Assign '=' @19:5
+│     │     └─ Assign '=' @12:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'i' @19:3
+│     │        │  └─ Identifier 'i' @12:3
 │     │        └─ value
-│     │           └─ IntLiteral '10' @19:7
-│     ├─ While @20:10
+│     │           └─ IntLiteral '10' @12:7
+│     ├─ While @13:10
 │     │  ├─ cond
-│     │  │  └─ Unary 'not' @20:10
+│     │  │  └─ Unary 'not' @13:10
 │     │  │     └─ operand
-│     │  │        └─ Binary '>=' @20:18
+│     │  │        └─ Binary '>=' @13:18
 │     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'i' @20:16
+│     │  │           │  └─ Identifier 'i' @13:16
 │     │  │           └─ rhs
-│     │  │              └─ IntLiteral '20' @20:21
+│     │  │              └─ IntLiteral '20' @13:21
 │     │  └─ body
-│     │     └─ ExprStmt @20:3
+│     │     └─ ExprStmt @13:3
 │     │        └─ expr
-│     │           └─ Assign '+=' @20:5
+│     │           └─ Assign '+=' @13:5
 │     │              ├─ target
-│     │              │  └─ Identifier 'i' @20:3
+│     │              │  └─ Identifier 'i' @13:3
 │     │              └─ value
-│     │                 └─ IntLiteral '1' @20:8
-│     └─ ExprStmt @22:3
+│     │                 └─ IntLiteral '1' @13:8
+│     └─ ExprStmt @15:3
 │        └─ expr
-│           └─ Call @22:10
+│           └─ Call @15:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @22:3
+│              │  └─ Identifier 'assert!' @15:3
 │              └─ args
-│                 └─ Binary '==' @22:14
+│                 └─ Binary '==' @15:14
 │                    ├─ lhs
-│                    │  └─ Identifier 'i' @22:12
+│                    │  └─ Identifier 'i' @15:12
 │                    └─ rhs
-│                       └─ IntLiteral '20' @22:17
-├─ Method 'test_until_already_true' @26:1
+│                       └─ IntLiteral '20' @15:17
+├─ Method 'test_until_already_true' @19:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @26:32
+│  │  └─ TypeRef 'Void' @19:32
 │  └─ body
-│     ├─ ExprStmt @27:3
+│     ├─ ExprStmt @20:3
 │     │  └─ expr
-│     │     └─ Assign '=' @27:5
+│     │     └─ Assign '=' @20:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'i' @27:3
+│     │        │  └─ Identifier 'i' @20:3
 │     │        └─ value
-│     │           └─ IntLiteral '50' @27:7
+│     │           └─ IntLiteral '50' @20:7
+│     ├─ ExprStmt @21:3
+│     │  └─ expr
+│     │     └─ Assign '=' @21:12
+│     │        ├─ target
+│     │        │  └─ Identifier 'executed' @21:3
+│     │        └─ value
+│     │           └─ BoolLiteral false @21:14
+│     ├─ While @23:3
+│     │  ├─ cond
+│     │  │  └─ Unary 'not' @23:3
+│     │  │     └─ operand
+│     │  │        └─ Binary '>=' @23:11
+│     │  │           ├─ lhs
+│     │  │           │  └─ Identifier 'i' @23:9
+│     │  │           └─ rhs
+│     │  │              └─ IntLiteral '10' @23:14
+│     │  └─ body
+│     │     ├─ ExprStmt @24:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @24:14
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'executed' @24:5
+│     │     │        └─ value
+│     │     │           └─ BoolLiteral true @24:16
+│     │     └─ ExprStmt @25:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @25:7
+│     │              ├─ target
+│     │              │  └─ Identifier 'i' @25:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @25:10
 │     ├─ ExprStmt @28:3
 │     │  └─ expr
-│     │     └─ Assign '=' @28:12
-│     │        ├─ target
-│     │        │  └─ Identifier 'executed' @28:3
-│     │        └─ value
-│     │           └─ BoolLiteral false @28:14
-│     ├─ While @30:3
-│     │  ├─ cond
-│     │  │  └─ Unary 'not' @30:3
-│     │  │     └─ operand
-│     │  │        └─ Binary '>=' @30:11
-│     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'i' @30:9
-│     │  │           └─ rhs
-│     │  │              └─ IntLiteral '10' @30:14
-│     │  └─ body
-│     │     ├─ ExprStmt @31:5
-│     │     │  └─ expr
-│     │     │     └─ Assign '=' @31:14
-│     │     │        ├─ target
-│     │     │        │  └─ Identifier 'executed' @31:5
-│     │     │        └─ value
-│     │     │           └─ BoolLiteral true @31:16
-│     │     └─ ExprStmt @32:5
-│     │        └─ expr
-│     │           └─ Assign '+=' @32:7
-│     │              ├─ target
-│     │              │  └─ Identifier 'i' @32:5
-│     │              └─ value
-│     │                 └─ IntLiteral '1' @32:10
-│     ├─ ExprStmt @35:3
-│     │  └─ expr
-│     │     └─ Call @35:10
+│     │     └─ Call @28:10
 │     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @35:3
+│     │        │  └─ Identifier 'assert!' @28:3
 │     │        └─ args
-│     │           └─ Binary '==' @35:21
+│     │           └─ Binary '==' @28:21
 │     │              ├─ lhs
-│     │              │  └─ Identifier 'executed' @35:12
+│     │              │  └─ Identifier 'executed' @28:12
 │     │              └─ rhs
-│     │                 └─ BoolLiteral false @35:24
-│     └─ ExprStmt @36:3
+│     │                 └─ BoolLiteral false @28:24
+│     └─ ExprStmt @29:3
 │        └─ expr
-│           └─ Call @36:10
+│           └─ Call @29:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @36:3
+│              │  └─ Identifier 'assert!' @29:3
 │              └─ args
-│                 └─ Binary '==' @36:14
+│                 └─ Binary '==' @29:14
 │                    ├─ lhs
-│                    │  └─ Identifier 'i' @36:12
+│                    │  └─ Identifier 'i' @29:12
 │                    └─ rhs
-│                       └─ IntLiteral '50' @36:17
-├─ Method 'test_until_with_break' @40:1
+│                       └─ IntLiteral '50' @29:17
+├─ Method 'test_until_with_break' @33:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @40:30
+│  │  └─ TypeRef 'Void' @33:30
 │  └─ body
-│     ├─ ExprStmt @41:3
+│     ├─ ExprStmt @34:3
 │     │  └─ expr
-│     │     └─ Assign '=' @41:5
+│     │     └─ Assign '=' @34:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'i' @41:3
+│     │        │  └─ Identifier 'i' @34:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @41:7
-│     ├─ While @43:3
+│     │           └─ IntLiteral '0' @34:7
+│     ├─ While @36:3
 │     │  ├─ cond
-│     │  │  └─ Unary 'not' @43:3
+│     │  │  └─ Unary 'not' @36:3
 │     │  │     └─ operand
-│     │  │        └─ Binary '>=' @43:11
+│     │  │        └─ Binary '>=' @36:11
 │     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'i' @43:9
+│     │  │           │  └─ Identifier 'i' @36:9
 │     │  │           └─ rhs
-│     │  │              └─ IntLiteral '100' @43:14
+│     │  │              └─ IntLiteral '100' @36:14
 │     │  └─ body
-│     │     ├─ ExprStmt @44:5
+│     │     ├─ ExprStmt @37:5
 │     │     │  └─ expr
-│     │     │     └─ Assign '+=' @44:7
+│     │     │     └─ Assign '+=' @37:7
 │     │     │        ├─ target
-│     │     │        │  └─ Identifier 'i' @44:5
+│     │     │        │  └─ Identifier 'i' @37:5
 │     │     │        └─ value
-│     │     │           └─ IntLiteral '1' @44:10
-│     │     └─ ExprStmt @45:5
+│     │     │           └─ IntLiteral '1' @37:10
+│     │     └─ ExprStmt @38:5
 │     │        └─ expr
-│     │           └─ If @45:5
+│     │           └─ If @38:5
 │     │              ├─ cond
-│     │              │  └─ Binary '==' @45:10
+│     │              │  └─ Binary '==' @38:10
 │     │              │     ├─ lhs
-│     │              │     │  └─ Identifier 'i' @45:8
+│     │              │     │  └─ Identifier 'i' @38:8
 │     │              │     └─ rhs
-│     │              │        └─ IntLiteral '7' @45:13
+│     │              │        └─ IntLiteral '7' @38:13
 │     │              └─ then
-│     │                 └─ Break @46:7
-│     └─ ExprStmt @50:3
+│     │                 └─ Break @39:7
+│     └─ ExprStmt @43:3
 │        └─ expr
-│           └─ Call @50:10
+│           └─ Call @43:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @50:3
+│              │  └─ Identifier 'assert!' @43:3
 │              └─ args
-│                 └─ Binary '==' @50:14
+│                 └─ Binary '==' @43:14
 │                    ├─ lhs
-│                    │  └─ Identifier 'i' @50:12
+│                    │  └─ Identifier 'i' @43:12
 │                    └─ rhs
-│                       └─ IntLiteral '7' @50:17
-├─ Method 'test_until_with_next' @54:1
+│                       └─ IntLiteral '7' @43:17
+├─ Method 'test_until_with_next' @47:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @54:29
+│  │  └─ TypeRef 'Void' @47:29
 │  └─ body
-│     ├─ ExprStmt @55:3
+│     ├─ ExprStmt @48:3
 │     │  └─ expr
-│     │     └─ Assign '=' @55:5
+│     │     └─ Assign '=' @48:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'i' @55:3
+│     │        │  └─ Identifier 'i' @48:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @55:7
-│     ├─ ExprStmt @56:3
+│     │           └─ IntLiteral '0' @48:7
+│     ├─ ExprStmt @49:3
 │     │  └─ expr
-│     │     └─ Assign '=' @56:11
+│     │     └─ Assign '=' @49:11
 │     │        ├─ target
-│     │        │  └─ Identifier 'sum_odd' @56:3
+│     │        │  └─ Identifier 'sum_odd' @49:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @56:13
-│     ├─ While @58:3
+│     │           └─ IntLiteral '0' @49:13
+│     ├─ While @51:3
 │     │  ├─ cond
-│     │  │  └─ Unary 'not' @58:3
+│     │  │  └─ Unary 'not' @51:3
 │     │  │     └─ operand
-│     │  │        └─ Binary '>=' @58:11
+│     │  │        └─ Binary '>=' @51:11
 │     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'i' @58:9
+│     │  │           │  └─ Identifier 'i' @51:9
 │     │  │           └─ rhs
-│     │  │              └─ IntLiteral '10' @58:14
+│     │  │              └─ IntLiteral '10' @51:14
 │     │  └─ body
-│     │     ├─ ExprStmt @59:5
+│     │     ├─ ExprStmt @52:5
 │     │     │  └─ expr
-│     │     │     └─ Assign '+=' @59:7
+│     │     │     └─ Assign '+=' @52:7
 │     │     │        ├─ target
-│     │     │        │  └─ Identifier 'i' @59:5
+│     │     │        │  └─ Identifier 'i' @52:5
 │     │     │        └─ value
-│     │     │           └─ IntLiteral '1' @59:10
-│     │     ├─ ExprStmt @61:5
+│     │     │           └─ IntLiteral '1' @52:10
+│     │     ├─ ExprStmt @54:5
 │     │     │  └─ expr
-│     │     │     └─ If @61:5
+│     │     │     └─ If @54:5
 │     │     │        ├─ cond
-│     │     │        │  └─ Binary '==' @61:14
+│     │     │        │  └─ Binary '==' @54:14
 │     │     │        │     ├─ lhs
-│     │     │        │     │  └─ Binary '%' @61:10
+│     │     │        │     │  └─ Binary '%' @54:10
 │     │     │        │     │     ├─ lhs
-│     │     │        │     │     │  └─ Identifier 'i' @61:8
+│     │     │        │     │     │  └─ Identifier 'i' @54:8
 │     │     │        │     │     └─ rhs
-│     │     │        │     │        └─ IntLiteral '2' @61:12
+│     │     │        │     │        └─ IntLiteral '2' @54:12
 │     │     │        │     └─ rhs
-│     │     │        │        └─ IntLiteral '0' @61:17
+│     │     │        │        └─ IntLiteral '0' @54:17
 │     │     │        └─ then
-│     │     │           └─ Next @62:7
-│     │     └─ ExprStmt @65:5
+│     │     │           └─ Next @55:7
+│     │     └─ ExprStmt @58:5
 │     │        └─ expr
-│     │           └─ Assign '+=' @65:13
+│     │           └─ Assign '+=' @58:13
 │     │              ├─ target
-│     │              │  └─ Identifier 'sum_odd' @65:5
+│     │              │  └─ Identifier 'sum_odd' @58:5
 │     │              └─ value
-│     │                 └─ Identifier 'i' @65:16
-│     └─ ExprStmt @68:3
+│     │                 └─ Identifier 'i' @58:16
+│     └─ ExprStmt @61:3
 │        └─ expr
-│           └─ Call @68:10
+│           └─ Call @61:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @68:3
+│              │  └─ Identifier 'assert!' @61:3
 │              └─ args
-│                 └─ Binary '==' @68:20
+│                 └─ Binary '==' @61:20
 │                    ├─ lhs
-│                    │  └─ Identifier 'sum_odd' @68:12
+│                    │  └─ Identifier 'sum_odd' @61:12
 │                    └─ rhs
-│                       └─ IntLiteral '25' @68:23
-├─ Method 'test_begin_end_until' @72:1
+│                       └─ IntLiteral '25' @61:23
+├─ Method 'test_begin_end_until' @65:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @72:29
+│  │  └─ TypeRef 'Void' @65:29
 │  └─ body
-│     ├─ ExprStmt @73:3
+│     ├─ ExprStmt @66:3
 │     │  └─ expr
-│     │     └─ Assign '=' @73:5
+│     │     └─ Assign '=' @66:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'i' @73:3
+│     │        │  └─ Identifier 'i' @66:3
 │     │        └─ value
-│     │           └─ IntLiteral '100' @73:7
+│     │           └─ IntLiteral '100' @66:7
+│     ├─ ExprStmt @67:3
+│     │  └─ expr
+│     │     └─ Assign '=' @67:14
+│     │        ├─ target
+│     │        │  └─ Identifier 'iterations' @67:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @67:16
+│     ├─ While post_test @72:7
+│     │  ├─ cond
+│     │  │  └─ Unary 'not' @72:7
+│     │  │     └─ operand
+│     │  │        └─ Binary '>=' @72:15
+│     │  │           ├─ lhs
+│     │  │           │  └─ Identifier 'i' @72:13
+│     │  │           └─ rhs
+│     │  │              └─ IntLiteral '10' @72:18
+│     │  └─ body
+│     │     └─ ExprStmt @69:3
+│     │        └─ expr
+│     │           └─ BeginExpr @69:3
+│     │              └─ body
+│     │                 ├─ ExprStmt @70:5
+│     │                 │  └─ expr
+│     │                 │     └─ Assign '+=' @70:16
+│     │                 │        ├─ target
+│     │                 │        │  └─ Identifier 'iterations' @70:5
+│     │                 │        └─ value
+│     │                 │           └─ IntLiteral '1' @70:19
+│     │                 └─ ExprStmt @71:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @71:7
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'i' @71:5
+│     │                          └─ value
+│     │                             └─ IntLiteral '1' @71:10
 │     ├─ ExprStmt @74:3
 │     │  └─ expr
-│     │     └─ Assign '=' @74:14
+│     │     └─ Call @74:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @74:3
+│     │        └─ args
+│     │           └─ Binary '==' @74:23
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'iterations' @74:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '1' @74:26
+│     └─ ExprStmt @75:3
+│        └─ expr
+│           └─ Call @75:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @75:3
+│              └─ args
+│                 └─ Binary '==' @75:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'i' @75:12
+│                    └─ rhs
+│                       └─ IntLiteral '101' @75:17
+├─ Method 'test_nested_until' @79:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @79:26
+│  └─ body
+│     ├─ ExprStmt @80:3
+│     │  └─ expr
+│     │     └─ Assign '=' @80:9
 │     │        ├─ target
-│     │        │  └─ Identifier 'iterations' @74:3
+│     │        │  └─ Identifier 'outer' @80:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @74:16
-│     ├─ While post_test @79:7
-│     │  ├─ cond
-│     │  │  └─ Unary 'not' @79:7
-│     │  │     └─ operand
-│     │  │        └─ Binary '>=' @79:15
-│     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'i' @79:13
-│     │  │           └─ rhs
-│     │  │              └─ IntLiteral '10' @79:18
-│     │  └─ body
-│     │     └─ ExprStmt @76:3
-│     │        └─ expr
-│     │           └─ BeginExpr @76:3
-│     │              └─ body
-│     │                 ├─ ExprStmt @77:5
-│     │                 │  └─ expr
-│     │                 │     └─ Assign '+=' @77:16
-│     │                 │        ├─ target
-│     │                 │        │  └─ Identifier 'iterations' @77:5
-│     │                 │        └─ value
-│     │                 │           └─ IntLiteral '1' @77:19
-│     │                 └─ ExprStmt @78:5
-│     │                    └─ expr
-│     │                       └─ Assign '+=' @78:7
-│     │                          ├─ target
-│     │                          │  └─ Identifier 'i' @78:5
-│     │                          └─ value
-│     │                             └─ IntLiteral '1' @78:10
+│     │           └─ IntLiteral '0' @80:11
 │     ├─ ExprStmt @81:3
 │     │  └─ expr
-│     │     └─ Call @81:10
-│     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @81:3
-│     │        └─ args
-│     │           └─ Binary '==' @81:23
-│     │              ├─ lhs
-│     │              │  └─ Identifier 'iterations' @81:12
-│     │              └─ rhs
-│     │                 └─ IntLiteral '1' @81:26
-│     └─ ExprStmt @82:3
-│        └─ expr
-│           └─ Call @82:10
-│              ├─ callee
-│              │  └─ Identifier 'assert!' @82:3
-│              └─ args
-│                 └─ Binary '==' @82:14
-│                    ├─ lhs
-│                    │  └─ Identifier 'i' @82:12
-│                    └─ rhs
-│                       └─ IntLiteral '101' @82:17
-├─ Method 'test_nested_until' @86:1
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @86:26
-│  └─ body
-│     ├─ ExprStmt @87:3
-│     │  └─ expr
-│     │     └─ Assign '=' @87:9
+│     │     └─ Assign '=' @81:20
 │     │        ├─ target
-│     │        │  └─ Identifier 'outer' @87:3
+│     │        │  └─ Identifier 'total_iterations' @81:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @87:11
-│     ├─ ExprStmt @88:3
-│     │  └─ expr
-│     │     └─ Assign '=' @88:20
-│     │        ├─ target
-│     │        │  └─ Identifier 'total_iterations' @88:3
-│     │        └─ value
-│     │           └─ IntLiteral '0' @88:22
-│     ├─ While @90:3
+│     │           └─ IntLiteral '0' @81:22
+│     ├─ While @83:3
 │     │  ├─ cond
-│     │  │  └─ Unary 'not' @90:3
+│     │  │  └─ Unary 'not' @83:3
 │     │  │     └─ operand
-│     │  │        └─ Binary '>=' @90:15
+│     │  │        └─ Binary '>=' @83:15
 │     │  │           ├─ lhs
-│     │  │           │  └─ Identifier 'outer' @90:9
+│     │  │           │  └─ Identifier 'outer' @83:9
 │     │  │           └─ rhs
-│     │  │              └─ IntLiteral '3' @90:18
+│     │  │              └─ IntLiteral '3' @83:18
 │     │  └─ body
-│     │     ├─ ExprStmt @91:5
+│     │     ├─ ExprStmt @84:5
 │     │     │  └─ expr
-│     │     │     └─ Assign '=' @91:11
+│     │     │     └─ Assign '=' @84:11
 │     │     │        ├─ target
-│     │     │        │  └─ Identifier 'inner' @91:5
+│     │     │        │  └─ Identifier 'inner' @84:5
 │     │     │        └─ value
-│     │     │           └─ IntLiteral '0' @91:13
-│     │     ├─ While @92:5
+│     │     │           └─ IntLiteral '0' @84:13
+│     │     ├─ While @85:5
 │     │     │  ├─ cond
-│     │     │  │  └─ Unary 'not' @92:5
+│     │     │  │  └─ Unary 'not' @85:5
 │     │     │  │     └─ operand
-│     │     │  │        └─ Binary '>=' @92:17
+│     │     │  │        └─ Binary '>=' @85:17
 │     │     │  │           ├─ lhs
-│     │     │  │           │  └─ Identifier 'inner' @92:11
+│     │     │  │           │  └─ Identifier 'inner' @85:11
 │     │     │  │           └─ rhs
-│     │     │  │              └─ IntLiteral '4' @92:20
+│     │     │  │              └─ IntLiteral '4' @85:20
 │     │     │  └─ body
-│     │     │     ├─ ExprStmt @93:7
+│     │     │     ├─ ExprStmt @86:7
 │     │     │     │  └─ expr
-│     │     │     │     └─ Assign '+=' @93:13
+│     │     │     │     └─ Assign '+=' @86:13
 │     │     │     │        ├─ target
-│     │     │     │        │  └─ Identifier 'inner' @93:7
+│     │     │     │        │  └─ Identifier 'inner' @86:7
 │     │     │     │        └─ value
-│     │     │     │           └─ IntLiteral '1' @93:16
-│     │     │     └─ ExprStmt @94:7
+│     │     │     │           └─ IntLiteral '1' @86:16
+│     │     │     └─ ExprStmt @87:7
 │     │     │        └─ expr
-│     │     │           └─ Assign '+=' @94:24
+│     │     │           └─ Assign '+=' @87:24
 │     │     │              ├─ target
-│     │     │              │  └─ Identifier 'total_iterations' @94:7
+│     │     │              │  └─ Identifier 'total_iterations' @87:7
 │     │     │              └─ value
-│     │     │                 └─ IntLiteral '1' @94:27
-│     │     └─ ExprStmt @96:5
+│     │     │                 └─ IntLiteral '1' @87:27
+│     │     └─ ExprStmt @89:5
 │     │        └─ expr
-│     │           └─ Assign '+=' @96:11
+│     │           └─ Assign '+=' @89:11
 │     │              ├─ target
-│     │              │  └─ Identifier 'outer' @96:5
+│     │              │  └─ Identifier 'outer' @89:5
 │     │              └─ value
-│     │                 └─ IntLiteral '1' @96:14
-│     ├─ ExprStmt @99:3
+│     │                 └─ IntLiteral '1' @89:14
+│     ├─ ExprStmt @92:3
 │     │  └─ expr
-│     │     └─ Call @99:10
+│     │     └─ Call @92:10
 │     │        ├─ callee
-│     │        │  └─ Identifier 'assert!' @99:3
+│     │        │  └─ Identifier 'assert!' @92:3
 │     │        └─ args
-│     │           └─ Binary '==' @99:18
+│     │           └─ Binary '==' @92:18
 │     │              ├─ lhs
-│     │              │  └─ Identifier 'outer' @99:12
+│     │              │  └─ Identifier 'outer' @92:12
 │     │              └─ rhs
-│     │                 └─ IntLiteral '3' @99:21
-│     └─ ExprStmt @100:3
+│     │                 └─ IntLiteral '3' @92:21
+│     └─ ExprStmt @93:3
 │        └─ expr
-│           └─ Call @100:10
+│           └─ Call @93:10
 │              ├─ callee
-│              │  └─ Identifier 'assert!' @100:3
+│              │  └─ Identifier 'assert!' @93:3
 │              └─ args
-│                 └─ Binary '==' @100:29
+│                 └─ Binary '==' @93:29
 │                    ├─ lhs
-│                    │  └─ Identifier 'total_iterations' @100:12
+│                    │  └─ Identifier 'total_iterations' @93:12
 │                    └─ rhs
-│                       └─ IntLiteral '12' @100:32
-├─ ExprStmt @104:1
+│                       └─ IntLiteral '12' @93:32
+├─ ExprStmt @97:1
 │  └─ expr
-│     └─ Identifier 'test_until_standard' @104:1
-├─ ExprStmt @105:1
+│     └─ Identifier 'test_until_standard' @97:1
+├─ ExprStmt @98:1
 │  └─ expr
-│     └─ Identifier 'test_until_modifier' @105:1
-├─ ExprStmt @106:1
+│     └─ Identifier 'test_until_modifier' @98:1
+├─ ExprStmt @99:1
 │  └─ expr
-│     └─ Identifier 'test_until_already_true' @106:1
-├─ ExprStmt @107:1
+│     └─ Identifier 'test_until_already_true' @99:1
+├─ ExprStmt @100:1
 │  └─ expr
-│     └─ Identifier 'test_until_with_break' @107:1
-├─ ExprStmt @108:1
+│     └─ Identifier 'test_until_with_break' @100:1
+├─ ExprStmt @101:1
 │  └─ expr
-│     └─ Identifier 'test_until_with_next' @108:1
-├─ ExprStmt @109:1
+│     └─ Identifier 'test_until_with_next' @101:1
+├─ ExprStmt @102:1
 │  └─ expr
-│     └─ Identifier 'test_begin_end_until' @109:1
-└─ ExprStmt @110:1
+│     └─ Identifier 'test_begin_end_until' @102:1
+└─ ExprStmt @103:1
    └─ expr
-      └─ Identifier 'test_nested_until' @110:1
+      └─ Identifier 'test_nested_until' @103:1
 --- exit 0 ---

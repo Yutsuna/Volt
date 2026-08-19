@@ -1,21 +1,11 @@
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "Assertion failed #{__FILE__}:#{__LINE__}"
-  end
-end
-
-
 mixin Audited
-
   protected def audit_stamp -> Int32
     7
   end
-
 end
 
 
 class Account
-
   include Audited
 
   getter id : Int32
@@ -62,12 +52,10 @@ class Account
   def stamped -> Int32
     ( audit_stamp * hidden_scale ) + @rate
   end
-
 end
 
 
 class Savings < Account
-
   def initialize( b : Int32, r : Int32 )
     super( 2, b, r )
   end
@@ -77,7 +65,6 @@ class Savings < Account
   def projected -> Int32
     ( @rate * 2 ) + audit_stamp
   end
-
 end
 
 

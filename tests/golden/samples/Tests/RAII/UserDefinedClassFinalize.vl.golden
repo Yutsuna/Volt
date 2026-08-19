@@ -1,103 +1,77 @@
 Program 'samples/Tests/RAII/UserDefinedClassFinalize.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Class 'Buffer' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Class 'Buffer' @9:1
-│  └─ body
-│     ├─ Field 'data' getter @10:3
+│     ├─ Field 'data' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Pointer' @10:17
+│     │     └─ TypeRef 'Pointer' @2:17
 │     │        └─ generics
-│     │           └─ TypeRef 'UInt8' @10:25
-│     ├─ Field 'length' getter @11:3
+│     │           └─ TypeRef 'UInt8' @2:25
+│     ├─ Field 'length' getter @3:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'UInt64' @11:19
-│     ├─ Method 'initialize' @13:3
+│     │     └─ TypeRef 'UInt64' @3:19
+│     ├─ Method 'initialize' @5:3
 │     │  ├─ params
-│     │  │  └─ Param 'length' instance_var @13:19
+│     │  │  └─ Param 'length' instance_var @5:19
 │     │  │     └─ decl_type
-│     │  │        └─ TypeRef 'UInt64' @13:29
+│     │  │        └─ TypeRef 'UInt64' @5:29
 │     │  └─ body
-│     │     └─ ExprStmt @14:5
+│     │     └─ ExprStmt @6:5
 │     │        └─ expr
-│     │           └─ Assign '=' @14:11
+│     │           └─ Assign '=' @6:11
 │     │              ├─ target
-│     │              │  └─ InstanceVar '@data' @14:5
+│     │              │  └─ InstanceVar '@data' @6:5
 │     │              └─ value
-│     │                 └─ Call @14:34
+│     │                 └─ Call @6:34
 │     │                    ├─ callee
-│     │                    │  └─ Member 'malloc' @14:27
+│     │                    │  └─ Member 'malloc' @6:27
 │     │                    │     └─ object
-│     │                    │        └─ GenericInst @14:20
+│     │                    │        └─ GenericInst @6:20
 │     │                    │           ├─ base
-│     │                    │           │  └─ Identifier 'Pointer' @14:13
+│     │                    │           │  └─ Identifier 'Pointer' @6:13
 │     │                    │           └─ args
-│     │                    │              └─ TypeRef 'UInt8' @14:21
+│     │                    │              └─ TypeRef 'UInt8' @6:21
 │     │                    └─ args
-│     │                       └─ InstanceVar '@length' @14:36
-│     └─ Method 'finalize' @17:3
+│     │                       └─ InstanceVar '@length' @6:36
+│     └─ Method 'finalize' @9:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Void' @17:19
+│        │  └─ TypeRef 'Void' @9:19
 │        └─ body
-│           └─ ExprStmt @18:5
+│           └─ ExprStmt @10:5
 │              └─ expr
-│                 └─ Member 'free' @18:10
+│                 └─ Member 'free' @10:10
 │                    └─ object
-│                       └─ InstanceVar '@data' @18:5
-├─ Method 'use_buffer' @22:1
+│                       └─ InstanceVar '@data' @10:5
+├─ Method 'use_buffer' @14:1
 │  ├─ return_type
-│  │  └─ TypeRef 'UInt64' @22:19
+│  │  └─ TypeRef 'UInt64' @14:19
 │  └─ body
-│     ├─ ExprStmt @23:3
+│     ├─ ExprStmt @15:3
 │     │  └─ expr
-│     │     └─ Assign '=' @23:7
+│     │     └─ Assign '=' @15:7
 │     │        ├─ target
-│     │        │  └─ Identifier 'buf' @23:3
+│     │        │  └─ Identifier 'buf' @15:3
 │     │        └─ value
-│     │           └─ Call @23:19
+│     │           └─ Call @15:19
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @23:15
+│     │              │  └─ Member 'new' @15:15
 │     │              │     └─ object
-│     │              │        └─ Identifier 'Buffer' @23:9
+│     │              │        └─ Identifier 'Buffer' @15:9
 │     │              └─ args
-│     │                 └─ IntLiteral '16' @23:21
-│     └─ ExprStmt @24:3
+│     │                 └─ IntLiteral '16' @15:21
+│     └─ ExprStmt @16:3
 │        └─ expr
-│           └─ Member 'length' @24:6
+│           └─ Member 'length' @16:6
 │              └─ object
-│                 └─ Identifier 'buf' @24:3
-└─ ExprStmt @27:1
+│                 └─ Identifier 'buf' @16:3
+└─ ExprStmt @19:1
    └─ expr
-      └─ Call @27:8
+      └─ Call @19:8
          ├─ callee
-         │  └─ Identifier 'assert!' @27:1
+         │  └─ Identifier 'assert!' @19:1
          └─ args
-            └─ Binary '==' @27:21
+            └─ Binary '==' @19:21
                ├─ lhs
-               │  └─ Identifier 'use_buffer' @27:10
+               │  └─ Identifier 'use_buffer' @19:10
                └─ rhs
-                  └─ IntLiteral '16' @27:24
+                  └─ IntLiteral '16' @19:24
 --- exit 0 ---

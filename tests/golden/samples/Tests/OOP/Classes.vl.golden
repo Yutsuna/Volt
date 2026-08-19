@@ -1,113 +1,87 @@
 Program 'samples/Tests/OOP/Classes.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Class 'UserAccount' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Class 'UserAccount' @7:1
-│  └─ body
-│     ├─ Field 'name' getter @8:3
+│     ├─ Field 'name' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @8:19
-│     ├─ Field 'email' getter @9:3
+│     │     └─ TypeRef 'String' @2:19
+│     ├─ Field 'email' getter @3:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @9:19
-│     ├─ Field 'role' getter @10:3
+│     │     └─ TypeRef 'String' @3:19
+│     ├─ Field 'role' getter @4:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @10:19
-│     ├─ Method 'initialize' @12:3
+│     │     └─ TypeRef 'String' @4:19
+│     ├─ Method 'initialize' @6:3
 │     │  └─ params
-│     │     ├─ Param 'name' instance_var @12:19
+│     │     ├─ Param 'name' instance_var @6:19
 │     │     │  └─ decl_type
-│     │     │     └─ TypeRef 'String' @12:27
-│     │     ├─ Param 'email' instance_var @12:35
+│     │     │     └─ TypeRef 'String' @6:27
+│     │     ├─ Param 'email' instance_var @6:35
 │     │     │  └─ decl_type
-│     │     │     └─ TypeRef 'String' @12:44
-│     │     └─ Param 'role' instance_var @12:52
+│     │     │     └─ TypeRef 'String' @6:44
+│     │     └─ Param 'role' instance_var @6:52
 │     │        ├─ decl_type
-│     │        │  └─ TypeRef 'String' @12:60
+│     │        │  └─ TypeRef 'String' @6:60
 │     │        └─ default
-│     │           └─ StringLiteral 'user' @12:69
-│     └─ Method 'admin?' @15:3
+│     │           └─ StringLiteral 'user' @6:69
+│     └─ Method 'admin?' @9:3
 │        ├─ return_type
-│        │  └─ TypeRef 'Bool' @15:17
+│        │  └─ TypeRef 'Bool' @9:17
 │        └─ body
-│           └─ ExprStmt @16:5
+│           └─ ExprStmt @10:5
 │              └─ expr
-│                 └─ Binary '==' @16:11
+│                 └─ Binary '==' @10:11
 │                    ├─ lhs
-│                    │  └─ InstanceVar '@role' @16:5
+│                    │  └─ InstanceVar '@role' @10:5
 │                    └─ rhs
-│                       └─ StringLiteral 'admin' @16:14
-├─ ExprStmt @20:1
+│                       └─ StringLiteral 'admin' @10:14
+├─ ExprStmt @14:1
 │  └─ expr
-│     └─ Assign '=' @20:6
+│     └─ Assign '=' @14:6
 │        ├─ target
-│        │  └─ Identifier 'user' @20:1
+│        │  └─ Identifier 'user' @14:1
 │        └─ value
-│           └─ Call @20:23
+│           └─ Call @14:23
 │              ├─ callee
-│              │  └─ Member 'new' @20:19
+│              │  └─ Member 'new' @14:19
 │              │     └─ object
-│              │        └─ Identifier 'UserAccount' @20:8
+│              │        └─ Identifier 'UserAccount' @14:8
 │              └─ args
-│                 ├─ StringLiteral 'Alice' @20:25
-│                 ├─ StringLiteral 'alice@domain.com' @20:34
-│                 └─ StringLiteral 'admin' @20:54
-├─ ExprStmt @21:1
+│                 ├─ StringLiteral 'Alice' @14:25
+│                 ├─ StringLiteral 'alice@domain.com' @14:34
+│                 └─ StringLiteral 'admin' @14:54
+├─ ExprStmt @15:1
 │  └─ expr
-│     └─ Call @21:8
+│     └─ Call @15:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @21:1
+│        │  └─ Identifier 'assert!' @15:1
 │        └─ args
-│           └─ Binary '==' @21:20
+│           └─ Binary '==' @15:20
 │              ├─ lhs
-│              │  └─ Member 'name' @21:14
+│              │  └─ Member 'name' @15:14
 │              │     └─ object
-│              │        └─ Identifier 'user' @21:10
+│              │        └─ Identifier 'user' @15:10
 │              └─ rhs
-│                 └─ StringLiteral 'Alice' @21:23
-├─ ExprStmt @22:1
+│                 └─ StringLiteral 'Alice' @15:23
+├─ ExprStmt @16:1
 │  └─ expr
-│     └─ Call @22:8
+│     └─ Call @16:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @22:1
+│        │  └─ Identifier 'assert!' @16:1
 │        └─ args
-│           └─ Binary '==' @22:21
+│           └─ Binary '==' @16:21
 │              ├─ lhs
-│              │  └─ Member 'email' @22:14
+│              │  └─ Member 'email' @16:14
 │              │     └─ object
-│              │        └─ Identifier 'user' @22:10
+│              │        └─ Identifier 'user' @16:10
 │              └─ rhs
-│                 └─ StringLiteral 'alice@domain.com' @22:24
-└─ ExprStmt @23:1
+│                 └─ StringLiteral 'alice@domain.com' @16:24
+└─ ExprStmt @17:1
    └─ expr
-      └─ Call @23:8
+      └─ Call @17:8
          ├─ callee
-         │  └─ Identifier 'assert!' @23:1
+         │  └─ Identifier 'assert!' @17:1
          └─ args
-            └─ Member 'admin?' @23:14
+            └─ Member 'admin?' @17:14
                └─ object
-                  └─ Identifier 'user' @23:10
+                  └─ Identifier 'user' @17:10
 --- exit 0 ---

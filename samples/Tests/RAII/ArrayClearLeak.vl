@@ -1,9 +1,3 @@
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "Assertion failed #{__FILE__}:#{__LINE__}"
-  end
-end
-
 def test_array_clear -> Void
   arr = Array<String>.new
   arr << "hello_leak_test_1".dup

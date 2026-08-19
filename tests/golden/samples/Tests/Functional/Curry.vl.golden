@@ -1,100 +1,70 @@
 Program 'samples/Tests/Functional/Curry.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ ExprStmt @8:1
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Assign '=' @8:3
+│     └─ Assign '=' @1:3
 │        ├─ target
-│        │  └─ Identifier 'f' @8:1
+│        │  └─ Identifier 'f' @1:1
 │        └─ value
-│           └─ Lambda @8:5
+│           └─ Lambda @1:5
 │              ├─ params
-│              │  └─ Param 'x' @8:7
+│              │  └─ Param 'x' @1:7
 │              │     └─ decl_type
-│              │        └─ TypeRef 'Int32' @8:11
+│              │        └─ TypeRef 'Int32' @1:11
 │              └─ body
-│                 └─ Lambda @8:22
+│                 └─ Lambda @1:22
 │                    ├─ params
-│                    │  └─ Param 'y' @8:24
+│                    │  └─ Param 'y' @1:24
 │                    │     └─ decl_type
-│                    │        └─ TypeRef 'Int32' @8:28
+│                    │        └─ TypeRef 'Int32' @1:28
 │                    └─ body
-│                       └─ Binary '+' @8:41
+│                       └─ Binary '+' @1:41
 │                          ├─ lhs
-│                          │  └─ Identifier 'x' @8:39
+│                          │  └─ Identifier 'x' @1:39
 │                          └─ rhs
-│                             └─ Identifier 'y' @8:43
-├─ ExprStmt @9:1
+│                             └─ Identifier 'y' @1:43
+├─ ExprStmt @2:1
 │  └─ expr
-│     └─ Assign '=' @9:3
+│     └─ Assign '=' @2:3
 │        ├─ target
-│        │  └─ Identifier 'g' @9:1
+│        │  └─ Identifier 'g' @2:1
 │        └─ value
-│           └─ Call @9:6
+│           └─ Call @2:6
 │              ├─ callee
-│              │  └─ Identifier 'f' @9:5
+│              │  └─ Identifier 'f' @2:5
 │              └─ args
-│                 └─ IntLiteral '20' @9:8
-├─ ExprStmt @11:1
+│                 └─ IntLiteral '20' @2:8
+├─ ExprStmt @4:1
 │  └─ expr
-│     └─ Call @11:8
+│     └─ Call @4:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @11:1
+│        │  └─ Identifier 'assert!' @4:1
 │        └─ args
-│           └─ Binary '==' @11:17
+│           └─ Binary '==' @4:17
 │              ├─ lhs
-│              │  └─ Call @11:11
+│              │  └─ Call @4:11
 │              │     ├─ callee
-│              │     │  └─ Identifier 'g' @11:10
+│              │     │  └─ Identifier 'g' @4:10
 │              │     └─ args
-│              │        └─ IntLiteral '5' @11:13
+│              │        └─ IntLiteral '5' @4:13
 │              └─ rhs
-│                 └─ IntLiteral '25' @11:20
-└─ ExprStmt @12:1
+│                 └─ IntLiteral '25' @4:20
+└─ ExprStmt @5:1
    └─ expr
-      └─ Call @12:8
+      └─ Call @5:8
          ├─ callee
-         │  └─ Identifier 'assert!' @12:1
+         │  └─ Identifier 'assert!' @5:1
          └─ args
-            └─ Binary '==' @12:22
+            └─ Binary '==' @5:22
                ├─ lhs
-               │  └─ Call @12:16
+               │  └─ Call @5:16
                │     ├─ callee
-               │     │  └─ Call @12:11
+               │     │  └─ Call @5:11
                │     │     ├─ callee
-               │     │     │  └─ Identifier 'f' @12:10
+               │     │     │  └─ Identifier 'f' @5:10
                │     │     └─ args
-               │     │        └─ IntLiteral '1' @12:13
+               │     │        └─ IntLiteral '1' @5:13
                │     └─ args
-               │        └─ IntLiteral '2' @12:18
+               │        └─ IntLiteral '2' @5:18
                └─ rhs
-                  └─ IntLiteral '3' @12:25
+                  └─ IntLiteral '3' @5:25
 --- exit 0 ---

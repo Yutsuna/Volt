@@ -1,104 +1,78 @@
 Program 'samples/Tests/RAII/FieldArrayElementCascade.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Struct 'Bag' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Struct 'Bag' @9:1
-│  └─ body
-│     ├─ Field 'items' getter @10:3
+│     ├─ Field 'items' getter @2:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Array' @10:18
+│     │     └─ TypeRef 'Array' @2:18
 │     │        └─ generics
-│     │           └─ TypeRef 'String' @10:24
-│     └─ Method 'initialize' @12:3
+│     │           └─ TypeRef 'String' @2:24
+│     └─ Method 'initialize' @4:3
 │        └─ params
-│           └─ Param 'items' instance_var @12:19
+│           └─ Param 'items' instance_var @4:19
 │              └─ decl_type
-│                 └─ TypeRef 'Array' @12:28
+│                 └─ TypeRef 'Array' @4:28
 │                    └─ generics
-│                       └─ TypeRef 'String' @12:34
-├─ Method 'use_bag' @16:1
+│                       └─ TypeRef 'String' @4:34
+├─ Method 'use_bag' @8:1
 │  ├─ return_type
-│  │  └─ TypeRef 'UInt64' @16:16
+│  │  └─ TypeRef 'UInt64' @8:16
 │  └─ body
-│     ├─ ExprStmt @17:3
+│     ├─ ExprStmt @9:3
 │     │  └─ expr
-│     │     └─ Assign '=' @17:7
+│     │     └─ Assign '=' @9:7
 │     │        ├─ target
-│     │        │  └─ Identifier 'arr' @17:3
+│     │        │  └─ Identifier 'arr' @9:3
 │     │        └─ value
-│     │           └─ Member 'new' @17:22
+│     │           └─ Member 'new' @9:22
 │     │              └─ object
-│     │                 └─ GenericInst @17:14
+│     │                 └─ GenericInst @9:14
 │     │                    ├─ base
-│     │                    │  └─ Identifier 'Array' @17:9
+│     │                    │  └─ Identifier 'Array' @9:9
 │     │                    └─ args
-│     │                       └─ TypeRef 'String' @17:15
-│     ├─ ExprStmt @18:3
+│     │                       └─ TypeRef 'String' @9:15
+│     ├─ ExprStmt @10:3
 │     │  └─ expr
-│     │     └─ Binary '<<' @18:7
+│     │     └─ Binary '<<' @10:7
 │     │        ├─ lhs
-│     │        │  └─ Identifier 'arr' @18:3
+│     │        │  └─ Identifier 'arr' @10:3
 │     │        └─ rhs
-│     │           └─ StringLiteral 'hello' @18:10
-│     ├─ ExprStmt @19:3
+│     │           └─ StringLiteral 'hello' @10:10
+│     ├─ ExprStmt @11:3
 │     │  └─ expr
-│     │     └─ Binary '<<' @19:7
+│     │     └─ Binary '<<' @11:7
 │     │        ├─ lhs
-│     │        │  └─ Identifier 'arr' @19:3
+│     │        │  └─ Identifier 'arr' @11:3
 │     │        └─ rhs
-│     │           └─ StringLiteral 'world' @19:10
-│     ├─ ExprStmt @20:3
+│     │           └─ StringLiteral 'world' @11:10
+│     ├─ ExprStmt @12:3
 │     │  └─ expr
-│     │     └─ Assign '=' @20:5
+│     │     └─ Assign '=' @12:5
 │     │        ├─ target
-│     │        │  └─ Identifier 'b' @20:3
+│     │        │  └─ Identifier 'b' @12:3
 │     │        └─ value
-│     │           └─ Call @20:14
+│     │           └─ Call @12:14
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @20:10
+│     │              │  └─ Member 'new' @12:10
 │     │              │     └─ object
-│     │              │        └─ Identifier 'Bag' @20:7
+│     │              │        └─ Identifier 'Bag' @12:7
 │     │              └─ args
-│     │                 └─ Identifier 'arr' @20:16
-│     └─ ExprStmt @21:3
+│     │                 └─ Identifier 'arr' @12:16
+│     └─ ExprStmt @13:3
 │        └─ expr
-│           └─ Member 'size' @21:10
+│           └─ Member 'size' @13:10
 │              └─ object
-│                 └─ Member 'items' @21:4
+│                 └─ Member 'items' @13:4
 │                    └─ object
-│                       └─ Identifier 'b' @21:3
-└─ ExprStmt @24:1
+│                       └─ Identifier 'b' @13:3
+└─ ExprStmt @16:1
    └─ expr
-      └─ Call @24:8
+      └─ Call @16:8
          ├─ callee
-         │  └─ Identifier 'assert!' @24:1
+         │  └─ Identifier 'assert!' @16:1
          └─ args
-            └─ Binary '==' @24:18
+            └─ Binary '==' @16:18
                ├─ lhs
-               │  └─ Identifier 'use_bag' @24:10
+               │  └─ Identifier 'use_bag' @16:10
                └─ rhs
-                  └─ IntLiteral '2_u64' @24:21
+                  └─ IntLiteral '2_u64' @16:21
 --- exit 0 ---

@@ -1,0 +1,74 @@
+Program 'samples/Tests/IO/SeekOriginTest.vl'
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:10
+│        ├─ target
+│        │  └─ Identifier 'seek_set' @1:1
+│        └─ value
+│           └─ Member 'Set' @1:26
+│              └─ object
+│                 └─ Member 'SeekOrigin' @1:14
+│                    └─ object
+│                       └─ Identifier 'IO' @1:12
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ Assign '=' @2:10
+│        ├─ target
+│        │  └─ Identifier 'seek_cur' @2:1
+│        └─ value
+│           └─ Member 'Current' @2:26
+│              └─ object
+│                 └─ Member 'SeekOrigin' @2:14
+│                    └─ object
+│                       └─ Identifier 'IO' @2:12
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Assign '=' @3:10
+│        ├─ target
+│        │  └─ Identifier 'seek_end' @3:1
+│        └─ value
+│           └─ Member 'End' @3:26
+│              └─ object
+│                 └─ Member 'SeekOrigin' @3:14
+│                    └─ object
+│                       └─ Identifier 'IO' @3:12
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Call @5:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @5:1
+│        └─ args
+│           └─ Binary '==' @5:28
+│              ├─ lhs
+│              │  └─ Member 'to_value' @5:18
+│              │     └─ object
+│              │        └─ Identifier 'seek_set' @5:10
+│              └─ rhs
+│                 └─ IntLiteral '0' @5:31
+├─ ExprStmt @6:1
+│  └─ expr
+│     └─ Call @6:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @6:1
+│        └─ args
+│           └─ Binary '==' @6:28
+│              ├─ lhs
+│              │  └─ Member 'to_value' @6:18
+│              │     └─ object
+│              │        └─ Identifier 'seek_cur' @6:10
+│              └─ rhs
+│                 └─ IntLiteral '1' @6:31
+└─ ExprStmt @7:1
+   └─ expr
+      └─ Call @7:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @7:1
+         └─ args
+            └─ Binary '==' @7:28
+               ├─ lhs
+               │  └─ Member 'to_value' @7:18
+               │     └─ object
+               │        └─ Identifier 'seek_end' @7:10
+               └─ rhs
+                  └─ IntLiteral '2' @7:31
+--- exit 0 ---

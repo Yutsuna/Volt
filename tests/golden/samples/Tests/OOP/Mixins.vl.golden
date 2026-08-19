@@ -1,86 +1,60 @@
 Program 'samples/Tests/OOP/Mixins.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Mixin 'Identifiable' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Mixin 'Identifiable' @7:1
-│  └─ body
-│     └─ Method 'id_prefix' @8:3
+│     └─ Method 'id_prefix' @2:3
 │        ├─ return_type
-│        │  └─ TypeRef 'String' @8:20
+│        │  └─ TypeRef 'String' @2:20
 │        └─ body
-│           └─ ExprStmt @9:5
+│           └─ ExprStmt @3:5
 │              └─ expr
-│                 └─ StringLiteral 'ID-' @9:5
-├─ Class 'ServiceDevice' @13:1
+│                 └─ StringLiteral 'ID-' @3:5
+├─ Class 'ServiceDevice' @7:1
 │  └─ body
-│     ├─ Include @14:3
+│     ├─ Include @8:3
 │     │  └─ target
-│     │     └─ TypeRef 'Identifiable' @14:11
-│     ├─ Field 'serial' @16:3
+│     │     └─ TypeRef 'Identifiable' @8:11
+│     ├─ Field 'serial' @10:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @16:12
-│     ├─ Method 'initialize' @18:3
+│     │     └─ TypeRef 'String' @10:12
+│     ├─ Method 'initialize' @12:3
 │     │  └─ params
-│     │     └─ Param 'serial' instance_var @18:19
+│     │     └─ Param 'serial' instance_var @12:19
 │     │        └─ decl_type
-│     │           └─ TypeRef 'String' @18:29
-│     └─ Method 'full_id' @21:3
+│     │           └─ TypeRef 'String' @12:29
+│     └─ Method 'full_id' @15:3
 │        ├─ return_type
-│        │  └─ TypeRef 'String' @21:18
+│        │  └─ TypeRef 'String' @15:18
 │        └─ body
-│           └─ ExprStmt @22:5
+│           └─ ExprStmt @16:5
 │              └─ expr
-│                 └─ Interp @22:5
+│                 └─ Interp @16:5
 │                    └─ parts
-│                       ├─ Identifier 'id_prefix' @22:8
-│                       └─ InstanceVar '@serial' @22:20
-├─ ExprStmt @26:1
+│                       ├─ Identifier 'id_prefix' @16:8
+│                       └─ InstanceVar '@serial' @16:20
+├─ ExprStmt @20:1
 │  └─ expr
-│     └─ Assign '=' @26:8
+│     └─ Assign '=' @20:8
 │        ├─ target
-│        │  └─ Identifier 'device' @26:1
+│        │  └─ Identifier 'device' @20:1
 │        └─ value
-│           └─ Call @26:27
+│           └─ Call @20:27
 │              ├─ callee
-│              │  └─ Member 'new' @26:23
+│              │  └─ Member 'new' @20:23
 │              │     └─ object
-│              │        └─ Identifier 'ServiceDevice' @26:10
+│              │        └─ Identifier 'ServiceDevice' @20:10
 │              └─ args
-│                 └─ StringLiteral '9901' @26:29
-└─ ExprStmt @27:1
+│                 └─ StringLiteral '9901' @20:29
+└─ ExprStmt @21:1
    └─ expr
-      └─ Call @27:8
+      └─ Call @21:8
          ├─ callee
-         │  └─ Identifier 'assert!' @27:1
+         │  └─ Identifier 'assert!' @21:1
          └─ args
-            └─ Binary '==' @27:25
+            └─ Binary '==' @21:25
                ├─ lhs
-               │  └─ Member 'full_id' @27:16
+               │  └─ Member 'full_id' @21:16
                │     └─ object
-               │        └─ Identifier 'device' @27:10
+               │        └─ Identifier 'device' @21:10
                └─ rhs
-                  └─ StringLiteral 'ID-9901' @27:28
+                  └─ StringLiteral 'ID-9901' @21:28
 --- exit 0 ---

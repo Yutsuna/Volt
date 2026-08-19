@@ -1,91 +1,61 @@
 Program 'samples/Tests/Conditional/UnlessInline.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ ExprStmt @8:1
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Assign '=' @8:12
+│     └─ Assign '=' @1:12
 │        ├─ target
-│        │  └─ Identifier 'val_unless' @8:1
+│        │  └─ Identifier 'val_unless' @1:1
 │        └─ value
-│           └─ IntLiteral '50' @8:14
-├─ ExprStmt @9:18
+│           └─ IntLiteral '50' @1:14
+├─ ExprStmt @2:18
 │  └─ expr
-│     └─ If @9:18
+│     └─ If @2:18
 │        ├─ cond
-│        │  └─ Unary 'not' @9:18
+│        │  └─ Unary 'not' @2:18
 │        │     └─ operand
-│        │        └─ BoolLiteral false @9:25
+│        │        └─ BoolLiteral false @2:25
 │        └─ then
-│           └─ ExprStmt @9:1
+│           └─ ExprStmt @2:1
 │              └─ expr
-│                 └─ Assign '=' @9:12
+│                 └─ Assign '=' @2:12
 │                    ├─ target
-│                    │  └─ Identifier 'val_unless' @9:1
+│                    │  └─ Identifier 'val_unless' @2:1
 │                    └─ value
-│                       └─ IntLiteral '100' @9:14
-├─ ExprStmt @10:1
+│                       └─ IntLiteral '100' @2:14
+├─ ExprStmt @3:1
 │  └─ expr
-│     └─ Call @10:8
+│     └─ Call @3:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @10:1
+│        │  └─ Identifier 'assert!' @3:1
 │        └─ args
-│           └─ Binary '==' @10:21
+│           └─ Binary '==' @3:21
 │              ├─ lhs
-│              │  └─ Identifier 'val_unless' @10:10
+│              │  └─ Identifier 'val_unless' @3:10
 │              └─ rhs
-│                 └─ IntLiteral '100' @10:24
-├─ ExprStmt @13:18
+│                 └─ IntLiteral '100' @3:24
+├─ ExprStmt @6:18
 │  └─ expr
-│     └─ If @13:18
+│     └─ If @6:18
 │        ├─ cond
-│        │  └─ Unary 'not' @13:18
+│        │  └─ Unary 'not' @6:18
 │        │     └─ operand
-│        │        └─ BoolLiteral true @13:25
+│        │        └─ BoolLiteral true @6:25
 │        └─ then
-│           └─ ExprStmt @13:1
+│           └─ ExprStmt @6:1
 │              └─ expr
-│                 └─ Assign '=' @13:12
+│                 └─ Assign '=' @6:12
 │                    ├─ target
-│                    │  └─ Identifier 'val_unless' @13:1
+│                    │  └─ Identifier 'val_unless' @6:1
 │                    └─ value
-│                       └─ IntLiteral '200' @13:14
-└─ ExprStmt @14:1
+│                       └─ IntLiteral '200' @6:14
+└─ ExprStmt @7:1
    └─ expr
-      └─ Call @14:8
+      └─ Call @7:8
          ├─ callee
-         │  └─ Identifier 'assert!' @14:1
+         │  └─ Identifier 'assert!' @7:1
          └─ args
-            └─ Binary '==' @14:21
+            └─ Binary '==' @7:21
                ├─ lhs
-               │  └─ Identifier 'val_unless' @14:10
+               │  └─ Identifier 'val_unless' @7:10
                └─ rhs
-                  └─ IntLiteral '100' @14:24
+                  └─ IntLiteral '100' @7:24
 --- exit 0 ---

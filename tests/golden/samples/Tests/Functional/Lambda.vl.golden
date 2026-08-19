@@ -1,126 +1,94 @@
 Program 'samples/Tests/Functional/Lambda.vl'
-├─ Method 'assert!' @1:1
+├─ Method 'add_five' [T_1] @2:14
 │  ├─ params
-│  │  └─ Param 'condition' @1:14
+│  │  └─ Param 'fn_tmp_0' @2:14
 │  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
+│  │        └─ TypeRef 'T_1' @2:14
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+│  │  └─ TypeRef 'T_1' @2:14
 │  └─ body
-│     └─ ExprStmt @2:3
+│     └─ ExprStmt @2:14
 │        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ ExprStmt @8:1
-│  └─ expr
-│     └─ Assign '=' @8:8
-│        ├─ target
-│        │  └─ Identifier 'double' @8:1
-│        └─ value
-│           └─ Lambda @8:10
-│              ├─ params
-│              │  └─ Param 'x' @8:12
-│              │     └─ decl_type
-│              │        └─ TypeRef 'Int32' @8:16
-│              └─ body
-│                 └─ Binary '*' @8:31
-│                    ├─ lhs
-│                    │  └─ Identifier 'x' @8:29
-│                    └─ rhs
-│                       └─ IntLiteral '2' @8:33
-├─ ExprStmt @10:1
-│  └─ expr
-│     └─ Assign '=' @10:10
-│        ├─ target
-│        │  └─ Identifier 'add_five' @10:1
-│        └─ value
-│           └─ Lambda @10:12
-│              ├─ params
-│              │  └─ Param 'x' @10:14
-│              │     └─ decl_type
-│              │        └─ TypeRef 'Int32' @10:18
-│              └─ body
-│                 └─ Binary '+' @10:31
-│                    ├─ lhs
-│                    │  └─ Identifier 'x' @10:29
-│                    └─ rhs
-│                       └─ IntLiteral '5' @10:33
-├─ ExprStmt @12:1
-│  └─ expr
-│     └─ Call @12:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @12:1
-│        └─ args
-│           └─ Binary '==' @12:22
+│           └─ Binary '+' @2:14
 │              ├─ lhs
-│              │  └─ Call @12:16
-│              │     ├─ callee
-│              │     │  └─ Identifier 'double' @12:10
-│              │     └─ args
-│              │        └─ IntLiteral '4' @12:18
+│              │  └─ Identifier 'fn_tmp_0' @2:14
 │              └─ rhs
-│                 └─ IntLiteral '8' @12:25
-├─ ExprStmt @13:1
+│                 └─ IntLiteral '5' @2:18
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Call @13:8
+│     └─ Assign '=' @1:8
+│        ├─ target
+│        │  └─ Identifier 'double' @1:1
+│        └─ value
+│           └─ Lambda @1:10
+│              ├─ params
+│              │  └─ Param 'x' @1:12
+│              │     └─ decl_type
+│              │        └─ TypeRef 'Int32' @1:16
+│              └─ body
+│                 └─ Binary '*' @1:31
+│                    ├─ lhs
+│                    │  └─ Identifier 'x' @1:29
+│                    └─ rhs
+│                       └─ IntLiteral '2' @1:33
+├─ ExprStmt @4:1
+│  └─ expr
+│     └─ Call @4:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @13:1
+│        │  └─ Identifier 'assert!' @4:1
 │        └─ args
-│           └─ Binary '==' @13:22
+│           └─ Binary '==' @4:22
 │              ├─ lhs
-│              │  └─ Pipeline @13:12
+│              │  └─ Call @4:16
+│              │     ├─ callee
+│              │     │  └─ Identifier 'double' @4:10
+│              │     └─ args
+│              │        └─ IntLiteral '4' @4:18
+│              └─ rhs
+│                 └─ IntLiteral '8' @4:25
+├─ ExprStmt @5:1
+│  └─ expr
+│     └─ Call @5:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @5:1
+│        └─ args
+│           └─ Binary '==' @5:22
+│              ├─ lhs
+│              │  └─ Pipeline @5:12
 │              │     ├─ lhs
-│              │     │  └─ IntLiteral '4' @13:10
+│              │     │  └─ IntLiteral '4' @5:10
 │              │     └─ rhs
-│              │        └─ Identifier 'double' @13:15
+│              │        └─ Identifier 'double' @5:15
 │              └─ rhs
-│                 └─ IntLiteral '8' @13:25
-├─ ExprStmt @14:1
+│                 └─ IntLiteral '8' @5:25
+├─ ExprStmt @6:1
 │  └─ expr
-│     └─ Call @14:8
+│     └─ Call @6:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @14:1
+│        │  └─ Identifier 'assert!' @6:1
 │        └─ args
-│           └─ Binary '==' @14:25
+│           └─ Binary '==' @6:25
 │              ├─ lhs
-│              │  └─ Call @14:18
+│              │  └─ Call @6:18
 │              │     ├─ callee
-│              │     │  └─ Identifier 'add_five' @14:10
+│              │     │  └─ Identifier 'add_five' @6:10
 │              │     └─ args
-│              │        └─ IntLiteral '10' @14:20
+│              │        └─ IntLiteral '10' @6:20
 │              └─ rhs
-│                 └─ IntLiteral '15' @14:28
-└─ ExprStmt @15:1
+│                 └─ IntLiteral '15' @6:28
+└─ ExprStmt @7:1
    └─ expr
-      └─ Call @15:8
+      └─ Call @7:8
          ├─ callee
-         │  └─ Identifier 'assert!' @15:1
+         │  └─ Identifier 'assert!' @7:1
          └─ args
-            └─ Binary '==' @15:25
+            └─ Binary '==' @7:25
                ├─ lhs
-               │  └─ Pipeline @15:13
+               │  └─ Pipeline @7:13
                │     ├─ lhs
-               │     │  └─ IntLiteral '10' @15:10
+               │     │  └─ IntLiteral '10' @7:10
                │     └─ rhs
-               │        └─ Identifier 'add_five' @15:16
+               │        └─ Identifier 'add_five' @7:16
                └─ rhs
-                  └─ IntLiteral '15' @15:28
+                  └─ IntLiteral '15' @7:28
 --- exit 0 ---

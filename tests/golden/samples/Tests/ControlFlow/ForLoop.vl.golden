@@ -1,294 +1,268 @@
 Program 'samples/Tests/ControlFlow/ForLoop.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
+├─ Method 'for_collection' @4:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+│  │  └─ TypeRef 'Int32' @4:23
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Method 'for_collection' @10:1
-│  ├─ return_type
-│  │  └─ TypeRef 'Int32' @10:23
-│  └─ body
-│     ├─ ExprStmt @11:3
+│     ├─ ExprStmt @5:3
 │     │  └─ expr
-│     │     └─ Assign '=' @11:14
+│     │     └─ Assign '=' @5:14
 │     │        ├─ target
-│     │        │  └─ Identifier 'collection' @11:3
+│     │        │  └─ Identifier 'collection' @5:3
 │     │        └─ value
-│     │           └─ ArrayLit @11:16
+│     │           └─ ArrayLit @5:16
 │     │              └─ elements
-│     │                 ├─ IntLiteral '1' @11:18
-│     │                 ├─ IntLiteral '2' @11:21
-│     │                 └─ IntLiteral '3' @11:24
-│     ├─ ExprStmt @12:3
+│     │                 ├─ IntLiteral '1' @5:18
+│     │                 ├─ IntLiteral '2' @5:21
+│     │                 └─ IntLiteral '3' @5:24
+│     ├─ ExprStmt @6:3
 │     │  └─ expr
-│     │     └─ Assign '=' @12:9
+│     │     └─ Assign '=' @6:9
 │     │        ├─ target
-│     │        │  └─ Identifier 'total' @12:3
+│     │        │  └─ Identifier 'total' @6:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @12:11
-│     ├─ ExprStmt @13:3
+│     │           └─ IntLiteral '0' @6:11
+│     ├─ ExprStmt @7:3
 │     │  └─ expr
-│     │     └─ Call @13:3
+│     │     └─ Call @7:3
 │     │        ├─ callee
-│     │        │  └─ Member 'each' @13:3
+│     │        │  └─ Member 'each' @7:3
 │     │        │     └─ object
-│     │        │        └─ Identifier 'collection' @13:15
+│     │        │        └─ Identifier 'collection' @7:15
 │     │        └─ block_arg
-│     │           └─ Block @13:3
+│     │           └─ Block @7:3
 │     │              ├─ params
-│     │              │  └─ Param 'item' @13:7
+│     │              │  └─ Param 'item' @7:7
 │     │              └─ body
-│     │                 └─ ExprStmt @14:5
+│     │                 └─ ExprStmt @8:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @14:11
+│     │                       └─ Assign '+=' @8:11
 │     │                          ├─ target
-│     │                          │  └─ Identifier 'total' @14:5
+│     │                          │  └─ Identifier 'total' @8:5
 │     │                          └─ value
-│     │                             └─ Identifier 'item' @14:14
-│     └─ ExprStmt @16:3
+│     │                             └─ Identifier 'item' @8:14
+│     └─ ExprStmt @10:3
 │        └─ expr
-│           └─ Identifier 'total' @16:3
-├─ Method 'for_dictionary' @22:1
+│           └─ Identifier 'total' @10:3
+├─ Method 'for_dictionary' @16:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @22:23
+│  │  └─ TypeRef 'Int32' @16:23
 │  └─ body
-│     ├─ ExprStmt @23:3
+│     ├─ ExprStmt @17:3
 │     │  └─ expr
-│     │     └─ Assign '=' @23:14
+│     │     └─ Assign '=' @17:14
 │     │        ├─ target
-│     │        │  └─ Identifier 'dictionary' @23:3
+│     │        │  └─ Identifier 'dictionary' @17:3
 │     │        └─ value
-│     │           └─ HashLit @23:16
+│     │           └─ HashLit @17:16
 │     │              ├─ keys
-│     │              │  ├─ StringLiteral 'a' @23:18
-│     │              │  ├─ StringLiteral 'b' @23:28
-│     │              │  └─ StringLiteral 'c' @23:38
+│     │              │  ├─ StringLiteral 'a' @17:18
+│     │              │  ├─ StringLiteral 'b' @17:28
+│     │              │  └─ StringLiteral 'c' @17:38
 │     │              └─ values
-│     │                 ├─ IntLiteral '1' @23:25
-│     │                 ├─ IntLiteral '2' @23:35
-│     │                 └─ IntLiteral '3' @23:45
-│     ├─ ExprStmt @24:3
+│     │                 ├─ IntLiteral '1' @17:25
+│     │                 ├─ IntLiteral '2' @17:35
+│     │                 └─ IntLiteral '3' @17:45
+│     ├─ ExprStmt @18:3
 │     │  └─ expr
-│     │     └─ Assign '=' @24:9
+│     │     └─ Assign '=' @18:9
 │     │        ├─ target
-│     │        │  └─ Identifier 'total' @24:3
+│     │        │  └─ Identifier 'total' @18:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @24:11
-│     ├─ ExprStmt @25:3
+│     │           └─ IntLiteral '0' @18:11
+│     ├─ ExprStmt @19:3
 │     │  └─ expr
-│     │     └─ Call @25:3
+│     │     └─ Call @19:3
 │     │        ├─ callee
-│     │        │  └─ Member 'each' @25:3
+│     │        │  └─ Member 'each' @19:3
 │     │        │     └─ object
-│     │        │        └─ Identifier 'dictionary' @25:22
+│     │        │        └─ Identifier 'dictionary' @19:22
 │     │        └─ block_arg
-│     │           └─ Block @25:3
+│     │           └─ Block @19:3
 │     │              ├─ params
-│     │              │  ├─ Param '_key' @25:7
-│     │              │  └─ Param 'value' @25:13
+│     │              │  ├─ Param '_key' @19:7
+│     │              │  └─ Param 'value' @19:13
 │     │              └─ body
-│     │                 └─ ExprStmt @26:5
+│     │                 └─ ExprStmt @20:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @26:11
+│     │                       └─ Assign '+=' @20:11
 │     │                          ├─ target
-│     │                          │  └─ Identifier 'total' @26:5
+│     │                          │  └─ Identifier 'total' @20:5
 │     │                          └─ value
-│     │                             └─ Identifier 'value' @26:14
-│     └─ ExprStmt @28:3
+│     │                             └─ Identifier 'value' @20:14
+│     └─ ExprStmt @22:3
 │        └─ expr
-│           └─ Identifier 'total' @28:3
-├─ Method 'for_range' @34:1
+│           └─ Identifier 'total' @22:3
+├─ Method 'for_range' @28:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @34:18
+│  │  └─ TypeRef 'Int32' @28:18
 │  └─ body
-│     ├─ ExprStmt @35:3
+│     ├─ ExprStmt @29:3
 │     │  └─ expr
-│     │     └─ Assign '=' @35:9
+│     │     └─ Assign '=' @29:9
 │     │        ├─ target
-│     │        │  └─ Identifier 'total' @35:3
+│     │        │  └─ Identifier 'total' @29:3
 │     │        └─ value
-│     │           └─ IntLiteral '0' @35:11
-│     ├─ ExprStmt @36:3
+│     │           └─ IntLiteral '0' @29:11
+│     ├─ ExprStmt @30:3
 │     │  └─ expr
-│     │     └─ Call @36:3
+│     │     └─ Call @30:3
 │     │        ├─ callee
-│     │        │  └─ Member 'each' @36:3
+│     │        │  └─ Member 'each' @30:3
 │     │        │     └─ object
-│     │        │        └─ Binary '..' @36:13
+│     │        │        └─ Binary '..' @30:13
 │     │        │           ├─ lhs
-│     │        │           │  └─ IntLiteral '1' @36:12
+│     │        │           │  └─ IntLiteral '1' @30:12
 │     │        │           └─ rhs
-│     │        │              └─ IntLiteral '3' @36:15
+│     │        │              └─ IntLiteral '3' @30:15
 │     │        └─ block_arg
-│     │           └─ Block @36:3
+│     │           └─ Block @30:3
 │     │              ├─ params
-│     │              │  └─ Param 'i' @36:7
+│     │              │  └─ Param 'i' @30:7
 │     │              └─ body
-│     │                 └─ ExprStmt @37:5
+│     │                 └─ ExprStmt @31:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @37:11
+│     │                       └─ Assign '+=' @31:11
 │     │                          ├─ target
-│     │                          │  └─ Identifier 'total' @37:5
+│     │                          │  └─ Identifier 'total' @31:5
 │     │                          └─ value
-│     │                             └─ Identifier 'i' @37:14
-│     └─ ExprStmt @39:3
+│     │                             └─ Identifier 'i' @31:14
+│     └─ ExprStmt @33:3
 │        └─ expr
-│           └─ Identifier 'total' @39:3
-├─ Class 'User' @42:1
+│           └─ Identifier 'total' @33:3
+├─ Class 'User' @36:1
 │  └─ body
-│     ├─ Field 'name' getter @43:3
+│     ├─ Field 'name' getter @37:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @43:18
-│     ├─ Field 'email' getter @44:3
+│     │     └─ TypeRef 'String' @37:18
+│     ├─ Field 'email' getter @38:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'String' @44:18
-│     ├─ Field 'age' getter @45:3
+│     │     └─ TypeRef 'String' @38:18
+│     ├─ Field 'age' getter @39:3
 │     │  └─ decl_type
-│     │     └─ TypeRef 'Int32' @45:18
-│     └─ Method 'initialize' @47:3
+│     │     └─ TypeRef 'Int32' @39:18
+│     └─ Method 'initialize' @41:3
 │        └─ params
-│           ├─ Param 'name' instance_var @47:19
+│           ├─ Param 'name' instance_var @41:19
 │           │  └─ decl_type
-│           │     └─ TypeRef 'String' @47:27
-│           ├─ Param 'email' instance_var @47:35
+│           │     └─ TypeRef 'String' @41:27
+│           ├─ Param 'email' instance_var @41:35
 │           │  └─ decl_type
-│           │     └─ TypeRef 'String' @47:44
-│           └─ Param 'age' instance_var @47:52
+│           │     └─ TypeRef 'String' @41:44
+│           └─ Param 'age' instance_var @41:52
 │              └─ decl_type
-│                 └─ TypeRef 'Int32' @47:59
-├─ Method 'for_array' @54:1
+│                 └─ TypeRef 'Int32' @41:59
+├─ Method 'for_array' @48:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Int32' @54:18
+│  │  └─ TypeRef 'Int32' @48:18
 │  └─ body
+│     ├─ ExprStmt @54:3
+│     │  └─ expr
+│     │     └─ Assign '=' @54:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'users' @54:3
+│     │        └─ value
+│     │           └─ ArrayLit @54:11
+│     │              └─ elements
+│     │                 ├─ Call @55:21
+│     │                 │  ├─ callee
+│     │                 │  │  └─ Member 'new' @55:17
+│     │                 │  │     └─ object
+│     │                 │  │        └─ Identifier 'User' @55:13
+│     │                 │  └─ args
+│     │                 │     ├─ StringLiteral 'Alice' @55:23
+│     │                 │     ├─ StringLiteral 'alice@petass.com' @55:32
+│     │                 │     └─ IntLiteral '42' @55:52
+│     │                 ├─ Call @56:21
+│     │                 │  ├─ callee
+│     │                 │  │  └─ Member 'new' @56:17
+│     │                 │  │     └─ object
+│     │                 │  │        └─ Identifier 'User' @56:13
+│     │                 │  └─ args
+│     │                 │     ├─ StringLiteral 'Morgan' @56:23
+│     │                 │     ├─ StringLiteral 'morgan@bg.fr' @56:33
+│     │                 │     └─ IntLiteral '25' @56:49
+│     │                 └─ Call @57:21
+│     │                    ├─ callee
+│     │                    │  └─ Member 'new' @57:17
+│     │                    │     └─ object
+│     │                    │        └─ Identifier 'User' @57:13
+│     │                    └─ args
+│     │                       ├─ StringLiteral 'Bob' @57:23
+│     │                       ├─ StringLiteral 'bob@marley.lol' @57:30
+│     │                       └─ IntLiteral '30' @57:48
+│     ├─ ExprStmt @59:3
+│     │  └─ expr
+│     │     └─ Assign '=' @59:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'total' @59:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @59:11
 │     ├─ ExprStmt @60:3
 │     │  └─ expr
-│     │     └─ Assign '=' @60:9
-│     │        ├─ target
-│     │        │  └─ Identifier 'users' @60:3
-│     │        └─ value
-│     │           └─ ArrayLit @60:11
-│     │              └─ elements
-│     │                 ├─ Call @61:21
-│     │                 │  ├─ callee
-│     │                 │  │  └─ Member 'new' @61:17
-│     │                 │  │     └─ object
-│     │                 │  │        └─ Identifier 'User' @61:13
-│     │                 │  └─ args
-│     │                 │     ├─ StringLiteral 'Alice' @61:23
-│     │                 │     ├─ StringLiteral 'alice@petass.com' @61:32
-│     │                 │     └─ IntLiteral '42' @61:52
-│     │                 ├─ Call @62:21
-│     │                 │  ├─ callee
-│     │                 │  │  └─ Member 'new' @62:17
-│     │                 │  │     └─ object
-│     │                 │  │        └─ Identifier 'User' @62:13
-│     │                 │  └─ args
-│     │                 │     ├─ StringLiteral 'Morgan' @62:23
-│     │                 │     ├─ StringLiteral 'morgan@bg.fr' @62:33
-│     │                 │     └─ IntLiteral '25' @62:49
-│     │                 └─ Call @63:21
-│     │                    ├─ callee
-│     │                    │  └─ Member 'new' @63:17
-│     │                    │     └─ object
-│     │                    │        └─ Identifier 'User' @63:13
-│     │                    └─ args
-│     │                       ├─ StringLiteral 'Bob' @63:23
-│     │                       ├─ StringLiteral 'bob@marley.lol' @63:30
-│     │                       └─ IntLiteral '30' @63:48
-│     ├─ ExprStmt @65:3
-│     │  └─ expr
-│     │     └─ Assign '=' @65:9
-│     │        ├─ target
-│     │        │  └─ Identifier 'total' @65:3
-│     │        └─ value
-│     │           └─ IntLiteral '0' @65:11
-│     ├─ ExprStmt @66:3
-│     │  └─ expr
-│     │     └─ Call @66:3
+│     │     └─ Call @60:3
 │     │        ├─ callee
-│     │        │  └─ Member 'each' @66:3
+│     │        │  └─ Member 'each' @60:3
 │     │        │     └─ object
-│     │        │        └─ Identifier 'users' @66:15
+│     │        │        └─ Identifier 'users' @60:15
 │     │        └─ block_arg
-│     │           └─ Block @66:3
+│     │           └─ Block @60:3
 │     │              ├─ params
-│     │              │  └─ Param 'user' @66:7
+│     │              │  └─ Param 'user' @60:7
 │     │              └─ body
-│     │                 └─ ExprStmt @67:5
+│     │                 └─ ExprStmt @61:5
 │     │                    └─ expr
-│     │                       └─ Assign '+=' @67:11
+│     │                       └─ Assign '+=' @61:11
 │     │                          ├─ target
-│     │                          │  └─ Identifier 'total' @67:5
+│     │                          │  └─ Identifier 'total' @61:5
 │     │                          └─ value
-│     │                             └─ Member 'age' @67:18
+│     │                             └─ Member 'age' @61:18
 │     │                                └─ object
-│     │                                   └─ Identifier 'user' @67:14
-│     └─ ExprStmt @69:3
+│     │                                   └─ Identifier 'user' @61:14
+│     └─ ExprStmt @63:3
 │        └─ expr
-│           └─ Identifier 'total' @69:3
-├─ ExprStmt @72:1
+│           └─ Identifier 'total' @63:3
+├─ ExprStmt @66:1
 │  └─ expr
-│     └─ Call @72:8
+│     └─ Call @66:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @72:1
+│        │  └─ Identifier 'assert!' @66:1
 │        └─ args
-│           └─ Binary '==' @72:25
+│           └─ Binary '==' @66:25
 │              ├─ lhs
-│              │  └─ Identifier 'for_collection' @72:10
+│              │  └─ Identifier 'for_collection' @66:10
 │              └─ rhs
-│                 └─ IntLiteral '6' @72:28
-├─ ExprStmt @73:1
+│                 └─ IntLiteral '6' @66:28
+├─ ExprStmt @67:1
 │  └─ expr
-│     └─ Call @73:8
+│     └─ Call @67:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @73:1
+│        │  └─ Identifier 'assert!' @67:1
 │        └─ args
-│           └─ Binary '==' @73:25
+│           └─ Binary '==' @67:25
 │              ├─ lhs
-│              │  └─ Identifier 'for_dictionary' @73:10
+│              │  └─ Identifier 'for_dictionary' @67:10
 │              └─ rhs
-│                 └─ IntLiteral '6' @73:28
-├─ ExprStmt @74:1
+│                 └─ IntLiteral '6' @67:28
+├─ ExprStmt @68:1
 │  └─ expr
-│     └─ Call @74:8
+│     └─ Call @68:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @74:1
+│        │  └─ Identifier 'assert!' @68:1
 │        └─ args
-│           └─ Binary '==' @74:20
+│           └─ Binary '==' @68:20
 │              ├─ lhs
-│              │  └─ Identifier 'for_range' @74:10
+│              │  └─ Identifier 'for_range' @68:10
 │              └─ rhs
-│                 └─ IntLiteral '3' @74:23
-└─ ExprStmt @75:1
+│                 └─ IntLiteral '3' @68:23
+└─ ExprStmt @69:1
    └─ expr
-      └─ Call @75:8
+      └─ Call @69:8
          ├─ callee
-         │  └─ Identifier 'assert!' @75:1
+         │  └─ Identifier 'assert!' @69:1
          └─ args
-            └─ Binary '==' @75:20
+            └─ Binary '==' @69:20
                ├─ lhs
-               │  └─ Identifier 'for_array' @75:10
+               │  └─ Identifier 'for_array' @69:10
                └─ rhs
-                  └─ IntLiteral '97' @75:23
+                  └─ IntLiteral '97' @69:23
 --- exit 0 ---

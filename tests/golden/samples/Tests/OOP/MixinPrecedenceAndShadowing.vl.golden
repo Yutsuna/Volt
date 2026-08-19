@@ -1,179 +1,153 @@
 Program 'samples/Tests/OOP/MixinPrecedenceAndShadowing.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+├─ Mixin 'Greeter' @1:1
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Mixin 'Greeter' @8:1
-│  └─ body
-│     ├─ Method 'greet' @9:3
+│     ├─ Method 'greet' @2:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @9:16
+│     │  │  └─ TypeRef 'String' @2:16
 │     │  └─ body
-│     │     └─ ExprStmt @10:5
+│     │     └─ ExprStmt @3:5
 │     │        └─ expr
-│     │           └─ StringLiteral 'Hello from Greeter' @10:5
-│     └─ Method 'salute' @13:3
+│     │           └─ StringLiteral 'Hello from Greeter' @3:5
+│     └─ Method 'salute' @6:3
 │        ├─ return_type
-│        │  └─ TypeRef 'String' @13:17
+│        │  └─ TypeRef 'String' @6:17
+│        └─ body
+│           └─ ExprStmt @7:5
+│              └─ expr
+│                 └─ StringLiteral 'Salute from Greeter' @7:5
+├─ Mixin 'FormalGreeter' @12:1
+│  └─ body
+│     └─ Method 'greet' @13:3
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @13:16
 │        └─ body
 │           └─ ExprStmt @14:5
 │              └─ expr
-│                 └─ StringLiteral 'Salute from Greeter' @14:5
-├─ Mixin 'FormalGreeter' @19:1
+│                 └─ StringLiteral 'Good day from FormalGreeter' @14:5
+├─ Class 'Entity' @19:1
 │  └─ body
-│     └─ Method 'greet' @20:3
-│        ├─ return_type
-│        │  └─ TypeRef 'String' @20:16
-│        └─ body
-│           └─ ExprStmt @21:5
-│              └─ expr
-│                 └─ StringLiteral 'Good day from FormalGreeter' @21:5
-├─ Class 'Entity' @26:1
-│  └─ body
-│     ├─ Method 'greet' @27:3
+│     ├─ Method 'greet' @20:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @27:16
+│     │  │  └─ TypeRef 'String' @20:16
 │     │  └─ body
-│     │     └─ ExprStmt @28:5
+│     │     └─ ExprStmt @21:5
 │     │        └─ expr
-│     │           └─ StringLiteral 'Hello from Entity' @28:5
-│     ├─ Method 'entity_id' @31:3
+│     │           └─ StringLiteral 'Hello from Entity' @21:5
+│     ├─ Method 'entity_id' @24:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'Int32' @31:20
+│     │  │  └─ TypeRef 'Int32' @24:20
 │     │  └─ body
-│     │     └─ ExprStmt @32:5
+│     │     └─ ExprStmt @25:5
 │     │        └─ expr
-│     │           └─ IntLiteral '100' @32:5
-│     └─ Method 'initialize' @26:1
-├─ Class 'Person' @37:1
+│     │           └─ IntLiteral '100' @25:5
+│     └─ Method 'initialize' @19:1
+├─ Class 'Person' @30:1
 │  ├─ super
-│  │  └─ TypeRef 'Entity' @37:16
+│  │  └─ TypeRef 'Entity' @30:16
 │  └─ body
-│     ├─ Include @38:3
+│     ├─ Include @31:3
 │     │  └─ target
-│     │     └─ TypeRef 'Greeter' @38:11
-│     ├─ Method 'greet' @40:3
+│     │     └─ TypeRef 'Greeter' @31:11
+│     ├─ Method 'greet' @33:3
 │     │  ├─ return_type
-│     │  │  └─ TypeRef 'String' @40:16
+│     │  │  └─ TypeRef 'String' @33:16
 │     │  └─ body
-│     │     └─ ExprStmt @41:5
+│     │     └─ ExprStmt @34:5
 │     │        └─ expr
-│     │           └─ StringLiteral 'Hello from Person' @41:5
-│     └─ Method 'initialize' @37:1
-├─ Class 'Ambassador' @46:1
+│     │           └─ StringLiteral 'Hello from Person' @34:5
+│     └─ Method 'initialize' @30:1
+├─ Class 'Ambassador' @39:1
 │  ├─ super
-│  │  └─ TypeRef 'Entity' @46:20
+│  │  └─ TypeRef 'Entity' @39:20
 │  └─ body
-│     ├─ Include @47:3
+│     ├─ Include @40:3
 │     │  └─ target
-│     │     └─ TypeRef 'Greeter' @47:11
-│     ├─ Include @48:3
+│     │     └─ TypeRef 'Greeter' @40:11
+│     ├─ Include @41:3
 │     │  └─ target
-│     │     └─ TypeRef 'FormalGreeter' @48:11
-│     └─ Method 'initialize' @46:1
-├─ ExprStmt @52:1
+│     │     └─ TypeRef 'FormalGreeter' @41:11
+│     └─ Method 'initialize' @39:1
+├─ ExprStmt @45:1
 │  └─ expr
-│     └─ Assign '=' @52:3
+│     └─ Assign '=' @45:3
 │        ├─ target
-│        │  └─ Identifier 'p' @52:1
+│        │  └─ Identifier 'p' @45:1
 │        └─ value
-│           └─ Member 'new' @52:11
+│           └─ Member 'new' @45:11
 │              └─ object
-│                 └─ Identifier 'Person' @52:5
-├─ ExprStmt @53:1
+│                 └─ Identifier 'Person' @45:5
+├─ ExprStmt @46:1
 │  └─ expr
-│     └─ Call @53:8
+│     └─ Call @46:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @53:1
+│        │  └─ Identifier 'assert!' @46:1
 │        └─ args
-│           └─ Binary '==' @53:18
+│           └─ Binary '==' @46:18
 │              ├─ lhs
-│              │  └─ Member 'greet' @53:11
+│              │  └─ Member 'greet' @46:11
 │              │     └─ object
-│              │        └─ Identifier 'p' @53:10
+│              │        └─ Identifier 'p' @46:10
 │              └─ rhs
-│                 └─ StringLiteral 'Hello from Person' @53:21
-├─ ExprStmt @54:1
+│                 └─ StringLiteral 'Hello from Person' @46:21
+├─ ExprStmt @47:1
 │  └─ expr
-│     └─ Call @54:8
+│     └─ Call @47:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @54:1
+│        │  └─ Identifier 'assert!' @47:1
 │        └─ args
-│           └─ Binary '==' @54:19
+│           └─ Binary '==' @47:19
 │              ├─ lhs
-│              │  └─ Member 'salute' @54:11
+│              │  └─ Member 'salute' @47:11
 │              │     └─ object
-│              │        └─ Identifier 'p' @54:10
+│              │        └─ Identifier 'p' @47:10
 │              └─ rhs
-│                 └─ StringLiteral 'Salute from Greeter' @54:22
-├─ ExprStmt @55:1
+│                 └─ StringLiteral 'Salute from Greeter' @47:22
+├─ ExprStmt @48:1
 │  └─ expr
-│     └─ Call @55:8
+│     └─ Call @48:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @55:1
+│        │  └─ Identifier 'assert!' @48:1
 │        └─ args
-│           └─ Binary '==' @55:22
+│           └─ Binary '==' @48:22
 │              ├─ lhs
-│              │  └─ Member 'entity_id' @55:11
+│              │  └─ Member 'entity_id' @48:11
 │              │     └─ object
-│              │        └─ Identifier 'p' @55:10
+│              │        └─ Identifier 'p' @48:10
 │              └─ rhs
-│                 └─ IntLiteral '100' @55:25
-├─ ExprStmt @57:1
+│                 └─ IntLiteral '100' @48:25
+├─ ExprStmt @50:1
 │  └─ expr
-│     └─ Assign '=' @57:3
+│     └─ Assign '=' @50:3
 │        ├─ target
-│        │  └─ Identifier 'a' @57:1
+│        │  └─ Identifier 'a' @50:1
 │        └─ value
-│           └─ Member 'new' @57:15
+│           └─ Member 'new' @50:15
 │              └─ object
-│                 └─ Identifier 'Ambassador' @57:5
-├─ ExprStmt @58:1
+│                 └─ Identifier 'Ambassador' @50:5
+├─ ExprStmt @51:1
 │  └─ expr
-│     └─ Call @58:8
+│     └─ Call @51:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @58:1
+│        │  └─ Identifier 'assert!' @51:1
 │        └─ args
-│           └─ Binary '==' @58:18
+│           └─ Binary '==' @51:18
 │              ├─ lhs
-│              │  └─ Member 'greet' @58:11
+│              │  └─ Member 'greet' @51:11
 │              │     └─ object
-│              │        └─ Identifier 'a' @58:10
+│              │        └─ Identifier 'a' @51:10
 │              └─ rhs
-│                 └─ StringLiteral 'Good day from FormalGreeter' @58:21
-└─ ExprStmt @59:1
+│                 └─ StringLiteral 'Good day from FormalGreeter' @51:21
+└─ ExprStmt @52:1
    └─ expr
-      └─ Call @59:8
+      └─ Call @52:8
          ├─ callee
-         │  └─ Identifier 'assert!' @59:1
+         │  └─ Identifier 'assert!' @52:1
          └─ args
-            └─ Binary '==' @59:19
+            └─ Binary '==' @52:19
                ├─ lhs
-               │  └─ Member 'salute' @59:11
+               │  └─ Member 'salute' @52:11
                │     └─ object
-               │        └─ Identifier 'a' @59:10
+               │        └─ Identifier 'a' @52:10
                └─ rhs
-                  └─ StringLiteral 'Salute from Greeter' @59:22
+                  └─ StringLiteral 'Salute from Greeter' @52:22
 --- exit 0 ---

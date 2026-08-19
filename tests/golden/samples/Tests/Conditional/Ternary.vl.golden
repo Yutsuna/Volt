@@ -1,112 +1,82 @@
 Program 'samples/Tests/Conditional/Ternary.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ ExprStmt @8:1
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Assign '=' @8:5
+│     └─ Assign '=' @1:5
 │        ├─ target
-│        │  └─ Identifier 'age' @8:1
+│        │  └─ Identifier 'age' @1:1
 │        └─ value
-│           └─ IntLiteral '20' @8:7
-├─ ExprStmt @9:1
+│           └─ IntLiteral '20' @1:7
+├─ ExprStmt @2:1
 │  └─ expr
-│     └─ Assign '=' @9:9
+│     └─ Assign '=' @2:9
 │        ├─ target
-│        │  └─ Identifier 'str_age' @9:1
+│        │  └─ Identifier 'str_age' @2:1
 │        └─ value
-│           └─ Ternary @9:21
+│           └─ Ternary @2:21
 │              ├─ cond
-│              │  └─ Binary '>=' @9:15
+│              │  └─ Binary '>=' @2:15
 │              │     ├─ lhs
-│              │     │  └─ Identifier 'age' @9:11
+│              │     │  └─ Identifier 'age' @2:11
 │              │     └─ rhs
-│              │        └─ IntLiteral '18' @9:18
+│              │        └─ IntLiteral '18' @2:18
 │              ├─ then
-│              │  └─ StringLiteral 'Adult' @9:23
+│              │  └─ StringLiteral 'Adult' @2:23
 │              └─ else
-│                 └─ StringLiteral 'Minor' @9:33
-├─ ExprStmt @10:1
+│                 └─ StringLiteral 'Minor' @2:33
+├─ ExprStmt @3:1
 │  └─ expr
-│     └─ Call @10:8
+│     └─ Call @3:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @10:1
+│        │  └─ Identifier 'assert!' @3:1
 │        └─ args
-│           └─ Binary '==' @10:18
+│           └─ Binary '==' @3:18
 │              ├─ lhs
-│              │  └─ Identifier 'str_age' @10:10
+│              │  └─ Identifier 'str_age' @3:10
 │              └─ rhs
-│                 └─ StringLiteral 'Adult' @10:21
-├─ ExprStmt @12:1
+│                 └─ StringLiteral 'Adult' @3:21
+├─ ExprStmt @5:1
 │  └─ expr
-│     └─ Assign '=' @12:7
+│     └─ Assign '=' @5:7
 │        ├─ target
-│        │  └─ Identifier 'score' @12:1
+│        │  └─ Identifier 'score' @5:1
 │        └─ value
-│           └─ IntLiteral '85' @12:9
-├─ ExprStmt @13:1
+│           └─ IntLiteral '85' @5:9
+├─ ExprStmt @6:1
 │  └─ expr
-│     └─ Assign '=' @13:7
+│     └─ Assign '=' @6:7
 │        ├─ target
-│        │  └─ Identifier 'grade' @13:1
+│        │  └─ Identifier 'grade' @6:1
 │        └─ value
-│           └─ Ternary @13:21
+│           └─ Ternary @6:21
 │              ├─ cond
-│              │  └─ Binary '>=' @13:15
+│              │  └─ Binary '>=' @6:15
 │              │     ├─ lhs
-│              │     │  └─ Identifier 'score' @13:9
+│              │     │  └─ Identifier 'score' @6:9
 │              │     └─ rhs
-│              │        └─ IntLiteral '90' @13:18
+│              │        └─ IntLiteral '90' @6:18
 │              ├─ then
-│              │  └─ StringLiteral 'A' @13:23
+│              │  └─ StringLiteral 'A' @6:23
 │              └─ else
-│                 └─ Ternary @13:41
+│                 └─ Ternary @6:41
 │                    ├─ cond
-│                    │  └─ Binary '>=' @13:35
+│                    │  └─ Binary '>=' @6:35
 │                    │     ├─ lhs
-│                    │     │  └─ Identifier 'score' @13:29
+│                    │     │  └─ Identifier 'score' @6:29
 │                    │     └─ rhs
-│                    │        └─ IntLiteral '80' @13:38
+│                    │        └─ IntLiteral '80' @6:38
 │                    ├─ then
-│                    │  └─ StringLiteral 'B' @13:43
+│                    │  └─ StringLiteral 'B' @6:43
 │                    └─ else
-│                       └─ StringLiteral 'C' @13:49
-└─ ExprStmt @14:1
+│                       └─ StringLiteral 'C' @6:49
+└─ ExprStmt @7:1
    └─ expr
-      └─ Call @14:8
+      └─ Call @7:8
          ├─ callee
-         │  └─ Identifier 'assert!' @14:1
+         │  └─ Identifier 'assert!' @7:1
          └─ args
-            └─ Binary '==' @14:16
+            └─ Binary '==' @7:16
                ├─ lhs
-               │  └─ Identifier 'grade' @14:10
+               │  └─ Identifier 'grade' @7:10
                └─ rhs
-                  └─ StringLiteral 'B' @14:19
+                  └─ StringLiteral 'B' @7:19
 --- exit 0 ---

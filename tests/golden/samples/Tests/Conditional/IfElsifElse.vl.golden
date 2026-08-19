@@ -1,192 +1,162 @@
 Program 'samples/Tests/Conditional/IfElsifElse.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
-├─ ExprStmt @8:1
+├─ ExprStmt @1:1
 │  └─ expr
-│     └─ Assign '=' @8:3
+│     └─ Assign '=' @1:3
 │        ├─ target
-│        │  └─ Identifier 'x' @8:1
+│        │  └─ Identifier 'x' @1:1
 │        └─ value
-│           └─ IntLiteral '15' @8:5
-├─ ExprStmt @9:1
+│           └─ IntLiteral '15' @1:5
+├─ ExprStmt @2:1
 │  └─ expr
-│     └─ Assign '=' @9:8
+│     └─ Assign '=' @2:8
 │        ├─ target
-│        │  └─ Identifier 'result' @9:1
+│        │  └─ Identifier 'result' @2:1
 │        └─ value
-│           └─ IntLiteral '0' @9:10
+│           └─ IntLiteral '0' @2:10
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ If @3:1
+│        ├─ cond
+│        │  └─ Binary '<' @3:6
+│        │     ├─ lhs
+│        │     │  └─ Identifier 'x' @3:4
+│        │     └─ rhs
+│        │        └─ IntLiteral '10' @3:8
+│        ├─ then
+│        │  └─ ExprStmt @4:3
+│        │     └─ expr
+│        │        └─ Assign '=' @4:10
+│        │           ├─ target
+│        │           │  └─ Identifier 'result' @4:3
+│        │           └─ value
+│        │              └─ IntLiteral '1' @4:12
+│        └─ else
+│           └─ ExprStmt @5:1
+│              └─ expr
+│                 └─ If @5:1
+│                    ├─ cond
+│                    │  └─ Binary '==' @5:9
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'x' @5:7
+│                    │     └─ rhs
+│                    │        └─ IntLiteral '15' @5:12
+│                    ├─ then
+│                    │  └─ ExprStmt @6:3
+│                    │     └─ expr
+│                    │        └─ Assign '=' @6:10
+│                    │           ├─ target
+│                    │           │  └─ Identifier 'result' @6:3
+│                    │           └─ value
+│                    │              └─ IntLiteral '2' @6:12
+│                    └─ else
+│                       └─ ExprStmt @8:3
+│                          └─ expr
+│                             └─ Assign '=' @8:10
+│                                ├─ target
+│                                │  └─ Identifier 'result' @8:3
+│                                └─ value
+│                                   └─ IntLiteral '3' @8:12
 ├─ ExprStmt @10:1
 │  └─ expr
-│     └─ If @10:1
-│        ├─ cond
-│        │  └─ Binary '<' @10:6
-│        │     ├─ lhs
-│        │     │  └─ Identifier 'x' @10:4
-│        │     └─ rhs
-│        │        └─ IntLiteral '10' @10:8
-│        ├─ then
-│        │  └─ ExprStmt @11:3
-│        │     └─ expr
-│        │        └─ Assign '=' @11:10
-│        │           ├─ target
-│        │           │  └─ Identifier 'result' @11:3
-│        │           └─ value
-│        │              └─ IntLiteral '1' @11:12
-│        └─ else
-│           └─ ExprStmt @12:1
-│              └─ expr
-│                 └─ If @12:1
-│                    ├─ cond
-│                    │  └─ Binary '==' @12:9
-│                    │     ├─ lhs
-│                    │     │  └─ Identifier 'x' @12:7
-│                    │     └─ rhs
-│                    │        └─ IntLiteral '15' @12:12
-│                    ├─ then
-│                    │  └─ ExprStmt @13:3
-│                    │     └─ expr
-│                    │        └─ Assign '=' @13:10
-│                    │           ├─ target
-│                    │           │  └─ Identifier 'result' @13:3
-│                    │           └─ value
-│                    │              └─ IntLiteral '2' @13:12
-│                    └─ else
-│                       └─ ExprStmt @15:3
-│                          └─ expr
-│                             └─ Assign '=' @15:10
-│                                ├─ target
-│                                │  └─ Identifier 'result' @15:3
-│                                └─ value
-│                                   └─ IntLiteral '3' @15:12
-├─ ExprStmt @17:1
-│  └─ expr
-│     └─ Call @17:8
+│     └─ Call @10:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @17:1
+│        │  └─ Identifier 'assert!' @10:1
 │        └─ args
-│           └─ Binary '==' @17:17
+│           └─ Binary '==' @10:17
 │              ├─ lhs
-│              │  └─ Identifier 'result' @17:10
+│              │  └─ Identifier 'result' @10:10
 │              └─ rhs
-│                 └─ IntLiteral '2' @17:20
-├─ ExprStmt @20:1
+│                 └─ IntLiteral '2' @10:20
+├─ ExprStmt @13:1
 │  └─ expr
-│     └─ Assign '=' @20:5
+│     └─ Assign '=' @13:5
 │        ├─ target
-│        │  └─ Identifier 'val' @20:1
+│        │  └─ Identifier 'val' @13:1
 │        └─ value
-│           └─ If @20:7
+│           └─ If @13:7
 │              ├─ cond
-│              │  └─ Binary '>' @20:13
+│              │  └─ Binary '>' @13:13
 │              │     ├─ lhs
-│              │     │  └─ IntLiteral '10' @20:10
+│              │     │  └─ IntLiteral '10' @13:10
 │              │     └─ rhs
-│              │        └─ IntLiteral '5' @20:15
+│              │        └─ IntLiteral '5' @13:15
 │              ├─ then
-│              │  └─ ExprStmt @21:3
+│              │  └─ ExprStmt @14:3
 │              │     └─ expr
-│              │        └─ StringLiteral 'greater' @21:3
+│              │        └─ StringLiteral 'greater' @14:3
 │              └─ else
-│                 └─ ExprStmt @23:3
+│                 └─ ExprStmt @16:3
 │                    └─ expr
-│                       └─ StringLiteral 'lesser' @23:3
-├─ ExprStmt @25:1
+│                       └─ StringLiteral 'lesser' @16:3
+├─ ExprStmt @18:1
 │  └─ expr
-│     └─ Call @25:8
+│     └─ Call @18:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @25:1
+│        │  └─ Identifier 'assert!' @18:1
 │        └─ args
-│           └─ Binary '==' @25:13
+│           └─ Binary '==' @18:13
 │              ├─ lhs
-│              │  └─ Identifier 'val' @25:9
+│              │  └─ Identifier 'val' @18:9
 │              └─ rhs
-│                 └─ StringLiteral 'greater' @25:16
-├─ ExprStmt @28:1
+│                 └─ StringLiteral 'greater' @18:16
+├─ ExprStmt @21:1
 │  └─ expr
-│     └─ Assign '=' @28:6
+│     └─ Assign '=' @21:6
 │        ├─ target
-│        │  └─ Identifier 'val2' @28:1
+│        │  └─ Identifier 'val2' @21:1
 │        └─ value
-│           └─ If @28:8
+│           └─ If @21:8
 │              ├─ cond
-│              │  └─ Binary '<' @28:14
+│              │  └─ Binary '<' @21:14
 │              │     ├─ lhs
-│              │     │  └─ IntLiteral '10' @28:11
+│              │     │  └─ IntLiteral '10' @21:11
 │              │     └─ rhs
-│              │        └─ IntLiteral '5' @28:16
+│              │        └─ IntLiteral '5' @21:16
 │              ├─ then
-│              │  └─ ExprStmt @29:3
+│              │  └─ ExprStmt @22:3
 │              │     └─ expr
-│              │        └─ StringLiteral 'lesser' @29:3
+│              │        └─ StringLiteral 'lesser' @22:3
 │              └─ else
-│                 └─ ExprStmt @31:3
+│                 └─ ExprStmt @24:3
 │                    └─ expr
-│                       └─ StringLiteral 'greater' @31:3
-├─ ExprStmt @33:1
+│                       └─ StringLiteral 'greater' @24:3
+├─ ExprStmt @26:1
 │  └─ expr
-│     └─ Call @33:8
+│     └─ Call @26:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @33:1
+│        │  └─ Identifier 'assert!' @26:1
 │        └─ args
-│           └─ Binary '==' @33:14
+│           └─ Binary '==' @26:14
 │              ├─ lhs
-│              │  └─ Identifier 'val2' @33:9
+│              │  └─ Identifier 'val2' @26:9
 │              └─ rhs
-│                 └─ StringLiteral 'greater' @33:17
-├─ ExprStmt @36:1
+│                 └─ StringLiteral 'greater' @26:17
+├─ ExprStmt @29:1
 │  └─ expr
-│     └─ Assign '=' @36:10
+│     └─ Assign '=' @29:10
 │        ├─ target
-│        │  └─ Identifier 'res_then' @36:1
+│        │  └─ Identifier 'res_then' @29:1
 │        └─ value
-│           └─ If @36:12
+│           └─ If @29:12
 │              ├─ cond
-│              │  └─ BoolLiteral true @36:15
+│              │  └─ BoolLiteral true @29:15
 │              ├─ then
-│              │  └─ ExprStmt @36:25
+│              │  └─ ExprStmt @29:25
 │              │     └─ expr
-│              │        └─ StringLiteral 'oui' @36:25
+│              │        └─ StringLiteral 'oui' @29:25
 │              └─ else
-│                 └─ ExprStmt @36:36
+│                 └─ ExprStmt @29:36
 │                    └─ expr
-│                       └─ StringLiteral 'non' @36:36
-└─ ExprStmt @37:1
+│                       └─ StringLiteral 'non' @29:36
+└─ ExprStmt @30:1
    └─ expr
-      └─ Call @37:8
+      └─ Call @30:8
          ├─ callee
-         │  └─ Identifier 'assert!' @37:1
+         │  └─ Identifier 'assert!' @30:1
          └─ args
-            └─ Binary '==' @37:19
+            └─ Binary '==' @30:19
                ├─ lhs
-               │  └─ Identifier 'res_then' @37:10
+               │  └─ Identifier 'res_then' @30:10
                └─ rhs
-                  └─ StringLiteral 'oui' @37:22
+                  └─ StringLiteral 'oui' @30:22
 --- exit 0 ---

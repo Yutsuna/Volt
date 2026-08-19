@@ -1,11 +1,6 @@
 @[External( "libc", "exit" )]
 external def libc_exit( value : Int32 ) -> Void
 
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "FAIL #{__FILE__}:\tCalled by #{__FUNCTION__} at #{__LINE__}:#{__COLUMN__}"
-  end
-end
 
 #------------------------------------------------------------------------------
 

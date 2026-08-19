@@ -1,186 +1,160 @@
 Program 'samples/Tests/Traits/TypeOf.vl'
-├─ Method 'assert!' @6:1
-│  ├─ params
-│  │  └─ Param 'condition' @6:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @6:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @6:36
-│  └─ body
-│     └─ ExprStmt @7:3
-│        └─ expr
-│           └─ If @7:3
-│              ├─ cond
-│              │  └─ Unary 'not' @7:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @7:10
-│              └─ then
-│                 └─ ExprStmt @8:5
-│                    └─ expr
-│                       └─ RaiseExpr @8:5
-│                          └─ exception
-│                             └─ Interp @8:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @8:11
-│                                   ├─ Identifier '__FILE__' @8:31
-│                                   ├─ StringLiteral ':' @8:11
-│                                   └─ Identifier '__LINE__' @8:43
-├─ LocalDecl 'count' @13:1
+├─ LocalDecl 'count' @1:1
 │  ├─ decl_type
-│  │  └─ TypeRef 'Int32' @13:9
+│  │  └─ TypeRef 'Int32' @1:9
 │  └─ init
-│     └─ IntLiteral '41' @13:17
-├─ LocalDecl 'mirrored' @14:1
+│     └─ IntLiteral '41' @1:17
+├─ LocalDecl 'mirrored' @2:1
 │  ├─ decl_type
-│  │  └─ TypeOfType @14:12
+│  │  └─ TypeOfType @2:12
 │  │     └─ value
-│  │        └─ Identifier 'count' @14:20
+│  │        └─ Identifier 'count' @2:20
 │  └─ init
-│     └─ IntLiteral '1' @14:30
+│     └─ IntLiteral '1' @2:30
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Call @3:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @3:1
+│        └─ args
+│           └─ Binary '==' @3:27
+│              ├─ lhs
+│              │  └─ Binary '+' @3:16
+│              │     ├─ lhs
+│              │     │  └─ Identifier 'count' @3:10
+│              │     └─ rhs
+│              │        └─ Identifier 'mirrored' @3:18
+│              └─ rhs
+│                 └─ IntLiteral '42' @3:30
+├─ LocalDecl 'label' @5:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'String' @5:9
+│  └─ init
+│     └─ StringLiteral 'volt' @5:18
+├─ LocalDecl 'echoed' @6:1
+│  ├─ decl_type
+│  │  └─ TypeOfType @6:10
+│  │     └─ value
+│  │        └─ Identifier 'label' @6:18
+│  └─ init
+│     └─ StringLiteral 'volt' @6:28
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Call @7:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @7:1
+│        └─ args
+│           └─ Binary '==' @7:17
+│              ├─ lhs
+│              │  └─ Identifier 'echoed' @7:10
+│              └─ rhs
+│                 └─ Identifier 'label' @7:20
+├─ LocalDecl 'doubled' @9:1
+│  ├─ decl_type
+│  │  └─ TypeOfType @9:11
+│  │     └─ value
+│  │        └─ Binary '*' @9:25
+│  │           ├─ lhs
+│  │           │  └─ Identifier 'count' @9:19
+│  │           └─ rhs
+│  │              └─ IntLiteral '2' @9:27
+│  └─ init
+│     └─ IntLiteral '84' @9:33
+├─ ExprStmt @10:1
+│  └─ expr
+│     └─ Call @10:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @10:1
+│        └─ args
+│           └─ Binary '==' @10:18
+│              ├─ lhs
+│              │  └─ Identifier 'doubled' @10:10
+│              └─ rhs
+│                 └─ Binary '+' @10:31
+│                    ├─ lhs
+│                    │  └─ Binary '*' @10:27
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'count' @10:21
+│                    │     └─ rhs
+│                    │        └─ IntLiteral '2' @10:29
+│                    └─ rhs
+│                       └─ IntLiteral '2' @10:33
+├─ ExprStmt @12:1
+│  └─ expr
+│     └─ Assign '=' @12:9
+│        ├─ target
+│        │  └─ Identifier 'numbers' @12:1
+│        └─ value
+│           └─ Member 'new' @12:33
+│              └─ object
+│                 └─ GenericInst @12:16
+│                    ├─ base
+│                    │  └─ Identifier 'Array' @12:11
+│                    └─ args
+│                       └─ TypeOfType @12:17
+│                          └─ value
+│                             └─ Identifier 'count' @12:25
+├─ ExprStmt @13:1
+│  └─ expr
+│     └─ Call @13:13
+│        ├─ callee
+│        │  └─ Member 'push' @13:8
+│        │     └─ object
+│        │        └─ Identifier 'numbers' @13:1
+│        └─ args
+│           └─ Identifier 'count' @13:15
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Call @14:13
+│        ├─ callee
+│        │  └─ Member 'push' @14:8
+│        │     └─ object
+│        │        └─ Identifier 'numbers' @14:1
+│        └─ args
+│           └─ Identifier 'mirrored' @14:15
 ├─ ExprStmt @15:1
 │  └─ expr
 │     └─ Call @15:8
 │        ├─ callee
 │        │  └─ Identifier 'assert!' @15:1
 │        └─ args
-│           └─ Binary '==' @15:27
+│           └─ Binary '==' @15:23
 │              ├─ lhs
-│              │  └─ Binary '+' @15:16
-│              │     ├─ lhs
-│              │     │  └─ Identifier 'count' @15:10
-│              │     └─ rhs
-│              │        └─ Identifier 'mirrored' @15:18
-│              └─ rhs
-│                 └─ IntLiteral '42' @15:30
-├─ LocalDecl 'label' @17:1
-│  ├─ decl_type
-│  │  └─ TypeRef 'String' @17:9
-│  └─ init
-│     └─ StringLiteral 'volt' @17:18
-├─ LocalDecl 'echoed' @18:1
-│  ├─ decl_type
-│  │  └─ TypeOfType @18:10
-│  │     └─ value
-│  │        └─ Identifier 'label' @18:18
-│  └─ init
-│     └─ StringLiteral 'volt' @18:28
-├─ ExprStmt @19:1
-│  └─ expr
-│     └─ Call @19:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @19:1
-│        └─ args
-│           └─ Binary '==' @19:17
-│              ├─ lhs
-│              │  └─ Identifier 'echoed' @19:10
-│              └─ rhs
-│                 └─ Identifier 'label' @19:20
-├─ LocalDecl 'doubled' @22:1
-│  ├─ decl_type
-│  │  └─ TypeOfType @22:11
-│  │     └─ value
-│  │        └─ Binary '*' @22:25
-│  │           ├─ lhs
-│  │           │  └─ Identifier 'count' @22:19
-│  │           └─ rhs
-│  │              └─ IntLiteral '2' @22:27
-│  └─ init
-│     └─ IntLiteral '84' @22:33
-├─ ExprStmt @23:1
-│  └─ expr
-│     └─ Call @23:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @23:1
-│        └─ args
-│           └─ Binary '==' @23:18
-│              ├─ lhs
-│              │  └─ Identifier 'doubled' @23:10
-│              └─ rhs
-│                 └─ Binary '+' @23:31
-│                    ├─ lhs
-│                    │  └─ Binary '*' @23:27
-│                    │     ├─ lhs
-│                    │     │  └─ Identifier 'count' @23:21
-│                    │     └─ rhs
-│                    │        └─ IntLiteral '2' @23:29
-│                    └─ rhs
-│                       └─ IntLiteral '2' @23:33
-├─ ExprStmt @26:1
-│  └─ expr
-│     └─ Assign '=' @26:9
-│        ├─ target
-│        │  └─ Identifier 'numbers' @26:1
-│        └─ value
-│           └─ Member 'new' @26:33
-│              └─ object
-│                 └─ GenericInst @26:16
-│                    ├─ base
-│                    │  └─ Identifier 'Array' @26:11
-│                    └─ args
-│                       └─ TypeOfType @26:17
-│                          └─ value
-│                             └─ Identifier 'count' @26:25
-├─ ExprStmt @27:1
-│  └─ expr
-│     └─ Call @27:13
-│        ├─ callee
-│        │  └─ Member 'push' @27:8
-│        │     └─ object
-│        │        └─ Identifier 'numbers' @27:1
-│        └─ args
-│           └─ Identifier 'count' @27:15
-├─ ExprStmt @28:1
-│  └─ expr
-│     └─ Call @28:13
-│        ├─ callee
-│        │  └─ Member 'push' @28:8
-│        │     └─ object
-│        │        └─ Identifier 'numbers' @28:1
-│        └─ args
-│           └─ Identifier 'mirrored' @28:15
-├─ ExprStmt @29:1
-│  └─ expr
-│     └─ Call @29:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @29:1
-│        └─ args
-│           └─ Binary '==' @29:23
-│              ├─ lhs
-│              │  └─ Member 'size' @29:17
+│              │  └─ Member 'size' @15:17
 │              │     └─ object
-│              │        └─ Identifier 'numbers' @29:10
+│              │        └─ Identifier 'numbers' @15:10
 │              └─ rhs
-│                 └─ IntLiteral '2' @29:26
-├─ ExprStmt @30:1
+│                 └─ IntLiteral '2' @15:26
+├─ ExprStmt @16:1
 │  └─ expr
-│     └─ Call @30:8
+│     └─ Call @16:8
 │        ├─ callee
-│        │  └─ Identifier 'assert!' @30:1
+│        │  └─ Identifier 'assert!' @16:1
 │        └─ args
-│           └─ Binary '==' @30:21
+│           └─ Binary '==' @16:21
 │              ├─ lhs
-│              │  └─ Index @30:17
+│              │  └─ Index @16:17
 │              │     ├─ object
-│              │     │  └─ Identifier 'numbers' @30:10
+│              │     │  └─ Identifier 'numbers' @16:10
 │              │     └─ args
-│              │        └─ IntLiteral '0' @30:18
+│              │        └─ IntLiteral '0' @16:18
 │              └─ rhs
-│                 └─ IntLiteral '41' @30:24
-└─ ExprStmt @33:1
+│                 └─ IntLiteral '41' @16:24
+└─ ExprStmt @18:1
    └─ expr
-      └─ Call @33:8
+      └─ Call @18:8
          ├─ callee
-         │  └─ Identifier 'assert!' @33:1
+         │  └─ Identifier 'assert!' @18:1
          └─ args
-            └─ Binary '==' @33:36
+            └─ Binary '==' @18:36
                ├─ lhs
-               │  └─ SizeOf @33:10
+               │  └─ SizeOf @18:10
                │     └─ type
-               │        └─ TypeOfType @33:18
+               │        └─ TypeOfType @18:18
                │           └─ value
-               │              └─ Identifier 'count' @33:26
+               │              └─ Identifier 'count' @18:26
                └─ rhs
-                  └─ SizeOf @33:39
+                  └─ SizeOf @18:39
                      └─ type
-                        └─ TypeRef 'Int32' @33:47
+                        └─ TypeRef 'Int32' @18:47
 --- exit 0 ---

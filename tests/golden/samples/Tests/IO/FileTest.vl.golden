@@ -1,0 +1,52 @@
+Program 'samples/Tests/IO/FileTest.vl'
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:11
+│        ├─ target
+│        │  └─ Identifier 'test_path' @1:1
+│        └─ value
+│           └─ StringLiteral '/tmp/volt_io_test.txt' @1:13
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Call @3:15
+│        ├─ callee
+│        │  └─ Member 'write_all' @3:5
+│        │     └─ object
+│        │        └─ Identifier 'File' @3:1
+│        └─ args
+│           ├─ Identifier 'test_path' @3:17
+│           └─ StringLiteral 'Hello from Volt File IO!' @3:28
+├─ ExprStmt @4:1
+│  └─ expr
+│     └─ Assign '=' @4:11
+│        ├─ target
+│        │  └─ Identifier 'read_back' @4:1
+│        └─ value
+│           └─ Call @4:26
+│              ├─ callee
+│              │  └─ Member 'read_all' @4:17
+│              │     └─ object
+│              │        └─ Identifier 'File' @4:13
+│              └─ args
+│                 └─ Identifier 'test_path' @4:28
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Call @7:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @7:1
+│        └─ args
+│           └─ Binary '==' @7:20
+│              ├─ lhs
+│              │  └─ Identifier 'read_back' @7:10
+│              └─ rhs
+│                 └─ StringLiteral 'Hello from Volt File IO!' @7:23
+└─ ExprStmt @8:1
+   └─ expr
+      └─ Call @8:12
+         ├─ callee
+         │  └─ Member 'delete' @8:5
+         │     └─ object
+         │        └─ Identifier 'File' @8:1
+         └─ args
+            └─ Identifier 'test_path' @8:14
+--- exit 0 ---

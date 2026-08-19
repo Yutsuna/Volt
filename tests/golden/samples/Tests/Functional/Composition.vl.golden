@@ -1,135 +1,105 @@
 Program 'samples/Tests/Functional/Composition.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
-│  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
-│  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'FAIL ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:19
-│                                   ├─ StringLiteral ':\tCalled by ' @3:11
-│                                   ├─ Identifier '__FUNCTION__' @3:43
-│                                   ├─ StringLiteral ' at ' @3:11
-│                                   ├─ Identifier '__LINE__' @3:62
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__COLUMN__' @3:74
+├─ ExprStmt @1:1
+│  └─ expr
+│     └─ Assign '=' @1:10
+│        ├─ target
+│        │  └─ Identifier 'raw_name' @1:1
+│        └─ value
+│           └─ StringLiteral '  VoLt ' @1:12
+├─ ExprStmt @2:1
+│  └─ expr
+│     └─ Assign '=' @2:6
+│        ├─ target
+│        │  └─ Identifier 'name' @2:1
+│        └─ value
+│           └─ Pipeline @2:17
+│              ├─ lhs
+│              │  └─ Identifier 'raw_name' @2:8
+│              └─ rhs
+│                 └─ Composition @2:29
+│                    ├─ lhs
+│                    │  └─ Section instance_method 'trim' @2:21
+│                    └─ rhs
+│                       └─ Section instance_method 'downcase' @2:33
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Call @3:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @3:1
+│        └─ args
+│           └─ Binary '==' @3:15
+│              ├─ lhs
+│              │  └─ Identifier 'name' @3:10
+│              └─ rhs
+│                 └─ StringLiteral 'volt' @3:18
+├─ ExprStmt @6:1
+│  └─ expr
+│     └─ Assign '=' @6:7
+│        ├─ target
+│        │  └─ Identifier 'users' @6:1
+│        └─ value
+│           └─ ArrayLit @6:9
+│              └─ elements
+│                 ├─ StringLiteral ' alice ' @6:11
+│                 └─ StringLiteral '' @6:22
+├─ ExprStmt @7:1
+│  └─ expr
+│     └─ Assign '=' @7:6
+│        ├─ target
+│        │  └─ Identifier 'kept' @7:1
+│        └─ value
+│           └─ Call @7:20
+│              ├─ callee
+│              │  └─ Member 'filter' @7:13
+│              │     └─ object
+│              │        └─ Identifier 'users' @7:8
+│              └─ block_arg
+│                 └─ Section instance_method 'empty?' negated @7:23
 ├─ ExprStmt @8:1
 │  └─ expr
-│     └─ Assign '=' @8:10
-│        ├─ target
-│        │  └─ Identifier 'raw_name' @8:1
-│        └─ value
-│           └─ StringLiteral '  VoLt ' @8:12
-├─ ExprStmt @9:1
-│  └─ expr
-│     └─ Assign '=' @9:6
-│        ├─ target
-│        │  └─ Identifier 'name' @9:1
-│        └─ value
-│           └─ Pipeline @9:17
+│     └─ Call @8:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @8:1
+│        └─ args
+│           └─ Binary '==' @8:20
 │              ├─ lhs
-│              │  └─ Identifier 'raw_name' @9:8
+│              │  └─ Member 'size' @8:14
+│              │     └─ object
+│              │        └─ Identifier 'kept' @8:10
 │              └─ rhs
-│                 └─ Composition @9:29
-│                    ├─ lhs
-│                    │  └─ Section instance_method 'trim' @9:21
-│                    └─ rhs
-│                       └─ Section instance_method 'downcase' @9:33
+│                 └─ IntLiteral '1' @8:23
 ├─ ExprStmt @10:1
 │  └─ expr
-│     └─ Call @10:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @10:1
-│        └─ args
-│           └─ Binary '==' @10:15
-│              ├─ lhs
-│              │  └─ Identifier 'name' @10:10
-│              └─ rhs
-│                 └─ StringLiteral 'volt' @10:18
-├─ ExprStmt @13:1
-│  └─ expr
-│     └─ Assign '=' @13:7
+│     └─ Assign '=' @10:6
 │        ├─ target
-│        │  └─ Identifier 'users' @13:1
+│        │  └─ Identifier 'tidy' @10:1
 │        └─ value
-│           └─ ArrayLit @13:9
-│              └─ elements
-│                 ├─ StringLiteral ' alice ' @13:11
-│                 └─ StringLiteral '' @13:22
-├─ ExprStmt @14:1
-│  └─ expr
-│     └─ Assign '=' @14:6
-│        ├─ target
-│        │  └─ Identifier 'kept' @14:1
-│        └─ value
-│           └─ Call @14:20
+│           └─ Call @10:17
 │              ├─ callee
-│              │  └─ Member 'filter' @14:13
+│              │  └─ Member 'map' @10:13
 │              │     └─ object
-│              │        └─ Identifier 'users' @14:8
+│              │        └─ Identifier 'users' @10:8
 │              └─ block_arg
-│                 └─ Section instance_method 'empty?' negated @14:23
-├─ ExprStmt @15:1
-│  └─ expr
-│     └─ Call @15:8
-│        ├─ callee
-│        │  └─ Identifier 'assert!' @15:1
-│        └─ args
-│           └─ Binary '==' @15:20
-│              ├─ lhs
-│              │  └─ Member 'size' @15:14
-│              │     └─ object
-│              │        └─ Identifier 'kept' @15:10
-│              └─ rhs
-│                 └─ IntLiteral '1' @15:23
-├─ ExprStmt @17:1
-│  └─ expr
-│     └─ Assign '=' @17:6
-│        ├─ target
-│        │  └─ Identifier 'tidy' @17:1
-│        └─ value
-│           └─ Call @17:17
-│              ├─ callee
-│              │  └─ Member 'map' @17:13
-│              │     └─ object
-│              │        └─ Identifier 'users' @17:8
-│              └─ block_arg
-│                 └─ Composition @17:28
+│                 └─ Composition @10:28
 │                    ├─ lhs
-│                    │  └─ Section instance_method 'trim' @17:20
+│                    │  └─ Section instance_method 'trim' @10:20
 │                    └─ rhs
-│                       └─ Section instance_method 'prefix' @17:32
+│                       └─ Section instance_method 'prefix' @10:32
 │                          └─ args
-│                             └─ StringLiteral 'usr_' @17:41
-└─ ExprStmt @18:1
+│                             └─ StringLiteral 'usr_' @10:41
+└─ ExprStmt @11:1
    └─ expr
-      └─ Call @18:8
+      └─ Call @11:8
          ├─ callee
-         │  └─ Identifier 'assert!' @18:1
+         │  └─ Identifier 'assert!' @11:1
          └─ args
-            └─ Binary '==' @18:20
+            └─ Binary '==' @11:20
                ├─ lhs
-               │  └─ Index @18:14
+               │  └─ Index @11:14
                │     ├─ object
-               │     │  └─ Identifier 'tidy' @18:10
+               │     │  └─ Identifier 'tidy' @11:10
                │     └─ args
-               │        └─ IntLiteral '0' @18:16
+               │        └─ IntLiteral '0' @11:16
                └─ rhs
-                  └─ StringLiteral 'usr_alice' @18:23
+                  └─ StringLiteral 'usr_alice' @11:23
 --- exit 0 ---

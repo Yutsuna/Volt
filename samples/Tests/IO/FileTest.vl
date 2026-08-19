@@ -1,0 +1,8 @@
+test_path = "/tmp/volt_io_test.txt"
+
+File.write_all( test_path, "Hello from Volt File IO!" )
+read_back = File.read_all( test_path )
+
+
+assert!( read_back == "Hello from Volt File IO!" )
+File.delete( test_path )

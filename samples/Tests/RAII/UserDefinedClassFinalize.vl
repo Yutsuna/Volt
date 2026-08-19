@@ -1,11 +1,3 @@
-def assert!( condition : Bool ) -> Void
-  if not condition
-    raise "Assertion failed #{__FILE__}:#{__LINE__}"
-  end
-end
-
-#------------------------------------------------------------------------------
-
 class Buffer
   getter data : Pointer<UInt8>
   getter length : UInt64

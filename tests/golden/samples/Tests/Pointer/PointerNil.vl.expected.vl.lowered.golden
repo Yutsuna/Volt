@@ -1,9 +1,0 @@
-Program 'samples/Tests/Pointer/PointerNil.vl.expected.vl'
-└─ ExprStmt @1:1
-   └─ expr
-      └─ Assign '=' @1:5
-         ├─ target
-         │  └─ Identifier 'exit' @1:1
-         └─ value
-            └─ IntLiteral '0' @1:6
---- exit 0 ---

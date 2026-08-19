@@ -1,92 +1,66 @@
 Program 'samples/Tests/RAII/StraightLineSingle.vl'
-├─ Method 'assert!' @1:1
-│  ├─ params
-│  │  └─ Param 'condition' @1:14
-│  │     └─ decl_type
-│  │        └─ TypeRef 'Bool' @1:26
+├─ Method 'use_one_array' @1:1
 │  ├─ return_type
-│  │  └─ TypeRef 'Void' @1:36
+│  │  └─ TypeRef 'UInt64' @1:22
 │  └─ body
-│     └─ ExprStmt @2:3
-│        └─ expr
-│           └─ If @2:3
-│              ├─ cond
-│              │  └─ Unary 'not' @2:6
-│              │     └─ operand
-│              │        └─ Identifier 'condition' @2:10
-│              └─ then
-│                 └─ ExprStmt @3:5
-│                    └─ expr
-│                       └─ RaiseExpr @3:5
-│                          └─ exception
-│                             └─ Interp @3:11
-│                                └─ parts
-│                                   ├─ StringLiteral 'Assertion failed ' @3:11
-│                                   ├─ Identifier '__FILE__' @3:31
-│                                   ├─ StringLiteral ':' @3:11
-│                                   └─ Identifier '__LINE__' @3:43
-├─ Method 'use_one_array' @9:1
-│  ├─ return_type
-│  │  └─ TypeRef 'UInt64' @9:22
-│  └─ body
-│     ├─ ExprStmt @10:3
+│     ├─ ExprStmt @2:3
 │     │  └─ expr
-│     │     └─ Assign '=' @10:7
+│     │     └─ Assign '=' @2:7
 │     │        ├─ target
-│     │        │  └─ Identifier 'arr' @10:3
+│     │        │  └─ Identifier 'arr' @2:3
 │     │        └─ value
-│     │           └─ Call @10:25
+│     │           └─ Call @2:25
 │     │              ├─ callee
-│     │              │  └─ Member 'new' @10:21
+│     │              │  └─ Member 'new' @2:21
 │     │              │     └─ object
-│     │              │        └─ GenericInst @10:14
+│     │              │        └─ GenericInst @2:14
 │     │              │           ├─ base
-│     │              │           │  └─ Identifier 'Array' @10:9
+│     │              │           │  └─ Identifier 'Array' @2:9
 │     │              │           └─ args
-│     │              │              └─ TypeRef 'Int32' @10:15
+│     │              │              └─ TypeRef 'Int32' @2:15
 │     │              └─ args
-│     │                 └─ IntLiteral '4' @10:27
-│     ├─ ExprStmt @11:3
+│     │                 └─ IntLiteral '4' @2:27
+│     ├─ ExprStmt @3:3
 │     │  └─ expr
-│     │     └─ Call @11:11
+│     │     └─ Call @3:11
 │     │        ├─ callee
-│     │        │  └─ Member 'push' @11:6
+│     │        │  └─ Member 'push' @3:6
 │     │        │     └─ object
-│     │        │        └─ Identifier 'arr' @11:3
+│     │        │        └─ Identifier 'arr' @3:3
 │     │        └─ args
-│     │           └─ IntLiteral '10' @11:13
-│     ├─ ExprStmt @12:3
+│     │           └─ IntLiteral '10' @3:13
+│     ├─ ExprStmt @4:3
 │     │  └─ expr
-│     │     └─ Call @12:11
+│     │     └─ Call @4:11
 │     │        ├─ callee
-│     │        │  └─ Member 'push' @12:6
+│     │        │  └─ Member 'push' @4:6
 │     │        │     └─ object
-│     │        │        └─ Identifier 'arr' @12:3
+│     │        │        └─ Identifier 'arr' @4:3
 │     │        └─ args
-│     │           └─ IntLiteral '20' @12:13
-│     ├─ ExprStmt @13:3
+│     │           └─ IntLiteral '20' @4:13
+│     ├─ ExprStmt @5:3
 │     │  └─ expr
-│     │     └─ Call @13:11
+│     │     └─ Call @5:11
 │     │        ├─ callee
-│     │        │  └─ Member 'push' @13:6
+│     │        │  └─ Member 'push' @5:6
 │     │        │     └─ object
-│     │        │        └─ Identifier 'arr' @13:3
+│     │        │        └─ Identifier 'arr' @5:3
 │     │        └─ args
-│     │           └─ IntLiteral '30' @13:13
-│     └─ ExprStmt @14:3
+│     │           └─ IntLiteral '30' @5:13
+│     └─ ExprStmt @6:3
 │        └─ expr
-│           └─ Member 'size' @14:6
+│           └─ Member 'size' @6:6
 │              └─ object
-│                 └─ Identifier 'arr' @14:3
-└─ ExprStmt @17:1
+│                 └─ Identifier 'arr' @6:3
+└─ ExprStmt @9:1
    └─ expr
-      └─ Call @17:8
+      └─ Call @9:8
          ├─ callee
-         │  └─ Identifier 'assert!' @17:1
+         │  └─ Identifier 'assert!' @9:1
          └─ args
-            └─ Binary '==' @17:24
+            └─ Binary '==' @9:24
                ├─ lhs
-               │  └─ Identifier 'use_one_array' @17:10
+               │  └─ Identifier 'use_one_array' @9:10
                └─ rhs
-                  └─ IntLiteral '3' @17:27
+                  └─ IntLiteral '3' @9:27
 --- exit 0 ---
