@@ -20,6 +20,14 @@ struct Pointer<T>
   abstract def +( offset : UInt64 ) -> Pointer<T>
   abstract def -( offset : UInt64 ) -> Pointer<T>
 
+  def ++ -> Pointer<T>
+    self + 1_u64
+  end
+
+  def -- -> Pointer<T>
+    self - 1_u64
+  end
+
   # The pointer's own bit pattern as an integer, and back. Bodyless for the
   # same reason `+`/`-` are: the `ptr` layout means the backend supplies it —
   # here, `ptrtoint`/`inttoptr` rather than a `gep`, since neither is an
