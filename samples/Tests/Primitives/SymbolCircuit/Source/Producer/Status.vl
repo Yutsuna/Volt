@@ -1,0 +1,11 @@
+module Producer
+
+  def pending -> Symbol
+    :pending
+  end
+
+  def name_of( value : Symbol ) -> String
+    value.to_string
+  end
+
+end

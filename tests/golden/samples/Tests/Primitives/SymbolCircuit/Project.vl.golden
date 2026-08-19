@@ -1,0 +1,29 @@
+Program 'samples/Tests/Primitives/SymbolCircuit/Project.vl'
+└─ Circuit 'SymbolIdentity' @1:1
+   └─ body
+      ├─ ExprStmt @3:3
+      │  └─ expr
+      │     └─ Call @3:3
+      │        ├─ callee
+      │        │  └─ Identifier 'runtime' @3:3
+      │        └─ args
+      │           └─ StringLiteral '0.1.0' @3:11
+      ├─ ExprStmt @4:3
+      │  └─ expr
+      │     └─ Call @4:3
+      │        ├─ callee
+      │        │  └─ Identifier 'entrypoint' @4:3
+      │        └─ args
+      │           └─ StringLiteral 'Source/Main.vl' @4:14
+      └─ ExprStmt @6:3
+         └─ expr
+            └─ Call @6:10
+               ├─ callee
+               │  └─ Identifier 'modules' @6:3
+               └─ args
+                  └─ Binary '=>' @7:16
+                     ├─ lhs
+                     │  └─ StringLiteral 'Producer' @7:5
+                     └─ rhs
+                        └─ StringLiteral 'Source/Producer' @7:19
+--- exit 0 ---

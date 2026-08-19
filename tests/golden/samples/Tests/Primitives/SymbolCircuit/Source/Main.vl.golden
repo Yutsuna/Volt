@@ -1,0 +1,50 @@
+Program 'samples/Tests/Primitives/SymbolCircuit/Source/Main.vl'
+├─ Annotation 'Link' @1:1
+│  └─ args
+│     └─ StringLiteral 'Producer' @1:8
+├─ ExprStmt @3:1
+│  └─ expr
+│     └─ Call @3:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @3:1
+│        └─ args
+│           └─ Binary '==' @3:28
+│              ├─ lhs
+│              │  └─ Member 'pending' @3:18
+│              │     └─ object
+│              │        └─ Identifier 'Producer' @3:10
+│              └─ rhs
+│                 └─ SymbolLiteral ':pending' @3:31
+├─ ExprStmt @4:1
+│  └─ expr
+│     └─ Call @4:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @4:1
+│        └─ args
+│           └─ Binary '==' @4:38
+│              ├─ lhs
+│              │  └─ Member 'to_string' @4:27
+│              │     └─ object
+│              │        └─ Member 'pending' @4:18
+│              │           └─ object
+│              │              └─ Identifier 'Producer' @4:10
+│              └─ rhs
+│                 └─ StringLiteral 'pending' @4:41
+└─ ExprStmt @5:1
+   └─ expr
+      └─ Call @5:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @5:1
+         └─ args
+            └─ Binary '==' @5:42
+               ├─ lhs
+               │  └─ Call @5:27
+               │     ├─ callee
+               │     │  └─ Member 'name_of' @5:18
+               │     │     └─ object
+               │     │        └─ Identifier 'Producer' @5:10
+               │     └─ args
+               │        └─ SymbolLiteral ':completed' @5:29
+               └─ rhs
+                  └─ StringLiteral 'completed' @5:45
+--- exit 0 ---
