@@ -1,5 +1,5 @@
-puts  = ( &.to_string ) >> ( &.data ) >> ( IO.stdout.puts )
-print = ( &.to_string ) >> ( &.data ) >> ( IO.stdout.print )
+puts  = ( &.to_string ) >> ( IO.stdout.puts )
+print = ( &.to_string ) >> ( IO.stdout.print )
 
 #{ TODO: Implement assert! macro to include file, line, and column information #}
 def assert!( condition : Bool ) -> Void
