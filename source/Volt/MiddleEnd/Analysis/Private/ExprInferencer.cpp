@@ -486,8 +486,8 @@ void FoldInto ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
 //
 // Static, not virtual: `super` names one specific body, which is exactly what
 // makes it the one polymorphic-looking call this backend can already emit.
-[[nodiscard]] Volt::MiddleEnd::TypeSystem::SemaTypeId
-SuperType ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context, Volt::Frontend::ExprId Id )
+[[nodiscard]] Volt::MiddleEnd::TypeSystem::SemaTypeId SuperType ( Volt::MiddleEnd::Analysis::TypeCheckerContext &Context,
+                                                                  Volt::Frontend::ExprId Id )
 {
     using namespace Volt::MiddleEnd::Analysis;
     using namespace Volt::MiddleEnd::TypeSystem;
@@ -617,6 +617,20 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                     const Resolution Found = LookupOn( Context, Context.SelfValue, Context.Ctx.Ast.Text( Expr.Name ) );
                     if ( Found.Decl != nullptr )
                     {
+                        if ( Found.Decl->bAbstract and not Found.bIndirect and not Context.Ctx.Types.IsMixin( Context.SelfType ) )
+                        {
+                            const NominalId ReceiverBase = Context.Ctx.Values.Has( Context.SelfValue )
+                                                               ? Context.Ctx.Values.Get( Context.SelfValue ).Base
+                                                               : NominalId{};
+                            if ( not IsMachineSuppliedOn( Context, ReceiverBase ) )
+                            {
+                                Context.Report( Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) ),
+                                                "cannot call abstract method '" + std::string{ Context.Ctx.Ast.Text( Expr.Name ) } +
+                                                    "' on type " + Context.NameOfValue( Context.SelfValue ) +
+                                                    " without dynamic dispatch" );
+                                return SemaTypeId{};
+                            }
+                        }
                         Context.CalleeResolution[Id.Value] = Found;
                         // The implicit-`self` half of the visibility check.
                         // Writing the receiver down is what routes an access

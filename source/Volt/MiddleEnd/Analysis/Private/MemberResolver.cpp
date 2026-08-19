@@ -364,9 +364,8 @@ void Volt::MiddleEnd::Analysis::CheckMemberAccess ( TypeCheckerContext &Context,
     // descendants. Both are answered against the body we are inside, so a
     // reference outside every type body (`SelfType` invalid, as at file
     // scope) fails both — which is the point.
-    const bool bVisible = Written == EVisibility::Private
-                              ? Context.SelfType == Found.Owner
-                              : ConformsTo( Context.Ctx.Types, Context.SelfType, Found.Owner );
+    const bool bVisible = Written == EVisibility::Private ? Context.SelfType == Found.Owner
+                                                          : ConformsTo( Context.Ctx.Types, Context.SelfType, Found.Owner );
     if ( bVisible )
     {
         return;
@@ -453,6 +452,24 @@ bool Volt::MiddleEnd::Analysis::IsBuiltinOpOn ( const TypeCheckerContext &Contex
     return Name == "===" and HasEnumCases( Context.Ctx.Types, Base );
 }
 
+bool Volt::MiddleEnd::Analysis::IsMachineSuppliedOn ( const TypeCheckerContext &Context,
+                                                     Volt::MiddleEnd::TypeSystem::NominalId Base )
+{
+    using namespace Volt::MiddleEnd::TypeSystem;
+
+    if ( not Base.IsValid() )
+    {
+        return false;
+    }
+    const NominalType &Nominal = Context.Ctx.Types.Type( Base );
+    if ( not Nominal.Layout.IsValid() )
+    {
+        return false;
+    }
+    const LayoutKind Kind = KindOf( Context.Ctx.Types.Get( Nominal.Layout ) );
+    return Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer;
+}
+
 Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
     TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
 {
@@ -471,6 +488,16 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
         if ( not IsBuiltinOpOn( Context, Base, Name ) )
         {
             Context.Report( Loc, "type " + Context.NameOfValue( Receiver ) + " has no member '" + std::string( Name ) + "'" );
+        }
+    }
+    else if ( Found.Decl != nullptr and Found.Decl->bAbstract and not Found.bIndirect )
+    {
+        const NominalId ReceiverBase = Context.Ctx.Values.Has( Receiver ) ? Context.Ctx.Values.Get( Receiver ).Base : NominalId{};
+        if ( not IsMachineSuppliedOn( Context, ReceiverBase ) and not Context.Ctx.Types.IsMixin( Context.SelfType ) )
+        {
+            Context.Report( Loc, "cannot call abstract method '" + std::string( Name ) + "' on type " +
+                                     Context.NameOfValue( Receiver ) + " without dynamic dispatch" );
+            Context.CalleeResolution.erase( Id.Value );
         }
     }
     CheckMemberSelf( Context, Loc, Found, bReceiverIsNakedType );
