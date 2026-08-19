@@ -20,6 +20,7 @@
 #include "Lower/FunctionFrame.hpp"
 #include "Types/TypeMapper.hpp"
 
+#include "Volt/BackendCore/SymbolRegistry.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 
 #include <llvm/IR/Constants.h>
@@ -325,16 +326,18 @@ llvm::Value *Volt::Backend::Llvm::EmitNilLiteral ( BodyEmitter &Emitter, Fronten
 llvm::Value *
 Volt::Backend::Llvm::EmitSymbolLiteral ( BodyEmitter &Emitter, Frontend::ExprId Id, const Frontend::SymbolLiteral &Node )
 {
-    // A symbol is an interned identity, and the *name* behind it needs a runtime
-    // interner table — refused loudly upstream (rules/core-ast.md), so only the
-    // identity is emitted here.
+    // The identity is minted from the *name*, never from `Node.Name` itself:
+    // that handle is interned per file (rules/ast-value.md), so emitting it gave
+    // `:pending` one integer in the unit that wrote it and a different one in
+    // the unit that compared against it. SymbolRegistry owns the one answer, and
+    // the same one names it back in `_V_symbol_name`.
     llvm::Type *Shape = Emitter.TypeOfExpr( Id );
     if ( Shape == nullptr or not Shape->isIntegerTy() )
     {
         static_cast<void>( Emitter.Fail( "llvm: the type claiming SymbolLiteral has no integer layout" ) );
         return nullptr;
     }
-    return llvm::ConstantInt::get( Shape, Node.Name.Value );
+    return llvm::ConstantInt::get( Shape, SymbolValueOf( SymbolNameOf( Emitter.Frame().Unit->Ast->Text( Node.Name ) ) ) );
 }
 
 llvm::Value *Volt::Backend::Llvm::EmitSizeOf ( BodyEmitter &Emitter, Frontend::ExprId Id )
