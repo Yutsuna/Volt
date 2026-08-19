@@ -271,6 +271,11 @@ namespace MiddleEnd
             // from the extra arguments of `@[Literal( Kind, Field, ... )]`, so a
             // future sugar node costs zero C++.
             std::vector<::Volt::Core::SmallVec<Symbol, 2>> LiteralSlots;
+
+            // Pre-computed virtual method symbols: Slot 0 is reserved for finalize.
+            // Slots 1..N correspond to the Symbols stored here.
+            // Computed once in TypeBinder.cpp Phase B (zero allocation during lookup).
+            ::Volt::Core::SmallVec<Symbol, 8> VTableSlots;
         };
 
         // Owns every declared type, the layouts they resolve to, and the
@@ -405,6 +410,35 @@ namespace MiddleEnd
                 const auto &Members = Type( Nominal ).Members;
                 return std::ranges::any_of( Members, [] ( const Member &Entry )
                                             { return Entry.Kind == EMemberKind::Method and Entry.bAbstract; } );
+            }
+
+            void SetVTableSlots ( NominalId Id, ::Volt::Core::SmallVec<Symbol, 8> Slots )
+            {
+                Types.Get( Id ).VTableSlots = std::move( Slots );
+            }
+
+            [[nodiscard]] std::span<const Symbol> VTableSlotsOf ( NominalId Id ) const
+            {
+                return Id.IsValid()
+                           ? std::span<const Symbol>{ Types.Get( Id ).VTableSlots.begin(), Types.Get( Id ).VTableSlots.Size() }
+                           : std::span<const Symbol>{};
+            }
+
+            [[nodiscard]] std::uint32_t VTableSlotOf ( NominalId Trait, Symbol MethodName ) const
+            {
+                if ( not Trait.IsValid() )
+                {
+                    return 0;
+                }
+                const auto &Slots = Types.Get( Trait ).VTableSlots;
+                for ( std::size_t Index = 0; Index < Slots.Size(); ++Index )
+                {
+                    if ( Slots[Index] == MethodName )
+                    {
+                        return static_cast<std::uint32_t>( Index + 1 );
+                    }
+                }
+                return 0;
             }
 
             [[nodiscard]] std::optional<NominalId> LookupTypeByDecl ( std::uint32_t Unit, Frontend::DeclId Decl ) const
@@ -728,6 +762,16 @@ namespace MiddleEnd
             [[nodiscard]] std::optional<NominalId> LookupNodeKind ( std::string_view NodeKind ) const
             {
                 return Find( ByNodeKind, NodeKind );
+            }
+
+            [[nodiscard]] bool IsNodeKind ( std::string_view NodeKind, NominalId Id ) const
+            {
+                if ( not Id.IsValid() )
+                {
+                    return false;
+                }
+                const auto Found = LookupNodeKind( NodeKind );
+                return Found.has_value() and *Found == Id;
             }
 
             // --- Layouts -----------------------------------------------------

@@ -180,6 +180,37 @@ namespace
         return ConformsTo( Context.Ctx.Types, Context.Ctx.Values.Get( Value ).Base, TargetBase );
     }
 
+    [[nodiscard]] bool IsDynamicInto ( const TypeCheckerContext &Context, SemaTypeId Target, SemaTypeId Value )
+    {
+        if ( not Context.Ctx.Values.Has( Target ) or not Context.Ctx.Values.Has( Value ) )
+        {
+            return false;
+        }
+        const SemaType &TargetVal = Context.Ctx.Values.Get( Target );
+        if ( not TargetVal.Base.IsValid() or not Context.Ctx.Types.IsNodeKind( "DynamicType", TargetVal.Base ) )
+        {
+            return false;
+        }
+        if ( TargetVal.Args.IsEmpty() or not TargetVal.Args[0].IsValid() )
+        {
+            return false;
+        }
+        const SemaType &ValueVal  = Context.Ctx.Values.Get( Value );
+        const NominalId TraitBase = Context.Ctx.Values.Get( TargetVal.Args[0] ).Base;
+
+        if ( Context.Ctx.Types.IsNodeKind( "DynamicType", ValueVal.Base ) )
+        {
+            if ( not ValueVal.Args.IsEmpty() and ValueVal.Args[0].IsValid() )
+            {
+                const NominalId ValueTraitBase = Context.Ctx.Values.Get( ValueVal.Args[0] ).Base;
+                return ConformsTo( Context.Ctx.Types, ValueTraitBase, TraitBase );
+            }
+            return false;
+        }
+
+        return ConformsTo( Context.Ctx.Types, ValueVal.Base, TraitBase );
+    }
+
 } // namespace
 
 bool IsAssignable ( const TypeCheckerContext &Context, SemaTypeId Target, SemaTypeId Value )
@@ -198,7 +229,7 @@ bool IsAssignable ( const TypeCheckerContext &Context, SemaTypeId Target, SemaTy
     if ( ValueVal.Base != TargetVal.Base or ValueVal.Args.Size() != TargetVal.Args.Size() )
     {
         return IsWideningScalar( Context, Target, Value ) or IsNilInto( Context, Target, Value ) or
-               IsSubtypeInto( Context, Target, Value );
+               IsDynamicInto( Context, Target, Value ) or IsSubtypeInto( Context, Target, Value );
     }
 
     // A slot the declaration side left open (invalid — an un-instantiated
