@@ -355,7 +355,18 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexString ( std::size_t Start )
         const char C = Peek();
         if ( C == '\\' )
         {
-            Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
+            if ( ( Peek( 1 ) == 'x' or Peek( 1 ) == 'X' ) and IsHexDigit( Peek( 2 ) ) )
+            {
+                Pos += 3;
+                if ( not AtEnd() and IsHexDigit( Peek() ) )
+                {
+                    ++Pos;
+                }
+            }
+            else
+            {
+                Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
+            }
             continue;
         }
         if ( C == '#' and Peek( 1 ) == '{' )
@@ -405,7 +416,18 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexChar ( std::size_t Start )
     ++Pos; // opening quote
     if ( Peek() == '\\' )
     {
-        Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
+        if ( ( Peek( 1 ) == 'x' or Peek( 1 ) == 'X' ) and IsHexDigit( Peek( 2 ) ) )
+        {
+            Pos += 3;
+            if ( not AtEnd() and IsHexDigit( Peek() ) )
+            {
+                ++Pos;
+            }
+        }
+        else
+        {
+            Pos += ( Peek( 1 ) != '\0' ) ? 2U : 1U;
+        }
     }
     else if ( not AtEnd() )
     {
