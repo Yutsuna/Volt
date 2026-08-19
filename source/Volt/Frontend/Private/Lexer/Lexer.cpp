@@ -258,12 +258,23 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexNumber ( std::size_t Start )
 
         char CleanBuf[64];
         std::size_t CleanLen = 0;
+        bool bOverflowDigits = false;
         for ( const char Ch : Text )
         {
-            if ( Ch != '_' and CleanLen + 1 < sizeof( CleanBuf ) )
+            if ( Ch != '_' )
             {
+                if ( CleanLen + 1 >= sizeof( CleanBuf ) )
+                {
+                    bOverflowDigits = true;
+                    break;
+                }
                 CleanBuf[CleanLen++] = Ch;
             }
+        }
+        if ( bOverflowDigits )
+        {
+            Diagnostics.Error( RangeFrom( Start ), "number literal exceeds maximum supported length" );
+            return MakeText( TokenKind::Error, Start );
         }
 
         char OutBuf[64];
