@@ -131,7 +131,13 @@ namespace Driver
         // Empty means "derive from the module name" (mirrors
         // Backend::Llvm::EmitOptions::OutputPath).
         std::string OutputPath;
-        std::uint8_t OptLevel = 0;
+        // -O2 by default: `buildO0DefaultPipeline` is only the minimal
+        // semantically-required set (mem2reg + AlwaysInliner), so an -O0
+        // default shipped every artifact with no inlining, no constant
+        // propagation and no vectorisation at all. `-O 0` stays one flag
+        // away for a debug build. Already folded into NativeCacheKey
+        // below, so the stdlib artifact invalidates on its own.
+        std::uint8_t OptLevel = 2;
         bool bLto             = false;
         // "", "ir", or "obj" — stop after that intermediate artifact; empty
         // runs the whole way to a linked artifact (mirrors
@@ -180,12 +186,11 @@ namespace Driver
         // Compile a flat list of files (single file, or an explicit set).
         CompileResult CompileFiles ( const std::vector<std::string> &Paths, FCacheOptions CacheOpts = {} );
 
-        // Parse-only pipeline over a flat list of files: lex + parse, no
-        // interface publication and no analysis. `volt parse` dumps this raw
-        // AST; with bLowered, the AST lowering passes (EPassKind::Lowering)
-        // additionally run over each unit, so `volt parse --lowered` shows
-        // the tree the analysis passes actually see.
-        CompileResult ParseFiles ( const std::vector<std::string> &Paths, bool bLowered = false );
+        // Parse-only pipeline over a flat list of files:
+        // - default: lex + parse, no interface publication and no analysis (`volt parse`)
+        // - bLowered: additionally runs AST lowering passes (`volt parse --lowered`)
+        // - bResolved: full semantic pipeline, types, inlining, and lifetimes (`volt parse --resolved`)
+        CompileResult ParseFiles ( const std::vector<std::string> &Paths, bool bLowered = false, bool bResolved = false );
 
         // Compile a whole circuit given its `Project.vl` manifest: resolve
         // the declared modules, gather their sources + the entrypoint, build
@@ -270,7 +275,7 @@ namespace Driver
         }
 
         // Dump every unit's AST as the human tree (`volt parse` output).
-        void DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const;
+        void DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options, bool bUserUnitsOnly = false ) const;
 
         // --- The backend seam ---------------------------------------------
 

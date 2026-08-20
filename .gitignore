@@ -1,5 +1,6 @@
 bin/
 build/
+build-*/
 *.stamp
 
 !.agents/skills/build/
@@ -14,8 +15,6 @@ result
 
 .vscode/
 .zed/
-.idea/*
+.idea/
 
-!.idea/misc.xml
-!.idea/Volt.iml
-!.idea/vcs.xml
+__pycache__/

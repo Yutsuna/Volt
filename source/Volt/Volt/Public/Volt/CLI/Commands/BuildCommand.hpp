@@ -29,7 +29,7 @@ namespace CLI
      *        -i INPUT, --input INPUT          File input source program
      *        -o OUTPUT, --output OUTPUT       Output artifact path
      *        --target TARGET                  Code generation target (native|wasm)
-     *        -O LEVEL                         Optimization level (0|2|3)
+     *        -O LEVEL                         Optimization level (0|1|2|3, default 2)
      *        --emit KIND                      Stop after an intermediate artifact (ir|obj)
      *        --lto                            Enable link-time optimization (native only)
      *        --stdin                          Read source from standard input

@@ -122,7 +122,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     // the receiver's own arguments are what must reach it; the method's own
     // generic slots still come from the resolution.
     std::vector<std::uint32_t> FlatArgs;
-    if ( bInherited and Values.Has( Entry.Receiver ) )
+    if ( bInherited and Values.Has( Entry.Receiver ) and not Values.Get( Entry.Receiver ).Args.IsEmpty() )
     {
         for ( const MiddleEnd::TypeSystem::SemaTypeId Arg : Values.Get( Entry.Receiver ).Args )
         {
@@ -211,8 +211,10 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         }
         else
         {
-            static_cast<void>(
-                Fail( "llvm: instance call at expression " + std::to_string( Id.Value ) + " has no receiver expression" ) );
+            static_cast<void>( Fail( "llvm: instance call at expression " + std::to_string( Id.Value ) +
+                                     " (kind: " + std::string( Frontend::NodeName( Frame().Unit->Ast->Expr( Id ) ) ) +
+                                     ", callee: '" + std::string( Svc.Build->Types->Text( Entry.Decl->Name ) ) + "') in unit " +
+                                     std::string( Frame().Unit->Path ) + " has no receiver expression" ) );
             return nullptr;
         }
 
@@ -284,7 +286,6 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     {
         Actuals[Index] = CoerceWidth( Actuals[Index], Signature->getParamType( static_cast<unsigned>( Index ) ) );
     }
-
     llvm::Value *Result = Ctx().Builder().CreateCall( Callee, Actuals );
 
     // The mirror of CoerceWidth's aggregate case: a struct comes back by value,

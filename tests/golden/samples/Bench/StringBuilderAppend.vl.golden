@@ -1,0 +1,111 @@
+Program 'samples/Bench/StringBuilderAppend.vl'
+├─ Method 'bench_string_builder' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @1:29
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:13
+│     │        ├─ target
+│     │        │  └─ Identifier 'total_len' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0_u64' @2:15
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'iter' @3:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @3:10
+│     ├─ While @4:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @4:14
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'iter' @4:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '2_000' @4:16
+│     │  └─ body
+│     │     ├─ ExprStmt @5:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @5:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'sb' @5:5
+│     │     │        └─ value
+│     │     │           └─ Call @5:27
+│     │     │              ├─ callee
+│     │     │              │  └─ Member 'new' @5:23
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'StringBuilder' @5:10
+│     │     │              └─ args
+│     │     │                 └─ IntLiteral '64_u64' @5:29
+│     │     ├─ ExprStmt @6:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @6:7
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'j' @6:5
+│     │     │        └─ value
+│     │     │           └─ IntLiteral '0' @6:9
+│     │     ├─ While @7:5
+│     │     │  ├─ cond
+│     │     │  │  └─ Binary '<' @7:13
+│     │     │  │     ├─ lhs
+│     │     │  │     │  └─ Identifier 'j' @7:11
+│     │     │  │     └─ rhs
+│     │     │  │        └─ IntLiteral '200' @7:15
+│     │     │  └─ body
+│     │     │     ├─ ExprStmt @8:7
+│     │     │     │  └─ expr
+│     │     │     │     └─ Call @8:21
+│     │     │     │        ├─ callee
+│     │     │     │        │  └─ Member 'append_byte' @8:9
+│     │     │     │        │     └─ object
+│     │     │     │        │        └─ Identifier 'sb' @8:7
+│     │     │     │        └─ args
+│     │     │     │           └─ IntLiteral '65_u8' @8:23
+│     │     │     └─ ExprStmt @9:7
+│     │     │        └─ expr
+│     │     │           └─ Assign '+=' @9:9
+│     │     │              ├─ target
+│     │     │              │  └─ Identifier 'j' @9:7
+│     │     │              └─ value
+│     │     │                 └─ IntLiteral '1' @9:12
+│     │     ├─ ExprStmt @11:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '+=' @11:15
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'total_len' @11:5
+│     │     │        └─ value
+│     │     │           └─ Member 'size' @11:20
+│     │     │              └─ object
+│     │     │                 └─ Identifier 'sb' @11:18
+│     │     └─ ExprStmt @12:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @12:10
+│     │              ├─ target
+│     │              │  └─ Identifier 'iter' @12:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @12:13
+│     └─ ExprStmt @14:3
+│        └─ expr
+│           └─ Identifier 'total_len' @14:3
+├─ ExprStmt @17:1
+│  └─ expr
+│     └─ Assign '=' @17:5
+│        ├─ target
+│        │  └─ Identifier 'res' @17:1
+│        └─ value
+│           └─ Call @17:27
+│              └─ callee
+│                 └─ Identifier 'bench_string_builder' @17:7
+└─ ExprStmt @18:1
+   └─ expr
+      └─ Call @18:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @18:1
+         └─ args
+            └─ Binary '==' @18:14
+               ├─ lhs
+               │  └─ Identifier 'res' @18:10
+               └─ rhs
+                  └─ IntLiteral '400_000_u64' @18:17
+--- exit 0 ---

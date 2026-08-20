@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -13,20 +14,22 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from shared import (
+    Colors,
+    ProcessResult,
+    VoltCompiler,
+    discover_source_files,
+    run_process_async,
+)
+
 logger = logging.getLogger("valgrind_check")
 
 DEFAULT_VOLT_BIN = Path("build/source/Volt/Volt/volt")
 DEFAULT_SAMPLES_GLOB = "samples/Tests/*/**/*.vl"
 DEFAULT_MAX_JOBS = os.cpu_count() or 4
-
-
-class Colors:
-    GREEN = "\033[92m"
-    RED = "\033[91m"
-    YELLOW = "\033[93m"
-    CYAN = "\033[96m"
-    BOLD = "\033[1m"
-    RESET = "\033[0m"
+VALGRIND_ERROR_EXIT_CODE = 99
 
 
 class TestStatus(enum.StrEnum):
@@ -37,10 +40,7 @@ class TestStatus(enum.StrEnum):
     EXECUTION_FAILED = "EXECUTION_FAILED"
 
 
-VALGRIND_ERROR_EXIT_CODE = 99
-
-
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class LeakMetrics:
     definitely_lost: int = 0
     indirectly_lost: int = 0
@@ -61,7 +61,7 @@ class LeakMetrics:
         return self.total_bytes > 0
 
 
-@dataclass
+@dataclass(slots=True)
 class TestResult:
     file_path: Path
     status: TestStatus
@@ -107,28 +107,9 @@ class ValgrindAnalyzer:
         )
 
 
-class VoltCompiler:
-    def __init__(self, volt_bin: Path):
-        self.volt_bin = volt_bin
-
-    async def compile(self, source_file: Path, output_binary: Path) -> tuple[bool, str]:
-        cmd = [str(self.volt_bin), "build", str(source_file), "-o", str(output_binary)]
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
-
-        success = process.returncode == 0
-        error_output = (stderr or stdout).decode(errors="ignore") if not success else ""
-        return success, error_output
-
-
 class ValgrindRunner:
     @staticmethod
-    async def run(binary_path: Path) -> tuple[int, str]:
+    async def run(binary_path: Path) -> ProcessResult:
         cmd = [
             "valgrind",
             "--leak-check=full",
@@ -136,22 +117,16 @@ class ValgrindRunner:
             f"--error-exitcode={VALGRIND_ERROR_EXIT_CODE}",
             str(binary_path),
         ]
-
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await process.communicate()
-        combined_output = stderr.decode(errors="ignore") + "\n" + stdout.decode(errors="ignore")
-        return process.returncode, combined_output
+        return await run_process_async(cmd)
 
 
 class TestCaseWorker:
     def __init__(self, compiler: VoltCompiler):
         self.compiler = compiler
 
-    async def execute(self, file_path: Path, semaphore: asyncio.Semaphore) -> TestResult:
+    async def execute(
+        self, file_path: Path, semaphore: asyncio.Semaphore
+    ) -> TestResult:
         async with semaphore:
             start_time = time.perf_counter()
 
@@ -159,21 +134,21 @@ class TestCaseWorker:
                 temp_bin = Path(tmp.name)
 
             try:
-                compiled, build_err = await self.compiler.compile(file_path, temp_bin)
-                if not compiled:
+                build_result = await self.compiler.compile_async(file_path, temp_bin)
+                if not build_result.success:
                     return TestResult(
                         file_path=file_path,
                         status=TestStatus.BUILD_FAILED,
                         duration_seconds=time.perf_counter() - start_time,
-                        error_message=build_err,
+                        error_message=build_result.combined_output,
                     )
 
-                valgrind_returncode, valgrind_out = await ValgrindRunner.run(temp_bin)
+                valgrind_result = await ValgrindRunner.run(temp_bin)
+                valgrind_out = valgrind_result.combined_output
                 metrics = ValgrindAnalyzer.analyze(valgrind_out)
-
                 duration = time.perf_counter() - start_time
 
-                if valgrind_returncode == VALGRIND_ERROR_EXIT_CODE:
+                if valgrind_result.returncode == VALGRIND_ERROR_EXIT_CODE:
                     return TestResult(
                         file_path=file_path,
                         status=TestStatus.MEMORY_ERROR,
@@ -218,12 +193,14 @@ class TestSuiteRunner:
         self.worker = TestCaseWorker(self.compiler)
 
     def discover_files(self) -> list[Path]:
-        return [Path(p).resolve() for p in Path().glob(self.glob_pattern)]
+        return discover_source_files(Path.cwd(), self.glob_pattern)
 
     async def run_all(self) -> list[TestResult]:
         files = self.discover_files()
         if not files:
-            logger.warning("No files matched the specified pattern: %s", self.glob_pattern)
+            logger.warning(
+                "No files matched the specified pattern: %s", self.glob_pattern
+            )
             return []
 
         logger.info("Discovered %d test file(s). Starting execution...", len(files))
@@ -242,27 +219,43 @@ class ConsoleReporter:
 
         match result.status:
             case TestStatus.PASSED:
-                print(f"[{Colors.GREEN}PASSED{Colors.RESET}] {result.file_path} {duration_str}")
+                print(
+                    f"[{Colors.GREEN}PASSED{Colors.RESET}] {result.file_path} {duration_str}"
+                )
             case TestStatus.LEAKED:
-                print(f"[{Colors.RED}LEAKED{Colors.RESET}] {result.file_path} {duration_str}")
+                print(
+                    f"[{Colors.RED}LEAKED{Colors.RESET}] {result.file_path} {duration_str}"
+                )
                 print(f"  └─ Total Leaked: {result.metrics.total_bytes} bytes")
                 print(f"     ├── Definitely Lost : {result.metrics.definitely_lost} B")
                 print(f"     ├── Indirectly Lost : {result.metrics.indirectly_lost} B")
                 print(f"     ├── Possibly Lost   : {result.metrics.possibly_lost} B")
                 print(f"     └── Still Reachable : {result.metrics.still_reachable} B")
                 if verbose and result.raw_valgrind_output:
-                    print(f"\n--- Valgrind Log [{result.file_path.name}] ---\n{result.raw_valgrind_output}")
+                    print(
+                        f"\n--- Valgrind Log [{result.file_path.name}] ---\n{result.raw_valgrind_output}"
+                    )
             case TestStatus.MEMORY_ERROR:
-                print(f"[{Colors.RED}MEMORY ERROR{Colors.RESET}] {result.file_path} {duration_str}")
-                print("  └─ valgrind reported an error (invalid read/write, double free, etc.) — rerun with -v for the log")
+                print(
+                    f"[{Colors.RED}MEMORY ERROR{Colors.RESET}] {result.file_path} {duration_str}"
+                )
+                print(
+                    "  └─ valgrind reported an error (invalid read/write, double free, etc.) — rerun with -v for the log"
+                )
                 if verbose and result.raw_valgrind_output:
-                    print(f"\n--- Valgrind Log [{result.file_path.name}] ---\n{result.raw_valgrind_output}")
+                    print(
+                        f"\n--- Valgrind Log [{result.file_path.name}] ---\n{result.raw_valgrind_output}"
+                    )
             case TestStatus.BUILD_FAILED:
-                print(f"[{Colors.YELLOW}BUILD FAILED{Colors.RESET}] {result.file_path} {duration_str}")
+                print(
+                    f"[{Colors.YELLOW}BUILD FAILED{Colors.RESET}] {result.file_path} {duration_str}"
+                )
                 if result.error_message:
                     print(f"  └─ Error: {result.error_message.strip()}")
             case TestStatus.EXECUTION_FAILED:
-                print(f"[{Colors.RED}EXEC ERROR{Colors.RESET}] {result.file_path} {duration_str}")
+                print(
+                    f"[{Colors.RED}EXEC ERROR{Colors.RESET}] {result.file_path} {duration_str}"
+                )
                 if result.error_message:
                     print(f"  └─ Details: {result.error_message}")
 
@@ -332,8 +325,12 @@ async def async_main() -> int:
         datefmt="%H:%M:%S",
     )
 
-    if not args.volt_bin.exists():
-        print(f"{Colors.RED}Error: Volt binary not found at '{args.volt_bin}'{Colors.RESET}", file=sys.stderr)
+    compiler = VoltCompiler(args.volt_bin)
+    if not compiler.exists():
+        print(
+            f"{Colors.RED}Error: Volt binary not found at '{args.volt_bin}'{Colors.RESET}",
+            file=sys.stderr,
+        )
         return 2
 
     runner = TestSuiteRunner(
@@ -366,7 +363,9 @@ def main() -> None:
     try:
         sys.exit(asyncio.run(async_main()))
     except KeyboardInterrupt:
-        print(f"\n{Colors.YELLOW}Execution interrupted by user. Exiting...{Colors.RESET}")
+        print(
+            f"\n{Colors.YELLOW}Execution interrupted by user. Exiting...{Colors.RESET}"
+        )
         sys.exit(130)
 
 

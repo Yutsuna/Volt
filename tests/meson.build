@@ -46,6 +46,7 @@ foreach sample_path : sample_files
     root_rel_sample = 'samples' / rel_sample
     golden_path = golden_root / (rel_sample + '.golden')
     lowered_golden_path = golden_root / (rel_sample + '.lowered.golden')
+    resolved_golden_path = golden_root / (rel_sample + '.resolved.golden')
 
     if fs.exists(golden_path)
         test(
@@ -83,6 +84,24 @@ foreach sample_path : sample_files
         )
     endif
 
+    if fs.exists(resolved_golden_path)
+        test(
+            'golden-resolved/' + rel_sample,
+            sh,
+            args: [
+                '-c',
+                'OUT="$("$1" parse --no-color --resolved -i "$2" 2>&1)"; CODE=$?; printf "%s\n--- exit %d ---\n" "$OUT" "$CODE" | diff -u "$3" -',
+                'sh',
+                volt_exe.full_path(),
+                root_rel_sample,
+                resolved_golden_path,
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'golden-resolved',
+        )
+    endif
+
     golden_update_targets += custom_target(
         'up_' + rel_sample.underscorify(),
         output: rel_sample.underscorify() + '.stamp',
@@ -95,6 +114,7 @@ foreach sample_path : sample_files
             root_rel_sample,
             golden_path,
             lowered_golden_path,
+            resolved_golden_path,
             '@OUTPUT@',
         ],
         depends: volt_exe,

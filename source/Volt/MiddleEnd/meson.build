@@ -5,6 +5,7 @@ subdir('Resolver')
 subdir('ConstEval')
 subdir('Lowering')
 subdir('Analysis')
+subdir('Optimisations')
 
 # `link_whole`, not `link_with`, and the reason is the one back-edge §1's DAG
 # does not have: `TypeSystem/Private/Reinstantiate.cpp` re-walks a generic
@@ -25,6 +26,7 @@ volt_middleend_dep = declare_dependency(
         volt_middleend_consteval_lib,
         volt_middleend_lowering_lib,
         volt_middleend_analysis_lib,
+        volt_middleend_optimisations_lib,
     ],
     include_directories: [
         volt_middleend_core_inc,
@@ -34,6 +36,7 @@ volt_middleend_dep = declare_dependency(
         volt_middleend_consteval_inc,
         volt_middleend_lowering_inc,
         volt_middleend_analysis_inc,
+        volt_middleend_optimisations_inc,
     ],
     dependencies: [
         core_dep,
@@ -51,5 +54,7 @@ alias_target(
         volt_middleend_consteval_lib,
         volt_middleend_lowering_lib,
         volt_middleend_analysis_lib,
+        volt_middleend_optimisations_lib,
     ],
 )
+

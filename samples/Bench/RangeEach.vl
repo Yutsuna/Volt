@@ -1,0 +1,12 @@
+def bench_range_each -> UInt64
+  sum = 0_u64
+  iter = 0
+  while iter < 2_000
+    ( 0_u64..1_000_u64 ).each { | i | sum += i }
+    iter += 1
+  end
+  sum
+end
+
+res = bench_range_each()
+assert!( res == 999_000_000_u64 )

@@ -9,7 +9,8 @@ readonly VOLT_BIN="${2:?Missing VOLT_BIN argument}"
 readonly SAMPLE="${3:?Missing SAMPLE argument}"
 readonly GOLDEN="${4:?Missing GOLDEN argument}"
 readonly LOWERED="${5:?Missing LOWERED argument}"
-readonly STAMP="$(realpath -m "${6:?Missing STAMP argument}")"
+readonly RESOLVED="${6:?Missing RESOLVED argument}"
+readonly STAMP="$(realpath -m "${7:?Missing STAMP argument}")"
 
 mkdir -p -- "${GOLDEN%/*}"
 
@@ -48,6 +49,9 @@ function update_golden_samples()
 if update_golden_samples "" "$GOLDEN"; then
   if [[ -f "$LOWERED" ]]; then
     update_golden_samples "--lowered" "$LOWERED" || true
+  fi
+  if [[ -f "$RESOLVED" ]]; then
+    update_golden_samples "--resolved" "$RESOLVED" || true
   fi
 fi
 

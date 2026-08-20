@@ -53,9 +53,21 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     // `linkonce_odr` tells the linker any one definition will do, which is
     // exactly true — Monomorphizer only ever reinstantiates the same body for
     // the same FlatArgs.
+    const bool bInlineEligible = ( Entry.InlineVerdict != MiddleEnd::TypeSystem::EInlineVerdict::Never );
     const llvm::GlobalValue::LinkageTypes Linkage =
-        FlatArgs.empty() ? llvm::Function::ExternalLinkage : llvm::Function::LinkOnceODRLinkage;
+        ( FlatArgs.empty() and not bInlineEligible ) ? llvm::Function::ExternalLinkage : llvm::Function::LinkOnceODRLinkage;
     llvm::Function *Fn = llvm::Function::Create( Signature, Linkage, Symbol, Services->Ctx->ModPtr() );
+    switch ( Entry.InlineVerdict )
+    {
+    case MiddleEnd::TypeSystem::EInlineVerdict::Always:
+        Fn->addFnAttr( llvm::Attribute::AlwaysInline );
+        break;
+    case MiddleEnd::TypeSystem::EInlineVerdict::Hint:
+        Fn->addFnAttr( llvm::Attribute::InlineHint );
+        break;
+    case MiddleEnd::TypeSystem::EInlineVerdict::Never:
+        break;
+    }
     Functions.emplace( Symbol, Fn );
     return Fn;
 }

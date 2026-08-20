@@ -5,6 +5,7 @@
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Core/Meta/Serialize.hpp"
 #include "Volt/Core/Support/ContentHash.hpp"
+#include "Volt/Core/Support/PhaseTimer.hpp"
 #include "Volt/Driver/WellKnown.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
@@ -16,6 +17,7 @@
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/MiddleEnd/Analysis/Raii/OwnershipInference.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/Optimisations/InlineSummary.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -208,7 +210,19 @@ namespace
 // `EVisibility`, and all three are reflected aggregate dumps, so the same
 // byte-shift reasoning as 05 and 07 applies to every cached AST *and* store.
 // Bumped to 11 when we added the IO/ library
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453131ULL; // "VOLTFE11"
+// Bumped to 12 when PassStats gained its nine inlining counters
+// (MiddleEnd/Core/Pass.hpp): PassStats is a reflected aggregate dump written
+// per unit by WriteFrontendCache, so the same byte-shift reasoning as 05, 07
+// and 10 applies — an older file would deserialize a shorter struct into a
+// longer one and silently misread every field after it.
+// Bumped to 13 when `SynthesizedFunctions` joined the per-unit payload. It had
+// been missing since the table existed, and stayed invisible only because no
+// *concrete* stdlib member had ever contained a closure literal: a cache hit
+// restored the `FuncAddr` nodes without the table naming their targets, and
+// BackendLLVM's EmitFuncAddr — whose only other source is the cross-unit
+// TypeStore, which a lifted closure is deliberately never in — failed the
+// build. `String#blank?` (`all? { | ch | ch.whitespace? }`) is the first one.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453133ULL; // "VOLTFE13"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -461,7 +475,10 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
 
     // parallel: lex + parse every unit into its own arenas (skipping a
     // cache-loaded stdlib prefix, which is already parsed).
-    ForEachUnitParallel( &Driver::ParseOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
+    {
+        const Core::PhaseScope Timing( "parse" );
+        ForEachUnitParallel( &Driver::ParseOne, bStdlibCacheHit ? StdlibCount : 0, Units.size() );
+    }
 
     DriverUnitAsts.clear();
     DriverUnitAsts.reserve( Units.size() );
@@ -475,6 +492,11 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         // serial: publish each unit's top-level interface. This is
         // the cross-unit seam — after this point the Registry is frozen and
         // sema may read any unit's exported declarations without locks.
+        // Not a `{}` block: `UnitAsts` is declared inside this seam and read
+        // by the ownership fixpoints below it, so the region cannot be closed
+        // where it ends. Stopped explicitly instead.
+        Core::PhaseScope InterfaceTiming( "seam.interface" );
+
         Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
         for ( std::size_t Index = 0; Index < Units.size(); ++Index )
         {
@@ -540,6 +562,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         Types.ComputeSubtypeIntervals();
 
         Diagnostics.Merge( std::move( SeamBag ) );
+        InterfaceTiming.Stop();
 
         if ( bStdlibCacheHit )
         {
@@ -557,7 +580,10 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         const std::size_t SemaBegin = bStdlibCacheHit ? StdlibCount : 0;
 
         // parallel, first half: desugar every unit and resolve its scopes.
-        ForEachUnitParallel( &Driver::RunSemaLoweringOne, SemaBegin, Units.size() );
+        {
+            const Core::PhaseScope Timing( "sema.lowering" );
+            ForEachUnitParallel( &Driver::RunSemaLoweringOne, SemaBegin, Units.size() );
+        }
 
         // serial, between the halves: whether a member hands its caller an
         // owned value is a whole-program fixpoint over every declared body, so
@@ -576,15 +602,28 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         //
         // `UnitAsts` (the read-only view built above) is what it wants:
         // nothing here mutates an AST, only the store's own `Member` records.
-        MiddleEnd::Analysis::Raii::InferReturnOwnership( UnitAsts, Types );
-        // The mirror question, same seam and same reasons: whether a callee
-        // keeps what it is handed. Independent of the fixpoint above — one
-        // reasons about results, the other about arguments — so the order
-        // between the two is free.
-        MiddleEnd::Analysis::Raii::InferParameterEscape( UnitAsts, Types );
+        {
+            const Core::PhaseScope Timing( "seam.ownership" );
+            MiddleEnd::Analysis::Raii::InferReturnOwnership( UnitAsts, Types );
+            // The mirror question, same seam and same reasons: whether a callee
+            // keeps what it is handed. Independent of the fixpoint above — one
+            // reasons about results, the other about arguments — so the order
+            // between the two is free.
+            MiddleEnd::Analysis::Raii::InferParameterEscape( UnitAsts, Types );
+            MiddleEnd::Optimisations::AnalyzeInlineCandidates( UnitAsts, Types );
+        }
 
         // parallel, second half: typing, and every check built on typing.
-        ForEachUnitParallel( &Driver::RunSemaTypedOne, SemaBegin, Units.size() );
+        // Stdlib units are typed in the first wave so their bodies are completely
+        // settled and read-only before user units run BlockInliner.
+        {
+            const Core::PhaseScope Timing( "sema.typed" );
+            if ( SemaBegin < StdlibCount )
+            {
+                ForEachUnitParallel( &Driver::RunSemaTypedOne, SemaBegin, StdlibCount );
+            }
+            ForEachUnitParallel( &Driver::RunSemaTypedOne, std::max( SemaBegin, StdlibCount ), Units.size() );
+        }
 
         if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() and not ActiveCacheOptions.bNoCache )
         {
@@ -661,7 +700,7 @@ bool Volt::Driver::Driver::TryLoadFrontendCache ( std::size_t StdlibCount )
         CompileUnit &Unit = Units[Index];
         bOk               = Unit.Ast.DeserializeCache( R ) and Meta::DeserializeInterner( R, Unit.Interner ) and
               Unit.Types.DeserializeCache( R ) and Unit.Callees.DeserializeCache( R ) and Unit.Scopes.DeserializeCache( R ) and
-              Meta::Deserialize( R, Unit.Stats );
+              Unit.Synth.DeserializeCache( R ) and Meta::Deserialize( R, Unit.Stats );
     }
 
     if ( bOk and not R.Failed() )
@@ -732,6 +771,7 @@ void Volt::Driver::Driver::WriteFrontendCache ( const std::vector<SourceRef> &St
         Unit.Types.SerializeCache( W );
         Unit.Callees.SerializeCache( W );
         Unit.Scopes.SerializeCache( W );
+        Unit.Synth.SerializeCache( W );
         Meta::Serialize( W, Unit.Stats );
     }
 
@@ -784,8 +824,22 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vect
     return CompileRefs( Refs, EPipeline::Full, StdlibUnitCountValue );
 }
 
-Volt::Driver::CompileResult Volt::Driver::Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered )
+Volt::Driver::CompileResult
+Volt::Driver::Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered, bool bResolved )
 {
+    if ( bResolved )
+    {
+        std::vector<SourceRef> Refs;
+        LoadStdLib( Refs );
+        StdlibUnitCountValue = Refs.size();
+        Refs.reserve( Refs.size() + Paths.size() );
+        for ( const std::string &Path : Paths )
+        {
+            Refs.push_back( SourceRef{ .Path = Path, .Module = std::string{}, .bComponent = IsComponentPath( Path ) } );
+        }
+        return CompileRefs( Refs, EPipeline::Full, StdlibUnitCountValue );
+    }
+
     std::vector<SourceRef> Refs;
     Refs.reserve( Paths.size() );
     for ( const std::string &Path : Paths )
@@ -979,10 +1033,12 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
     return Result;
 }
 
-void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const
+void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options, bool bUserUnitsOnly ) const
 {
-    for ( const CompileUnit &Unit : Units )
+    const std::size_t StartIndex = ( bUserUnitsOnly and StdlibUnitCountValue < Units.size() ) ? StdlibUnitCountValue : 0;
+    for ( std::size_t Index = StartIndex; Index < Units.size(); ++Index )
     {
+        const CompileUnit &Unit = Units[Index];
         Frontend::AstDumper Dumper( Unit.Ast, Sources, Out, Options );
         Dumper.DumpFile();
     }

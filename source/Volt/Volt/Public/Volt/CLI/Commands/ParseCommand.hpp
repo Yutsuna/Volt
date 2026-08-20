@@ -24,6 +24,7 @@ namespace CLI
      *        --format FORMAT                  Serialization formats (json|dot|text)
      *        --simplify                       Deduplicate structural tree layout elements
      *        --lowered                        Display the tree after the AST lowering passes
+     *        --resolved                       Display the tree after full resolution and inlining (Core AST)
      *        --no-color                       Output without colors
      *        --no-location                    Omit character and index coordinates
      *        -h, --help                       Show help
@@ -50,6 +51,7 @@ namespace CLI
 
         bool bSimplify   = false;
         bool bLowered    = false;
+        bool bResolved   = false;
         bool bNoColor    = false;
         bool bNoLocation = false;
     };

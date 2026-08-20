@@ -1,0 +1,116 @@
+Program 'samples/Bench/ClampMinMax.vl'
+├─ Method 'bench_clamp_min_max' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:28
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'total' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @2:11
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'iter' @3:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @3:10
+│     ├─ While @4:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @4:14
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'iter' @4:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '200_000' @4:16
+│     │  └─ body
+│     │     ├─ ExprStmt @5:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @5:7
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'x' @5:5
+│     │     │        └─ value
+│     │     │           └─ Binary '%' @5:14
+│     │     │              ├─ lhs
+│     │     │              │  └─ Identifier 'iter' @5:9
+│     │     │              └─ rhs
+│     │     │                 └─ IntLiteral '100' @5:16
+│     │     ├─ ExprStmt @6:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @6:7
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'c' @6:5
+│     │     │        └─ value
+│     │     │           └─ Call @6:16
+│     │     │              ├─ callee
+│     │     │              │  └─ Member 'clamp' @6:10
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'x' @6:9
+│     │     │              └─ args
+│     │     │                 ├─ IntLiteral '10' @6:18
+│     │     │                 └─ IntLiteral '50' @6:22
+│     │     ├─ ExprStmt @7:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @7:7
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'm' @7:5
+│     │     │        └─ value
+│     │     │           └─ Call @7:14
+│     │     │              ├─ callee
+│     │     │              │  └─ Member 'min' @7:10
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'c' @7:9
+│     │     │              └─ args
+│     │     │                 └─ IntLiteral '40' @7:16
+│     │     ├─ ExprStmt @8:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @8:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'mx' @8:5
+│     │     │        └─ value
+│     │     │           └─ Call @8:15
+│     │     │              ├─ callee
+│     │     │              │  └─ Member 'max' @8:11
+│     │     │              │     └─ object
+│     │     │              │        └─ Identifier 'm' @8:10
+│     │     │              └─ args
+│     │     │                 └─ IntLiteral '20' @8:17
+│     │     ├─ ExprStmt @9:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '+=' @9:11
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'total' @9:5
+│     │     │        └─ value
+│     │     │           └─ Identifier 'mx' @9:14
+│     │     └─ ExprStmt @10:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @10:10
+│     │              ├─ target
+│     │              │  └─ Identifier 'iter' @10:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @10:13
+│     └─ ExprStmt @12:3
+│        └─ expr
+│           └─ Identifier 'total' @12:3
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Assign '=' @15:5
+│        ├─ target
+│        │  └─ Identifier 'res' @15:1
+│        └─ value
+│           └─ Call @15:26
+│              └─ callee
+│                 └─ Identifier 'bench_clamp_min_max' @15:7
+└─ ExprStmt @16:1
+   └─ expr
+      └─ Call @16:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @16:1
+         └─ args
+            └─ Binary '==' @16:14
+               ├─ lhs
+               │  └─ Identifier 'res' @16:10
+               └─ rhs
+                  └─ IntLiteral '6_780_000' @16:17
+--- exit 0 ---

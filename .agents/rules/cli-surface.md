@@ -45,6 +45,7 @@ Usage: volt parse [options] [input_file]
     --format FORMAT                  Serialization formats (json|dot|text)
     --simplify                       Deduplicate structural tree layout elements
     --lowered                        Display the tree after the AST lowering passes
+    --resolved                       Display the tree after full resolution and inlining (Core AST)
     --no-color                       Output without colors
     --no-location                    Omit character and index coordinates
     -h, --help                       Show help
@@ -63,8 +64,8 @@ Usage: volt build [options] [input_file]
     -i INPUT, --input INPUT          File input source program
     -o OUTPUT, --output OUTPUT       Output artifact path
     --target TARGET                  Code generation target (native|wasm)
-    -O LEVEL                         Optimization level (0|2|3)
-    --emit KIND                      Stop after an intermediate artifact (ir|obj)
+    -O LEVEL                         Optimization level (0|1|2|3, default 2)
+    --emit KIND                      Stop after an intermediate artifact (ast|ir|obj)
     --lto                            Enable link-time optimization (native only)
     -h, --help                       Show help
 ```

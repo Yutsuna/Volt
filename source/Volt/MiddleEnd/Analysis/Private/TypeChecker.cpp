@@ -9,6 +9,7 @@
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 #include "Volt/MiddleEnd/IR/CalleeMap.hpp"
 #include "Volt/MiddleEnd/Lowering/LoweringPasses.hpp"
+#include "Volt/MiddleEnd/Optimisations/BlockInliner.hpp"
 
 #include <cstddef>
 #include <variant>
@@ -86,6 +87,10 @@ void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
     // construction reached as a call argument settles its type before the
     // parameter constrains it. See EnumCaseLowering.hpp.
     Lowering::LowerEnumCases( State );
+
+    // Seventh post-walk sweep (Tier 2 inlining): inline calls receiving
+    // a non-escaping block before closure lifting turns them into heap objects.
+    Optimisations::InlineBlockCalls( State );
 
     // No-capture only (Phase 3a, .agents/PLAN_CLOSURE_LOWERING.md): a
     // capturing closure is left as a Lambda/Block until Phase 3b's env

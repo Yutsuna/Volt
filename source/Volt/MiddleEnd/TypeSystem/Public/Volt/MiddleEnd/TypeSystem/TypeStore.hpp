@@ -104,6 +104,13 @@ namespace MiddleEnd
             EnumCase,
         };
 
+        enum class EInlineVerdict : std::uint8_t
+        {
+            Never,
+            Hint,
+            Always
+        };
+
         // One entry of a type's interface, published by the serial binder so that
         // a parallel pass in *another* unit can resolve `x.foo` without ever
         // touching that unit's AstContext — a DeclId is only meaningful inside
@@ -112,8 +119,9 @@ namespace MiddleEnd
         {
 
             Symbol Name; // interned in the store
-            EMemberKind Kind   = EMemberKind::Field;
-            std::uint32_t Unit = 0;                      // ordinal of the declaring unit
+            EMemberKind Kind             = EMemberKind::Field;
+            EInlineVerdict InlineVerdict = EInlineVerdict::Never;
+            std::uint32_t Unit           = 0;            // ordinal of the declaring unit
             Frontend::DeclId Decl;                       // its declaration, inside `Unit`
             SigTypeId Result;                            // field type / method return type
             ::Volt::Core::SmallVec<SigTypeId, 4> Params; // methods only

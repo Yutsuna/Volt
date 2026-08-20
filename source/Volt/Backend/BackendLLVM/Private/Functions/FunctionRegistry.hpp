@@ -89,7 +89,7 @@ namespace Backend
         [[nodiscard]] bool IsMixinOwner ( const EmitterServices &Services, MiddleEnd::TypeSystem::NominalId Id );
 
         // Fill in the bodies every member of `Unit` declares.
-        void DefineAll ( EmitterServices &Services, const UnitView &Unit );
+        void DefineAll ( EmitterServices &Services, const UnitView &Unit, bool bInlineEligibleOnly = false );
 
         // One body. Silently skips a member with no body to emit (external,
         // abstract, generic); a member whose declaration is not the Method the

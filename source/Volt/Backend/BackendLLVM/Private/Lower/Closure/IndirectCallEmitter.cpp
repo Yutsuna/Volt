@@ -14,6 +14,7 @@
 #include "Lower/Exception/ExceptionLowering.hpp"
 #include "Lower/FunctionFrame.hpp"
 #include "Types/TypeMapper.hpp"
+#include <cstdio>
 
 #include "Volt/BackendCore/ClosureABI.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
@@ -56,8 +57,9 @@ llvm::Value *Volt::Backend::Llvm::ClosureLowering::EmitIndirectCall ( BodyEmitte
         llvm::Type *Slot = Types.ParamTypeOfLayout( Types.LayoutOfValue( Values, Param ) );
         if ( Slot == nullptr )
         {
-            static_cast<void>( Emitter.Fail( "llvm: the callable invoked at expression " + std::to_string( Id.Value ) +
-                                             " has a parameter with no resolved layout" ) );
+            static_cast<void>( Emitter.Fail( "llvm: the callable invoked at expression " + std::to_string( Id.Value ) + " in " +
+                                             std::string( Emitter.Frame().Unit->Path ) + " has a parameter (SemaTypeId " +
+                                             std::to_string( Param.Value ) + ") with no resolved layout" ) );
             return nullptr;
         }
         Slots.push_back( Slot );
