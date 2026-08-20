@@ -1,0 +1,122 @@
+Program 'samples/Tests/Macros/Serializable.vl'
+├─ Mixin 'Serializable' @5:1
+│  └─ body
+│     └─ MacroDef 'to_json' @7:9
+│        ├─ return_type
+│        │  └─ TypeRef 'String' @7:24
+│        └─ body
+│           ├─ ExprStmt @8:5
+│           │  └─ expr
+│           │     └─ Assign '=' @8:10
+│           │        ├─ target
+│           │        │  └─ Identifier 'json' @8:5
+│           │        └─ value
+│           │           └─ StringLiteral '{' @8:12
+│           ├─ ExprStmt @9:5
+│           │  └─ expr
+│           │     └─ Call @9:5
+│           │        ├─ callee
+│           │        │  └─ Member 'each' @9:5
+│           │        │     └─ object
+│           │        │        └─ Member 'fields' @9:22
+│           │        │           └─ object
+│           │        │              └─ SelfExpr @9:18
+│           │        └─ block_arg
+│           │           └─ Block @9:5
+│           │              ├─ params
+│           │              │  └─ Param 'field' @9:9
+│           │              └─ body
+│           │                 └─ ExprStmt @10:7
+│           │                    └─ expr
+│           │                       └─ Assign '+=' @10:12
+│           │                          ├─ target
+│           │                          │  └─ Identifier 'json' @10:7
+│           │                          └─ value
+│           │                             └─ Binary '+' @10:63
+│           │                                ├─ lhs
+│           │                                │  └─ Binary '+' @10:36
+│           │                                │     ├─ lhs
+│           │                                │     │  └─ Interp @10:15
+│           │                                │     │     └─ parts
+│           │                                │     │        ├─ StringLiteral '\"' @10:15
+│           │                                │     │        ├─ Member 'name' @10:25
+│           │                                │     │        │  └─ object
+│           │                                │     │        │     └─ Identifier 'field' @10:20
+│           │                                │     │        └─ StringLiteral '\":' @10:15
+│           │                                │     └─ rhs
+│           │                                │        └─ Member 'to_string' @10:52
+│           │                                │           └─ object
+│           │                                │              └─ IvarInterp @10:38
+│           │                                │                 └─ name
+│           │                                │                    └─ Member 'name' @10:46
+│           │                                │                       └─ object
+│           │                                │                          └─ Identifier 'field' @10:41
+│           │                                └─ rhs
+│           │                                   └─ StringLiteral ',' @10:65
+│           └─ ExprStmt @12:5
+│              └─ expr
+│                 └─ Binary '+' @12:30
+│                    ├─ lhs
+│                    │  └─ Call @12:22
+│                    │     ├─ callee
+│                    │     │  └─ Member 'strip_suffix' @12:9
+│                    │     │     └─ object
+│                    │     │        └─ Identifier 'json' @12:5
+│                    │     └─ args
+│                    │        └─ StringLiteral ',' @12:24
+│                    └─ rhs
+│                       └─ StringLiteral '}' @12:32
+├─ Class 'User' @19:1
+│  └─ body
+│     ├─ Include @20:3
+│     │  └─ target
+│     │     └─ TypeRef 'Serializable' @20:11
+│     ├─ Field 'name' getter @22:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @22:18
+│     ├─ Field 'email' getter @23:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'String' @23:18
+│     ├─ Field 'age' getter @24:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @24:18
+│     └─ Method 'initialize' @26:3
+│        └─ params
+│           ├─ Param 'name' instance_var @26:19
+│           │  └─ decl_type
+│           │     └─ TypeRef 'String' @26:27
+│           ├─ Param 'email' instance_var @26:35
+│           │  └─ decl_type
+│           │     └─ TypeRef 'String' @26:44
+│           └─ Param 'age' instance_var @26:52
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @26:59
+├─ ExprStmt @31:1
+│  └─ expr
+│     └─ Assign '=' @31:6
+│        ├─ target
+│        │  └─ Identifier 'user' @31:1
+│        └─ value
+│           └─ Call [name, email, age] @31:16
+│              ├─ callee
+│              │  └─ Member 'new' @31:12
+│              │     └─ object
+│              │        └─ Identifier 'User' @31:8
+│              └─ args
+│                 ├─ StringLiteral 'Alice' @31:24
+│                 ├─ StringLiteral 'alice@example.com' @31:40
+│                 └─ IntLiteral '30' @31:66
+└─ ExprStmt @32:1
+   └─ expr
+      └─ Call @32:1
+         ├─ callee
+         │  └─ Identifier 'assert!' @32:1
+         └─ args
+            └─ Binary '==' @32:22
+               ├─ lhs
+               │  └─ Member 'to_json' @32:13
+               │     └─ object
+               │        └─ Identifier 'user' @32:9
+               └─ rhs
+                  └─ StringLiteral '{\"name\":Alice,\"email\":alice@example.com,\"age\":30}' @32:25
+--- exit 0 ---
