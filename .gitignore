@@ -1,5 +1,6 @@
 bin/
 build/
+build-*/
 *.stamp
 
 !.agents/skills/build/
@@ -16,6 +17,4 @@ result
 .zed/
 .idea/*
 
-!.idea/misc.xml
-!.idea/Volt.iml
-!.idea/vcs.xml
+!.idea/
