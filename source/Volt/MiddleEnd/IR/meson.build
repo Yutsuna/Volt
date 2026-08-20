@@ -13,6 +13,7 @@ volt_middleend_ir_lib = static_library(
     'VoltMiddleEndIR',
     files(
         'Private/CalleeMapSerialize.cpp',
+        'Private/SynthesizedFunctionsSerialize.cpp',
     ),
     volt_middleend_ir_export,
     cpp_pch: common_pch_header,

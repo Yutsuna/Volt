@@ -126,6 +126,8 @@ void CheckMemberAccess ( TypeCheckerContext &Context, SourceRange Loc, const Res
 [[nodiscard]] SemaTypeId MemberType (
     TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name );
 
+void ResolveOverload ( TypeCheckerContext &Context, Resolution &Found, const Frontend::ExprList &Args );
+
 void CheckCallArgs ( TypeCheckerContext &Context, SourceRange Loc, const Resolution &Found, const Frontend::ExprList &Args );
 
 void CheckArity ( TypeCheckerContext &Context, SourceRange Loc, NominalId Base, std::size_t Given );

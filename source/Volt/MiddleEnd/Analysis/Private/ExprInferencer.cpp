@@ -1295,6 +1295,7 @@ Volt::MiddleEnd::Analysis::CallType ( TypeCheckerContext &Context, Frontend::Exp
             Context.ExpectedClosure = OuterExpected;
         }
     }
+    ResolveOverload( Context, Found, Expr.Args );
     UnifyArgs( Context, Found, Expr.Args );
     CheckCallArgs( Context, Expr.Loc, Found, Expr.Args );
 
@@ -1359,6 +1360,56 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId
 Volt::MiddleEnd::Analysis::GenericInstType ( TypeCheckerContext &Context, Frontend::ExprId Id, const Frontend::GenericInst &Expr )
 {
     const SemaTypeId Base = InferExpr( Context, Expr.Base );
+
+    // `to_integer< Int64 >( radix )` — the base named a *method*, so this node
+    // is an explicit **method** instantiation, not `Array< Int32 >`. Which of
+    // the two it is cannot be decided syntactically, and must not be guessed
+    // from the spelling: it is decided by what the base resolved to, which is
+    // exactly what the InferExpr above has just recorded. Without this arm the
+    // node fell through to the type path below, `Values.Get( Base ).Base` read
+    // the *return* type's nominal, and — worse — nothing was ever recorded on
+    // this node's own id. `UnitCallees` is keyed on `Call::Callee`
+    // (CalleeMap.hpp), so the call reached codegen unresolved and failed there
+    // instead of here, with no diagnostic anywhere upstream.
+    const auto BaseFound = Context.CalleeResolution.find( Expr.Base.Value );
+    if ( BaseFound != Context.CalleeResolution.end() and BaseFound->second.Decl != nullptr and
+         BaseFound->second.Decl->Kind == EMemberKind::Method and not Context.NakedTypeExprs.contains( Expr.Base.Value ) )
+    {
+        Resolution Found          = BaseFound->second;
+        const std::uint32_t Slots = Found.Decl->OwnGenerics;
+
+        if ( Expr.Args.Size() != Slots )
+        {
+            Context.Report( Expr.Loc, "method '" + std::string{ Context.Ctx.Types.Text( Found.Decl->Name ) } + "' takes " +
+                                          std::to_string( Slots ) + " generic argument(s), " +
+                                          std::to_string( Expr.Args.Size() ) + " given" );
+        }
+
+        // `Bindings` is the owner's arguments followed by one slot per method
+        // generic (MemberResolver's LookupOn builds it that way), so the
+        // written arguments fill the tail. Bound here rather than left to
+        // UnifyArgs because an explicit argument is not an inference — and
+        // UnifySig leaves an already-bound slot alone, so what is written
+        // wins over what the actual arguments would have suggested.
+        const std::size_t Tail = Found.Bindings.Size() >= Slots ? Found.Bindings.Size() - Slots : 0;
+        for ( std::size_t Index = 0; Index < Expr.Args.Size() and Index < Slots; ++Index )
+        {
+            UnitSink Sink = Context.MakeSink();
+            const SemaTypeId Written =
+                ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types, Context.Generics(), Sink, Expr.Args[Index] );
+            if ( Written.IsValid() and Tail + Index < Found.Bindings.Size() )
+            {
+                Found.Bindings[Tail + Index] = Written;
+            }
+        }
+
+        // Recompute the signature against the slots just filled: the same
+        // step UnifyArgs runs after learning a generic from an argument.
+        Reinstantiate( Context, Found );
+        Context.CalleeResolution[Id.Value] = Found;
+        return Found.Result;
+    }
+
     if ( Context.NakedTypeExprs.contains( Expr.Base.Value ) )
     {
         Context.NakedTypeExprs.insert( Id.Value );

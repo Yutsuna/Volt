@@ -640,6 +640,77 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
     return Found.Result;
 }
 
+void Volt::MiddleEnd::Analysis::ResolveOverload ( TypeCheckerContext &Context,
+                                                  Resolution &Found,
+                                                  const Frontend::ExprList &Args )
+{
+    if ( Found.Decl == nullptr or Found.Decl->Kind != EMemberKind::Method or not Found.Owner.IsValid() )
+    {
+        return;
+    }
+
+    auto Matches = [&] ( const Resolution &Res ) -> bool
+    {
+        if ( Res.Decl == nullptr )
+        {
+            return false;
+        }
+        const std::size_t Given = Args.Size();
+        if ( Given < Res.Decl->MinParams or Given > Res.Params.Size() )
+        {
+            return false;
+        }
+        for ( std::size_t Index = 0; Index < Given; ++Index )
+        {
+            const SemaTypeId ParamType = Res.Params[Index];
+            const SemaTypeId ArgType   = Context.Ctx.Values.ExprType( Args[Index] );
+            if ( ArgType.IsValid() and ParamType.IsValid() and not IsAssignable( Context, ParamType, ArgType ) )
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    if ( Matches( Found ) )
+    {
+        return;
+    }
+
+    const Symbol TargetName = Found.Decl->Name;
+    for ( const Member &Alt : Context.Ctx.Types.Type( Found.Owner ).Members )
+    {
+        if ( &Alt == Found.Decl or Alt.Name != TargetName or Alt.Kind != EMemberKind::Method or Alt.bSelf != Found.Decl->bSelf )
+        {
+            continue;
+        }
+
+        const auto &OwnerArgs = Context.Ctx.Values.Has( Found.Receiver ) ? Context.Ctx.Values.Get( Found.Receiver ).Args
+                                                                         : Volt::Core::SmallVec<SemaTypeId, 2>{};
+        Resolution Candidate{ .Decl             = &Alt,
+                              .Owner            = Found.Owner,
+                              .Result           = SemaTypeId{},
+                              .Params           = {},
+                              .BlockParam       = SemaTypeId{},
+                              .Bindings         = OwnerArgs,
+                              .Receiver         = Found.Receiver,
+                              .bIndirect        = Found.bIndirect,
+                              .VTableSlot       = Found.VTableSlot,
+                              .bDynamicDispatch = Found.bDynamicDispatch };
+        for ( std::uint32_t Slot = 0; Slot < Alt.OwnGenerics; ++Slot )
+        {
+            Candidate.Bindings.PushBack( SemaTypeId{} );
+        }
+        Reinstantiate( Context, Candidate );
+
+        if ( Matches( Candidate ) )
+        {
+            Found = std::move( Candidate );
+            return;
+        }
+    }
+}
+
 void Volt::MiddleEnd::Analysis::CheckCallArgs ( TypeCheckerContext &Context,
                                                 Volt::Core::SourceRange Loc,
                                                 const Resolution &Found,

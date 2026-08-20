@@ -70,6 +70,22 @@ namespace MiddleEnd
             std::size_t RaiiUnsupportedExits      = 0;
             std::size_t RaiiRuntimeOwnershipFlags = 0;
 
+            // Inlining (MiddleEnd/Optimisations). The verdict counters are
+            // filled once per build by AnalyzeInlineCandidates; the rest by
+            // the BlockInliner sweep inside TypeChecker. Every field here is
+            // a std::size_t on purpose: Merge and `check --metrics` both walk
+            // this struct with Meta::ForEachField, so a counter reaches the
+            // CLI with no other edit (rules/meta-first.md).
+            std::size_t InlineCandidates      = 0;
+            std::size_t InlineAlways          = 0;
+            std::size_t InlineHint            = 0;
+            std::size_t InlineNever           = 0;
+            std::size_t BlockCallsInlined     = 0;
+            std::size_t BlockCallsRejected    = 0;
+            std::size_t InlineBudgetExhausted = 0;
+            std::size_t ClosureEnvsHeap       = 0;
+            std::size_t ClosureEnvsStack      = 0;
+
             void Merge ( const PassStats &Other )
             {
                 std::array<std::size_t, Meta::FieldCount<PassStats>()> Values{};

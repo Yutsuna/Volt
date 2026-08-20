@@ -12,6 +12,12 @@
 namespace Volt
 {
 
+namespace Meta
+{
+    class Writer;
+    class Reader;
+} // namespace Meta
+
 namespace MiddleEnd
 {
 
@@ -44,6 +50,16 @@ namespace MiddleEnd
             {
                 return Entries;
             }
+
+            // Round-tripped by the stdlib frontend cache, exactly like
+            // UnitCallees. Not optional: the AST a cache hit restores still
+            // holds the `FuncAddr` nodes ClosureLifting produced, and this
+            // table is the *only* place their target Decl is registered
+            // (BackendLLVM's EmitFuncAddr looks nowhere else). Without it a
+            // cache hit resurrects every lifted stdlib closure as a dangling
+            // address — which is a codegen failure, not a cache miss.
+            void SerializeCache ( Meta::Writer &W ) const;
+            [[nodiscard]] bool DeserializeCache ( Meta::Reader &R );
 
         private:
 
