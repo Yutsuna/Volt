@@ -5,6 +5,10 @@ struct UInt8
   include Arithmetic
   include Stringable
 
+  def self.is_signed -> Bool
+    false
+  end
+
   def <=>( other : UInt8 ) -> Int32
     if self < other
       -1
@@ -28,6 +32,10 @@ struct UInt16
   include Arithmetic
   include Stringable
 
+  def self.is_signed -> Bool
+    false
+  end
+
   def <=>( other : UInt16 ) -> Int32
     if self < other
       -1
@@ -50,6 +58,10 @@ struct UInt32
   include Hashable
   include Arithmetic
   include Stringable
+
+  def self.is_signed -> Bool
+    false
+  end
 
   def <=>( other : UInt32 ) -> Int32
     if self < other
@@ -76,6 +88,10 @@ struct UInt64
   include Hashable
   include Arithmetic
   include Stringable
+
+  def self.is_signed -> Bool
+    false
+  end
 
   def <=>( other : UInt64 ) -> Int32
     if self < other
