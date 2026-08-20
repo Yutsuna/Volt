@@ -73,18 +73,11 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
         return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) + "' reached the backend with no sema output" );
     }
 
-    // A stdlib unit under a precompiled build never gets a body here: it is
-    // already declared (DeclareAll runs over the whole TypeStore regardless of
-    // unit) and its definition is expected from the linked archive/.so instead —
-    // the same "declared, never defined" shape @[External] members already have.
-    if ( Impl->Options.bStdlibPrecompiled and Unit.Ordinal < Impl->Build->StdlibUnitCount )
-    {
-        return EEmitStatus::Ok;
-    }
+    const bool bPrecompiledStdlibUnit = Impl->Options.bStdlibPrecompiled and Unit.Ordinal < Impl->Build->StdlibUnitCount;
 
     {
         const Volt::Core::PhaseScope Timing( "backend.emit" );
-        DefineAll( Impl->Services, Unit );
+        DefineAll( Impl->Services, Unit, /*bInlineEligibleOnly=*/bPrecompiledStdlibUnit );
     }
     return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
 }
