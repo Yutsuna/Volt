@@ -82,12 +82,14 @@ struct Char
 
   def to_digit( radix : Int32 = 10 ) -> Int32
     val = -1
-    case self
-    when .digit?      then val = self - '0'
-    when .lowercase?  then val = self - 'a' + 10
-    when .uppercase?  then val = self - 'A' + 10
-    else ( val >= 0 and val < radix ) ? val : -1
+    if self.digit?
+      val = ( self - '0' )
+    elsif self.lowercase?
+      val = ( self - 'a' + 10 )
+    elsif self.uppercase?
+      val = ( self - 'A' + 10 )
     end
+    ( val >= 0 and val < radix ) ? val : -1
   end
 
   #----------------------------------------------------------------------------
