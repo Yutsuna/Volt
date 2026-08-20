@@ -17,6 +17,7 @@
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/MiddleEnd/Analysis/Raii/OwnershipInference.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
+#include "Volt/MiddleEnd/Optimisations/InlineSummary.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -609,12 +610,19 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             // reasons about results, the other about arguments — so the order
             // between the two is free.
             MiddleEnd::Analysis::Raii::InferParameterEscape( UnitAsts, Types );
+            MiddleEnd::Optimisations::AnalyzeInlineCandidates( UnitAsts, Types );
         }
 
         // parallel, second half: typing, and every check built on typing.
+        // Stdlib units are typed in the first wave so their bodies are completely
+        // settled and read-only before user units run BlockInliner.
         {
             const Core::PhaseScope Timing( "sema.typed" );
-            ForEachUnitParallel( &Driver::RunSemaTypedOne, SemaBegin, Units.size() );
+            if ( SemaBegin < StdlibCount )
+            {
+                ForEachUnitParallel( &Driver::RunSemaTypedOne, SemaBegin, StdlibCount );
+            }
+            ForEachUnitParallel( &Driver::RunSemaTypedOne, std::max( SemaBegin, StdlibCount ), Units.size() );
         }
 
         if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() and not ActiveCacheOptions.bNoCache )
@@ -816,8 +824,22 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileFiles ( const std::vect
     return CompileRefs( Refs, EPipeline::Full, StdlibUnitCountValue );
 }
 
-Volt::Driver::CompileResult Volt::Driver::Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered )
+Volt::Driver::CompileResult
+Volt::Driver::Driver::ParseFiles ( const std::vector<std::string> &Paths, bool bLowered, bool bResolved )
 {
+    if ( bResolved )
+    {
+        std::vector<SourceRef> Refs;
+        LoadStdLib( Refs );
+        StdlibUnitCountValue = Refs.size();
+        Refs.reserve( Refs.size() + Paths.size() );
+        for ( const std::string &Path : Paths )
+        {
+            Refs.push_back( SourceRef{ .Path = Path, .Module = std::string{}, .bComponent = IsComponentPath( Path ) } );
+        }
+        return CompileRefs( Refs, EPipeline::Full, StdlibUnitCountValue );
+    }
+
     std::vector<SourceRef> Refs;
     Refs.reserve( Paths.size() );
     for ( const std::string &Path : Paths )
@@ -1011,10 +1033,12 @@ Volt::Driver::CompileResult Volt::Driver::Driver::CompileCircuit ( const std::st
     return Result;
 }
 
-void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options ) const
+void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDumpOptions &Options, bool bUserUnitsOnly ) const
 {
-    for ( const CompileUnit &Unit : Units )
+    const std::size_t StartIndex = ( bUserUnitsOnly and StdlibUnitCountValue < Units.size() ) ? StdlibUnitCountValue : 0;
+    for ( std::size_t Index = StartIndex; Index < Units.size(); ++Index )
     {
+        const CompileUnit &Unit = Units[Index];
         Frontend::AstDumper Dumper( Unit.Ast, Sources, Out, Options );
         Dumper.DumpFile();
     }
