@@ -12,6 +12,8 @@
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
+#include <cstdio>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -197,6 +199,153 @@ Frontend::ExprId RewriteSlot ( TypeCheckerContext &Context, Frontend::ExprId Tar
     return Target;
 }
 
+bool ExprUsesSelf ( const TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId &SelfTypeOut );
+bool StmtUsesSelf ( const TypeCheckerContext &Context, Frontend::StmtId Id, SemaTypeId &SelfTypeOut );
+
+bool ExprUsesSelf ( const TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId &SelfTypeOut )
+{
+    if ( not Id.IsValid() )
+    {
+        return false;
+    }
+    if ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] )
+    {
+        return false;
+    }
+    const Frontend::ExprNode &Node = Context.Ctx.Ast.Expr( Id );
+    if ( std::holds_alternative<Frontend::SelfExpr>( Node ) or std::holds_alternative<Frontend::SuperExpr>( Node ) )
+    {
+        const SemaTypeId T = Context.Ctx.Values.ExprType( Id );
+        if ( T.IsValid() )
+        {
+            SelfTypeOut = T;
+        }
+        return true;
+    }
+    if ( std::holds_alternative<Frontend::InstanceVar>( Node ) )
+    {
+        if ( const auto Entry = Context.CalleeResolution.find( Id.Value );
+             Entry != Context.CalleeResolution.end() and Entry->second.Receiver.IsValid() )
+        {
+            SelfTypeOut = Entry->second.Receiver;
+        }
+        return true;
+    }
+    if ( std::holds_alternative<Frontend::Identifier>( Node ) )
+    {
+        const MiddleEnd::Resolver::Binding *Bound = Context.Ctx.Scopes.BindingOf( Id );
+        if ( Bound == nullptr or not MiddleEnd::TypeSystem::IsValueBinding( Bound->Site ) )
+        {
+            if ( const auto Entry = Context.CalleeResolution.find( Id.Value );
+                 Entry != Context.CalleeResolution.end() and Entry->second.Decl != nullptr and
+                 Entry->second.Decl->Kind == MiddleEnd::TypeSystem::EMemberKind::Method and not Entry->second.Decl->bSelf and
+                 Entry->second.Receiver.IsValid() )
+            {
+                SelfTypeOut = Entry->second.Receiver;
+                return true;
+            }
+        }
+    }
+
+    bool bUses = false;
+    std::visit(
+        [&] ( const auto &ExprVal )
+        {
+            using T = std::remove_cvref_t<decltype( ExprVal )>;
+            if constexpr ( not std::is_same_v<T, std::monostate> )
+            {
+                Meta::ForEachField( ExprVal,
+                                    [&] ( const char *, const auto &Field )
+                                    {
+                                        using F = std::remove_cvref_t<decltype( Field )>;
+                                        if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                                        {
+                                            bUses = bUses or ExprUsesSelf( Context, Field, SelfTypeOut );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                                        {
+                                            for ( const Frontend::ExprId Child : Field )
+                                            {
+                                                bUses = bUses or ExprUsesSelf( Context, Child, SelfTypeOut );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtId> )
+                                        {
+                                            bUses = bUses or StmtUsesSelf( Context, Field, SelfTypeOut );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                        {
+                                            for ( const Frontend::StmtId Child : Field )
+                                            {
+                                                bUses = bUses or StmtUsesSelf( Context, Child, SelfTypeOut );
+                                            }
+                                        }
+                                    } );
+            }
+        },
+        Node );
+    return bUses;
+}
+
+bool StmtUsesSelf ( const TypeCheckerContext &Context, Frontend::StmtId Id, SemaTypeId &SelfTypeOut )
+{
+    if ( not Id.IsValid() )
+    {
+        return false;
+    }
+    const Frontend::StmtNode &Node = Context.Ctx.Ast.Stmt( Id );
+    bool bUses                     = false;
+    std::visit(
+        [&] ( const auto &StmtVal )
+        {
+            using T = std::remove_cvref_t<decltype( StmtVal )>;
+            if constexpr ( not std::is_same_v<T, std::monostate> )
+            {
+                Meta::ForEachField( StmtVal,
+                                    [&] ( const char *, const auto &Field )
+                                    {
+                                        using F = std::remove_cvref_t<decltype( Field )>;
+                                        if constexpr ( std::is_same_v<F, Frontend::ExprId> )
+                                        {
+                                            bUses = bUses or ExprUsesSelf( Context, Field, SelfTypeOut );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::ExprList> )
+                                        {
+                                            for ( const Frontend::ExprId Child : Field )
+                                            {
+                                                bUses = bUses or ExprUsesSelf( Context, Child, SelfTypeOut );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtId> )
+                                        {
+                                            bUses = bUses or StmtUsesSelf( Context, Field, SelfTypeOut );
+                                        }
+                                        else if constexpr ( std::is_same_v<F, Frontend::StmtList> )
+                                        {
+                                            for ( const Frontend::StmtId Child : Field )
+                                            {
+                                                bUses = bUses or StmtUsesSelf( Context, Child, SelfTypeOut );
+                                            }
+                                        }
+                                    } );
+            }
+        },
+        Node );
+    return bUses;
+}
+
+bool ClosureCapturesSelf ( const TypeCheckerContext &Context, const Frontend::StmtList &Body, SemaTypeId &SelfTypeOut )
+{
+    for ( const Frontend::StmtId StmtId : Body )
+    {
+        if ( StmtUsesSelf( Context, StmtId, SelfTypeOut ) )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Rewrites every `Identifier` inside `Id`'s own subtree that resolves
 // (`ScopeTable::BindingOf`) to one of `Frame.Fields`' sites, in place, into
 // `*( Pointer<CapType>.from_address( EnvUse.to_address() + Offset ) )` — the
@@ -222,13 +371,12 @@ void RewriteCaptureUsesStmt ( TypeCheckerContext &Context,
                               Volt::Core::Symbol EnvName,
                               const MiddleEnd::Resolver::Binding &EnvBinding );
 
-void RewriteOneCapture ( TypeCheckerContext &Context,
-                         Frontend::ExprId Id,
-                         const MiddleEnd::Resolver::ClosureEnvField &Field,
-                         Frontend::ExprId OffsetExpr,
-                         MiddleEnd::TypeSystem::NominalId PointerBase,
-                         Volt::Core::Symbol EnvName,
-                         const MiddleEnd::Resolver::Binding &EnvBinding )
+Frontend::ExprId BuildEnvSlotDeref ( TypeCheckerContext &Context,
+                                     const MiddleEnd::Resolver::ClosureEnvField &Field,
+                                     Frontend::ExprId OffsetExpr,
+                                     MiddleEnd::TypeSystem::NominalId PointerBase,
+                                     Volt::Core::Symbol EnvName,
+                                     const MiddleEnd::Resolver::Binding &EnvBinding )
 {
     Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -248,7 +396,18 @@ void RewriteOneCapture ( TypeCheckerContext &Context,
     const Frontend::ExprId FromAddrId = CallMember( Context, SlotPtrId, "from_address", FromAddrArgs );
     const Frontend::ExprId DerefId    = Ast.Add( Frontend::ExprNode{ Frontend::Deref{ .Loc = {}, .Operand = FromAddrId } } );
     InferExpr( Context, DerefId );
+    return DerefId;
+}
 
+void RewriteOneCapture ( TypeCheckerContext &Context,
+                         Frontend::ExprId Id,
+                         const MiddleEnd::Resolver::ClosureEnvField &Field,
+                         Frontend::ExprId OffsetExpr,
+                         MiddleEnd::TypeSystem::NominalId PointerBase,
+                         Volt::Core::Symbol EnvName,
+                         const MiddleEnd::Resolver::Binding &EnvBinding )
+{
+    const Frontend::ExprId DerefId = BuildEnvSlotDeref( Context, Field, OffsetExpr, PointerBase, EnvName, EnvBinding );
     RewriteSlot( Context, Id, DerefId );
 }
 
@@ -269,20 +428,81 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
         return;
     }
 
+    std::optional<std::size_t> SelfFieldIndex;
+    for ( std::size_t Index = 0; Index < Frame.Fields.Size(); ++Index )
+    {
+        if ( Frame.Fields[Index].Name == Context.Ctx.Ast.Strings().Intern( "self" ) )
+        {
+            SelfFieldIndex = Index;
+            break;
+        }
+    }
+
     if ( std::holds_alternative<Frontend::Identifier>( Context.Ctx.Ast.Expr( Id ) ) )
     {
+        const auto &Ident                         = std::get<Frontend::Identifier>( Context.Ctx.Ast.Expr( Id ) );
         const MiddleEnd::Resolver::Binding *Bound = Context.Ctx.Scopes.BindingOf( Id );
-        if ( Bound == nullptr )
+        if ( Bound != nullptr and MiddleEnd::TypeSystem::IsValueBinding( Bound->Site ) )
         {
+            for ( std::size_t Index = 0; Index < Frame.Fields.Size(); ++Index )
+            {
+                if ( Frame.Fields[Index].Name != Context.Ctx.Ast.Strings().Intern( "self" ) and
+                     Frame.Fields[Index].Site == Bound->Site )
+                {
+                    RewriteOneCapture( Context, Id, Frame.Fields[Index], FieldOffsets[Index], PointerBase, EnvName, EnvBinding );
+                    return;
+                }
+            }
             return;
         }
-        for ( std::size_t Index = 0; Index < Frame.Fields.Size(); ++Index )
+        if ( SelfFieldIndex.has_value() )
         {
-            if ( Frame.Fields[Index].Site == Bound->Site )
+            if ( const auto Entry = Context.CalleeResolution.find( Id.Value );
+                 Entry != Context.CalleeResolution.end() and Entry->second.Decl != nullptr and
+                 Entry->second.Decl->Kind == MiddleEnd::TypeSystem::EMemberKind::Method and not Entry->second.Decl->bSelf and
+                 Entry->second.Receiver.IsValid() )
             {
-                RewriteOneCapture( Context, Id, Frame.Fields[Index], FieldOffsets[Index], PointerBase, EnvName, EnvBinding );
+                const Frontend::ExprId SelfDeref = BuildEnvSlotDeref(
+                    Context, Frame.Fields[*SelfFieldIndex], FieldOffsets[*SelfFieldIndex], PointerBase, EnvName, EnvBinding );
+                const Frontend::ExprId MemberId = Context.Ctx.Ast.Add(
+                    Frontend::ExprNode{ Frontend::Member{ .Loc = Ident.Loc, .Object = SelfDeref, .Name = Ident.Name } } );
+                Context.CalleeResolution[MemberId.Value] = Entry->second;
+                Context.CalleeResolution[Id.Value]       = Entry->second;
+                Context.Ctx.Values.SetExprType( MemberId, Context.Ctx.Values.ExprType( Id ) );
+                RewriteSlot( Context, Id, MemberId );
                 return;
             }
+        }
+        return;
+    }
+
+    if ( std::holds_alternative<Frontend::SelfExpr>( Context.Ctx.Ast.Expr( Id ) ) or
+         std::holds_alternative<Frontend::SuperExpr>( Context.Ctx.Ast.Expr( Id ) ) )
+    {
+        if ( SelfFieldIndex.has_value() )
+        {
+            RewriteOneCapture( Context, Id, Frame.Fields[*SelfFieldIndex], FieldOffsets[*SelfFieldIndex], PointerBase, EnvName,
+                               EnvBinding );
+        }
+        return;
+    }
+
+    if ( std::holds_alternative<Frontend::InstanceVar>( Context.Ctx.Ast.Expr( Id ) ) )
+    {
+        if ( SelfFieldIndex.has_value() )
+        {
+            const auto &IVar                  = std::get<Frontend::InstanceVar>( Context.Ctx.Ast.Expr( Id ) );
+            const std::string_view CleanName  = Context.Ctx.Ast.Text( IVar.Name ).starts_with( '@' )
+                                                    ? Context.Ctx.Ast.Text( IVar.Name ).substr( 1 )
+                                                    : Context.Ctx.Ast.Text( IVar.Name );
+            const Volt::Core::Symbol CleanSym = Context.Ctx.Ast.Strings().Intern( CleanName );
+
+            const Frontend::ExprId SelfDeref = BuildEnvSlotDeref(
+                Context, Frame.Fields[*SelfFieldIndex], FieldOffsets[*SelfFieldIndex], PointerBase, EnvName, EnvBinding );
+            const Frontend::ExprId MemberId = Context.Ctx.Ast.Add(
+                Frontend::ExprNode{ Frontend::Member{ .Loc = IVar.Loc, .Object = SelfDeref, .Name = CleanSym } } );
+            InferExpr( Context, MemberId );
+            RewriteSlot( Context, Id, MemberId );
         }
         return;
     }
@@ -418,10 +638,10 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
         return;
     }
 
-    const ScopeId ClosureScope  = Context.Ctx.Scopes.ScopeOfExpr( Id );
-    const ClosureEnvFrame Frame = ClosureScope.IsValid()
-                                      ? SynthesizeClosureFrame( Context.Ctx.Scopes, Context.Ctx.Values, ClosureScope )
-                                      : ClosureEnvFrame{};
+    const ScopeId ClosureScope = Context.Ctx.Scopes.ScopeOfExpr( Id );
+    ClosureEnvFrame Frame      = ClosureScope.IsValid()
+                                     ? SynthesizeClosureFrame( Context.Ctx.Scopes, Context.Ctx.Values, ClosureScope )
+                                     : ClosureEnvFrame{};
 
     // Positional: SynthesizeClosureFrame builds Frame.Fields by iterating
     // ScopeTable::CapturesOf in order, so index i of one is index i of the
@@ -453,6 +673,17 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
         Loc                        = Node.Loc;
         Params                     = Node.Params;
         Body                       = Node.Body;
+    }
+
+    SemaTypeId CapturedSelfType = Context.SelfValue;
+    const bool bCapturesSelf    = ClosureCapturesSelf( Context, Body, CapturedSelfType ) and CapturedSelfType.IsValid();
+    if ( bCapturesSelf )
+    {
+        ClosureEnvField SelfField;
+        SelfField.Name = Ast.Strings().Intern( "self" );
+        SelfField.Site = MiddleEnd::Resolver::BindingSite{};
+        SelfField.Type = CapturedSelfType;
+        Frame.Fields.PushBack( SelfField );
     }
 
     const SemaTypeId BytePtr    = BytePointerType( Context );
@@ -592,6 +823,10 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
     for ( std::size_t Index = 0; Index < Frame.Fields.Size(); ++Index )
     {
         const ClosureEnvField &Field = Frame.Fields[Index];
+        if ( Field.Name == Ast.Strings().Intern( "self" ) )
+        {
+            continue;
+        }
 
         const Frontend::ExprId TmpUse = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = TmpName } } );
         if ( TmpBound != nullptr )
@@ -659,15 +894,24 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
         const Frontend::ExprId DerefId    = Ast.Add( Frontend::ExprNode{ Frontend::Deref{ .Loc = Loc, .Operand = FromAddrId } } );
         InferExpr( Context, DerefId );
 
-        const Binding *CapBound       = Captures != nullptr and Index < Captures->Size()
-                                            ? Context.Ctx.Scopes.Resolve( ( *Captures )[Index].DeclaringScope, Field.Name )
-                                            : nullptr;
-        const Frontend::ExprId ReadId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Field.Name } } );
-        if ( CapBound != nullptr )
+        Frontend::ExprId ReadId;
+        if ( Field.Name == Ast.Strings().Intern( "self" ) )
         {
-            Context.Ctx.Scopes.BindUse( ReadId, *CapBound, true );
+            ReadId = Ast.Add( Frontend::ExprNode{ Frontend::SelfExpr{ .Loc = Loc } } );
+            Context.Ctx.Values.SetExprType( ReadId, Field.Type );
         }
-        Context.Ctx.Values.SetExprType( ReadId, Field.Type );
+        else
+        {
+            const Binding *CapBound = Captures != nullptr and Index < Captures->Size()
+                                          ? Context.Ctx.Scopes.Resolve( ( *Captures )[Index].DeclaringScope, Field.Name )
+                                          : nullptr;
+            ReadId                  = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Field.Name } } );
+            if ( CapBound != nullptr )
+            {
+                Context.Ctx.Scopes.BindUse( ReadId, *CapBound, true );
+            }
+            Context.Ctx.Values.SetExprType( ReadId, Field.Type );
+        }
 
         const Frontend::ExprId StoreId =
             Ast.Add( Frontend::ExprNode{ Frontend::Assign{ .Loc = Loc, .Target = DerefId, .Value = ReadId } } );
