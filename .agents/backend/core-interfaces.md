@@ -108,7 +108,9 @@ otherwise
        Primitive{ Spelling, Bits }  ("i32" + "+"  ->  add, etc.)
 ```
 
-The spelling table is per-target (`llvm.md`, `vm.md`, `wasm.md`) but the
+The spelling table is shared (`BackendCore/Instructions.inl` — one row per
+family × operator, opcodes named in target-neutral enums) and each target maps
+those enums onto its own encoding (`llvm.md`, `wasm.md`); the
 *decision* is made once, upstream, by MiddleEnd. A backend that finds neither a
 resolution nor a primitive layout has hit a middle-end bug — it must fail
 loudly (`EEmitStatus::Error`), never guess. **Zero semantic analysis, zero
@@ -150,19 +152,39 @@ diagnostics about Volt source.
   `source/Volt/meson.build` (`subdir('Backend/...')`). `meson.build` configures
   `<MODULE>_EXPORT` (`rules/shared-lib-exports.md`); optional toolchains gate
   themselves with an option check (`BackendLLVM` ↔ `enable_llvm`).
-- Per-target instruction tables are **manifests**, not switches:
-  `BackendVM/Bytecode.inl` (one `VOLT_OP` line per opcode → enum, name LUT,
-  operand widths) is the template. The LLVM spelling→instruction table
-  (`InstructionTables.cpp`) and any future wasm opcode table follow the same
-  shape (`rules/meta-first.md`).
-- `BackendLLVM` organises its private sources by concern:
-  `Private/Core/` (orchestration, services, LLVM module context),
+- Instruction selection is a **manifest**, not a switch:
+  `BackendCore/Instructions.inl` (one row per primitive family × operator →
+  a target-neutral opcode enum) is re-included with different macro definitions
+  to generate the lookup tables. A target adds its own enum→encoding mapping;
+  it never re-lists the rows, and there is no `switch` over operators in any
+  emitter (`rules/meta-first.md`). Any future wasm opcode table follows the
+  same shape.
+- **Two targets can share a middle.** `BackendLLVM` and `BackendJIT` both emit
+  LLVM IR, so everything from core AST to a finished `llvm::Module` lives once
+  in `BackendLlvmIr` and each adds only its tail. `BackendLlvmIr` organises its
+  private sources by concern:
+  `Private/Core/` (services, LLVM module context),
   `Private/Functions/` (declare/define sweeps, signature, parameter binder),
   `Private/Types/` (type mapping, ABI verifier),
   `Private/Lower/Expr/` (per-expression emitters),
   `Private/Lower/Stmt/` (statement emitters, tail value, loop),
   `Private/Lower/Closure/` (indirect call, block-next),
   `Private/Lower/Exception/` (raise/rescue/ensure, ancestry table),
-  `Private/Lower/Mono/` (monomorphized body emitter, drain driver),
-  `Private/Target/` (optimizer, object emitter, IR emitter, linker driver,
-  stdlib artifact builder).
+  `Private/Lower/Mono/` (monomorphized body emitter).
+  `BackendLLVM` keeps `Private/Target/` (optimizer, object emitter, IR emitter,
+  linker driver, stdlib artifact builder); `BackendJIT` keeps the ORC layer.
+  **`BackendJIT` must never include a `BackendLLVM` header** — the shared code
+  is below both of them, never sideways between them.
+
+## `IJitBackend` — the seam for a target that executes
+
+`TargetBackend` describes a generator that produces an *artifact path*. A JIT
+produces no file, so `BackendCore/ExecutableBackend.hpp` extends the runtime
+seam: `IJitBackend : IBackend` adds `Run`, `Reload`, `EvalUnit` and
+`LookupSymbol`. Those are virtual, which is within the rule — the ban is on a
+virtual call **per node**, not per execution.
+
+The Driver includes this header, never a backend one: `Driver::Run` and
+`Driver::OpenReplSession` are where `volt run` / `volt repl` resolve to a
+concrete backend, exactly as `Driver::Build` is for `--target`. See
+`backend/jit.md`.

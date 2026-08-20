@@ -8,6 +8,14 @@ monolithic `LLVM` dylib when present). **No LLVM header escapes the module**:
 `LlvmBackend` is pimpl'd, so the rest of the compiler never recompiles
 against the LLVM API.
 
+> **Where the code lives.** Everything this document describes about *emission*
+> — the two sweeps, type mapping, `BodyEmitter` and its per-node arms, closures,
+> exceptions, monomorphisation — lives in **`BackendLlvmIr`**, shared with
+> `BackendJIT` (`jit.md`). `BackendLLVM` is the AOT tail: verify, optimise, emit
+> the object, link. The split is described in `BACKEND.md`; the rules below are
+> unchanged by it, and `volt build`'s public surface (`LlvmEmitter.hpp`) is the
+> same either way.
+
 ## Pipeline
 
 ```

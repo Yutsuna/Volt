@@ -8,15 +8,16 @@ parses argv, and it must stay a thin dispatcher onto `Driver`.
 ```
 Volt Language
 Usage: volt <command> [options]
-  build    Compile the file input
-  check    Static semantic code analysis
-  circuit  Create or update the Project.vl file
-  format   Run the formatter on the code
-  help     Display the usage
-  parse    Generate & display the abstract syntax tree
-  repl     Interactive Read-Eval-Print-Loop
-  run      Interpret the file input
-  version  Prints the current version of Volt
+  build         Compile the file input
+  build-stdlib  Pre-compile the standard library artifact
+  check         Static semantic code analysis
+  circuit       Create or update the Project.vl file
+  format        Run the formatter on the code
+  help          Display the usage
+  parse         Generate & display the abstract syntax tree
+  repl          Interactive Read-Eval-Print-Loop
+  run           Compile and run the file input
+  version       Prints the current version of Volt
 ```
 
 All commands will exist eventually. **Current priority order:** `run`, `repl`,
@@ -32,6 +33,7 @@ Usage: volt circuit [options]
 Usage: volt run [options] [input_file] [-- ...]
     -i INPUT, --input INPUT          File input source program
     -s, --stdin                      Read input from stdin
+    -w, --watch                      Recompile and hot-reload on file change
     -h, --help                       Show help
 
 Usage: volt repl [options] [file]
@@ -68,6 +70,12 @@ Usage: volt build [options] [input_file]
     --emit KIND                      Stop after an intermediate artifact (ast|ir|obj)
     --lto                            Enable link-time optimization (native only)
     -h, --help                       Show help
+
+Usage: volt build-stdlib [options]
+    --kind KIND                      Artifact kind (static|shared, default shared)
+    -O LEVEL                         Optimization level (0|1|2|3, default 2)
+    --fresh                          Discard and rebuild the cached artifact
+    -h, --help                       Show help
 ```
 
 ## How this maps onto the architecture
@@ -77,15 +85,23 @@ Usage: volt build [options] [input_file]
   passes from `PassList.inl` — never full sema. Serialisation via the dumper
   (`text` today; `json`/`dot` are printer back-ends, not new traversals).
 - `check`  → Driver parse + MiddleEnd passes; `--type` selects which pass orders run.
-- `run` / `repl` → the later JIT/interpreter phase; both sit on top of the same
-  Driver pipeline (one `CompileUnit` per input, REPL = incremental units).
+- `run` / `repl` → `Driver::Run` / `Driver::OpenReplSession`, on top of the same
+  Driver pipeline (one `CompileUnit` per input, REPL = incremental units), then
+  `BackendJIT` through the `IJitBackend` seam (`backend/jit.md`). Neither takes
+  `--target`: the backend for these two is not user-selectable. `run --watch`
+  adds hot reload; both are unavailable in a build configured without LLVM or
+  without the JIT, and say so rather than failing obscurely.
 - `circuit` → `Driver::CompileCircuit` / Project.vl scaffolding.
 - `build` → the full Driver pipeline, then a code generator selected by
   `--target` through the `IBackend` seam (`BACKEND.md`): `native` →
-  `BackendLLVM`, `wasm` → `BackendWASM`. `volt run`'s VM is the same seam
-  with `BackendVM`.
+  `BackendLLVM`, `wasm` → `BackendWASM`.
+- `build-stdlib` → warms the native stdlib artifact cache that `volt run` reads
+  and `volt build` links (`EnsureStdlibArtifact`); it is not a second pipeline.
 - `version` → `VERSION.md` is the single source of the version string.
 
-Meta-first applies here too: a new subcommand is **one entry in the command
-table of Main.cpp** (name, summary, option spec, entry function) — never a new
-ad-hoc argv loop.
+Meta-first applies here too: a new subcommand is **one `IGenericCommand`
+subclass plus one `TCommandRegister<T>` static** at the bottom of its `.cpp`
+(`CLI/CommandRegistry.hpp`) — never a new ad-hoc argv loop, and never an edit to
+`Main.cpp`, which only looks the name up in the registry. Sources are globbed,
+so there is no build-file edit either. Shared option groups
+(`GetInputOptions`, `StdlibCacheOptions`) are appended rather than retyped.
