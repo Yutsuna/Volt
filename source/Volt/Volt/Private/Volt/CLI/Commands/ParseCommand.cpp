@@ -46,6 +46,10 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FParseCommand::GetOptions ()
             [this] ( std::string_view ) { this->bLowered = true; }
         },
         {
+            "", "--resolved", "", "Display the tree after full resolution and inlining (Core AST)",
+            [this] ( std::string_view ) { this->bResolved = true; }
+        },
+        {
             "", "--no-color", "", "Output without colors",
             [this] ( std::string_view ) { this->bNoColor = true; }
         },
@@ -91,7 +95,7 @@ std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_vie
     const std::string &Input = InputRes->InputPath;
 
     Driver::Driver TheDriver;
-    static_cast<void>( TheDriver.ParseFiles( { Input }, bLowered ) );
+    static_cast<void>( TheDriver.ParseFiles( { Input }, bLowered, bResolved ) );
 
     if ( TheDriver.HasErrors() )
     {
@@ -113,12 +117,12 @@ std::int32_t Volt::CLI::FParseCommand::Execute ( std::span<const std::string_vie
             Core::FLogger::Error( "Cannot write '" + Output + "'" );
             return ExitFailure;
         }
-        TheDriver.DumpUnits( File, DumpOptions );
+        TheDriver.DumpUnits( File, DumpOptions, /*bUserUnitsOnly=*/bResolved );
         return ExitSuccess;
     }
 
     std::ostringstream Buffer;
-    TheDriver.DumpUnits( Buffer, DumpOptions );
+    TheDriver.DumpUnits( Buffer, DumpOptions, /*bUserUnitsOnly=*/bResolved );
     Core::FLogger::Flush();
     std::cout << Buffer.str() << std::flush;
     return ExitSuccess;

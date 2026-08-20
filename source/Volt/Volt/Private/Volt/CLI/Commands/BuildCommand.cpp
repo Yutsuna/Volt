@@ -6,10 +6,13 @@
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/Core/Support/PhaseTimer.hpp"
 #include "Volt/Driver/Driver.hpp"
+#include "Volt/Frontend/AST/AstDump.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <optional>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -171,6 +174,30 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
             Core::FLogger::Error( "Unsupported -O '" + OptLevel + "': expected 0, 1, 2 or 3", "build" );
             return ExitFailure;
         }
+    }
+
+    if ( Emit == "ast" or Emit == "resolved" )
+    {
+        const Frontend::FAstDumpOptions DumpOptions{
+            .bColor        = Output.empty() and Core::FLogger::StdOutIsTerminal(),
+            .bShowLocation = true,
+        };
+        if ( not Output.empty() )
+        {
+            std::ofstream File( Output );
+            if ( not File )
+            {
+                Core::FLogger::Error( "Cannot write '" + Output + "'", "build" );
+                return ExitFailure;
+            }
+            TheDriver.DumpUnits( File, DumpOptions, /*bUserUnitsOnly=*/true );
+            return ExitSuccess;
+        }
+        std::ostringstream Buffer;
+        TheDriver.DumpUnits( Buffer, DumpOptions, /*bUserUnitsOnly=*/true );
+        Core::FLogger::Flush();
+        std::cout << Buffer.str() << std::flush;
+        return ExitSuccess;
     }
 
     const Driver::BuildResult Built = TheDriver.Build( BuildOpts );
