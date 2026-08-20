@@ -991,6 +991,7 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
                                     not MiddleEnd::Analysis::Raii::BlockParameterEscapes( *ParentResolution->second.Decl );
         if ( bBlockBorrowed )
         {
+            ++Context.Ctx.Stats.ClosureEnvsStack;
             const Frontend::ExprId FreeEnvUse =
                 Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = TmpName } } );
             if ( TmpBound != nullptr )
@@ -1000,6 +1001,10 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
             Context.Ctx.Values.SetExprType( FreeEnvUse, BytePtr );
             const Frontend::ExprId FreeCallId = CallMember( Context, FreeEnvUse, "free", {} );
             EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = FreeCallId } } ) );
+        }
+        else
+        {
+            ++Context.Ctx.Stats.ClosureEnvsHeap;
         }
 
         const SemaTypeId ParentCallType = Context.Ctx.Values.ExprType( ParentCallId );
