@@ -666,6 +666,21 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 {
                     return *Local;
                 }
+                if ( const auto Generics = Context.Generics(); not Generics.empty() )
+                {
+                    for ( std::size_t Index = 0; Index < Generics.size(); ++Index )
+                    {
+                        if ( Expr.Name == Generics[Index] or
+                             Context.Ctx.Ast.Text( Expr.Name ) == Context.Ctx.Ast.Text( Generics[Index] ) )
+                        {
+                            if ( Index < Context.Substitution.Size() and Context.Substitution[Index].IsValid() )
+                            {
+                                Context.NakedTypeExprs.insert( Id.Value );
+                                return Context.Substitution[Index];
+                            }
+                        }
+                    }
+                }
                 if ( const auto Named = Context.Ctx.Types.LookupType( Context.Ctx.Ast.Text( Expr.Name ) ) )
                 {
                     Context.NakedTypeExprs.insert( Id.Value );

@@ -595,10 +595,6 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
     const Volt::Core::SourceRange Loc = Frontend::LocOf( Context.Ctx.Ast.Expr( Id ) );
     const Resolution Found            = LookupOn( Context, Receiver, Name );
 
-    // Unconditional, exactly as the Member branch has always done: an empty
-    // Resolution is itself the answer "no user-written member here", which for
-    // an operator on a primitive layout is what tells a backend to emit an
-    // instruction rather than a call.
     Context.CalleeResolution[Id.Value] = Found;
 
     if ( Context.Ctx.Values.Has( Receiver ) and Found.Decl == nullptr )
@@ -640,9 +636,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
     return Found.Result;
 }
 
-void Volt::MiddleEnd::Analysis::ResolveOverload ( TypeCheckerContext &Context,
-                                                  Resolution &Found,
-                                                  const Frontend::ExprList &Args )
+void Volt::MiddleEnd::Analysis::ResolveOverload ( TypeCheckerContext &Context, Resolution &Found, const Frontend::ExprList &Args )
 {
     if ( Found.Decl == nullptr or Found.Decl->Kind != EMemberKind::Method or not Found.Owner.IsValid() )
     {
