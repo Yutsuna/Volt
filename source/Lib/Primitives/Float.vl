@@ -3,6 +3,7 @@ struct Float32
   include Comparable
   include Arithmetic
   include FloatStringable
+  include Numeric
 
   def <=>( other : Float32 ) -> Int32
     if self < other
@@ -25,6 +26,7 @@ struct Float64
   include Comparable
   include Arithmetic
   include FloatStringable
+  include Numeric
 
   def <=>( other : Float64 ) -> Int32
     if self < other

@@ -4,6 +4,7 @@ struct UInt8
   include Hashable
   include Arithmetic
   include Stringable
+  include Numeric
 
   def self.is_signed -> Bool
     false
@@ -31,6 +32,7 @@ struct UInt16
   include Hashable
   include Arithmetic
   include Stringable
+  include Numeric
 
   def self.is_signed -> Bool
     false
@@ -58,6 +60,7 @@ struct UInt32
   include Hashable
   include Arithmetic
   include Stringable
+  include Numeric
 
   def self.is_signed -> Bool
     false
@@ -88,6 +91,7 @@ struct UInt64
   include Hashable
   include Arithmetic
   include Stringable
+  include Numeric
 
   def self.is_signed -> Bool
     false
