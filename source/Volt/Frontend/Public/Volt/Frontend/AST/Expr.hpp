@@ -296,6 +296,28 @@ namespace Frontend
         ExprList Parts;
     };
 
+    // `` `git rev-parse HEAD` `` — a host command the compiler runs at compile
+    // time. Parts holds the same segment shape Interp does (literal chunks and
+    // spliced expressions), so a command reads its interpolation through the
+    // one mechanism strings already use. ConstEval folds it to a StringLiteral;
+    // it never reaches the type checker.
+    struct CommandLit
+    {
+
+        Core::SourceRange Loc;
+        ExprList Parts;
+    };
+
+    // `@#{ field.name }` — an instance variable whose name is computed at
+    // compile time. Legal only inside a macro body, where the evaluator turns
+    // it into an ordinary InstanceVar once Name has a value.
+    struct IvarInterp
+    {
+
+        Core::SourceRange Loc;
+        ExprId Name;
+    };
+
     // `.method(args...)` shorthand used in `when .even?` or predicate matching.
     struct DotCall
     {

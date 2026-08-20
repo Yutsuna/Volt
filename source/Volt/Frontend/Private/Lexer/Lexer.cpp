@@ -347,10 +347,24 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexNumber ( std::size_t Start )
 
 Volt::Frontend::Token Volt::Frontend::Lexer::LexString ( std::size_t Start )
 {
-    ++Pos; // opening quote
+    return LexQuoted( Start, '"', TokenKind::StringLiteral, "string literal" );
+}
+
+// `` `git rev-parse HEAD` `` — a host command the compiler runs. The lexeme is
+// the command text, interpolation and all; running it is ConstEval's business,
+// not the lexer's.
+Volt::Frontend::Token Volt::Frontend::Lexer::LexCommand ( std::size_t Start )
+{
+    return LexQuoted( Start, '`', TokenKind::CommandLiteral, "command literal" );
+}
+
+Volt::Frontend::Token
+Volt::Frontend::Lexer::LexQuoted ( std::size_t Start, char Terminator, TokenKind Kind, std::string_view What )
+{
+    ++Pos; // opening delimiter
     bool bInterpolation = false;
 
-    while ( not AtEnd() and Peek() != '"' )
+    while ( not AtEnd() and Peek() != Terminator )
     {
         const char C = Peek();
         if ( C == '\\' )
@@ -396,17 +410,60 @@ Volt::Frontend::Token Volt::Frontend::Lexer::LexString ( std::size_t Start )
 
     if ( AtEnd() )
     {
-        Diagnostics.Error( RangeFrom( Start ), "unterminated string literal" );
+        Diagnostics.Error( RangeFrom( Start ), "unterminated " + std::string( What ) );
         return MakeText( TokenKind::Error, Start );
     }
 
-    // Intern the inner content (between the quotes), excluding them.
+    // Intern the inner content (between the delimiters), excluding them.
     Token Result;
-    Result.Kind              = TokenKind::StringLiteral;
+    Result.Kind              = Kind;
     Result.bHasInterpolation = bInterpolation;
     const std::size_t Inner  = Start + 1;
     Result.Lexeme            = Interner.Intern( Source.substr( Inner, Pos - Inner ) );
-    ++Pos; // closing quote
+    ++Pos; // closing delimiter
+    Result.Range = RangeFrom( Start );
+    return Result;
+}
+
+// `@#{ name }` — an instance variable whose name is computed at compile time.
+// Lexed whole, exactly as an interpolated string is: the lexeme is the inner
+// expression text, which the parser re-parses. Without this the `@` would fall
+// through to the punctuation matcher and the `#` would open a comment, eating
+// the rest of the line.
+Volt::Frontend::Token Volt::Frontend::Lexer::LexIvarInterp ( std::size_t Start )
+{
+    Pos += 3; // `@#{`
+    const std::size_t Inner = Pos;
+
+    int Depth = 1;
+    while ( not AtEnd() and Depth > 0 )
+    {
+        const char C = Peek();
+        if ( C == '{' )
+        {
+            ++Depth;
+        }
+        else if ( C == '}' )
+        {
+            --Depth;
+            if ( Depth == 0 )
+            {
+                break;
+            }
+        }
+        ++Pos;
+    }
+
+    if ( AtEnd() )
+    {
+        Diagnostics.Error( RangeFrom( Start ), "unterminated '@#{' interpolation" );
+        return MakeText( TokenKind::Error, Start );
+    }
+
+    Token Result;
+    Result.Kind   = TokenKind::IvarInterp;
+    Result.Lexeme = Interner.Intern( Source.substr( Inner, Pos - Inner ) );
+    ++Pos; // closing brace
     Result.Range = RangeFrom( Start );
     return Result;
 }
@@ -542,9 +599,23 @@ Volt::Frontend::Token Volt::Frontend::Lexer::Next ()
             return LexChar( Start );
         }
 
+        if ( C == '`' )
+        {
+            return LexCommand( Start );
+        }
+
         if ( C == ':' )
         {
             return LexSymbolOrColon( Start );
+        }
+
+        // `@#{ expr }` is an instance variable whose name is computed at
+        // compile time. Matched here because a lone `@` otherwise falls
+        // through to the punctuation matcher, and the `#` behind it opens a
+        // comment on the next token — swallowing the rest of the line.
+        if ( C == '@' and Peek( 1 ) == '#' and Peek( 2 ) == '{' )
+        {
+            return LexIvarInterp( Start );
         }
 
         // `@name` is an instance variable, but `@[` (annotation) and a

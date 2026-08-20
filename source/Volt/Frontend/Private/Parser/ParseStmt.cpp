@@ -65,8 +65,12 @@ Volt::Frontend::StmtId Volt::Frontend::Parser::ParseExprOrLocalStatement ()
 {
     const std::uint32_t Begin = Here();
 
-    // `name : Type [= init]` — a typed local declaration.
-    if ( Check( TokenKind::Identifier ) and PeekKind( 1 ) == TokenKind::Colon )
+    // `name : Type [= init]` — a typed local declaration. A `Constant`-cased
+    // name is the same declaration: at file scope a top-level local *is* a
+    // global (ScopeResolver walks TopStmts into the unit scope before any
+    // `def` body), which is what makes `BUILD_COMMIT : String = ...` a global
+    // constant rather than a new kind of declaration.
+    if ( ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) ) and PeekKind( 1 ) == TokenKind::Colon )
     {
         LocalDecl Node;
         Node.Name = InternText( Advance() );

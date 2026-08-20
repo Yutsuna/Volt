@@ -71,7 +71,13 @@ namespace Frontend
         [[nodiscard]] Token LexNewline ( std::size_t Start );
         [[nodiscard]] Token LexIdentifier ( std::size_t Start );
         [[nodiscard]] Token LexNumber ( std::size_t Start );
+        // `"..."` and `` `...` `` differ only in their delimiter and in what
+        // the token means; the scan — escapes, `#{ ... }` interpolation at
+        // brace depth — is written once, in LexQuoted.
         [[nodiscard]] Token LexString ( std::size_t Start );
+        [[nodiscard]] Token LexCommand ( std::size_t Start );
+        [[nodiscard]] Token LexQuoted ( std::size_t Start, char Terminator, TokenKind Kind, std::string_view What );
+        [[nodiscard]] Token LexIvarInterp ( std::size_t Start );
         [[nodiscard]] Token LexChar ( std::size_t Start );
         [[nodiscard]] Token LexSymbolOrColon ( std::size_t Start );
         [[nodiscard]] Token LexPunct ( std::size_t Start );

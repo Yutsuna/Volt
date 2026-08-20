@@ -85,6 +85,16 @@ private:
             return;
         }
 
+        // The same exclusion CheckTyped grants below, for the same reason: an
+        // annotation argument and a macro template are never evaluated, so no
+        // Lowering pass ever visits them and their sugar is not residue. The
+        // code a macro *emits* is checked like any other, because it is any
+        // other — a clone in the target type's own body.
+        if ( Id.Value < Metadata.size() and Metadata[Id.Value] )
+        {
+            return;
+        }
+
         // Written inside a generic definition: a Lowering pass that needs a
         // settled type (LowerClosureLit's own guard is the current example)
         // cannot rewrite it here, only MiddleEnd::TypeSystem::ReinstantiateBody can, once per

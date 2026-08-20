@@ -8,34 +8,6 @@
 namespace
 {
 
-// Keywords that open a block closed by `end`, for the raw-capture scan
-// of a macro body. `{% for %}` / `{% if %}` template directives close
-// with `{% end %}`, so their keywords stay balanced too. Known limits
-// of the token-level count (not used by the current samples): postfix
-// modifiers (`x if cond`) and body-less `abstract def`.
-[[nodiscard]] bool IsBlockOpener ( Volt::Frontend::TokenKind Kind )
-{
-    switch ( Kind )
-    {
-    case Volt::Frontend::TokenKind::KwDef:
-    case Volt::Frontend::TokenKind::KwDo:
-    case Volt::Frontend::TokenKind::KwIf:
-    case Volt::Frontend::TokenKind::KwUnless:
-    case Volt::Frontend::TokenKind::KwWhile:
-    case Volt::Frontend::TokenKind::KwFor:
-    case Volt::Frontend::TokenKind::KwCase:
-    case Volt::Frontend::TokenKind::KwClass:
-    case Volt::Frontend::TokenKind::KwStruct:
-    case Volt::Frontend::TokenKind::KwModule:
-    case Volt::Frontend::TokenKind::KwMixin:
-    case Volt::Frontend::TokenKind::KwComponent:
-    case Volt::Frontend::TokenKind::KwEnum:
-        return true;
-    default:
-        return false;
-    }
-}
-
 [[nodiscard]] bool IsOperatorMethodStart ( Volt::Frontend::TokenKind Kind )
 {
     switch ( Kind )
@@ -242,9 +214,7 @@ void Volt::Frontend::Parser::ParseDeclBlock ( DeclList &Out )
         }
         else if ( Check( TokenKind::Identifier ) )
         {
-            // `name( ... )` in declaration position is a macro invocation;
-            // a field never opens a parenthesis after its name.
-            Decl = PeekKind( 1 ) == TokenKind::LParen ? ParseMacroInvoke() : ParseFieldOrMember();
+            Decl = ParseFieldOrMember();
         }
         else
         {
@@ -596,56 +566,63 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseFieldOrMember ()
 
 Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMacro ()
 {
-    const std::uint32_t Begin = Here();
+    // One keyword, two constructs: `macro def` declares a method generated at
+    // compile time, `macro do` a file-level compile-time program.
     Expect( TokenKind::KwMacro, "to begin a macro" );
+    if ( Check( TokenKind::KwDo ) )
+    {
+        return ParseMacroBlock();
+    }
+    return ParseMacroDef();
+}
+
+Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMacroDef ()
+{
+    // Deliberately the same header shape as ParseMethod: a `macro def` *is* a
+    // method declaration, down to `self.`, the parameter list and the return
+    // type. Only the body's meaning differs — it runs at compile time and what
+    // it emits becomes the method.
+    const std::uint32_t Begin = Here();
     Expect( TokenKind::KwDef, "after 'macro'" );
 
     MacroDef Node;
+    Node.Visibility = MemberVisibility;
+
+    if ( Accept( TokenKind::KwSelf ) )
+    {
+        Node.bSelf = true;
+        Expect( TokenKind::Dot, "after 'self' in a macro name" );
+    }
+
     Node.Name = InternText( Expect( TokenKind::Identifier, "as a macro name" ) );
+
     if ( Accept( TokenKind::LParen ) )
     {
         ParseParameterList( Node.Params );
         Expect( TokenKind::RParen, "to close macro parameters" );
     }
-    SkipTerminators();
 
-    // The body is not parsed: capture the raw source slice up to the
-    // matching `end`, tracking block-opener nesting at token level.
-    const std::uint32_t BodyBegin = Here();
-    std::uint32_t BodyEnd         = BodyBegin;
-    int Depth                     = 0;
-    while ( not AtEnd() )
+    if ( Accept( TokenKind::Arrow ) )
     {
-        const TokenKind Kind = PeekKind();
-        if ( IsBlockOpener( Kind ) )
-        {
-            ++Depth;
-        }
-        else if ( Kind == TokenKind::KwEnd )
-        {
-            if ( Depth == 0 )
-            {
-                break;
-            }
-            --Depth;
-        }
-        BodyEnd = Advance().Range.End;
+        Node.ReturnType = ParseType();
     }
-    Node.BodyText = Interner.Intern( Source.substr( BodyBegin, BodyEnd - BodyBegin ) );
+
+    SkipTerminators();
+    ParseStatementBlock( Node.Body );
     Expect( TokenKind::KwEnd, "to close macro" );
 
     return MakeDecl( Node, RangeSince( Begin ) );
 }
 
-Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMacroInvoke ()
+Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMacroBlock ()
 {
     const std::uint32_t Begin = Here();
+    Expect( TokenKind::KwDo, "after 'macro'" );
 
-    MacroInvoke Node;
-    Node.Name = InternText( Expect( TokenKind::Identifier, "as a macro name" ) );
-    Expect( TokenKind::LParen, "to open macro arguments" );
-    ParseCallArguments( Node.Args, Node.ArgNames, TokenKind::RParen );
-    Expect( TokenKind::RParen, "to close macro arguments" );
+    MacroBlock Node;
+    SkipTerminators();
+    ParseStatementBlock( Node.Body );
+    Expect( TokenKind::KwEnd, "to close macro block" );
 
     return MakeDecl( Node, RangeSince( Begin ) );
 }
