@@ -1,23 +1,16 @@
 def bench_array_finalize -> UInt64
-  iter = 0_u64
-  total = 0_u64
 
-  while iter < 1Mo
-    arr = Array<Int32>.new(50_u64)
+  total = 0
 
-    i = 0
-    while i < 50
-      arr.push(i)
-      ++i
-    end
-
+  1Mo.times do
+    arr = Array<Int32>.new( 200B )
+    50.times { | i | arr << i }
     total += arr.size
-    ++iter
   end
 
   total
+
 end
 
 
-res = bench_array_finalize()
-assert!(res == 50Mo)
+assert! bench_array_finalize == 50Mo
