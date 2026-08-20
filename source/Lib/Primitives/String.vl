@@ -124,7 +124,7 @@ struct String
     String.owned( buf, actual_len )
   end
 
-  def []( range : Range<UInt64> ) -> String
+  def slice( range : Range<UInt64> ) -> String
     start = range.first
     finish = range.last
     return "" if start >= @size or start >= finish
@@ -344,6 +344,10 @@ struct String
 
   def trim -> String
     trim_left().trim_right()
+  end
+
+  def prefix( pre : String ) -> String
+    pre + self
   end
 
   def strip_prefix( pre : String ) -> String
