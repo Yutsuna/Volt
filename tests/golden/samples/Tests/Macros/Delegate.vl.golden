@@ -1,0 +1,100 @@
+Program 'samples/Tests/Macros/Delegate.vl'
+├─ Class 'User' @8:1
+│  └─ body
+│     ├─ Field 'age' getter @9:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @9:16
+│     └─ Method 'initialize' @11:3
+│        └─ params
+│           └─ Param 'age' instance_var @11:19
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @11:26
+├─ Class 'Session' @15:1
+│  └─ body
+│     ├─ Field 'token' getter @16:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @16:18
+│     ├─ Field 'user' getter @17:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'User' @17:18
+│     ├─ Method 'initialize' @19:3
+│     │  └─ params
+│     │     ├─ Param 'token' instance_var @19:19
+│     │     │  └─ decl_type
+│     │     │     └─ TypeRef 'Int32' @19:28
+│     │     └─ Param 'user' instance_var @19:35
+│     │        └─ decl_type
+│     │           └─ TypeRef 'User' @19:43
+│     └─ MacroDef 'user_age' @22:9
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @22:25
+│        └─ body
+│           └─ ExprStmt @23:5
+│              └─ expr
+│                 └─ Call @23:5
+│                    ├─ callee
+│                    │  └─ Member 'each' @23:5
+│                    │     └─ object
+│                    │        └─ Member 'fields' @23:22
+│                    │           └─ object
+│                    │              └─ SelfExpr @23:18
+│                    └─ block_arg
+│                       └─ Block @23:5
+│                          ├─ params
+│                          │  └─ Param 'field' @23:9
+│                          └─ body
+│                             └─ ExprStmt @24:7
+│                                └─ expr
+│                                   └─ If @24:7
+│                                      ├─ cond
+│                                      │  └─ Binary '==' @24:21
+│                                      │     ├─ lhs
+│                                      │     │  └─ Member 'type' @24:15
+│                                      │     │     └─ object
+│                                      │     │        └─ Identifier 'field' @24:10
+│                                      │     └─ rhs
+│                                      │        └─ StringLiteral 'User' @24:24
+│                                      └─ then
+│                                         └─ ExprStmt @25:9
+│                                            └─ expr
+│                                               └─ Member 'age' @25:23
+│                                                  └─ object
+│                                                     └─ IvarInterp @25:9
+│                                                        └─ name
+│                                                           └─ Member 'name' @25:17
+│                                                              └─ object
+│                                                                 └─ Identifier 'field' @25:12
+├─ ExprStmt @31:1
+│  └─ expr
+│     └─ Assign '=' @31:9
+│        ├─ target
+│        │  └─ Identifier 'session' @31:1
+│        └─ value
+│           └─ Call @31:22
+│              ├─ callee
+│              │  └─ Member 'new' @31:18
+│              │     └─ object
+│              │        └─ Identifier 'Session' @31:11
+│              └─ args
+│                 ├─ IntLiteral '7' @31:24
+│                 └─ Call @31:35
+│                    ├─ callee
+│                    │  └─ Member 'new' @31:31
+│                    │     └─ object
+│                    │        └─ Identifier 'User' @31:27
+│                    └─ args
+│                       └─ IntLiteral '36' @31:37
+└─ ExprStmt @33:1
+   └─ expr
+      └─ Call @33:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @33:1
+         └─ args
+            └─ Binary '==' @33:27
+               ├─ lhs
+               │  └─ Member 'user_age' @33:17
+               │     └─ object
+               │        └─ Identifier 'session' @33:10
+               └─ rhs
+                  └─ IntLiteral '36' @33:30
+--- exit 0 ---

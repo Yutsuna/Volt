@@ -1,0 +1,120 @@
+Program 'samples/Tests/Macros/Introspection.vl'
+├─ Mixin 'Summable' @10:1
+│  └─ body
+│     ├─ MacroDef 'total' @15:9
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int32' @15:22
+│     │  └─ body
+│     │     ├─ ExprStmt @16:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @16:9
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'sum' @16:5
+│     │     │        └─ value
+│     │     │           └─ IntLiteral '0' @16:11
+│     │     ├─ ExprStmt @17:5
+│     │     │  └─ expr
+│     │     │     └─ Call @17:5
+│     │     │        ├─ callee
+│     │     │        │  └─ Member 'each' @17:5
+│     │     │        │     └─ object
+│     │     │        │        └─ Member 'fields' @17:22
+│     │     │        │           └─ object
+│     │     │        │              └─ SelfExpr @17:18
+│     │     │        └─ block_arg
+│     │     │           └─ Block @17:5
+│     │     │              ├─ params
+│     │     │              │  └─ Param 'field' @17:9
+│     │     │              └─ body
+│     │     │                 └─ ExprStmt @18:7
+│     │     │                    └─ expr
+│     │     │                       └─ Assign '+=' @18:11
+│     │     │                          ├─ target
+│     │     │                          │  └─ Identifier 'sum' @18:7
+│     │     │                          └─ value
+│     │     │                             └─ IvarInterp @18:14
+│     │     │                                └─ name
+│     │     │                                   └─ Member 'name' @18:22
+│     │     │                                      └─ object
+│     │     │                                         └─ Identifier 'field' @18:17
+│     │     └─ ExprStmt @20:5
+│     │        └─ expr
+│     │           └─ Identifier 'sum' @20:5
+│     └─ MacroDef 'field_count' @24:9
+│        ├─ return_type
+│        │  └─ TypeRef 'Int32' @24:28
+│        └─ body
+│           └─ ExprStmt @25:5
+│              └─ expr
+│                 └─ Member 'size' @25:16
+│                    └─ object
+│                       └─ Member 'fields' @25:9
+│                          └─ object
+│                             └─ SelfExpr @25:5
+├─ Class 'Point' @30:1
+│  └─ body
+│     ├─ Include @31:3
+│     │  └─ target
+│     │     └─ TypeRef 'Summable' @31:11
+│     ├─ Field 'x' getter @33:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @33:14
+│     ├─ Field 'y' getter @34:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @34:14
+│     ├─ Field 'z' getter @35:3
+│     │  └─ decl_type
+│     │     └─ TypeRef 'Int32' @35:14
+│     └─ Method 'initialize' @37:3
+│        └─ params
+│           ├─ Param 'x' instance_var @37:19
+│           │  └─ decl_type
+│           │     └─ TypeRef 'Int32' @37:24
+│           ├─ Param 'y' instance_var @37:31
+│           │  └─ decl_type
+│           │     └─ TypeRef 'Int32' @37:36
+│           └─ Param 'z' instance_var @37:43
+│              └─ decl_type
+│                 └─ TypeRef 'Int32' @37:48
+├─ ExprStmt @41:1
+│  └─ expr
+│     └─ Assign '=' @41:7
+│        ├─ target
+│        │  └─ Identifier 'point' @41:1
+│        └─ value
+│           └─ Call @41:18
+│              ├─ callee
+│              │  └─ Member 'new' @41:14
+│              │     └─ object
+│              │        └─ Identifier 'Point' @41:9
+│              └─ args
+│                 ├─ IntLiteral '1' @41:20
+│                 ├─ IntLiteral '2' @41:23
+│                 └─ IntLiteral '3' @41:26
+├─ ExprStmt @43:1
+│  └─ expr
+│     └─ Call @43:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @43:1
+│        └─ args
+│           └─ Binary '==' @43:22
+│              ├─ lhs
+│              │  └─ Member 'total' @43:15
+│              │     └─ object
+│              │        └─ Identifier 'point' @43:10
+│              └─ rhs
+│                 └─ IntLiteral '6' @43:25
+└─ ExprStmt @44:1
+   └─ expr
+      └─ Call @44:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @44:1
+         └─ args
+            └─ Binary '==' @44:28
+               ├─ lhs
+               │  └─ Member 'field_count' @44:15
+               │     └─ object
+               │        └─ Identifier 'point' @44:10
+               └─ rhs
+                  └─ IntLiteral '3' @44:31
+--- exit 0 ---

@@ -3,109 +3,80 @@ Program 'samples/Bench/ArrayFinalize.vl'
 │  ├─ return_type
 │  │  └─ TypeRef 'UInt64' @1:29
 │  └─ body
-│     ├─ ExprStmt @2:3
-│     │  └─ expr
-│     │     └─ Assign '=' @2:8
-│     │        ├─ target
-│     │        │  └─ Identifier 'iter' @2:3
-│     │        └─ value
-│     │           └─ IntLiteral '0_u64' @2:10
 │     ├─ ExprStmt @3:3
 │     │  └─ expr
 │     │     └─ Assign '=' @3:9
 │     │        ├─ target
 │     │        │  └─ Identifier 'total' @3:3
 │     │        └─ value
-│     │           └─ IntLiteral '0_u64' @3:11
-│     ├─ While @5:3
-│     │  ├─ cond
-│     │  │  └─ Binary '<' @5:14
-│     │  │     ├─ lhs
-│     │  │     │  └─ Identifier 'iter' @5:9
-│     │  │     └─ rhs
-│     │  │        └─ IntLiteral '1000000' @5:16
-│     │  └─ body
-│     │     ├─ ExprStmt @6:5
-│     │     │  └─ expr
-│     │     │     └─ Assign '=' @6:9
-│     │     │        ├─ target
-│     │     │        │  └─ Identifier 'arr' @6:5
-│     │     │        └─ value
-│     │     │           └─ Call @6:27
-│     │     │              ├─ callee
-│     │     │              │  └─ Member 'new' @6:23
-│     │     │              │     └─ object
-│     │     │              │        └─ GenericInst @6:16
-│     │     │              │           ├─ base
-│     │     │              │           │  └─ Identifier 'Array' @6:11
-│     │     │              │           └─ args
-│     │     │              │              └─ TypeRef 'Int32' @6:17
-│     │     │              └─ args
-│     │     │                 └─ IntLiteral '50_u64' @6:28
-│     │     ├─ ExprStmt @8:5
-│     │     │  └─ expr
-│     │     │     └─ Assign '=' @8:7
-│     │     │        ├─ target
-│     │     │        │  └─ Identifier 'i' @8:5
-│     │     │        └─ value
-│     │     │           └─ IntLiteral '0' @8:9
-│     │     ├─ While @9:5
-│     │     │  ├─ cond
-│     │     │  │  └─ Binary '<' @9:13
-│     │     │  │     ├─ lhs
-│     │     │  │     │  └─ Identifier 'i' @9:11
-│     │     │  │     └─ rhs
-│     │     │  │        └─ IntLiteral '50' @9:15
-│     │     │  └─ body
-│     │     │     ├─ ExprStmt @10:7
-│     │     │     │  └─ expr
-│     │     │     │     └─ Call @10:15
-│     │     │     │        ├─ callee
-│     │     │     │        │  └─ Member 'push' @10:10
-│     │     │     │        │     └─ object
-│     │     │     │        │        └─ Identifier 'arr' @10:7
-│     │     │     │        └─ args
-│     │     │     │           └─ Identifier 'i' @10:16
-│     │     │     └─ ExprStmt @11:7
-│     │     │        └─ expr
-│     │     │           └─ Unary '++' @11:7
-│     │     │              └─ operand
-│     │     │                 └─ Identifier 'i' @11:9
-│     │     ├─ ExprStmt @14:5
-│     │     │  └─ expr
-│     │     │     └─ Assign '+=' @14:11
-│     │     │        ├─ target
-│     │     │        │  └─ Identifier 'total' @14:5
-│     │     │        └─ value
-│     │     │           └─ Member 'size' @14:17
-│     │     │              └─ object
-│     │     │                 └─ Identifier 'arr' @14:14
-│     │     └─ ExprStmt @15:5
-│     │        └─ expr
-│     │           └─ Unary '++' @15:5
-│     │              └─ operand
-│     │                 └─ Identifier 'iter' @15:7
-│     └─ ExprStmt @18:3
+│     │           └─ IntLiteral '0' @3:11
+│     ├─ ExprStmt @5:3
+│     │  └─ expr
+│     │     └─ Call @5:13
+│     │        ├─ callee
+│     │        │  └─ Member 'times' @5:6
+│     │        │     └─ object
+│     │        │        └─ IntLiteral '1000000' @5:3
+│     │        └─ block_arg
+│     │           └─ Block @5:13
+│     │              └─ body
+│     │                 ├─ ExprStmt @6:5
+│     │                 │  └─ expr
+│     │                 │     └─ Assign '=' @6:9
+│     │                 │        ├─ target
+│     │                 │        │  └─ Identifier 'arr' @6:5
+│     │                 │        └─ value
+│     │                 │           └─ Call @6:27
+│     │                 │              ├─ callee
+│     │                 │              │  └─ Member 'new' @6:23
+│     │                 │              │     └─ object
+│     │                 │              │        └─ GenericInst @6:16
+│     │                 │              │           ├─ base
+│     │                 │              │           │  └─ Identifier 'Array' @6:11
+│     │                 │              │           └─ args
+│     │                 │              │              └─ TypeRef 'Int32' @6:17
+│     │                 │              └─ args
+│     │                 │                 └─ IntLiteral '200' @6:29
+│     │                 ├─ ExprStmt @7:5
+│     │                 │  └─ expr
+│     │                 │     └─ Call @7:14
+│     │                 │        ├─ callee
+│     │                 │        │  └─ Member 'times' @7:7
+│     │                 │        │     └─ object
+│     │                 │        │        └─ IntLiteral '50' @7:5
+│     │                 │        └─ block_arg
+│     │                 │           └─ Block @7:14
+│     │                 │              ├─ params
+│     │                 │              │  └─ Param 'i'
+│     │                 │              └─ body
+│     │                 │                 └─ ExprStmt @7:22
+│     │                 │                    └─ expr
+│     │                 │                       └─ Binary '<<' @7:26
+│     │                 │                          ├─ lhs
+│     │                 │                          │  └─ Identifier 'arr' @7:22
+│     │                 │                          └─ rhs
+│     │                 │                             └─ Identifier 'i' @7:29
+│     │                 └─ ExprStmt @8:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @8:11
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'total' @8:5
+│     │                          └─ value
+│     │                             └─ Member 'size' @8:17
+│     │                                └─ object
+│     │                                   └─ Identifier 'arr' @8:14
+│     └─ ExprStmt @11:3
 │        └─ expr
-│           └─ Identifier 'total' @18:3
-├─ ExprStmt @22:1
-│  └─ expr
-│     └─ Assign '=' @22:5
-│        ├─ target
-│        │  └─ Identifier 'res' @22:1
-│        └─ value
-│           └─ Call @22:27
-│              └─ callee
-│                 └─ Identifier 'bench_array_finalize' @22:7
-└─ ExprStmt @23:1
+│           └─ Identifier 'total' @11:3
+└─ ExprStmt @16:1
    └─ expr
-      └─ Call @23:8
+      └─ Call @16:1
          ├─ callee
-         │  └─ Identifier 'assert!' @23:1
+         │  └─ Identifier 'assert!' @16:1
          └─ args
-            └─ Binary '==' @23:13
+            └─ Binary '==' @16:30
                ├─ lhs
-               │  └─ Identifier 'res' @23:9
+               │  └─ Identifier 'bench_array_finalize' @16:9
                └─ rhs
-                  └─ IntLiteral '50000000' @23:16
+                  └─ IntLiteral '50000000' @16:33
 --- exit 0 ---

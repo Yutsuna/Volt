@@ -1,0 +1,33 @@
+#{
+  @brief Delegation decided at compile time by introspection.
+
+  Which field to forward to is answered while compiling — `field.type` is the
+  spelling the declaration wrote — so only the winning branch is emitted and
+  the generated method is exactly `@user.age`.
+#}
+class User
+  getter age : Int32
+
+  def initialize( @age : Int32 )
+  end
+end
+
+class Session
+  getter token : Int32
+  getter user  : User
+
+  def initialize( @token : Int32, @user : User )
+  end
+
+  macro def user_age -> Int32
+    for field in self.fields
+      if field.type == "User"
+        @#{field.name}.age
+      end
+    end
+  end
+end
+
+session = Session.new( 7, User.new( 36 ) )
+
+assert!( session.user_age == 36 )

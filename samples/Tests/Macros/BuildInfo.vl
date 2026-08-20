@@ -1,0 +1,16 @@
+#{
+  @brief Host commands run by the compiler, folded into global constants.
+
+  `` `echo volt` `` runs once, during compilation; what reaches the binary is a
+  String literal. A `macro do` block alongside it proves the other half: it runs
+  for its effects and contributes nothing at all to the program.
+#}
+GREETING : String = `echo volt`.trim
+KERNEL   : String = `uname`.trim
+
+macro do
+  puts "building for #{ `uname`.trim }"
+end
+
+assert!( GREETING == "volt" )
+assert!( KERNEL.size > 0_u64 )

@@ -1,0 +1,60 @@
+Program 'samples/Tests/Macros/BuildInfo.vl'
+├─ MacroBlock @11:7
+│  └─ body
+│     └─ ExprStmt @12:3
+│        └─ expr
+│           └─ Call @12:3
+│              ├─ callee
+│              │  └─ Identifier 'puts' @12:3
+│              └─ args
+│                 └─ Interp @12:8
+│                    └─ parts
+│                       ├─ StringLiteral 'building for ' @12:8
+│                       └─ Member 'trim' @12:32
+│                          └─ object
+│                             └─ CommandLit @12:25
+│                                └─ parts
+│                                   └─ StringLiteral 'uname' @12:25
+├─ LocalDecl 'GREETING' @8:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'String' @8:12
+│  └─ init
+│     └─ Member 'trim' @8:32
+│        └─ object
+│           └─ CommandLit @8:21
+│              └─ parts
+│                 └─ StringLiteral 'echo volt' @8:21
+├─ LocalDecl 'KERNEL' @9:1
+│  ├─ decl_type
+│  │  └─ TypeRef 'String' @9:12
+│  └─ init
+│     └─ Member 'trim' @9:28
+│        └─ object
+│           └─ CommandLit @9:21
+│              └─ parts
+│                 └─ StringLiteral 'uname' @9:21
+├─ ExprStmt @15:1
+│  └─ expr
+│     └─ Call @15:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @15:1
+│        └─ args
+│           └─ Binary '==' @15:19
+│              ├─ lhs
+│              │  └─ Identifier 'GREETING' @15:10
+│              └─ rhs
+│                 └─ StringLiteral 'volt' @15:22
+└─ ExprStmt @16:1
+   └─ expr
+      └─ Call @16:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @16:1
+         └─ args
+            └─ Binary '>' @16:22
+               ├─ lhs
+               │  └─ Member 'size' @16:16
+               │     └─ object
+               │        └─ Identifier 'KERNEL' @16:10
+               └─ rhs
+                  └─ IntLiteral '0_u64' @16:24
+--- exit 0 ---
