@@ -142,7 +142,7 @@ namespace Frontend
     //
     // The body is ordinary parsed Volt, not a text template: control flow over
     // compile-time values steers the generation, and everything else is emitted
-    // (rules of the macro model, docs/Macros.md).
+    // (rules of the macro model, .agents/middleend/macros.md).
     struct MacroDef
     {
 
@@ -151,7 +151,7 @@ namespace Frontend
         ParamList Params;
         TypeId ReturnType;
         StmtList Body;
-        bool bSelf = false; // `macro def self.name`
+        bool bSelf             = false; // `macro def self.name`
         EVisibility Visibility = EVisibility::None;
     };
 
