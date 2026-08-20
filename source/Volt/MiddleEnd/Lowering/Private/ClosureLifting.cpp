@@ -45,16 +45,6 @@ MiddleEnd::TypeSystem::SemaTypeId BytePointerType ( MiddleEnd::Analysis::TypeChe
                                                Context.Ctx.Values );
 }
 
-bool IsCallable ( const TypeCheckerContext &Context, MiddleEnd::TypeSystem::SemaTypeId Type )
-{
-    if ( not Context.Ctx.Values.Has( Type ) )
-    {
-        return false;
-    }
-    const auto FuncBase = Context.Ctx.Types.LookupNodeKind( "FuncType" );
-    return FuncBase.has_value() and Context.Ctx.Values.Get( Type ).Base == *FuncBase;
-}
-
 Frontend::TypeId BuildTypeRef ( TypeCheckerContext &Context, MiddleEnd::TypeSystem::SemaTypeId Type )
 {
     if ( not Context.Ctx.Values.Has( Type ) )
@@ -150,15 +140,10 @@ CallMember ( TypeCheckerContext &Context, Frontend::ExprId Receiver, std::string
 Frontend::ExprId
 SizeOfType ( TypeCheckerContext &Context, Volt::Core::SourceRange Loc, MiddleEnd::TypeSystem::SemaTypeId MeasuredType )
 {
-    if ( IsCallable( Context, MeasuredType ) )
-    {
-        MeasuredType = BytePointerType( Context );
-    }
     Frontend::AstContext &Ast = Context.Ctx.Ast;
     const Frontend::ExprId Id = Ast.Add( Frontend::ExprNode{ Frontend::SizeOf{ .Loc = Loc, .Type = {} } } );
     const auto Base           = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
     Context.Ctx.Values.SetExprType( Id, Base ? Context.MakeType( *Base, {} ) : MiddleEnd::TypeSystem::SemaTypeId{} );
-    Context.UnconstrainedLiterals.insert( Id.Value );
     Context.Ctx.Values.SetSiteType( MiddleEnd::Resolver::BindingSite{ Id }, MeasuredType );
     return Id;
 }
