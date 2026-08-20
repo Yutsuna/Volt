@@ -31,9 +31,9 @@ namespace Core
     struct ProcessResult
     {
 
-        int ExitCode      = -1;
-        std::string Out;  // captured stdout, truncated at MaxBytes
-        std::string Err;  // captured stderr, truncated at MaxBytes
+        int ExitCode = -1;
+        std::string Out; // captured stdout, truncated at MaxBytes
+        std::string Err; // captured stderr, truncated at MaxBytes
         bool bTimedOut    = false;
         bool bTruncated   = false;
         bool bSpawnFailed = false;
@@ -49,8 +49,9 @@ namespace Core
     /// past Limits.MaxBytes per stream. A failure is reported in the result,
     /// not by an exception: the caller is a compiler pass and turns it into a
     /// diagnostic.
-    [[nodiscard]] CORE_EXPORT ProcessResult
-    RunShell ( std::string_view Command, std::string_view WorkDir, ProcessLimits Limits = {} );
+    [[nodiscard]] CORE_EXPORT ProcessResult RunShell ( std::string_view Command,
+                                                       std::string_view WorkDir,
+                                                       ProcessLimits Limits = {} );
 
 } // namespace Core
 

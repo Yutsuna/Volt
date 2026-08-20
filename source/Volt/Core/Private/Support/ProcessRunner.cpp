@@ -15,8 +15,7 @@
 
 #if defined( _WIN32 )
 
-Volt::Core::ProcessResult
-Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, ProcessLimits Limits )
+Volt::Core::ProcessResult Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, ProcessLimits Limits )
 {
     static_cast<void>( Command );
     static_cast<void>( WorkDir );
@@ -33,8 +32,8 @@ Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, Proce
 #else
 
     #include <cerrno>
-    #include <signal.h>
     #include <poll.h>
+    #include <signal.h>
     #include <sys/wait.h>
     #include <unistd.h>
 
@@ -60,10 +59,10 @@ public:
         CloseWrite();
     }
 
-    Pipe ( const Pipe & )            = delete;
-    Pipe &operator= ( const Pipe & ) = delete;
-    Pipe ( Pipe && )                 = delete;
-    Pipe &operator= ( Pipe && )      = delete;
+    Pipe ( const Pipe & )           = delete;
+    Pipe &operator=( const Pipe & ) = delete;
+    Pipe ( Pipe && )                = delete;
+    Pipe &operator=( Pipe && )      = delete;
 
     [[nodiscard]] bool Ok () const
     {
@@ -135,8 +134,7 @@ void AppendCapped ( std::string &Out, const char *Data, std::size_t Count, std::
 
 } // namespace
 
-Volt::Core::ProcessResult
-Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, ProcessLimits Limits )
+Volt::Core::ProcessResult Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, ProcessLimits Limits )
 {
     ProcessResult Result;
 
@@ -175,8 +173,8 @@ Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, Proce
         }
         // execv, not execl: a fixed argv array says the same thing without a
         // vararg call, and the child may not allocate to build one.
-        char *const Argv[] = { const_cast<char *>( "sh" ), const_cast<char *>( "-c" ),
-                               const_cast<char *>( CommandText.c_str() ), nullptr };
+        char *const Argv[] = { const_cast<char *>( "sh" ), const_cast<char *>( "-c" ), const_cast<char *>( CommandText.c_str() ),
+                               nullptr };
         ::execv( "/bin/sh", Argv );
         ::_exit( 127 ); // exec only returns on failure
     }
@@ -186,8 +184,8 @@ Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, Proce
 
     const auto Deadline = Clock::now() + std::chrono::milliseconds( Limits.TimeoutMs );
 
-    ::pollfd Fds[2]  = { { .fd = OutPipe.Read(), .events = POLLIN, .revents = 0 },
-                         { .fd = ErrPipe.Read(), .events = POLLIN, .revents = 0 } };
+    ::pollfd Fds[2]       = { { .fd = OutPipe.Read(), .events = POLLIN, .revents = 0 },
+                              { .fd = ErrPipe.Read(), .events = POLLIN, .revents = 0 } };
     std::string *Sinks[2] = { &Result.Out, &Result.Err };
     bool bDone[2]         = { false, false };
 
@@ -195,8 +193,7 @@ Volt::Core::RunShell ( std::string_view Command, std::string_view WorkDir, Proce
 
     while ( not bDone[0] or not bDone[1] )
     {
-        const auto Remaining =
-            std::chrono::duration_cast<std::chrono::milliseconds>( Deadline - Clock::now() ).count();
+        const auto Remaining = std::chrono::duration_cast<std::chrono::milliseconds>( Deadline - Clock::now() ).count();
         if ( Remaining <= 0 )
         {
             Result.bTimedOut = true;
