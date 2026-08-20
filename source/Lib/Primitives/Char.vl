@@ -42,6 +42,10 @@ struct Char
     self.digit? or ( self >= 'a' and self <= 'f' ) or ( self >= 'A' and self <= 'F' )
   end
 
+  def binary_digit? -> Bool
+    self == '0' or self == '1'
+  end
+
   def octal_digit? -> Bool
     self >= '0' and self <= '7'
   end

@@ -40,6 +40,12 @@ module LibC
   @[External( "libc", "malloc" )]
   external def malloc( size : UInt64 ) -> Pointer<Void>
 
+  @[External( "libc", "calloc" )]
+  external def calloc( count : UInt64, size : UInt64 ) -> Pointer<Void>
+
+  @[External( "libc", "realloc" )]
+  external def realloc( ptr : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
+
   @[External( "libc", "free" )]
   external def free( ptr : Pointer<Void> ) -> Void
 
@@ -48,6 +54,15 @@ module LibC
 
   @[External( "libc", "memcmp" )]
   external def memcmp( a : Pointer<Void>, b : Pointer<Void>, size : UInt64 ) -> Int32
+
+  @[External( "libc", "memset" )]
+  external def memset( dest : Pointer<Void>, value : Int32, size : UInt64 ) -> Pointer<Void>
+
+  @[External( "libc", "memmove" )]
+  external def memmove( dest : Pointer<Void>, src : Pointer<Void>, size : UInt64 ) -> Pointer<Void>
+
+  @[External( "libc", "memchr" )]
+  external def memchr( ptr : Pointer<Void>, value : Int32, size : UInt64 ) -> Pointer<Void>
 
   #-string---------------------------------------------------------------------
 

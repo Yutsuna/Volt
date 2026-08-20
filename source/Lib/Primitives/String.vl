@@ -1,11 +1,18 @@
+#{
+# @struct String
+# @brief A string type that represents a sequence of characters.
+#}
 @[Literal( StringLiteral )]
 struct String
   include Comparable
   include Hashable
+  include Enumerable<Char>
 
   private data  : Pointer<Char>
   getter size  : UInt64
   owns_buffer  : Bool
+
+  #----------------------------------------------------------------------------
 
   def initialize( @data : Pointer<Char>, @size : UInt64, @owns_buffer : Bool = false )
   end
@@ -22,6 +29,8 @@ struct String
     String.new( ptr, LibC.strlen( ptr ) )
   end
 
+  #----------------------------------------------------------------------------
+
   def dup -> String
     buf = Pointer<Char>.malloc( @size + 1_u64 )
     LibC.memcpy( buf, @data, @size )
@@ -29,17 +38,111 @@ struct String
     String.owned( buf, @size )
   end
 
+  #----------------------------------------------------------------------------
+
+  def to_pointer -> Pointer<Char>
+    @data
+  end
+
+  def to_string -> String
+    self
+  end
+
+  #----------------------------------------------------------------------------
+
+  def each( &block : Char -> Void ) -> Void
+    current = @data
+    limit = @data + @size
+    while current < limit
+      block.call( *( current ) )
+      ++current
+    end
+  end
+
+  #----------------------------------------------------------------------------
+
   def empty? -> Bool
     @size == 0
   end
 
+  def blank? -> Bool
+    all? { | ch | ch.whitespace? }
+  end
+
+  def ascii? -> Bool
+    all? { | ch | ch.ascii? }
+  end
+
+  def numeric? -> Bool
+    not empty? and all? { | ch | ch.digit? }
+  end
+
+  def alpha? -> Bool
+    not empty? and all? { | ch | ch.alpha? }
+  end
+
+  def alphanumeric? -> Bool
+    not empty? and all? { | ch | ch.alphanumeric? }
+  end
+
+  def hexadecimal? -> Bool
+    not empty? and all? { | ch | ch.hex_digit? }
+  end
+
+  def octal? -> Bool
+    not empty? and all? { | ch | ch.octal_digit? }
+  end
+
+  def binary? -> Bool
+    not empty? and all? { | ch | ch == '0' or ch == '1' }
+  end
+
+  def printable? -> Bool
+    all? { | ch | ch.printable? }
+  end
+
+  #----------------------------------------------------------------------------
+
+  def first -> Char
+    raise IndexError.new( "String is empty" ) if @size == 0
+    *( @data )
+  end
+
+  def last -> Char
+    raise IndexError.new( "String is empty" ) if @size == 0
+    *( @data + ( @size - 1_u64 ) )
+  end
+
+  def slice( start : UInt64, length : UInt64 ) -> String
+    return "" if start >= @size or length == 0_u64
+    max_len = @size - start
+    actual_len = length < max_len ? length : max_len
+
+    buf = Pointer<Char>.malloc( actual_len + 1_u64 )
+    LibC.memcpy( buf, @data + start, actual_len )
+    *( buf + actual_len ) = '\0'
+    String.owned( buf, actual_len )
+  end
+
+  def []( range : Range<UInt64> ) -> String
+    start = range.first
+    finish = range.last
+    return "" if start >= @size or start >= finish
+    finish = @size if finish > @size
+    slice( start, finish - start )
+  end
+
   def []( index : UInt64 ) -> Char
+    raise IndexError.new( "Index #{index} out of bounds for String of size #{@size}" ) if index >= @size
     *( @data + index )
   end
 
   def []=( index : UInt64, value : Char ) -> Void
+    raise IndexError.new( "Index #{index} out of bounds for String of size #{@size}" ) if index >= @size
     *( @data + index ) = value
   end
+
+  #----------------------------------------------------------------------------
 
   def <=>( other : String ) -> Int32
     min_size = @size < other.size ? @size : other.size
@@ -55,6 +158,89 @@ struct String
     end
   end
 
+  def hash -> UInt64
+    h = 5381_u64
+    current = @data
+    limit = @data + @size
+    while current < limit
+      h = ( ( h << 5 ) + h + *( current ) ) & 72057594037927935_u64
+      ++current
+    end
+    h
+  end
+
+  #----------------------------------------------------------------------------
+
+  def starts_with?( prefix : String ) -> Bool
+    return false if prefix.size > @size
+    LibC.memcmp( @data, prefix.to_pointer(), prefix.size ) == 0
+  end
+
+  def starts_with?( ch : Char ) -> Bool
+    not empty? and first == ch
+  end
+
+  def ends_with?( suffix : String ) -> Bool
+    return false if suffix.size > @size
+    LibC.memcmp( @data + ( @size - suffix.size ), suffix.to_pointer(), suffix.size ) == 0
+  end
+
+  def ends_with?( ch : Char ) -> Bool
+    not empty? and last == ch
+  end
+
+  def index_of( target : Char, from_index : UInt64 = 0_u64 ) -> Int64
+    return -1_i64 if from_index >= @size
+    ptr = LibC.memchr( @data + from_index, target, @size - from_index )
+    if ptr != nil
+      ( ptr.to_address() - @data.to_address() )
+    else
+      -1_i64
+    end
+  end
+
+  def index_of( sub : String, from_index : UInt64 = 0_u64 ) -> Int64
+    return 0_i64 if sub.empty?
+    return -1_i64 if sub.size > @size or from_index >= @size
+
+    limit = @size - sub.size
+    curr = @data + from_index
+    end_ptr = @data + limit
+    while curr <= end_ptr
+      if LibC.memcmp( curr, sub.to_pointer(), sub.size ) == 0
+        return ( curr.to_address() - @data.to_address() )
+      end
+      ++curr
+    end
+    -1_i64
+  end
+
+  def rindex_of( target : Char ) -> Int64
+    return -1_i64 if empty?
+    curr = @data + @size
+    while curr > @data
+      --curr
+      return ( curr.to_address() - @data.to_address() ) if *( curr ) == target
+    end
+    -1_i64
+  end
+
+  def contains?( target : Char ) -> Bool
+    index_of( target ) >= 0_i64
+  end
+
+  def contains?( sub : String ) -> Bool
+    index_of( sub ) >= 0_i64
+  end
+
+  def count_of( target : Char ) -> UInt64
+    total = 0_u64
+    each { | ch | total += 1 if ch == target }
+    total
+  end
+
+  #----------------------------------------------------------------------------
+
   def +( other : String ) -> String
     total = @size + other.size
     buf = Pointer<Char>.malloc( total + 1_u64 )
@@ -64,79 +250,290 @@ struct String
     String.owned( buf, total )
   end
 
-  def hash -> UInt64
-    h = 5381
+  def *( count : UInt64 ) -> String
+    return "" if count == 0_u64 or empty?
+    sb = StringBuilder.new( @size * count )
     i = 0_u64
-    while i < @size
-      h = ( ( h << 5 ) + h + *( @data + i ) ) & 72057594037927935
-      i += 1
+    while i < count
+      sb.append( self )
+      ++i
     end
-    h
-  end
-
-  def to_string -> String
-    self
-  end
-
-  def to_pointer -> Pointer<Char>
-    @data
-  end
-
-  def trim -> String
-    start = 0_u64
-    while start < @size
-      b = *( @data + start )
-      break unless b == ' ' or b == '\t' or b == '\n' or b == '\r'
-      start += 1
-    end
-
-    finish = @size
-    while finish > start
-      b = *( @data + ( finish - 1_u64 ) )
-      break unless b == ' ' or b == '\t' or b == '\n' or b == '\r'
-      finish -= 1
-    end
-
-    len = finish - start
-    buf = Pointer<Char>.malloc( len + 1_u64 )
-    LibC.memcpy( buf, @data + start, len )
-    *( buf + len ) = '\0'
-    String.owned( buf, len )
+    sb.build
   end
 
   def downcase -> String
-    buf = Pointer<Char>.malloc( @size + 1_u64 )
-    i = 0_u64
-    while i < @size
-      b = *( @data + i )
-      if b >= 'A' and b <= 'Z'
-        *( buf + i ) = b + 32_u8
-      else
-        *( buf + i ) = b
-      end
-      i += 1
-    end
-    *( buf + @size ) = '\0'
-    String.owned( buf, @size )
+    sb = StringBuilder.new( @size )
+    each { | ch | sb.append_byte( ch.downcase ) }
+    sb.build
   end
 
   def upcase -> String
-    buf = Pointer<Char>.malloc( @size + 1_u64 )
-    i = 0_u64
-    while i < @size
-      b = *( @data + i )
-      if b >= 'a' and b <= 'z'
-        *( buf + i ) = b - 32_u8
-      else
-        *( buf + i ) = b
-      end
-      i += 1
-    end
-    *( buf + @size ) = '\0'
-    String.owned( buf, @size )
+    sb = StringBuilder.new( @size )
+    each { | ch | sb.append_byte( ch.upcase ) }
+    sb.build
   end
 
-  def prefix( pre : String ) -> String
-    pre + self
+  def capitalize -> String
+    return "" if empty?
+    sb = StringBuilder.new( @size )
+    each_with_index do | ch, idx |
+      sb.append_byte( idx == 0_u64 ? ch.upcase : ch.downcase )
+    end
+    sb.build
   end
+
+  def reverse -> String
+    return "" if empty?
+    sb = StringBuilder.new( @size )
+    curr = @data + @size
+    while curr > @data
+      --curr
+      sb.append_byte( *( curr ) )
+    end
+    sb.build
+  end
+
+  def replace( target : Char, replacement : Char ) -> String
+    sb = StringBuilder.new( @size )
+    each do | ch |
+      sb.append_byte( ch == target ? replacement : ch )
+    end
+    sb.build
+  end
+
+  def replace( target : String, replacement : String ) -> String
+    return dup() if target.empty? or empty?
+    sb = StringBuilder.new( @size )
+    curr = @data
+    limit = @data + @size
+    target_ptr = target.to_pointer()
+    target_len = target.size
+
+    while curr < limit
+      remaining = limit.to_address() - curr.to_address()
+      if remaining >= target_len and LibC.memcmp( curr, target_ptr, target_len ) == 0
+        sb.append( replacement )
+        curr = curr + target_len
+      else
+        sb.append_byte( *( curr ) )
+        ++curr
+      end
+    end
+    sb.build
+  end
+
+  #----------------------------------------------------------------------------
+
+  def trim_left -> String
+    curr = @data
+    limit = @data + @size
+    while curr < limit and ( *( curr ) ).whitespace?
+      ++curr
+    end
+    offset = curr.to_address() - @data.to_address()
+    slice( offset, @size - offset )
+  end
+
+  def trim_right -> String
+    curr = @data + @size
+    while curr > @data and ( *( curr - 1_u64 ) ).whitespace?
+      --curr
+    end
+    slice( 0_u64, curr.to_address() - @data.to_address() )
+  end
+
+  def trim -> String
+    trim_left().trim_right()
+  end
+
+  def strip_prefix( pre : String ) -> String
+    starts_with?( pre ) ? slice( pre.size, @size - pre.size ) : dup()
+  end
+
+  def strip_suffix( suf : String ) -> String
+    ends_with?( suf ) ? slice( 0_u64, @size - suf.size ) : dup()
+  end
+
+  def pad_left( target_width : UInt64, pad_char : Char = ' ' ) -> String
+    return dup() if @size >= target_width
+    ( pad_char.to_string * ( target_width - @size ) ) + self
+  end
+
+  def pad_right( target_width : UInt64, pad_char : Char = ' ' ) -> String
+    return dup() if @size >= target_width
+    self + ( pad_char.to_string * ( target_width - @size ) )
+  end
+
+  #----------------------------------------------------------------------------
+
+  def chars -> Array<Char>
+    to_array()
+  end
+
+  def split( delimiter : Char ) -> Array<String>
+    result = Array<String>.new
+    start_offset = 0_u64
+
+    each_with_index do | ch, i |
+      if ch == delimiter
+        result.push( slice( start_offset, i - start_offset ) )
+        start_offset = i + 1_u64
+      end
+    end
+
+    result.push( slice( start_offset, @size - start_offset ) )
+    result
+  end
+
+  def split( delimiter : String ) -> Array<String>
+    result = Array<String>.new
+    return result if empty?
+    if delimiter.empty?
+      each { | ch | result.push( ch.to_string ) }
+      return result
+    end
+
+    start = 0_u64
+    curr = 0_u64
+    limit = @size >= delimiter.size ? @size - delimiter.size : 0_u64
+    while curr <= limit
+      if LibC.memcmp( @data + curr, delimiter.to_pointer(), delimiter.size ) == 0
+        result.push( slice( start, curr - start ) )
+        curr += delimiter.size
+        start = curr
+      else
+        ++curr
+      end
+    end
+    result.push( slice( start, @size - start ) )
+    result
+  end
+
+  def lines -> Array<String>
+    split( '\n' )
+  end
+
+  def words -> Array<String>
+    result = Array<String>.new
+    in_word = false
+    word_start = 0_u64
+
+    each_with_index do | ch, i |
+      if in_word
+        if ch.whitespace?
+          result.push( slice( word_start, i - word_start ) )
+          in_word = false
+        end
+      elsif not ch.whitespace?
+        word_start = i
+        in_word = true
+      end
+    end
+
+    result.push( slice( word_start, @size - word_start ) ) if in_word
+    result
+  end
+
+  #----------------------------------------------------------------------------
+
+  def to_i64( radix : Int32 = 10 ) -> Int64
+    to_integer<Int64>( radix )
+  end
+
+  def to_i32( radix : Int32 = 10 ) -> Int32
+    to_integer<Int32>( radix )
+  end
+
+  def to_i16( radix : Int32 = 10 ) -> Int16
+    to_integer<Int16>( radix )
+  end
+
+  def to_i8( radix : Int32 = 10 ) -> Int8
+    to_integer<Int8>( radix )
+  end
+
+  def to_u64( radix : Int32 = 10 ) -> UInt64
+    to_integer<UInt64>( radix )
+  end
+
+  def to_u32( radix : Int32 = 10 ) -> UInt32
+    to_integer<UInt32>( radix )
+  end
+
+  def to_u16( radix : Int32 = 10 ) -> UInt16
+    to_integer<UInt16>( radix )
+  end
+
+  def to_u8( radix : Int32 = 10 ) -> UInt8
+    to_integer<UInt8>( radix )
+  end
+
+  def to_f64 -> Float64
+    to_float<Float64>()
+  end
+
+  def to_f32 -> Float32
+    to_float<Float32>()
+  end
+
+  # def to_integer<T : Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64>( radix : Int32 = 10 ) -> T
+  #   val = 0_T
+  #   allow_negative = T.is_signed()
+  #   is_neg = parse_digits( radix, allow_negative ) { | digit | val *= radix ; val += digit }
+  #   is_neg ? -val : val
+  # end
+
+  private def to_integer<TInteger>( radix : Int32 = 10 ) -> TInteger
+    val : TInteger = 0
+    allow_negative = TInteger.is_signed()
+    is_neg = parse_digits( radix, allow_negative ) { | digit | val *= radix ; val += digit }
+    is_neg ? -val : val
+  end
+
+  private def to_float<TFloat>() -> TFloat
+    val : TFloat = 0.0
+    is_neg = parse_float( true ) { | digit | val *= 10.0 ; val += digit }
+    is_neg ? -val : val
+  end
+
+  private def parse_digits( radix : Int32, allow_negative : Bool, &block : Int32 -> Void ) -> Bool
+    is_neg = first == '-'
+    raise ArgumentError.new( "Negative sign not allowed for unsigned integer" ) if is_neg and not allow_negative
+
+    is_signed = is_neg or first == '+'
+    content = is_signed ? slice( 1_u64, @size - 1_u64 ) : self
+    raise ArgumentError.new( "Invalid integer string" ) if content.empty?
+
+    content.each do | ch |
+      digit = ch.to_digit( radix )
+      raise ArgumentError.new( "Invalid character '#{ch}' for radix #{radix}" ) if digit < 0
+      block.call( digit )
+    end
+
+    is_neg
+  end
+
+  private def parse_float( allow_negative : Bool, &block : Int32 -> Void ) -> Bool
+    is_neg = first == '-'
+    raise ArgumentError.new( "Negative sign not allowed for unsigned float" ) if is_neg and not allow_negative
+
+    is_signed = is_neg or first == '+'
+    content = is_signed ? slice( 1_u64, @size - 1_u64 ) : self
+    raise ArgumentError.new( "Invalid float string" ) if content.empty?
+
+    decimal_found = false
+    content.each do | ch |
+      if ch == '.'
+        raise ArgumentError.new( "Multiple decimal points found in float string" ) if decimal_found
+        decimal_found = true
+      else
+        digit = ch.to_digit( 10 )
+        raise ArgumentError.new( "Invalid character '#{ch}' for float" ) if digit < 0
+        block.call( digit )
+      end
+    end
+
+    is_neg
+  end
+
 end
