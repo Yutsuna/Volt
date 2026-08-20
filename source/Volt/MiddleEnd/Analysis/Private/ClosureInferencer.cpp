@@ -2,8 +2,8 @@
 #include "DeclStmtWalker.hpp"
 #include "ExprInferencer.hpp"
 
-#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
+#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 

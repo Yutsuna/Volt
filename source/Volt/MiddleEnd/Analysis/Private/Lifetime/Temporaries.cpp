@@ -177,6 +177,40 @@ namespace
             }
         }
 
+        // Branches and passthrough expressions propagate `bMoved` to their children:
+        // when the expression itself is moved to the consumer, its branches/operands
+        // produce that moved value and must not be finalized as temporaries in this region.
+        if ( const auto *TernaryNode = std::get_if<Frontend::Ternary>( &Node ) )
+        {
+            if ( bMoved )
+            {
+                if ( TernaryNode->Then.IsValid() )
+                {
+                    MovedChildren.insert( TernaryNode->Then.Value );
+                }
+                if ( TernaryNode->Else.IsValid() )
+                {
+                    MovedChildren.insert( TernaryNode->Else.Value );
+                }
+            }
+        }
+
+        if ( const auto *TypedNode = std::get_if<Frontend::TypedExpr>( &Node ) )
+        {
+            if ( bMoved and TypedNode->Value.IsValid() )
+            {
+                MovedChildren.insert( TypedNode->Value.Value );
+            }
+        }
+
+        if ( const auto *UpcastNode = std::get_if<Frontend::DynamicUpcast>( &Node ) )
+        {
+            if ( bMoved and UpcastNode->Value.IsValid() )
+            {
+                MovedChildren.insert( UpcastNode->Value.Value );
+            }
+        }
+
         // Does the callee keep the value handed to positional argument
         // `Index`? Unknown callee, named arguments (which this positional
         // mapping cannot follow), and a construction all answer yes — the
@@ -489,7 +523,8 @@ namespace
 
         std::vector<Frontend::ExprId> Sites;
         std::unordered_set<std::uint32_t> CalleeSites;
-        CollectOwnedSubExprs( Context, Root, /*bMoved=*/false, /*bIsRoot=*/true, Sites, CalleeSites );
+        const bool bRootMoved = ( Use == ERootUse::Moved );
+        CollectOwnedSubExprs( Context, Root, /*bMoved=*/bRootMoved, /*bIsRoot=*/true, Sites, CalleeSites );
         if ( MovedChild.IsValid() )
         {
             std::erase( Sites, MovedChild );
