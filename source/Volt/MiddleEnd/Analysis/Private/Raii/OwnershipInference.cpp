@@ -343,7 +343,7 @@ namespace
             {
                 return MemberInvocationReturnsOwned( Ast, Store, Index, Owner, *MemberNode );
             }
-            if ( std::holds_alternative<Frontend::SuperExpr>( Callee ) )
+            if ( std::get_if<Frontend::SuperExpr>( &Callee ) != nullptr )
             {
                 return SuperInvocationReturnsOwned( Store, Owner );
             }
@@ -365,7 +365,7 @@ namespace
 
         // A bare `super` in value position — an override whose whole body is
         // its parent's result.
-        if ( std::holds_alternative<Frontend::SuperExpr>( Node ) )
+        if ( std::get_if<Frontend::SuperExpr>( &Node ) != nullptr )
         {
             return SuperInvocationReturnsOwned( Store, Owner );
         }
