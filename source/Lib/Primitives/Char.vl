@@ -4,6 +4,8 @@ struct Char
   include Hashable
   include Arithmetic
 
+  #----------------------------------------------------------------------------
+
   def <=>( other : Char ) -> Int32
     if self < other
       -1
@@ -13,6 +15,8 @@ struct Char
       0
     end
   end
+
+  #----------------------------------------------------------------------------
 
   def hash -> UInt64
     self
@@ -74,17 +78,19 @@ struct Char
     if self.lowercase? then self - 32_u8 else self end
   end
 
+  #----------------------------------------------------------------------------
+
   def to_digit( radix : Int32 = 10 ) -> Int32
     val = -1
-    if digit?
-      val = self - '0'
-    elsif lowercase?
-      val = self - 'a' + 10
-    elsif uppercase?
-      val = self - 'A' + 10
+    case self
+    when .digit?      then val = self - '0'
+    when .lowercase?  then val = self - 'a' + 10
+    when .uppercase?  then val = self - 'A' + 10
+    else ( val >= 0 and val < radix ) ? val : -1
     end
-    ( val >= 0 and val < radix ) ? val : -1
   end
+
+  #----------------------------------------------------------------------------
 
   def to_string -> String
     buf = Pointer<Char>.malloc( 2_u64 )
@@ -108,5 +114,7 @@ struct Char
     else           to_string
     end
   end
+
+#----------------------------------------------------------------------------
 
 end
