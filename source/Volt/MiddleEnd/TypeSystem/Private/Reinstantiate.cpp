@@ -305,7 +305,6 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
         Result.Values.SetSiteType( Site, ParamType );
         ++Index;
     }
-    Context.CurrentMethodReturnType = Instantiate( Store, Entry.Result, ReceiverArgs, Self, Result.Values );
 
     const SemaTypeId Trailing = Analysis::TrailingType( Context, MethodNode->Body );
     Result.ReturnType         = Trailing;
