@@ -17,10 +17,6 @@
 namespace Volt::MiddleEnd::Analysis
 {
 
-void MarkMetadata ( const Frontend::AstContext &Ast, Frontend::ExprId Id, std::vector<bool> &Marked );
-
-[[nodiscard]] VOLT_MIDDLEEND_ANALYSIS_EXPORT std::vector<bool> MetadataExprs ( const Frontend::AstContext &Ast );
-
 template <typename NodeType> [[nodiscard]] consteval bool HasChildNodes ()
 {
 #if VOLT_HAS_REFLECTION

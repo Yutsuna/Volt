@@ -53,7 +53,7 @@ void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
 
     RejectNilableTypes( Context );
 
-    Analysis::TypeCheckerContext State{ Context, Analysis::MetadataExprs( Context.Ast ) };
+    Analysis::TypeCheckerContext State{ Context, Frontend::MetadataExprs( Context.Ast ) };
 
     // Top-level statements first, same order ScopeResolver settled on: a file
     // is a module, its top-level locals are its globals, and a `def` anywhere

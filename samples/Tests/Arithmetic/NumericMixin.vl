@@ -1,0 +1,36 @@
+def test_upto -> Void
+  sum = 0
+  1.upto( 4 ) do | n |
+    sum += n
+  end
+  assert!( sum == 10 )
+end
+
+def test_downto -> Void
+  sum = 0
+  4.downto( 1 ) do | n |
+    sum += n
+  end
+  assert!( sum == 10 )
+end
+
+def test_times -> Void
+  count = 0
+  5.times do | _ |
+    count += 1
+  end
+  assert!( count == 5 )
+end
+
+def test_step -> Void
+  sum = 0
+  0.step( 10, 2 ) do | n |
+    sum += n
+  end
+  assert!( sum == 30 )
+end
+
+test_upto()
+test_downto()
+test_times()
+test_step()

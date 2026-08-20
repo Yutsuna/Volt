@@ -1,0 +1,32 @@
+#{
+  @mixin Serializable
+  @brief Generates `to_json` from the target type's own fields, at compile time.
+#}
+mixin Serializable
+
+  macro def to_json -> String
+    json = "{"
+    for field in self.fields
+      json += "\"#{field.name}\":" + @#{field.name}.to_string + ","
+    end
+    json.strip_suffix( "," ) + "}"
+  end
+
+end
+
+#------------------------------------------------------------------------------
+
+class User
+  include Serializable
+
+  getter name  : String
+  getter email : String
+  getter age   : Int32
+
+  def initialize( @name : String, @email : String, @age : Int32 )
+  end
+end
+
+
+user = User.new( name: "Alice", email: "alice@example.com", age: 30 )
+assert! user.to_json == "{\"name\":Alice,\"email\":alice@example.com,\"age\":30}"

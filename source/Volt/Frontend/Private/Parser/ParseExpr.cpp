@@ -36,11 +36,13 @@ bool Volt::Frontend::Parser::CanStartCommandArgument () const
     switch ( PeekKind() )
     {
     case TokenKind::StringLiteral:
+    case TokenKind::CommandLiteral:
     case TokenKind::IntLiteral:
     case TokenKind::FloatLiteral:
     case TokenKind::CharLiteral:
     case TokenKind::SymbolLiteral:
     case TokenKind::InstanceVar:
+    case TokenKind::IvarInterp:
     case TokenKind::Identifier:
     case TokenKind::Constant:
     case TokenKind::KwTrue:
@@ -321,6 +323,18 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
     {
         const Token Tok = Advance();
         return ParsePostfix( ParseStringLiteral( Tok ) );
+    }
+
+    case TokenKind::CommandLiteral:
+    {
+        const Token Tok = Advance();
+        return ParsePostfix( ParseCommandLiteral( Tok ) );
+    }
+
+    case TokenKind::IvarInterp:
+    {
+        const Token Tok = Advance();
+        return ParsePostfix( ParseIvarInterp( Tok ) );
     }
 
     case TokenKind::KwTrue:
@@ -1042,9 +1056,46 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
         return MakeExpr( Node, Tok.Range );
     }
 
+    Interp Node;
+    ParseInterpolationParts( Tok, Node.Parts );
+    return MakeExpr( Node, Tok.Range );
+}
+
+// `` `cmd` `` — the same segments a string is built from, wrapped in the node
+// that says this text is a command to run rather than a value to concatenate.
+// A command with no interpolation still gets its single literal chunk, so
+// ConstEval reads Parts one way in both cases.
+Volt::Frontend::ExprId Volt::Frontend::Parser::ParseCommandLiteral ( const Token &Tok )
+{
+    CommandLit Node;
+    if ( Tok.bHasInterpolation )
+    {
+        ParseInterpolationParts( Tok, Node.Parts );
+    }
+    else
+    {
+        StringLiteral Chunk;
+        Chunk.Value = Tok.Lexeme;
+        Node.Parts.PushBack( MakeExpr( Chunk, Tok.Range ) );
+    }
+    return MakeExpr( Node, Tok.Range );
+}
+
+// `@#{ expr }` — the lexeme is the inner expression text, re-parsed exactly as
+// an interpolated string re-parses its own splices. The `+ 3` skips `@#{`, so
+// a diagnostic inside the hole points at the hole.
+Volt::Frontend::ExprId Volt::Frontend::Parser::ParseIvarInterp ( const Token &Tok )
+{
+    IvarInterp Node;
+    Node.Name =
+        ParseSubExpression( Interner.Resolve( Tok.Lexeme ), Tok.Range, static_cast<std::uint32_t>( Tok.Range.Begin + 3 ) );
+    return MakeExpr( Node, Tok.Range );
+}
+
+void Volt::Frontend::Parser::ParseInterpolationParts ( const Token &Tok, ExprList &Parts )
+{
     const std::string_view Raw = Interner.Resolve( Tok.Lexeme );
 
-    Interp Node;
     std::size_t LiteralStart = 0;
     std::size_t Index        = 0;
     while ( Index < Raw.size() )
@@ -1055,7 +1106,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
             {
                 StringLiteral Chunk;
                 Chunk.Value = Interner.Intern( Raw.substr( LiteralStart, Index - LiteralStart ) );
-                Node.Parts.PushBack( MakeExpr( Chunk, Tok.Range ) );
+                Parts.PushBack( MakeExpr( Chunk, Tok.Range ) );
             }
 
             std::size_t Cursor = Index + 2;
@@ -1081,7 +1132,7 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
             // Raw is a verbatim slice of the file starting one byte past the
             // opening quote, so a fragment offset maps back exactly.
             const auto Base = static_cast<std::uint32_t>( Tok.Range.Begin + 1 + Index + 2 );
-            Node.Parts.PushBack( ParseSubExpression( ExprText, Tok.Range, Base ) );
+            Parts.PushBack( ParseSubExpression( ExprText, Tok.Range, Base ) );
 
             Index        = Cursor + 1;
             LiteralStart = Index;
@@ -1096,10 +1147,8 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseStringLiteral ( const Token 
     {
         StringLiteral Chunk;
         Chunk.Value = Interner.Intern( Raw.substr( LiteralStart ) );
-        Node.Parts.PushBack( MakeExpr( Chunk, Tok.Range ) );
+        Parts.PushBack( MakeExpr( Chunk, Tok.Range ) );
     }
-
-    return MakeExpr( Node, Tok.Range );
 }
 
 Volt::Frontend::ExprId

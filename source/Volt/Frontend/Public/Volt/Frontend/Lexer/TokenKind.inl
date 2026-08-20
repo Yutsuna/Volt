@@ -44,7 +44,12 @@ VOLT_TOKEN( IntLiteral )
 VOLT_TOKEN( FloatLiteral )
 VOLT_TOKEN( StringLiteral )
 VOLT_TOKEN( CharLiteral )
-VOLT_TOKEN( SymbolLiteral ) // :name
+VOLT_TOKEN( SymbolLiteral )  // :name
+VOLT_TOKEN( CommandLiteral ) // `cmd` — a host command, run at compile time
+// `@#{ expr }` — an instance variable whose name is computed at compile
+// time. Lexed whole, like a string: the lexeme is the inner expression
+// text, which the parser re-parses through ParseSubExpression.
+VOLT_TOKEN( IvarInterp )
 
 // --- Punctuation & operators (longest match wins in the lexer) -------------
 VOLT_PUNCT( LParen, "(" )

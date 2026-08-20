@@ -19,7 +19,6 @@ volt_middleend_analysis_lib = static_library(
         'Private/ExprInferencer.cpp',
         'Private/DeclStmtWalker.cpp',
         'Private/MemberResolver.cpp',
-        'Private/LiteralInferencer.cpp',
         'Private/ClosureInferencer.cpp',
         'Private/UnusedChecker.cpp',
         'Private/AstInvariant.cpp',

@@ -5,9 +5,12 @@
 #include "Volt/Frontend/AST/Stmt.hpp"
 #include "Volt/Frontend/Lexer/Token.hpp"
 
+#include <cstddef>
 #include <optional>
 #include <string_view>
+#include <type_traits>
 #include <variant>
+#include <vector>
 
 namespace Volt
 {
@@ -126,6 +129,148 @@ namespace Frontend
     inline void StampLocsSince ( AstContext &Ast, const ArenaMark &Mark, Core::SourceRange Range )
     {
         ForEachLocSince( Ast, Mark, [Range] ( Core::SourceRange &Loc ) { Loc = Range; } );
+    }
+
+    // --- Metadata: the expressions nothing ever evaluates ----------------
+    //
+    // An annotation's arguments are *spellings*, and a macro body is a
+    // compile-time program consumed at the interface seam. Neither is ever
+    // lowered or typed, so both would show up as unlowered sugar or as untyped
+    // values to any sweep that reads the arena by index rather than by walking
+    // what the program actually runs.
+    //
+    // One mask, several consumers, and they must agree or a node would be
+    // metadata to one and residue to another: the type checker skips these, the
+    // AstInvariant census excludes them, and ConstEval's fold sweep must not
+    // *execute* one — a command literal inside a macro body has already been
+    // run, once, by the evaluator that consumed the macro.
+
+    namespace Detail
+    {
+        inline void MarkMetadataStmt ( const AstContext &Ast, StmtId Id, std::vector<bool> &Marked );
+        inline void MarkMetadataDecl ( const AstContext &Ast, DeclId Id, std::vector<bool> &Marked );
+
+        /// One field dispatch for all three categories. Metadata is a property
+        /// of a whole subtree, and a macro body is made of statements and
+        /// nested declarations, not of expressions alone — walking expression
+        /// fields only would leave the `if` inside a macro body unmarked.
+        template <typename NodeType>
+        void MarkMetadataFields ( const AstContext &Ast, const NodeType &Node, std::vector<bool> &Marked );
+    } // namespace Detail
+
+    /// Mark Id and everything below it as metadata.
+    inline void MarkMetadata ( const AstContext &Ast, ExprId Id, std::vector<bool> &Marked )
+    {
+        if ( not Id.IsValid() or Id.Value >= Marked.size() or Marked[Id.Value] )
+        {
+            return;
+        }
+        Marked[Id.Value] = true;
+        std::visit( [&] ( const auto &Node ) { Detail::MarkMetadataFields( Ast, Node, Marked ); }, Ast.Expr( Id ) );
+    }
+
+    namespace Detail
+    {
+        inline void MarkMetadataStmt ( const AstContext &Ast, StmtId Id, std::vector<bool> &Marked )
+        {
+            if ( not Id.IsValid() )
+            {
+                return;
+            }
+            std::visit( [&] ( const auto &Node ) { MarkMetadataFields( Ast, Node, Marked ); }, Ast.Stmt( Id ) );
+        }
+
+        inline void MarkMetadataDecl ( const AstContext &Ast, DeclId Id, std::vector<bool> &Marked )
+        {
+            if ( not Id.IsValid() )
+            {
+                return;
+            }
+            std::visit( [&] ( const auto &Node ) { MarkMetadataFields( Ast, Node, Marked ); }, Ast.Decl( Id ) );
+        }
+
+        template <typename NodeType>
+        void MarkMetadataFields ( const AstContext &Ast, const NodeType &Node, std::vector<bool> &Marked )
+        {
+            if constexpr ( Meta::Reflected<NodeType> )
+            {
+                Meta::ForEachField( Node,
+                                    [&] ( std::string_view, const auto &Field )
+                                    {
+                                        using FieldType = std::remove_cvref_t<decltype( Field )>;
+                                        if constexpr ( std::is_same_v<FieldType, ExprId> )
+                                        {
+                                            MarkMetadata( Ast, Field, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, ExprList> )
+                                        {
+                                            for ( const ExprId Child : Field )
+                                            {
+                                                MarkMetadata( Ast, Child, Marked );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, StmtId> )
+                                        {
+                                            MarkMetadataStmt( Ast, Field, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, StmtList> )
+                                        {
+                                            for ( const StmtId Child : Field )
+                                            {
+                                                MarkMetadataStmt( Ast, Child, Marked );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, DeclId> )
+                                        {
+                                            MarkMetadataDecl( Ast, Field, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, DeclList> )
+                                        {
+                                            for ( const DeclId Child : Field )
+                                            {
+                                                MarkMetadataDecl( Ast, Child, Marked );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, ParamId> )
+                                        {
+                                            MarkMetadata( Ast, Ast.GetParam( Field ).Default, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, ParamList> )
+                                        {
+                                            for ( const ParamId Child : Field )
+                                            {
+                                                MarkMetadata( Ast, Ast.GetParam( Child ).Default, Marked );
+                                            }
+                                        }
+                                    } );
+            }
+        }
+    } // namespace Detail
+
+    /// Every expression the program never evaluates, by arena index. Read off
+    /// the *Decl arena*, not the declaration lists: a macro is retired from its
+    /// type's body once expanded (ConstEval::ExpandTypeMacros), and its
+    /// template stays in the arena — where this still has to reach it.
+    [[nodiscard]] inline std::vector<bool> MetadataExprs ( const AstContext &Ast )
+    {
+        std::vector<bool> Marked( Ast.ExprCount(), false );
+
+        for ( std::size_t Index = 0; Index < Ast.DeclCount(); ++Index )
+        {
+            const DeclId Id{ static_cast<DeclId::ValueType>( Index ) };
+            std::visit(
+                [&] ( const auto &Node )
+                {
+                    using NodeType = std::remove_cvref_t<decltype( Node )>;
+                    if constexpr ( std::is_same_v<NodeType, Annotation> or std::is_same_v<NodeType, MacroDef> or
+                                   std::is_same_v<NodeType, MacroBlock> )
+                    {
+                        Detail::MarkMetadataFields( Ast, Node, Marked );
+                    }
+                },
+                Ast.Decl( Id ) );
+        }
+        return Marked;
     }
 
     /// The text of a StringLiteral expression, if that is what Id points at.

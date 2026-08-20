@@ -152,7 +152,12 @@ Volt::MiddleEnd::TypeSystem::LayoutId Volt::Backend::Llvm::TypeMapper::LayoutOfE
     {
         return MiddleEnd::TypeSystem::LayoutId{};
     }
-    return LayoutOfValue( *Frame.Values, Frame.Values->ExprType( Id ) );
+    const MiddleEnd::TypeSystem::LayoutId Shape = LayoutOfValue( *Frame.Values, Frame.Values->ExprType( Id ) );
+    if ( Shape.IsValid() or Frame.Unit->Values == nullptr )
+    {
+        return Shape;
+    }
+    return LayoutOfValue( *Frame.Unit->Values, Frame.Unit->Values->ExprType( Id ) );
 }
 
 llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfExpr ( const FunctionFrame &Frame, Frontend::ExprId Id )

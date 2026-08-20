@@ -132,28 +132,37 @@ namespace Frontend
         ExprList Args;
     };
 
-    // `macro def Name(Params) ... end`. The body is not parsed: it is the raw
-    // source slice between the header and the matching `end`, interned as-is.
-    // The MacroExpansion pass evaluates its {% %} / {{ }} template tags at
-    // compile time and re-parses the generated text.
+    // `macro def Name( Params ) -> Type ... end` — a method whose body is a
+    // compile-time program. Written in a type or mixin body, it is evaluated
+    // once per concrete target type: what the evaluation emits becomes that
+    // type's real `Method`, registered as one of its members
+    // (ConstEval::ExpandTypeMacros, at the interface seam). Params and
+    // ReturnType are the *generated method's* own signature — they are runtime,
+    // not compile-time arguments.
+    //
+    // The body is ordinary parsed Volt, not a text template: control flow over
+    // compile-time values steers the generation, and everything else is emitted
+    // (rules of the macro model, .agents/middleend/macros.md).
     struct MacroDef
     {
 
         Core::SourceRange Loc;
         Symbol Name;
         ParamList Params;
-        Symbol BodyText;
+        TypeId ReturnType;
+        StmtList Body;
+        bool bSelf             = false; // `macro def self.name`
+        EVisibility Visibility = EVisibility::None;
     };
 
-    // `name( args... )` in declaration position — a compile-time macro
-    // invocation whose expansion replaces this slot in the enclosing body.
-    struct MacroInvoke
+    // `macro do ... end` at file scope — a compile-time program run for its
+    // effects alone (host commands, compiler-side output, build validation).
+    // It emits nothing: no member, no statement, no byte in the binary.
+    struct MacroBlock
     {
 
         Core::SourceRange Loc;
-        Symbol Name;
-        ExprList Args;
-        SymbolList ArgNames;
+        StmtList Body;
     };
 
     // `enum Name[Generics] [: Underlying] ... end`. Underlying is invalid when

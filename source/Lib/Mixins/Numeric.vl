@@ -1,0 +1,38 @@
+mixin Numeric
+  include Comparable
+
+  abstract def +( other : self ) -> self
+  abstract def -( other : self ) -> self
+  abstract def *( other : self ) -> self
+  abstract def /( other : self ) -> self
+
+  def step( to : self, by : self = 1, &block : self -> Void ) -> Void
+    current = self
+    if by > 0
+      while current <= to
+        block.call( current )
+        return if current == to
+        current += by
+      end
+    elsif by < 0
+      while current >= to
+        block.call( current )
+        return if current == to
+        current += by
+      end
+    end
+  end
+
+  def upto( limit : self, &block : self -> Void ) -> Void
+    step( limit, 1, &block )
+  end
+
+  def downto( limit : self, &block : self -> Void ) -> Void
+    step( limit, -1, &block )
+  end
+
+  def times( &block : self -> Void ) -> Void
+    return if self <= 0
+    ( self - self ).step( self - 1, 1, &block )
+  end
+end

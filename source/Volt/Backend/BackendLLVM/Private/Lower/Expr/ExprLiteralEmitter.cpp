@@ -424,8 +424,14 @@ llvm::Value *Volt::Backend::Llvm::EmitSizeOf ( BodyEmitter &Emitter, Frontend::E
     // here would be semantic analysis in codegen. TypeChecker publishes the
     // measured type on this node's own site instead, so all that is left is to
     // measure its layout, which is LayoutEngine's answer and nobody else's.
-    const MiddleEnd::TypeSystem::LayoutId Shape =
-        Emitter.Types().LayoutOfValue( *Frame.Values, Frame.Values->SiteType( MiddleEnd::Resolver::BindingSite{ Id } ) );
+    auto Site                                            = Frame.Values->SiteType( MiddleEnd::Resolver::BindingSite{ Id } );
+    const MiddleEnd::TypeSystem::UnitTypes *SourceValues = Frame.Values;
+    if ( not Site.IsValid() and Frame.Unit != nullptr and Frame.Unit->Values != nullptr )
+    {
+        Site         = Frame.Unit->Values->SiteType( MiddleEnd::Resolver::BindingSite{ Id } );
+        SourceValues = Frame.Unit->Values;
+    }
+    const MiddleEnd::TypeSystem::LayoutId Shape = Emitter.Types().LayoutOfValue( *SourceValues, Site );
     if ( not Shape.IsValid() )
     {
         static_cast<void>( Emitter.Fail( "llvm: `sizeof` at expression " + std::to_string( Id.Value ) +

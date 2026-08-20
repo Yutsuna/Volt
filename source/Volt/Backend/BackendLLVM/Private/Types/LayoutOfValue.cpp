@@ -17,17 +17,30 @@ void Volt::Backend::Llvm::TypeMapper::FlattenValueType ( const MiddleEnd::TypeSy
                                                          MiddleEnd::TypeSystem::SemaTypeId Id,
                                                          std::vector<std::uint32_t> &Out ) const
 {
-    if ( not Values.Has( Id ) )
+    const MiddleEnd::TypeSystem::UnitTypes *Source = &Values;
+    if ( not Source->Has( Id ) and Services != nullptr and Services->Build != nullptr )
+    {
+        for ( const UnitView &Unit : Services->Build->Units )
+        {
+            if ( Unit.Values != nullptr and Unit.Values->Has( Id ) )
+            {
+                Source = Unit.Values;
+                break;
+            }
+        }
+    }
+
+    if ( not Source->Has( Id ) )
     {
         return;
     }
 
-    const MiddleEnd::TypeSystem::SemaType &Value = Values.Get( Id );
+    const MiddleEnd::TypeSystem::SemaType &Value = Source->Get( Id );
     Out.push_back( Value.Base.Value );
     Out.push_back( static_cast<std::uint32_t>( Value.Args.Size() ) );
     for ( const MiddleEnd::TypeSystem::SemaTypeId Arg : Value.Args )
     {
-        FlattenValueType( Values, Arg, Out );
+        FlattenValueType( *Source, Arg, Out );
     }
 }
 
@@ -35,7 +48,20 @@ Volt::MiddleEnd::TypeSystem::LayoutId
 Volt::Backend::Llvm::TypeMapper::LayoutOfValue ( const MiddleEnd::TypeSystem::UnitTypes &Values,
                                                  MiddleEnd::TypeSystem::SemaTypeId Id )
 {
-    if ( not Values.Has( Id ) or Services->Build == nullptr or Services->Build->Types == nullptr )
+    const MiddleEnd::TypeSystem::UnitTypes *Source = &Values;
+    if ( not Source->Has( Id ) and Services != nullptr and Services->Build != nullptr )
+    {
+        for ( const UnitView &Unit : Services->Build->Units )
+        {
+            if ( Unit.Values != nullptr and Unit.Values->Has( Id ) )
+            {
+                Source = Unit.Values;
+                break;
+            }
+        }
+    }
+
+    if ( not Source->Has( Id ) or Services->Build == nullptr or Services->Build->Types == nullptr )
     {
         return MiddleEnd::TypeSystem::LayoutId{};
     }
@@ -43,7 +69,7 @@ Volt::Backend::Llvm::TypeMapper::LayoutOfValue ( const MiddleEnd::TypeSystem::Un
     // The head's own arguments are what an instantiation is keyed on; the two
     // header words in front of them belong to the head itself.
     std::vector<std::uint32_t> Flat;
-    FlattenValueType( Values, Id, Flat );
+    FlattenValueType( *Source, Id, Flat );
     if ( Flat.size() < 2 )
     {
         return MiddleEnd::TypeSystem::LayoutId{};

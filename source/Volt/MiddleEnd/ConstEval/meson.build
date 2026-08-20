@@ -13,7 +13,10 @@ volt_middleend_consteval_lib = static_library(
     'VoltMiddleEndConstEval',
     files(
         'Private/MagicExpansion.cpp',
+        'Private/MacroEngine.cpp',
+        'Private/MacroEval.cpp',
         'Private/MacroExpansion.cpp',
+        'Private/MacroValue.cpp',
         'Private/SelfCheck.cpp',
         'Private/TraitEngine.cpp',
     ),

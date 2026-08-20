@@ -1,0 +1,44 @@
+#{
+  @brief The proof that a macro-generated method is a *real* member.
+
+  `total` and `field_count` exist nowhere in this file's text: both are written
+  during compilation from `Point`'s own fields, registered as members of
+  `Point`, resolved through ordinary member lookup at the call sites below and
+  emitted like any other method. That is the whole point of expanding macros at
+  the interface seam rather than in a pass.
+#}
+mixin Summable
+
+  # The loop is unrolled once per field, and `@#{ field.name }` becomes that
+  # field's own instance variable — so the emitted body is `sum += @x` and its
+  # siblings, with nothing left of the loop.
+  macro def total -> Int32
+    sum = 0
+    for field in self.fields
+      sum += @#{field.name}
+    end
+    sum
+  end
+
+  # Wholly compile-time: the body is one literal by the time it is emitted.
+  macro def field_count -> Int32
+    self.fields.size
+  end
+
+end
+
+class Point
+  include Summable
+
+  getter x : Int32
+  getter y : Int32
+  getter z : Int32
+
+  def initialize( @x : Int32, @y : Int32, @z : Int32 )
+  end
+end
+
+point = Point.new( 1, 2, 3 )
+
+assert!( point.total == 6 )
+assert!( point.field_count == 3 )

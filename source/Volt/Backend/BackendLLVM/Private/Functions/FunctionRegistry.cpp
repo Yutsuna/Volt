@@ -7,6 +7,7 @@
 
 #include "Volt/BackendCore/Mangler.hpp"
 
+#include <iostream>
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -43,19 +44,13 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
         return nullptr;
     }
 
-    // A monomorphised instantiation (FlatArgs non-empty — only
-    // EmitMonomorphizedBody ever calls FunctionFor that way; every concrete
-    // declare/define call site passes {}) is `linkonce_odr`, not `External`:
-    // `Array<UInt8>` used internally by a precompiled stdlib archive and
-    // independently instantiated by a user build mangle to the *same* symbol
-    // (Mangler.hpp is deterministic and content-only), and without weak linkage
-    // the two definitions collide at link time (issue #61 blind-spot #3).
-    // `linkonce_odr` tells the linker any one definition will do, which is
-    // exactly true — Monomorphizer only ever reinstantiates the same body for
-    // the same FlatArgs.
+    const MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
+    const bool bGeneric        = ( Owner.IsValid() and Store.Type( Owner ).Params.Size() > 0 ) or Entry.OwnGenerics > 0;
     const bool bInlineEligible = ( Entry.InlineVerdict != MiddleEnd::TypeSystem::EInlineVerdict::Never );
     const llvm::GlobalValue::LinkageTypes Linkage =
-        ( FlatArgs.empty() and not bInlineEligible ) ? llvm::Function::ExternalLinkage : llvm::Function::LinkOnceODRLinkage;
+        ( ( FlatArgs.empty() and not bInlineEligible ) or ( bGeneric and FlatArgs.empty() ) )
+            ? llvm::Function::ExternalLinkage
+            : llvm::Function::LinkOnceODRLinkage;
     llvm::Function *Fn = llvm::Function::Create( Signature, Linkage, Symbol, Services->Ctx->ModPtr() );
     switch ( Entry.InlineVerdict )
     {

@@ -45,6 +45,32 @@ MiddleEnd::TypeSystem::SemaTypeId BytePointerType ( MiddleEnd::Analysis::TypeChe
                                                Context.Ctx.Values );
 }
 
+Frontend::TypeId BuildTypeRef ( TypeCheckerContext &Context, MiddleEnd::TypeSystem::SemaTypeId Type )
+{
+    if ( not Context.Ctx.Values.Has( Type ) )
+    {
+        return Frontend::TypeId{};
+    }
+    const auto Val = Context.Ctx.Values.Get( Type );
+    if ( not Val.Base.IsValid() )
+    {
+        return Frontend::TypeId{};
+    }
+    Frontend::AstContext &Ast       = Context.Ctx.Ast;
+    const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( Val.Base ).Name );
+    Frontend::TypeList Args;
+    for ( const auto Arg : Val.Args )
+    {
+        if ( const auto ArgRef = BuildTypeRef( Context, Arg ); ArgRef.IsValid() )
+        {
+            Args.PushBack( ArgRef );
+        }
+    }
+    Frontend::SymbolList Path;
+    Path.PushBack( Ast.Strings().Intern( NameText ) );
+    return Ast.Add( Frontend::TypeRef{ .Loc = {}, .Path = std::move( Path ), .Generics = std::move( Args ) } );
+}
+
 // A naked-type receiver expr, hand-stamped to `Type` — the same technique
 // LowerArrayLit's own `Object` child uses for `T.new()`.
 Frontend::ExprId
@@ -56,6 +82,28 @@ NakedTypeExpr ( TypeCheckerContext &Context, MiddleEnd::TypeSystem::NominalId Ba
         Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = Ast.Strings().Intern( NameText ) } } );
     Context.Ctx.Values.SetExprType( ObjectId, Type );
     Context.NakedTypeExprs.insert( ObjectId.Value );
+
+    if ( Context.Ctx.Values.Has( Type ) )
+    {
+        const auto Val = Context.Ctx.Values.Get( Type );
+        if ( not Val.Args.IsEmpty() )
+        {
+            Frontend::TypeList TypeArgs;
+            for ( const auto Arg : Val.Args )
+            {
+                if ( const auto ArgRef = BuildTypeRef( Context, Arg ); ArgRef.IsValid() )
+                {
+                    TypeArgs.PushBack( ArgRef );
+                }
+            }
+            const Frontend::ExprId InstId = Ast.Add(
+                Frontend::ExprNode{ Frontend::GenericInst{ .Loc = {}, .Base = ObjectId, .Args = std::move( TypeArgs ) } } );
+            Context.Ctx.Values.SetExprType( InstId, Type );
+            Context.NakedTypeExprs.insert( InstId.Value );
+            return InstId;
+        }
+    }
+
     return ObjectId;
 }
 
@@ -96,7 +144,6 @@ SizeOfType ( TypeCheckerContext &Context, Volt::Core::SourceRange Loc, MiddleEnd
     const Frontend::ExprId Id = Ast.Add( Frontend::ExprNode{ Frontend::SizeOf{ .Loc = Loc, .Type = {} } } );
     const auto Base           = Context.Ctx.Types.LookupNodeKind( "IntLiteral" );
     Context.Ctx.Values.SetExprType( Id, Base ? Context.MakeType( *Base, {} ) : MiddleEnd::TypeSystem::SemaTypeId{} );
-    Context.UnconstrainedLiterals.insert( Id.Value );
     Context.Ctx.Values.SetSiteType( MiddleEnd::Resolver::BindingSite{ Id }, MeasuredType );
     return Id;
 }
@@ -440,7 +487,7 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
 
     if ( std::holds_alternative<Frontend::Identifier>( Context.Ctx.Ast.Expr( Id ) ) )
     {
-        const auto &Ident                         = std::get<Frontend::Identifier>( Context.Ctx.Ast.Expr( Id ) );
+        const auto Ident                          = std::get<Frontend::Identifier>( Context.Ctx.Ast.Expr( Id ) );
         const MiddleEnd::Resolver::Binding *Bound = Context.Ctx.Scopes.BindingOf( Id );
         if ( Bound != nullptr and MiddleEnd::TypeSystem::IsValueBinding( Bound->Site ) )
         {
@@ -491,7 +538,7 @@ void RewriteCaptureUses ( TypeCheckerContext &Context,
     {
         if ( SelfFieldIndex.has_value() )
         {
-            const auto &IVar                  = std::get<Frontend::InstanceVar>( Context.Ctx.Ast.Expr( Id ) );
+            const auto IVar                   = std::get<Frontend::InstanceVar>( Context.Ctx.Ast.Expr( Id ) );
             const std::string_view CleanName  = Context.Ctx.Ast.Text( IVar.Name ).starts_with( '@' )
                                                     ? Context.Ctx.Ast.Text( IVar.Name ).substr( 1 )
                                                     : Context.Ctx.Ast.Text( IVar.Name );
@@ -686,6 +733,22 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
         Frame.Fields.PushBack( SelfField );
     }
 
+    const SemaType &Closure = Context.Ctx.Values.Get( LiteralType );
+    const SemaTypeId Result = Closure.Args.IsEmpty() ? SemaTypeId{} : Closure.Args[0];
+
+    // Pad any missing parameters that the closure type expects (e.g. `times do ... end`
+    // where the user omitted the block parameter).
+    const std::size_t ExpectedParamCount = Closure.Args.IsEmpty() ? 0 : Closure.Args.Size() - 1;
+    for ( std::size_t Index = Params.Size(); Index < ExpectedParamCount; ++Index )
+    {
+        Frontend::Param DummyParam;
+        DummyParam.Loc                       = Loc;
+        DummyParam.Name                      = Ast.MakeUniqueSymbol( "__unused" );
+        const Frontend::ParamId DummyParamId = Ast.Add( DummyParam );
+        Context.Ctx.Values.SetSiteType( BindingSite{ DummyParamId }, Closure.Args[1 + Index] );
+        Params.PushBack( DummyParamId );
+    }
+
     const SemaTypeId BytePtr    = BytePointerType( Context );
     const NominalId PointerBase = Context.Ctx.Values.Has( BytePtr ) ? Context.Ctx.Values.Get( BytePtr ).Base : NominalId{};
 
@@ -739,8 +802,6 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
     const Frontend::DeclId NewDecl = Ast.Add( Frontend::DeclNode{ std::move( Synth ) } );
     Ast.TopDecls.push_back( NewDecl );
 
-    const SemaType &Closure = Context.Ctx.Values.Get( LiteralType );
-    const SemaTypeId Result = Closure.Args.IsEmpty() ? SemaTypeId{} : Closure.Args[0];
     Volt::Core::SmallVec<SemaTypeId, 4> ParamTypes;
     for ( std::size_t Index = 1; Index < Closure.Args.Size(); ++Index )
     {
@@ -749,11 +810,7 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
     ParamTypes.PushBack( BytePtr );
     Context.Ctx.Synth.Add( SynthesizedFunction{ .Decl = NewDecl, .Result = Result, .Params = std::move( ParamTypes ) } );
 
-    const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( Closure.Base ).Name );
-    const Frontend::ExprId ObjectId =
-        Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = Loc, .Name = Ast.Strings().Intern( NameText ) } } );
-    Context.Ctx.Values.SetExprType( ObjectId, LiteralType );
-    Context.NakedTypeExprs.insert( ObjectId.Value );
+    const Frontend::ExprId ObjectId = NakedTypeExpr( Context, Closure.Base, LiteralType );
 
     const Frontend::ExprId NewMemberId = Ast.Add(
         Frontend::ExprNode{ Frontend::Member{ .Loc = Loc, .Object = ObjectId, .Name = Ast.Strings().Intern( "new" ) } } );
@@ -959,7 +1016,7 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
     {
         RewriteSlot( Context, Id, CtorCallId );
 
-        const auto &OrigCall             = std::get<Frontend::Call>( Ast.Expr( ParentCallId ) );
+        const auto OrigCall              = std::get<Frontend::Call>( Ast.Expr( ParentCallId ) );
         const Frontend::ExprId CalleeId  = OrigCall.Callee;
         const Frontend::ExprId NewCallId = Ast.Add( Frontend::ExprNode{ Frontend::Call{
             .Loc = OrigCall.Loc, .Callee = CalleeId, .Args = OrigCall.Args, .ArgNames = OrigCall.ArgNames, .BlockArg = Id } } );

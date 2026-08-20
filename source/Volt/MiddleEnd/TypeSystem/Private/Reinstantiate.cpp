@@ -280,7 +280,7 @@ Volt::MiddleEnd::TypeSystem::ReinstantiateBody ( const TypeStore &Store,
     {
         CombinedGenerics.PushBack( Name );
     }
-    Analysis::TypeCheckerContext Context{ ScratchCtx, Analysis::MetadataExprs( Ast ) };
+    Analysis::TypeCheckerContext Context{ ScratchCtx, Frontend::MetadataExprs( Ast ) };
     Context.SelfType     = Owner;
     Context.SelfValue    = Self;
     Context.Redirects    = &Result.Redirects;
@@ -529,7 +529,7 @@ Volt::MiddleEnd::TypeSystem::InferMethodReturnType ( const TypeStore &Store,
         .Synth   = ScratchSynth,
     };
 
-    Analysis::TypeCheckerContext Context{ ScratchCtx, Analysis::MetadataExprs( Ast ) };
+    Analysis::TypeCheckerContext Context{ ScratchCtx, Frontend::MetadataExprs( Ast ) };
     const std::size_t OwnerGenericCount = Owner.IsValid() ? Store.Type( Owner ).Params.Size() : 0;
     ::Volt::Core::SmallVec<SemaTypeId, 2> OwnerArgs;
     for ( std::size_t Index = 0; Index < OwnerGenericCount and Index < ReceiverArgs.Size(); ++Index )

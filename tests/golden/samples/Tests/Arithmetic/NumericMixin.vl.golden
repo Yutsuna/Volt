@@ -1,0 +1,193 @@
+Program 'samples/Tests/Arithmetic/NumericMixin.vl'
+├─ Method 'test_upto' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:18
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @2:9
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Call @3:9
+│     │        ├─ callee
+│     │        │  └─ Member 'upto' @3:4
+│     │        │     └─ object
+│     │        │        └─ IntLiteral '1' @3:3
+│     │        ├─ args
+│     │        │  └─ IntLiteral '4' @3:11
+│     │        └─ block_arg
+│     │           └─ Block @3:15
+│     │              ├─ params
+│     │              │  └─ Param 'n'
+│     │              └─ body
+│     │                 └─ ExprStmt @4:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @4:9
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'sum' @4:5
+│     │                          └─ value
+│     │                             └─ Identifier 'n' @4:12
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ Call @6:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @6:3
+│              └─ args
+│                 └─ Binary '==' @6:16
+│                    ├─ lhs
+│                    │  └─ Identifier 'sum' @6:12
+│                    └─ rhs
+│                       └─ IntLiteral '10' @6:19
+├─ Method 'test_downto' @9:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @9:20
+│  └─ body
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Assign '=' @10:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @10:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @10:9
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Call @11:11
+│     │        ├─ callee
+│     │        │  └─ Member 'downto' @11:4
+│     │        │     └─ object
+│     │        │        └─ IntLiteral '4' @11:3
+│     │        ├─ args
+│     │        │  └─ IntLiteral '1' @11:13
+│     │        └─ block_arg
+│     │           └─ Block @11:17
+│     │              ├─ params
+│     │              │  └─ Param 'n'
+│     │              └─ body
+│     │                 └─ ExprStmt @12:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @12:9
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'sum' @12:5
+│     │                          └─ value
+│     │                             └─ Identifier 'n' @12:12
+│     └─ ExprStmt @14:3
+│        └─ expr
+│           └─ Call @14:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @14:3
+│              └─ args
+│                 └─ Binary '==' @14:16
+│                    ├─ lhs
+│                    │  └─ Identifier 'sum' @14:12
+│                    └─ rhs
+│                       └─ IntLiteral '10' @14:19
+├─ Method 'test_times' @17:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @17:19
+│  └─ body
+│     ├─ ExprStmt @18:3
+│     │  └─ expr
+│     │     └─ Assign '=' @18:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'count' @18:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @18:11
+│     ├─ ExprStmt @19:3
+│     │  └─ expr
+│     │     └─ Call @19:11
+│     │        ├─ callee
+│     │        │  └─ Member 'times' @19:4
+│     │        │     └─ object
+│     │        │        └─ IntLiteral '5' @19:3
+│     │        └─ block_arg
+│     │           └─ Block @19:11
+│     │              ├─ params
+│     │              │  └─ Param '_'
+│     │              └─ body
+│     │                 └─ ExprStmt @20:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @20:11
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'count' @20:5
+│     │                          └─ value
+│     │                             └─ IntLiteral '1' @20:14
+│     └─ ExprStmt @22:3
+│        └─ expr
+│           └─ Call @22:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @22:3
+│              └─ args
+│                 └─ Binary '==' @22:18
+│                    ├─ lhs
+│                    │  └─ Identifier 'count' @22:12
+│                    └─ rhs
+│                       └─ IntLiteral '5' @22:21
+├─ Method 'test_step' @25:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @25:18
+│  └─ body
+│     ├─ ExprStmt @26:3
+│     │  └─ expr
+│     │     └─ Assign '=' @26:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @26:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @26:9
+│     ├─ ExprStmt @27:3
+│     │  └─ expr
+│     │     └─ Call @27:9
+│     │        ├─ callee
+│     │        │  └─ Member 'step' @27:4
+│     │        │     └─ object
+│     │        │        └─ IntLiteral '0' @27:3
+│     │        ├─ args
+│     │        │  ├─ IntLiteral '10' @27:11
+│     │        │  └─ IntLiteral '2' @27:15
+│     │        └─ block_arg
+│     │           └─ Block @27:19
+│     │              ├─ params
+│     │              │  └─ Param 'n'
+│     │              └─ body
+│     │                 └─ ExprStmt @28:5
+│     │                    └─ expr
+│     │                       └─ Assign '+=' @28:9
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'sum' @28:5
+│     │                          └─ value
+│     │                             └─ Identifier 'n' @28:12
+│     └─ ExprStmt @30:3
+│        └─ expr
+│           └─ Call @30:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @30:3
+│              └─ args
+│                 └─ Binary '==' @30:16
+│                    ├─ lhs
+│                    │  └─ Identifier 'sum' @30:12
+│                    └─ rhs
+│                       └─ IntLiteral '30' @30:19
+├─ ExprStmt @33:1
+│  └─ expr
+│     └─ Call @33:10
+│        └─ callee
+│           └─ Identifier 'test_upto' @33:1
+├─ ExprStmt @34:1
+│  └─ expr
+│     └─ Call @34:12
+│        └─ callee
+│           └─ Identifier 'test_downto' @34:1
+├─ ExprStmt @35:1
+│  └─ expr
+│     └─ Call @35:11
+│        └─ callee
+│           └─ Identifier 'test_times' @35:1
+└─ ExprStmt @36:1
+   └─ expr
+      └─ Call @36:10
+         └─ callee
+            └─ Identifier 'test_step' @36:1
+--- exit 0 ---

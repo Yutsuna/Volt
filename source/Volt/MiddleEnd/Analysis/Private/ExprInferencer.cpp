@@ -86,7 +86,18 @@ PlaceholderTypeArgs ( const Volt::MiddleEnd::TypeSystem::TypeStore &Store, Volt:
         return false;
     }
     const auto &Slots = Context.Ctx.Values.Get( BlockType ).Args;
-    return not Slots.IsEmpty() and Slots[0].IsValid();
+    if ( Slots.IsEmpty() )
+    {
+        return false;
+    }
+    for ( std::size_t Index = 1; Index < Slots.Size(); ++Index )
+    {
+        if ( not Slots[Index].IsValid() )
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 // Has this expression no type of its own yet, so that a surrounding context
@@ -662,6 +673,10 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
             { return MemberType( Context, Id, Context.SelfValue, Context.bStaticContext, Context.Ctx.Ast.Text( Expr.Name ) ); },
             [&] ( const Frontend::Identifier &Expr ) -> SemaTypeId
             {
+                if ( Context.NakedTypeExprs.contains( Id.Value ) and Context.Ctx.Values.ExprType( Id ).IsValid() )
+                {
+                    return Context.Ctx.Values.ExprType( Id );
+                }
                 if ( const std::optional<SemaTypeId> Local = Context.FindLocal( Id, Expr.Name ) )
                 {
                     return *Local;

@@ -169,6 +169,12 @@ namespace Frontend
         [[nodiscard]] ExprId ParseArrayLiteral ();
         [[nodiscard]] ExprId ParseHashLiteral ();
         [[nodiscard]] ExprId ParseStringLiteral ( const Token &Tok );
+        [[nodiscard]] ExprId ParseCommandLiteral ( const Token &Tok );
+        [[nodiscard]] ExprId ParseIvarInterp ( const Token &Tok );
+        // The segment scan shared by `"..."` and `` `...` ``: literal chunks
+        // and `#{ ... }` splices, in source order. Written once because the two
+        // literals differ only in the node they end up wrapped in.
+        void ParseInterpolationParts ( const Token &Tok, ExprList &Parts );
         [[nodiscard]] ExprId ParseSubExpression ( std::string_view Text, Core::SourceRange Range, std::uint32_t BaseOffset );
         [[nodiscard]] ExprId ParseCommandCallArgs ( ExprId Callee, Core::SourceRange Start );
         [[nodiscard]] ExprId ParseDoBlock ();
@@ -256,7 +262,8 @@ namespace Frontend
         void DrainAnnotations ( DeclList &Out );
         void DrainAnnotations ( std::vector<DeclId> &Out );
         [[nodiscard]] DeclId ParseMacro ();
-        [[nodiscard]] DeclId ParseMacroInvoke ();
+        [[nodiscard]] DeclId ParseMacroDef ();
+        [[nodiscard]] DeclId ParseMacroBlock ();
         [[nodiscard]] DeclId ParseFieldOrMember ();
         void ParseDeclBlock ( DeclList &Out );
 

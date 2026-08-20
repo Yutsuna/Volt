@@ -1,8 +1,7 @@
 #include "ClosureInferencer.hpp"
-#include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
-
 #include "DeclStmtWalker.hpp"
 #include "ExprInferencer.hpp"
+
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
@@ -48,6 +47,13 @@ Volt::MiddleEnd::Analysis::BindClosureParams ( TypeCheckerContext &Context, cons
         }
         Types.PushBack( ParamType );
     }
+
+    // if the block declares less params -> complete types to match the ABI
+    for ( std::size_t Index = Params.Size(); 1 + Index < Expected.Size(); ++Index )
+    {
+        Types.PushBack( Expected[1 + Index] );
+    }
+
     return Types;
 }
 

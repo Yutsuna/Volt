@@ -1,0 +1,14 @@
+#{
+  @brief compile-time program run for its effects alone.
+#}
+macro do
+  kernel = `uname`.trim
+  puts "compiling for #{kernel} from #{__DIR__}"
+end
+
+macro do
+  files = `echo a.vl b.vl`.trim.lines
+  for file in files
+    puts "seen #{file}"
+  end
+end
