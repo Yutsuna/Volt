@@ -4,6 +4,7 @@
 #include "Volt/CLI/CommandRegistry.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
+#include "Volt/Core/Support/PhaseTimer.hpp"
 #include "Volt/Driver/Driver.hpp"
 
 #include "Volt/Core/Meta/Reflect.hpp"
@@ -14,11 +15,28 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace
 {
 
 namespace fs = std::filesystem;
+
+// Wall-clock per pipeline seam, recorded only when --metrics asked for it
+// (PhaseTimer.hpp). Counters say what happened; this says what it cost.
+void ReportTimings ()
+{
+    const std::vector<std::string> Lines = Volt::Core::FormatPhaseTimings();
+    if ( Lines.empty() )
+    {
+        return;
+    }
+    Volt::Core::FLogger::Info( "timings:", "check" );
+    for ( const std::string &Line : Lines )
+    {
+        Volt::Core::FLogger::Info( Line, "check" );
+    }
+}
 
 void ReportMetrics ( const Volt::MiddleEnd::Core::PassStats &Stats )
 {
@@ -124,6 +142,10 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
 
     const std::string &Input = InputRes->InputPath;
 
+    // Before the Driver exists: its constructor already hashes the stdlib for
+    // the cache key, and that is part of what a build costs.
+    Core::PhaseTimings::SetEnabled( bMetrics );
+
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
 
@@ -180,6 +202,7 @@ std::int32_t Volt::CLI::FCheckCommand::Execute ( std::span<const std::string_vie
     if ( bMetrics )
     {
         ReportMetrics( Compiled.Stats );
+        ReportTimings();
     }
     return ExitSuccess;
 }

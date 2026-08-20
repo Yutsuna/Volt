@@ -4,12 +4,14 @@
 #include "Volt/CLI/CommandRegistry.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 #include "Volt/Core/Log/Logger.hpp"
+#include "Volt/Core/Support/PhaseTimer.hpp"
 #include "Volt/Driver/Driver.hpp"
 
 #include <filesystem>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -41,7 +43,7 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
             [this] ( std::string_view Val ) { this->Target = Val; }
         },
         {
-            "-O", "", "LEVEL", "Optimization level (0|2|3)",
+            "-O", "", "LEVEL", "Optimization level (0|1|2|3, default 2)",
             [this] ( std::string_view Val ) { this->OptLevel = Val; }
         },
         {
@@ -97,6 +99,12 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
 
     const std::string &Input = InputRes->InputPath;
 
+    // `build` is the only command that reaches the backend, so it is the only
+    // place backend.* seams are ever recorded. Enabled before the Driver is
+    // constructed: its constructor hashes the stdlib for the cache key, and
+    // that is part of what a build costs.
+    Core::PhaseTimings::SetEnabled( bVerbose );
+
     Driver::Driver TheDriver;
     Driver::CompileResult Compiled;
 
@@ -146,6 +154,10 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         {
             BuildOpts.OptLevel = 0;
         }
+        else if ( OptLevel == "1" )
+        {
+            BuildOpts.OptLevel = 1;
+        }
         else if ( OptLevel == "2" )
         {
             BuildOpts.OptLevel = 2;
@@ -156,7 +168,7 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
         }
         else
         {
-            Core::FLogger::Error( "Unsupported -O '" + OptLevel + "': expected 0, 2 or 3", "build" );
+            Core::FLogger::Error( "Unsupported -O '" + OptLevel + "': expected 0, 1, 2 or 3", "build" );
             return ExitFailure;
         }
     }
@@ -169,6 +181,15 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
     }
 
     Core::FLogger::Info( "OK : " + Built.Artifact, "build" );
+
+    if ( const std::vector<std::string> Lines = Core::FormatPhaseTimings(); not Lines.empty() )
+    {
+        Core::FLogger::Info( "timings:", "build" );
+        for ( const std::string &Line : Lines )
+        {
+            Core::FLogger::Info( Line, "build" );
+        }
+    }
     return ExitSuccess;
 }
 
