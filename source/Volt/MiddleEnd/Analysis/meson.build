@@ -38,10 +38,11 @@ volt_middleend_analysis_lib = static_library(
         volt_middleend_analysis_inc,
         # TypeChecker.cpp drives the post-walk sweeps that live in Lowering
         # (LowerArrayLits, LowerEnumCases, LowerClosureLits,
-        # InsertFinalizeCalls) — the forward half of the mutual edge
-        # Lowering/meson.build documents.
+        # InsertFinalizeCalls) and Optimisations (InlineBlockCalls).
         include_directories('../Lowering/Public'),
         include_directories('../Lowering'),
+        include_directories('../Optimisations/Public'),
+        include_directories('../Optimisations'),
     ],
     dependencies: [
         compile_options_dep,
