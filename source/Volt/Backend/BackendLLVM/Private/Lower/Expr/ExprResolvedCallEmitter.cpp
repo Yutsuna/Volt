@@ -36,16 +36,10 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
 {
     EmitterServices &Svc = Services();
 
-    // An indirect callee has no body and no symbol: the callable being invoked
-    // is the receiver, and the call goes through its `{ code, env }` pair rather
-    // than to a mangled name. Sema decided this (CalleeEntry::bIndirect);
-    // nothing is re-derived here.
     if ( Entry.bIndirect )
     {
         return EmitIndirectDispatch( *this, Id, Entry, Receiver, Args, Block );
     }
-
-    const MiddleEnd::TypeSystem::UnitTypes &Values = *Frame().Values;
 
     // A machine conversion tagged by MemberResolver on a bodyless
     // non-operator member of a Pointer/Primitive receiver. The backend reads
@@ -74,9 +68,22 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         return nullptr;
     }
 
-    // The owner and the instantiation both come out of the entry Sema recorded:
-    // NominalIds are the cross-unit currency, and the flattened bindings are the
-    // same encoding the mangler and the layout cache key on.
+    const MiddleEnd::TypeSystem::UnitTypes *SourceValues = Frame().Values;
+    if ( Frame().Unit != nullptr and Frame().Unit->Values != nullptr )
+    {
+        if ( Entry.Receiver.IsValid() and
+             ( not SourceValues->Has( Entry.Receiver ) and Frame().Unit->Values->Has( Entry.Receiver ) ) )
+        {
+            SourceValues = Frame().Unit->Values;
+        }
+        else if ( not Entry.Bindings.IsEmpty() and Entry.Bindings[0].IsValid() and not SourceValues->Has( Entry.Bindings[0] ) and
+                  Frame().Unit->Values->Has( Entry.Bindings[0] ) )
+        {
+            SourceValues = Frame().Unit->Values;
+        }
+    }
+    const MiddleEnd::TypeSystem::UnitTypes &Values = *SourceValues;
+
     MiddleEnd::TypeSystem::NominalId Owner;
     if ( Values.Has( Entry.Receiver ) )
     {
