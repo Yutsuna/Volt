@@ -1087,8 +1087,8 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParseCommandLiteral ( const Token
 Volt::Frontend::ExprId Volt::Frontend::Parser::ParseIvarInterp ( const Token &Tok )
 {
     IvarInterp Node;
-    Node.Name = ParseSubExpression( Interner.Resolve( Tok.Lexeme ), Tok.Range,
-                                    static_cast<std::uint32_t>( Tok.Range.Begin + 3 ) );
+    Node.Name =
+        ParseSubExpression( Interner.Resolve( Tok.Lexeme ), Tok.Range, static_cast<std::uint32_t>( Tok.Range.Begin + 3 ) );
     return MakeExpr( Node, Tok.Range );
 }
 
