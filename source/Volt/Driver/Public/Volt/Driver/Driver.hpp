@@ -131,7 +131,13 @@ namespace Driver
         // Empty means "derive from the module name" (mirrors
         // Backend::Llvm::EmitOptions::OutputPath).
         std::string OutputPath;
-        std::uint8_t OptLevel = 0;
+        // -O2 by default: `buildO0DefaultPipeline` is only the minimal
+        // semantically-required set (mem2reg + AlwaysInliner), so an -O0
+        // default shipped every artifact with no inlining, no constant
+        // propagation and no vectorisation at all. `-O 0` stays one flag
+        // away for a debug build. Already folded into NativeCacheKey
+        // below, so the stdlib artifact invalidates on its own.
+        std::uint8_t OptLevel = 2;
         bool bLto             = false;
         // "", "ir", or "obj" — stop after that intermediate artifact; empty
         // runs the whole way to a linked artifact (mirrors
