@@ -154,7 +154,8 @@ namespace Frontend
         /// of a whole subtree, and a macro body is made of statements and
         /// nested declarations, not of expressions alone — walking expression
         /// fields only would leave the `if` inside a macro body unmarked.
-        template <typename NodeType> void MarkMetadataFields ( const AstContext &Ast, const NodeType &Node, std::vector<bool> &Marked );
+        template <typename NodeType>
+        void MarkMetadataFields ( const AstContext &Ast, const NodeType &Node, std::vector<bool> &Marked );
     } // namespace Detail
 
     /// Mark Id and everything below it as metadata.
@@ -188,60 +189,60 @@ namespace Frontend
             std::visit( [&] ( const auto &Node ) { MarkMetadataFields( Ast, Node, Marked ); }, Ast.Decl( Id ) );
         }
 
-        template <typename NodeType> void MarkMetadataFields ( const AstContext &Ast, const NodeType &Node, std::vector<bool> &Marked )
+        template <typename NodeType>
+        void MarkMetadataFields ( const AstContext &Ast, const NodeType &Node, std::vector<bool> &Marked )
         {
             if constexpr ( Meta::Reflected<NodeType> )
             {
-                Meta::ForEachField(
-                    Node,
-                    [&] ( std::string_view, const auto &Field )
-                    {
-                        using FieldType = std::remove_cvref_t<decltype( Field )>;
-                        if constexpr ( std::is_same_v<FieldType, ExprId> )
-                        {
-                            MarkMetadata( Ast, Field, Marked );
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, ExprList> )
-                        {
-                            for ( const ExprId Child : Field )
-                            {
-                                MarkMetadata( Ast, Child, Marked );
-                            }
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, StmtId> )
-                        {
-                            MarkMetadataStmt( Ast, Field, Marked );
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, StmtList> )
-                        {
-                            for ( const StmtId Child : Field )
-                            {
-                                MarkMetadataStmt( Ast, Child, Marked );
-                            }
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, DeclId> )
-                        {
-                            MarkMetadataDecl( Ast, Field, Marked );
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, DeclList> )
-                        {
-                            for ( const DeclId Child : Field )
-                            {
-                                MarkMetadataDecl( Ast, Child, Marked );
-                            }
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, ParamId> )
-                        {
-                            MarkMetadata( Ast, Ast.GetParam( Field ).Default, Marked );
-                        }
-                        else if constexpr ( std::is_same_v<FieldType, ParamList> )
-                        {
-                            for ( const ParamId Child : Field )
-                            {
-                                MarkMetadata( Ast, Ast.GetParam( Child ).Default, Marked );
-                            }
-                        }
-                    } );
+                Meta::ForEachField( Node,
+                                    [&] ( std::string_view, const auto &Field )
+                                    {
+                                        using FieldType = std::remove_cvref_t<decltype( Field )>;
+                                        if constexpr ( std::is_same_v<FieldType, ExprId> )
+                                        {
+                                            MarkMetadata( Ast, Field, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, ExprList> )
+                                        {
+                                            for ( const ExprId Child : Field )
+                                            {
+                                                MarkMetadata( Ast, Child, Marked );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, StmtId> )
+                                        {
+                                            MarkMetadataStmt( Ast, Field, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, StmtList> )
+                                        {
+                                            for ( const StmtId Child : Field )
+                                            {
+                                                MarkMetadataStmt( Ast, Child, Marked );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, DeclId> )
+                                        {
+                                            MarkMetadataDecl( Ast, Field, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, DeclList> )
+                                        {
+                                            for ( const DeclId Child : Field )
+                                            {
+                                                MarkMetadataDecl( Ast, Child, Marked );
+                                            }
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, ParamId> )
+                                        {
+                                            MarkMetadata( Ast, Ast.GetParam( Field ).Default, Marked );
+                                        }
+                                        else if constexpr ( std::is_same_v<FieldType, ParamList> )
+                                        {
+                                            for ( const ParamId Child : Field )
+                                            {
+                                                MarkMetadata( Ast, Ast.GetParam( Child ).Default, Marked );
+                                            }
+                                        }
+                                    } );
             }
         }
     } // namespace Detail
