@@ -1,5 +1,158 @@
 # Issue #75 — Macros compile-time avec vraies résolutions
 
+> ## 0. ÉTAT DE SESSION — reprise ici
+>
+> **Fait et prouvé** (commit `2e877c7f`) : **T1 (lexer/parser)** + **T2 (ProcessRunner + backticks + globales majuscules)**.
+> **Reste** : T3 (moteur d'évaluation), T4 (seam `ExpandTypeMacros`), T5 (samples/goldens/cache/docs).
+
+### 0.1 Ce qui marche aujourd'hui (vérifié en exécution)
+
+```sh
+BUILD_LABEL : String = `echo volt-1.2.3`.trim
+KERNEL      : String = `uname`.trim
+puts BUILD_LABEL          # → volt-1.2.3
+assert!( BUILD_LABEL == "volt-1.2.3" )   # exit=0
+```
+`volt build` puis exécution : OK. Les backticks tournent à la compilation, la chaîne
+`` `cmd`.trim `` se replie en un seul balayage, et les diagnostics sont bons
+(`exit 3` → *« \`exit 3\` failed with exit status 3 »*, commande inconnue → stderr capturé).
+
+Le parse du nouveau `macro def` est conforme : `MacroDef 'to_json'` avec `return_type` et corps
+AST réel, `MacroBlock` pour `macro do`, `IvarInterp` pour `@#{field.name}`, et
+`for field in self.fields` arrive bien en `Call(Member(Member(self,"fields"),"each"), BlockArg=Block)`.
+
+### 0.2 Livré en T1/T2 (fichiers)
+
+- `TokenKind.inl` : `VOLT_TOKEN( CommandLiteral )`, `VOLT_TOKEN( IvarInterp )`.
+- `Lexer.{hpp,cpp}` : `LexQuoted` factorisé (`"..."` et `` `...` `` partagent le scan), `LexCommand`,
+  `LexIvarInterp` (cas `@#{` placé **avant** que `@` ne tombe dans `LexPunct`, sinon `#` ouvre un commentaire).
+- `Nodes.inl` / `Expr.hpp` / `Decl.hpp` : `CommandLit` + `IvarInterp` (VOLT_EXPR_SUGAR), `MacroBlock`,
+  `MacroDef` refondu (`ParamList Params; TypeId ReturnType; StmtList Body; bool bSelf; EVisibility`),
+  **`MacroInvoke` supprimé**.
+- `ParseDecl.cpp` : `ParseMacro` dispatche `macro def` / `macro do` ; `ParseMacroDef` calqué sur
+  `ParseMethod` ; règle « `identifiant(` en position de déclaration » supprimée.
+- `ParseExpr.cpp` : `ParseInterpolationParts` partagé, `ParseCommandLiteral`, `ParseIvarInterp`.
+- `ParseStmt.cpp` : `Constant : Type = init` accepté → constante globale majuscule.
+- `Core/Support/ProcessRunner.{hpp,cpp}` : `RunShell` POSIX (fork/execv + 2 pipes drainés en `poll`,
+  timeout 10 s, plafond 1 MiB/flux, `SIGKILL` au timeout), stub Windows diagnostiqué.
+- `ConstEval/Private/MacroValue.{hpp,cpp}` : modèle de valeur + ops du manifeste
+  (`size`, `lines`, `trim`, `chomp`, `basename`) + `ValueOfLiteral` / `LiteralOfValue`.
+- `ConstEval/Private/MacroExpansion.cpp` : réécrit — balayage de l'arène par index croissant,
+  repli `CommandLit` → `StringLiteral` et des chaînes d'ops. **Le scanner `{% %}` est supprimé.**
+- `LiteralInferencer.cpp` : `MarkMetadata` parcourt désormais **aussi** stmts/decls/params
+  (un `if` dans un corps de macro était ignoré) ; marque `MacroDef`/`MacroBlock`.
+- `AstInvariant.cpp` : `CheckSugar` respecte le masque métadonnée (corrige le bug n°2 du §1).
+
+### 0.3 À FAIRE EN PREMIER À LA REPRISE
+
+1. **Les 2 samples macro sont cassés** : `samples/Syntax/Macros/{Serializable,Delegate}.vl` sont
+   encore en `{% %}` → erreurs de parse. Les réécrire dans la syntaxe de l'issue, puis
+   `ninja -C build golden-update`. `meson test` est donc rouge sur ces deux fixtures tant que ce
+   n'est pas fait (rien d'autre n'a été cassé).
+2. Enchaîner sur T3 (§0.5), puis T4 (§0.6).
+
+### 0.4 Faits vérifiés dans le code (ne pas les re-dériver)
+
+| Fait | Où |
+|---|---|
+| Volt est **script-first** : les statements top-level *sont* le programme, `def main` n'est jamais appelé | `UnitInitEmitter.cpp` |
+| `for x in seq` est désucré au parse en `seq.each { \|x\| }` — **aucun nœud `For`** | `ParseStmt.cpp:269` |
+| `InstanceVar.Name` garde le `@` (c'est le lexème) ; le consommateur le retire | `MemberResolver.cpp:78` |
+| `NominalType::Includes`/`Super` sont remplis par la **phase signatures**, après le seam | `TypeBinder.cpp:1367` |
+| Donc les `include` se lisent sur l'AST | `ParentNominals`, `TypeBinder.cpp:1373` |
+| `Member::Result` d'un champ n'est rempli qu'en phase B → `field.type` = graphie écrite (`Frontend::Field.DeclType`) | `TypeBinder.cpp:675` |
+| `DeclareMembers` ignore tout sauf Field/Method/EnumCase → `MacroDef`/`MacroBlock` invisibles au binder | `TypeBinder.cpp:675` |
+| L'émission LLVM itère le **TypeStore**, pas les AST → enregistrer le membre est obligatoire | `DeclareSweep.cpp:43` |
+| Précédent exact à copier : `Ast.Add(Method)` + Body copy-out/write-back + `Store.AddMember` | `SynthesizeFinalizeStubs`, `TypeBinder.cpp:1412-1622` |
+| `CloneExpr/CloneStmt/CloneDecl` existent, cross-`AstContext`, ré-internent les symboles | `AST/AstClone.hpp` |
+| `MakeUniqueSymbol( Prefix )` → `Prefix_N` | `AstContext.hpp:57` |
+| `ArrayLit` est abaissé **dans** le TypeChecker → `.lines` ne demande aucun code de typage | `Lowering/LiteralLowering.cpp` |
+| Magie du cache à bumper en T5 : `"VOLTFE13"` | `Driver.cpp:227` |
+| `assert!` est une fonction runtime de la stdlib | `source/Lib/IO/IO.vl:11` |
+
+### 0.5 T3 — design arrêté, prêt à coder (`ConstEval/Private/MacroEval.{hpp,cpp}`)
+
+```cpp
+// Le résultat d'une évaluation : une valeur compile-time, et surtout d'OÙ elle vient.
+// R2 du plan : un littéral est une *valeur* comptime mais pas une *source* — c'est ce
+// qui fait que `json = "{"` reste une variable runtime et `t = `find ...`.lines` non.
+struct EvalResult
+{
+    std::optional<MacroValue> Value;      // absente = expression runtime
+    bool bFromComptimeSource = false;     // self.*, `cmd`, __DIR__, ou une liaison comptime
+};
+
+struct MacroEnv
+{
+    const Frontend::AstContext &Source;   // où vit le corps de macro (le mixin)
+    Frontend::AstContext &Target;         // où les nœuds émis sont construits (la classe)
+    const TypeSystem::TypeStore &Store;
+    TypeSystem::NominalId SelfType;       // invalide dans un `macro do`
+    ConstEval::MagicSite Site;            // __DIR__ & co via ExpandMagic
+    ::Volt::Core::DiagEngine::Bag &Diags;
+    std::string WorkDir;
+    std::unordered_map<std::string, MacroValue> Comptime;   // liaisons comptime
+    std::unordered_map<std::uint32_t, MacroValue> Folded;   // ExprId source -> valeur
+    std::uint32_t Depth = 0;
+};
+
+void EvalMacroBody ( MacroEnv &Env, const Frontend::StmtList &Body, Frontend::StmtList &Out, bool bTailValue );
+```
+
+Règles de statement :
+- `Assign{ Identifier, Value }` : `Value` comptime **et** issue d'une source comptime → liaison, rien d'émis.
+  Sinon → émis (variable runtime).
+- `LocalDecl` : idem.
+- `ExprStmt` comptime non terminal → exécuté, rien d'émis (`puts`, backticks, boucles).
+- **Position terminale** d'un `macro def` : une valeur comptime est émise en littéral (c'est le
+  résultat de la méthode). `macro do` n'a pas de position terminale (`bTailValue = false`).
+- Dépliage : `Call( Member( recv, "each" ), BlockArg = Block )` avec `recv` comptime → lier les
+  `Block.Params`, `EvalMacroBody` du corps une fois par élément.
+- `if`/`case` à condition comptime → seule la branche gagnante est visitée.
+- `assert!( content.size > 0 )` : `assert!` n'est **pas** une opération du compilateur → émis avec
+  arguments repliés (`assert!( 1024 > 0 )`). `puts` **est** une opération du compilateur → exécuté.
+  → nouveau manifeste `MacroCalls.inl` (`VOLT_MACRO_CALL( Puts, "puts" )`), une ligne par ajout.
+- Nouvelles lignes `MacroOps.inl` : `Fields` (`"fields"`), `Name` (`"name"`), `Type` (`"type"`),
+  sur les nouveaux variants `MacroValue::TypeDesc{ NominalId }` et `FieldDesc{ Name, Type }`.
+- `self.fields` : `Store.Type( Id ).Members` filtrés `EMemberKind::Field`, ordre de déclaration ;
+  la graphie du type vient de `Member::Decl` → `Frontend::Field.DeclType` (helper `TypeSpelling`
+  à écrire : `TypeRef` = `Path` joint par `::` + `Generics`).
+
+Émission = **clone spécialisé** (pas `CloneExpr` tel quel, il n'a pas de point d'insertion) :
+`EmitExpr( Env, ExprId Src ) -> ExprId` qui, par `Meta::ForEachField` (même forme que
+`Detail::CloneField` d'`AstClone.hpp`), route les `ExprId` vers lui-même et :
+- `Folded` contient `Src` → `LiteralOfValue`
+- `IvarInterp` → `InstanceVar{ Intern( "@" + valeur ) }`
+- `Interp` toutes parts comptime → `StringLiteral`
+- `CommandLit` → `StringLiteral`
+- sinon → copie du nœud, enfants mappés récursivement (types/params via `CloneType`/`CloneParam`).
+
+### 0.6 T4 — seam `ExpandTypeMacros`
+
+`ConstEval/Public/…/MacroEngine.hpp` (nouveau, `VOLT_MIDDLEEND_CONSTEVAL_EXPORT`), appelé dans
+`Driver.cpp` **juste après `SynthesizeFinalizeStubs( MutableUnitAsts, Types )` et avant la boucle
+`ResolveUnitSignatures`** (entrée nulle = unité stdlib servie par le cache → ignorée).
+Par type `T` : collecter les `MacroDef` du corps de `T` puis de chaque mixin `include` (lu sur l'AST),
+évaluer avec `SelfType = T`, construire la `Frontend::Method`, la greffer dans le `Body` de `T`
+(copy-out/write-back), `Store.AddMember(...)`, puis retirer `MacroDef`/`MacroBlock` des corps et de
+`TopDecls`. Les `macro do` s'exécutent dans la même étape, en ordre de fichier.
+Aucune modification du graphe meson : `ConstEval` dépend déjà de `TypeSystem`, le Driver lie l'agrégat.
+
+### 0.7 Commandes
+
+```sh
+ninja -C build                       # build (-Werror)
+./volt parse --no-color -i F.vl      # AST brut
+./volt parse --lowered -i F.vl       # après les passes de lowering (voit le repli des backticks)
+./volt check -i F.vl                 # sémantique
+./volt build -i F.vl -o /tmp/x && /tmp/x
+meson test -C build --print-errorlogs
+ninja -C build golden-update
+```
+
+---
+
+
 ## 1. Contexte
 
 Le système de macros actuel est un moteur de **templates textuels** : `MacroDef.BodyText` est une
