@@ -16,6 +16,7 @@
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/MiddleEnd/Analysis/Raii/OwnershipInference.hpp"
+#include "Volt/MiddleEnd/ConstEval/MacroEngine.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 #include "Volt/MiddleEnd/Optimisations/InlineSummary.hpp"
 
@@ -222,7 +223,20 @@ namespace
 // BackendLLVM's EmitFuncAddr — whose only other source is the cross-unit
 // TypeStore, which a lifted closure is deliberately never in — failed the
 // build. `String#blank?` (`all? { | ch | ch.whitespace? }`) is the first one.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453133ULL; // "VOLTFE13"
+// Bumped to 14 for issue #75's macro model. Two independent reasons, and the
+// key would notice neither on its own (it hashes stdlib *sources*, which did
+// not change, plus the executable's identity, which does not move when a
+// module `.so` is relinked). First, shape: `Frontend::MacroDef` no longer
+// carries a source-text body but a parsed `ParamList` / `TypeId` / `StmtList`,
+// and `MacroBlock` is a new declaration alternative — both are reflected
+// aggregate dumps inside every cached AST, so the same byte-shift reasoning as
+// 05, 07 and 10 applies. Second, content: `ConstEval::ExpandTypeMacros` now
+// runs at the interface seam, so a cached stdlib AST and store may contain
+// methods that *no source text declares* — they were written by a macro when
+// the cache was built. A cache from an older compiler has the declarations
+// without the expansion, which is exactly the "content, not shape" case 06 and
+// 08 already made.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453134ULL; // "VOLTFE14"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -544,6 +558,16 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             MutableUnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
         }
         MiddleEnd::Resolver::SynthesizeFinalizeStubs( MutableUnitAsts, Types );
+
+        // Still the same serial seam, and the last thing that may *add* to the
+        // store: evaluate every `macro def` for its target type, graft the
+        // method it generates into that type's Body and register it as a
+        // member, then run the `macro do` blocks in file order. It sits here
+        // rather than in a pass because a pass is per-unit, parallel, and holds
+        // a read-only store — while a macro-generated method has to become a
+        // member of a type that may live in another unit entirely, before the
+        // signature loop below can resolve it (MacroEngine.hpp).
+        MiddleEnd::ConstEval::ExpandTypeMacros( MutableUnitAsts, Types, Sources, SeamBag );
 
         // Still serial, still the same seam, but a second pass: a signature
         // may name a type declared in a file that comes later, so every name
