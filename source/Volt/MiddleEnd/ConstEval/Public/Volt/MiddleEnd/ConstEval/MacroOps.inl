@@ -22,5 +22,12 @@ VOLT_MACRO_OP( Lines, "lines" )
 VOLT_MACRO_OP( Trim, "trim" )
 VOLT_MACRO_OP( Chomp, "chomp" )
 VOLT_MACRO_OP( Basename, "basename" )
+// Introspection of the target type, the second compile-time source after a
+// command literal. A receiver these do not fit is not an error but a plain
+// runtime member access: `"text".name` stays the call the source wrote, and
+// the type checker resolves it like any other (see ApplyMacroOp's contract).
+VOLT_MACRO_OP( Fields, "fields" )
+VOLT_MACRO_OP( Name, "name" )
+VOLT_MACRO_OP( Type, "type" )
 
 #undef VOLT_MACRO_OP
