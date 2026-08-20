@@ -733,6 +733,22 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
         Frame.Fields.PushBack( SelfField );
     }
 
+    const SemaType &Closure = Context.Ctx.Values.Get( LiteralType );
+    const SemaTypeId Result = Closure.Args.IsEmpty() ? SemaTypeId{} : Closure.Args[0];
+
+    // Pad any missing parameters that the closure type expects (e.g. `times do ... end`
+    // where the user omitted the block parameter).
+    const std::size_t ExpectedParamCount = Closure.Args.IsEmpty() ? 0 : Closure.Args.Size() - 1;
+    for ( std::size_t Index = Params.Size(); Index < ExpectedParamCount; ++Index )
+    {
+        Frontend::Param DummyParam;
+        DummyParam.Loc                       = Loc;
+        DummyParam.Name                      = Ast.MakeUniqueSymbol( "__unused" );
+        const Frontend::ParamId DummyParamId = Ast.Add( DummyParam );
+        Context.Ctx.Values.SetSiteType( BindingSite{ DummyParamId }, Closure.Args[1 + Index] );
+        Params.PushBack( DummyParamId );
+    }
+
     const SemaTypeId BytePtr    = BytePointerType( Context );
     const NominalId PointerBase = Context.Ctx.Values.Has( BytePtr ) ? Context.Ctx.Values.Get( BytePtr ).Base : NominalId{};
 
@@ -786,8 +802,6 @@ void Volt::MiddleEnd::Lowering::LowerClosureLit ( TypeCheckerContext &Context, F
     const Frontend::DeclId NewDecl = Ast.Add( Frontend::DeclNode{ std::move( Synth ) } );
     Ast.TopDecls.push_back( NewDecl );
 
-    const SemaType &Closure = Context.Ctx.Values.Get( LiteralType );
-    const SemaTypeId Result = Closure.Args.IsEmpty() ? SemaTypeId{} : Closure.Args[0];
     Volt::Core::SmallVec<SemaTypeId, 4> ParamTypes;
     for ( std::size_t Index = 1; Index < Closure.Args.Size(); ++Index )
     {
