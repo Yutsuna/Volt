@@ -34,8 +34,8 @@ struct Table
 [[nodiscard]] std::string Milliseconds ( double Value )
 {
     const long Hundredths = std::lround( Value * 100.0 );
-    return std::to_string( Hundredths / 100 ) + "." + ( Hundredths % 100 < 10 ? "0" : "" ) +
-           std::to_string( Hundredths % 100 ) + " ms";
+    return std::to_string( Hundredths / 100 ) + "." + ( Hundredths % 100 < 10 ? "0" : "" ) + std::to_string( Hundredths % 100 ) +
+           " ms";
 }
 
 } // namespace

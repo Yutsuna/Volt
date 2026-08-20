@@ -79,10 +79,10 @@ namespace Core
         {
         }
 
-        PhaseScope ( const PhaseScope & )            = delete;
-        PhaseScope &operator=( const PhaseScope & )  = delete;
-        PhaseScope ( PhaseScope && )                 = delete;
-        PhaseScope &operator=( PhaseScope && )       = delete;
+        PhaseScope ( const PhaseScope & )           = delete;
+        PhaseScope &operator=( const PhaseScope & ) = delete;
+        PhaseScope ( PhaseScope && )                = delete;
+        PhaseScope &operator=( PhaseScope && )      = delete;
 
         // Record early and disarm. Idempotent, and the destructor honours it —
         // for a seam whose natural `{}` cannot be drawn, because declarations
