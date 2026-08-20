@@ -1,0 +1,16 @@
+def bench_clamp_min_max -> Int32
+  total = 0
+  iter = 0
+  while iter < 200_000
+    x = iter % 100
+    c = x.clamp( 10, 50 )
+    m = c.min( 40 )
+    mx = m.max( 20 )
+    total += mx
+    iter += 1
+  end
+  total
+end
+
+res = bench_clamp_min_max()
+assert!( res == 6_780_000 )

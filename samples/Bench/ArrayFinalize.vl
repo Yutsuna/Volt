@@ -1,0 +1,18 @@
+def bench_array_finalize -> UInt64
+  iter = 0
+  total = 0_u64
+  while iter < 10_000
+    arr = Array<Int32>.new( 64_u64 )
+    i = 0
+    while i < 50
+      arr.push( i )
+      i += 1
+    end
+    total += arr.size
+    iter += 1
+  end
+  total
+end
+
+res = bench_array_finalize()
+assert!( res == 500_000_u64 )

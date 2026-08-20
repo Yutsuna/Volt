@@ -1,0 +1,81 @@
+Program 'samples/Bench/RangeEach.vl'
+├─ Method 'bench_range_each' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'UInt64' @1:25
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'sum' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0_u64' @2:9
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'iter' @3:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @3:10
+│     ├─ While @4:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @4:14
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'iter' @4:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '2_000' @4:16
+│     │  └─ body
+│     │     ├─ ExprStmt @5:5
+│     │     │  └─ expr
+│     │     │     └─ Call @5:31
+│     │     │        ├─ callee
+│     │     │        │  └─ Member 'each' @5:25
+│     │     │        │     └─ object
+│     │     │        │        └─ Binary '..' @5:12
+│     │     │        │           ├─ lhs
+│     │     │        │           │  └─ IntLiteral '0_u64' @5:7
+│     │     │        │           └─ rhs
+│     │     │        │              └─ IntLiteral '1_000_u64' @5:14
+│     │     │        └─ block_arg
+│     │     │           └─ Block @5:31
+│     │     │              ├─ params
+│     │     │              │  └─ Param 'i'
+│     │     │              └─ body
+│     │     │                 └─ ExprStmt @5:39
+│     │     │                    └─ expr
+│     │     │                       └─ Assign '+=' @5:43
+│     │     │                          ├─ target
+│     │     │                          │  └─ Identifier 'sum' @5:39
+│     │     │                          └─ value
+│     │     │                             └─ Identifier 'i' @5:46
+│     │     └─ ExprStmt @6:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @6:10
+│     │              ├─ target
+│     │              │  └─ Identifier 'iter' @6:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @6:13
+│     └─ ExprStmt @8:3
+│        └─ expr
+│           └─ Identifier 'sum' @8:3
+├─ ExprStmt @11:1
+│  └─ expr
+│     └─ Assign '=' @11:5
+│        ├─ target
+│        │  └─ Identifier 'res' @11:1
+│        └─ value
+│           └─ Call @11:23
+│              └─ callee
+│                 └─ Identifier 'bench_range_each' @11:7
+└─ ExprStmt @12:1
+   └─ expr
+      └─ Call @12:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @12:1
+         └─ args
+            └─ Binary '==' @12:14
+               ├─ lhs
+               │  └─ Identifier 'res' @12:10
+               └─ rhs
+                  └─ IntLiteral '999_000_000_u64' @12:17
+--- exit 0 ---

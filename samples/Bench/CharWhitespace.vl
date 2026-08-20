@@ -1,0 +1,21 @@
+def bench_char_whitespace -> Int32
+  count = 0
+  iter = 0
+  while iter < 100_000
+    c1 = ' '
+    c2 = 'a'
+    c3 = '\t'
+    c4 = '\n'
+    c5 = 'Z'
+    count += 1 if c1.whitespace?
+    count += 1 if c2.whitespace?
+    count += 1 if c3.whitespace?
+    count += 1 if c4.whitespace?
+    count += 1 if c5.whitespace?
+    iter += 1
+  end
+  count
+end
+
+res = bench_char_whitespace()
+assert!( res == 300_000 )

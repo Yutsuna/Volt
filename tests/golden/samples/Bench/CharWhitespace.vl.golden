@@ -1,0 +1,168 @@
+Program 'samples/Bench/CharWhitespace.vl'
+├─ Method 'bench_char_whitespace' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @1:30
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:9
+│     │        ├─ target
+│     │        │  └─ Identifier 'count' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @2:11
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'iter' @3:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @3:10
+│     ├─ While @4:3
+│     │  ├─ cond
+│     │  │  └─ Binary '<' @4:14
+│     │  │     ├─ lhs
+│     │  │     │  └─ Identifier 'iter' @4:9
+│     │  │     └─ rhs
+│     │  │        └─ IntLiteral '100_000' @4:16
+│     │  └─ body
+│     │     ├─ ExprStmt @5:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @5:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'c1' @5:5
+│     │     │        └─ value
+│     │     │           └─ CharLiteral ' ' @5:10
+│     │     ├─ ExprStmt @6:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @6:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'c2' @6:5
+│     │     │        └─ value
+│     │     │           └─ CharLiteral 'a' @6:10
+│     │     ├─ ExprStmt @7:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @7:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'c3' @7:5
+│     │     │        └─ value
+│     │     │           └─ CharLiteral '\t' @7:10
+│     │     ├─ ExprStmt @8:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @8:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'c4' @8:5
+│     │     │        └─ value
+│     │     │           └─ CharLiteral '\n' @8:10
+│     │     ├─ ExprStmt @9:5
+│     │     │  └─ expr
+│     │     │     └─ Assign '=' @9:8
+│     │     │        ├─ target
+│     │     │        │  └─ Identifier 'c5' @9:5
+│     │     │        └─ value
+│     │     │           └─ CharLiteral 'Z' @9:10
+│     │     ├─ ExprStmt @10:16
+│     │     │  └─ expr
+│     │     │     └─ If @10:16
+│     │     │        ├─ cond
+│     │     │        │  └─ Member 'whitespace?' @10:21
+│     │     │        │     └─ object
+│     │     │        │        └─ Identifier 'c1' @10:19
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @10:5
+│     │     │              └─ expr
+│     │     │                 └─ Assign '+=' @10:11
+│     │     │                    ├─ target
+│     │     │                    │  └─ Identifier 'count' @10:5
+│     │     │                    └─ value
+│     │     │                       └─ IntLiteral '1' @10:14
+│     │     ├─ ExprStmt @11:16
+│     │     │  └─ expr
+│     │     │     └─ If @11:16
+│     │     │        ├─ cond
+│     │     │        │  └─ Member 'whitespace?' @11:21
+│     │     │        │     └─ object
+│     │     │        │        └─ Identifier 'c2' @11:19
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @11:5
+│     │     │              └─ expr
+│     │     │                 └─ Assign '+=' @11:11
+│     │     │                    ├─ target
+│     │     │                    │  └─ Identifier 'count' @11:5
+│     │     │                    └─ value
+│     │     │                       └─ IntLiteral '1' @11:14
+│     │     ├─ ExprStmt @12:16
+│     │     │  └─ expr
+│     │     │     └─ If @12:16
+│     │     │        ├─ cond
+│     │     │        │  └─ Member 'whitespace?' @12:21
+│     │     │        │     └─ object
+│     │     │        │        └─ Identifier 'c3' @12:19
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @12:5
+│     │     │              └─ expr
+│     │     │                 └─ Assign '+=' @12:11
+│     │     │                    ├─ target
+│     │     │                    │  └─ Identifier 'count' @12:5
+│     │     │                    └─ value
+│     │     │                       └─ IntLiteral '1' @12:14
+│     │     ├─ ExprStmt @13:16
+│     │     │  └─ expr
+│     │     │     └─ If @13:16
+│     │     │        ├─ cond
+│     │     │        │  └─ Member 'whitespace?' @13:21
+│     │     │        │     └─ object
+│     │     │        │        └─ Identifier 'c4' @13:19
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @13:5
+│     │     │              └─ expr
+│     │     │                 └─ Assign '+=' @13:11
+│     │     │                    ├─ target
+│     │     │                    │  └─ Identifier 'count' @13:5
+│     │     │                    └─ value
+│     │     │                       └─ IntLiteral '1' @13:14
+│     │     ├─ ExprStmt @14:16
+│     │     │  └─ expr
+│     │     │     └─ If @14:16
+│     │     │        ├─ cond
+│     │     │        │  └─ Member 'whitespace?' @14:21
+│     │     │        │     └─ object
+│     │     │        │        └─ Identifier 'c5' @14:19
+│     │     │        └─ then
+│     │     │           └─ ExprStmt @14:5
+│     │     │              └─ expr
+│     │     │                 └─ Assign '+=' @14:11
+│     │     │                    ├─ target
+│     │     │                    │  └─ Identifier 'count' @14:5
+│     │     │                    └─ value
+│     │     │                       └─ IntLiteral '1' @14:14
+│     │     └─ ExprStmt @15:5
+│     │        └─ expr
+│     │           └─ Assign '+=' @15:10
+│     │              ├─ target
+│     │              │  └─ Identifier 'iter' @15:5
+│     │              └─ value
+│     │                 └─ IntLiteral '1' @15:13
+│     └─ ExprStmt @17:3
+│        └─ expr
+│           └─ Identifier 'count' @17:3
+├─ ExprStmt @20:1
+│  └─ expr
+│     └─ Assign '=' @20:5
+│        ├─ target
+│        │  └─ Identifier 'res' @20:1
+│        └─ value
+│           └─ Call @20:28
+│              └─ callee
+│                 └─ Identifier 'bench_char_whitespace' @20:7
+└─ ExprStmt @21:1
+   └─ expr
+      └─ Call @21:8
+         ├─ callee
+         │  └─ Identifier 'assert!' @21:1
+         └─ args
+            └─ Binary '==' @21:14
+               ├─ lhs
+               │  └─ Identifier 'res' @21:10
+               └─ rhs
+                  └─ IntLiteral '300_000' @21:17
+--- exit 0 ---
