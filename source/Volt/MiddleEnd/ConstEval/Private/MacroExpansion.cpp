@@ -20,8 +20,8 @@
 
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
 #include "Volt/Core/Meta/Overloaded.hpp"
-#include "Volt/Core/Support/ProcessRunner.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 
@@ -42,10 +42,6 @@ using namespace Volt::MiddleEnd;
 using namespace Volt::MiddleEnd::Core;
 using namespace Volt::MiddleEnd::ConstEval;
 
-// A command that outlives these is a build that hangs or a build that eats its
-// own memory; both are worse than a build that stops with a diagnostic.
-constexpr ::Volt::Core::ProcessLimits CommandLimits{ .TimeoutMs = 10'000, .MaxBytes = 1U << 20 };
-
 class CommandFolder
 {
 
@@ -59,6 +55,13 @@ public:
     {
         ResolveWorkDir();
         MarkCallees();
+        // A macro body is a compile-time program the interface seam has
+        // already run (ConstEval::ExpandTypeMacros). Its nodes are still in
+        // the arena — arenas only grow — so a sweep by index reaches them, and
+        // folding one again would run its commands a *second* time, with the
+        // side effects and the duplicate diagnostics that implies. The mask is
+        // the same one the type checker and the AstInvariant census consult.
+        Metadata = Frontend::MetadataExprs( Ast );
 
         const std::size_t Count = Ast.ExprCount();
         for ( std::size_t Index = 0; Index < Count; ++Index )
@@ -102,6 +105,10 @@ private:
 
     void Fold ( ExprId Id )
     {
+        if ( Id.Value < Metadata.size() and Metadata[Id.Value] )
+        {
+            return;
+        }
         std::visit( Meta::Overloaded{ [&] ( const CommandLit &Node ) { FoldCommand( Id, Node ); },
                                       [&] ( const Member &Node )
                                       {
@@ -186,41 +193,7 @@ private:
             Command += Stringify( *Value );
         }
 
-        const ::Volt::Core::ProcessResult Result = ::Volt::Core::RunShell( Command, WorkDir, CommandLimits );
-        Replace( Id, MacroValue{ Result.Out }, Loc );
-
-        if ( Result.bSpawnFailed )
-        {
-            Context.Diags.Error( Loc, "could not run `" + Command + "`: " + Result.Err );
-            return;
-        }
-        if ( Result.bTimedOut )
-        {
-            Context.Diags.Error( Loc, "`" + Command + "` did not finish within " +
-                                          std::to_string( CommandLimits.TimeoutMs ) + "ms" );
-            return;
-        }
-        if ( Result.ExitCode != 0 )
-        {
-            Context.Diags.Error( Loc, "`" + Command + "` failed with exit status " + std::to_string( Result.ExitCode ) +
-                                          FirstLineOf( Result.Err ) );
-            return;
-        }
-        if ( Result.bTruncated )
-        {
-            Context.Diags.Error( Loc, "`" + Command + "` produced more than " + std::to_string( CommandLimits.MaxBytes ) +
-                                          " bytes of output" );
-        }
-    }
-
-    [[nodiscard]] static std::string FirstLineOf ( const std::string &Text )
-    {
-        if ( Text.empty() )
-        {
-            return {};
-        }
-        const std::size_t Break = Text.find( '\n' );
-        return ": " + Text.substr( 0, Break == std::string::npos ? Text.size() : Break );
+        Replace( Id, RunMacroCommand( Command, WorkDir, Context.Diags, Loc ), Loc );
     }
 
     // Built before the slot is assigned: a sequence value adds its elements to
@@ -236,6 +209,7 @@ private:
     AstContext &Ast;
     std::string WorkDir;
     std::vector<bool> bIsCallee;
+    std::vector<bool> Metadata;
     std::size_t Folded = 0;
 };
 
