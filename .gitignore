@@ -15,6 +15,6 @@ result
 
 .vscode/
 .zed/
-.idea/*
+.idea/
 
-!.idea/
+__pycache__/
