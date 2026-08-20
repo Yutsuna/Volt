@@ -243,5 +243,5 @@ void Volt::MiddleEnd::Analysis::AstInvariant ( Core::PassContext &Context )
     // yet (Etape 8), only this entry point's own namespace had to.
     namespace TypeCheckerPass = Volt::MiddleEnd::Analysis;
 
-    InvariantChecker( Context, Analysis::MetadataExprs( Context.Ast ) ).Run();
+    InvariantChecker( Context, Frontend::MetadataExprs( Context.Ast ) ).Run();
 }
