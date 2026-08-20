@@ -83,14 +83,14 @@ constexpr std::uint32_t MaxBodyCommands = 256;
 {
     switch ( Op )
     {
-        case TokenKind::KwAnd:
-        case TokenKind::AndAnd:
-            return MacroValue{ Truthy( Lhs ) and Truthy( Rhs ) };
-        case TokenKind::KwOr:
-        case TokenKind::OrOr:
-            return MacroValue{ Truthy( Lhs ) or Truthy( Rhs ) };
-        default:
-            break;
+    case TokenKind::KwAnd:
+    case TokenKind::AndAnd:
+        return MacroValue{ Truthy( Lhs ) and Truthy( Rhs ) };
+    case TokenKind::KwOr:
+    case TokenKind::OrOr:
+        return MacroValue{ Truthy( Lhs ) or Truthy( Rhs ) };
+    default:
+        break;
     }
 
     const auto *LeftText  = std::get_if<std::string>( &Lhs.Data );
@@ -99,23 +99,23 @@ constexpr std::uint32_t MaxBodyCommands = 256;
     {
         switch ( Op )
         {
-            case TokenKind::Plus:
-                return MacroValue{ *LeftText + *RightText };
-            case TokenKind::EqEq:
-            case TokenKind::TripleEq:
-                return MacroValue{ *LeftText == *RightText };
-            case TokenKind::NotEq:
-                return MacroValue{ *LeftText != *RightText };
-            case TokenKind::Lt:
-                return MacroValue{ *LeftText < *RightText };
-            case TokenKind::Le:
-                return MacroValue{ *LeftText <= *RightText };
-            case TokenKind::Gt:
-                return MacroValue{ *LeftText > *RightText };
-            case TokenKind::Ge:
-                return MacroValue{ *LeftText >= *RightText };
-            default:
-                return std::nullopt;
+        case TokenKind::Plus:
+            return MacroValue{ *LeftText + *RightText };
+        case TokenKind::EqEq:
+        case TokenKind::TripleEq:
+            return MacroValue{ *LeftText == *RightText };
+        case TokenKind::NotEq:
+            return MacroValue{ *LeftText != *RightText };
+        case TokenKind::Lt:
+            return MacroValue{ *LeftText < *RightText };
+        case TokenKind::Le:
+            return MacroValue{ *LeftText <= *RightText };
+        case TokenKind::Gt:
+            return MacroValue{ *LeftText > *RightText };
+        case TokenKind::Ge:
+            return MacroValue{ *LeftText >= *RightText };
+        default:
+            return std::nullopt;
         }
     }
 
@@ -125,34 +125,34 @@ constexpr std::uint32_t MaxBodyCommands = 256;
     {
         switch ( Op )
         {
-            case TokenKind::Plus:
-                return MacroValue{ *LeftInt + *RightInt };
-            case TokenKind::Minus:
-                return MacroValue{ *LeftInt - *RightInt };
-            case TokenKind::Star:
-                return MacroValue{ *LeftInt * *RightInt };
-            // A division by zero stays runtime rather than becoming a
-            // compile-time answer nobody can give: the emitted code keeps the
-            // operation, and whatever the program does about it, it does.
-            case TokenKind::Slash:
-                return *RightInt == 0 ? std::nullopt : std::optional{ MacroValue{ *LeftInt / *RightInt } };
-            case TokenKind::Percent:
-                return *RightInt == 0 ? std::nullopt : std::optional{ MacroValue{ *LeftInt % *RightInt } };
-            case TokenKind::EqEq:
-            case TokenKind::TripleEq:
-                return MacroValue{ *LeftInt == *RightInt };
-            case TokenKind::NotEq:
-                return MacroValue{ *LeftInt != *RightInt };
-            case TokenKind::Lt:
-                return MacroValue{ *LeftInt < *RightInt };
-            case TokenKind::Le:
-                return MacroValue{ *LeftInt <= *RightInt };
-            case TokenKind::Gt:
-                return MacroValue{ *LeftInt > *RightInt };
-            case TokenKind::Ge:
-                return MacroValue{ *LeftInt >= *RightInt };
-            default:
-                return std::nullopt;
+        case TokenKind::Plus:
+            return MacroValue{ *LeftInt + *RightInt };
+        case TokenKind::Minus:
+            return MacroValue{ *LeftInt - *RightInt };
+        case TokenKind::Star:
+            return MacroValue{ *LeftInt * *RightInt };
+        // A division by zero stays runtime rather than becoming a
+        // compile-time answer nobody can give: the emitted code keeps the
+        // operation, and whatever the program does about it, it does.
+        case TokenKind::Slash:
+            return *RightInt == 0 ? std::nullopt : std::optional{ MacroValue{ *LeftInt / *RightInt } };
+        case TokenKind::Percent:
+            return *RightInt == 0 ? std::nullopt : std::optional{ MacroValue{ *LeftInt % *RightInt } };
+        case TokenKind::EqEq:
+        case TokenKind::TripleEq:
+            return MacroValue{ *LeftInt == *RightInt };
+        case TokenKind::NotEq:
+            return MacroValue{ *LeftInt != *RightInt };
+        case TokenKind::Lt:
+            return MacroValue{ *LeftInt < *RightInt };
+        case TokenKind::Le:
+            return MacroValue{ *LeftInt <= *RightInt };
+        case TokenKind::Gt:
+            return MacroValue{ *LeftInt > *RightInt };
+        case TokenKind::Ge:
+            return MacroValue{ *LeftInt >= *RightInt };
+        default:
+            return std::nullopt;
         }
     }
 
@@ -162,13 +162,13 @@ constexpr std::uint32_t MaxBodyCommands = 256;
     {
         switch ( Op )
         {
-            case TokenKind::EqEq:
-            case TokenKind::TripleEq:
-                return MacroValue{ *LeftBool == *RightBool };
-            case TokenKind::NotEq:
-                return MacroValue{ *LeftBool != *RightBool };
-            default:
-                return std::nullopt;
+        case TokenKind::EqEq:
+        case TokenKind::TripleEq:
+            return MacroValue{ *LeftBool == *RightBool };
+        case TokenKind::NotEq:
+            return MacroValue{ *LeftBool != *RightBool };
+        default:
+            return std::nullopt;
         }
     }
 
@@ -181,18 +181,18 @@ constexpr std::uint32_t MaxBodyCommands = 256;
 {
     switch ( Op )
     {
-        case TokenKind::PlusEq:
-            return TokenKind::Plus;
-        case TokenKind::MinusEq:
-            return TokenKind::Minus;
-        case TokenKind::StarEq:
-            return TokenKind::Star;
-        case TokenKind::SlashEq:
-            return TokenKind::Slash;
-        case TokenKind::PercentEq:
-            return TokenKind::Percent;
-        default:
-            return TokenKind::Error;
+    case TokenKind::PlusEq:
+        return TokenKind::Plus;
+    case TokenKind::MinusEq:
+        return TokenKind::Minus;
+    case TokenKind::StarEq:
+        return TokenKind::Star;
+    case TokenKind::SlashEq:
+        return TokenKind::Slash;
+    case TokenKind::PercentEq:
+        return TokenKind::Percent;
+    default:
+        return TokenKind::Error;
     }
 }
 
@@ -206,44 +206,43 @@ constexpr std::uint32_t MaxBodyCommands = 256;
         return {};
     }
 
-    return std::visit( Meta::Overloaded{
-                           [&] ( const TypeRef &Node )
-                           {
-                               std::string Out;
-                               for ( std::size_t Index = 0; Index < Node.Path.Size(); ++Index )
-                               {
-                                   Out += Index > 0 ? "::" : "";
-                                   Out += Ast.Text( Node.Path[Index] );
-                               }
-                               for ( std::size_t Index = 0; Index < Node.Generics.Size(); ++Index )
-                               {
-                                   Out += Index > 0 ? ", " : "<";
-                                   Out += TypeSpelling( Ast, Node.Generics[Index] );
-                               }
-                               return Node.Generics.IsEmpty() ? Out : Out + ">";
-                           },
-                           [&] ( const PointerType &Node ) { return TypeSpelling( Ast, Node.Pointee ) + "*"; },
-                           [&] ( const NilableType &Node ) { return TypeSpelling( Ast, Node.Inner ) + "?"; },
-                           [&] ( const FixedArrayType &Node ) { return TypeSpelling( Ast, Node.Elem ) + "[]"; },
-                           [&] ( const DynamicType &Node ) { return "&" + TypeSpelling( Ast, Node.Trait ); },
-                           [&] ( const FuncType &Node )
-                           {
-                               std::string Out = "(";
-                               for ( std::size_t Index = 0; Index < Node.Params.Size(); ++Index )
-                               {
-                                   Out += Index > 0 ? ", " : "";
-                                   Out += TypeSpelling( Ast, Node.Params[Index] );
-                               }
-                               return Out + ") -> " + TypeSpelling( Ast, Node.Return );
-                           },
-                           [] ( const auto & ) { return std::string{}; } },
+    return std::visit( Meta::Overloaded{ [&] ( const TypeRef &Node )
+                                         {
+                                             std::string Out;
+                                             for ( std::size_t Index = 0; Index < Node.Path.Size(); ++Index )
+                                             {
+                                                 Out += Index > 0 ? "::" : "";
+                                                 Out += Ast.Text( Node.Path[Index] );
+                                             }
+                                             for ( std::size_t Index = 0; Index < Node.Generics.Size(); ++Index )
+                                             {
+                                                 Out += Index > 0 ? ", " : "<";
+                                                 Out += TypeSpelling( Ast, Node.Generics[Index] );
+                                             }
+                                             return Node.Generics.IsEmpty() ? Out : Out + ">";
+                                         },
+                                         [&] ( const PointerType &Node ) { return TypeSpelling( Ast, Node.Pointee ) + "*"; },
+                                         [&] ( const NilableType &Node ) { return TypeSpelling( Ast, Node.Inner ) + "?"; },
+                                         [&] ( const FixedArrayType &Node ) { return TypeSpelling( Ast, Node.Elem ) + "[]"; },
+                                         [&] ( const DynamicType &Node ) { return "&" + TypeSpelling( Ast, Node.Trait ); },
+                                         [&] ( const FuncType &Node )
+                                         {
+                                             std::string Out = "(";
+                                             for ( std::size_t Index = 0; Index < Node.Params.Size(); ++Index )
+                                             {
+                                                 Out += Index > 0 ? ", " : "";
+                                                 Out += TypeSpelling( Ast, Node.Params[Index] );
+                                             }
+                                             return Out + ") -> " + TypeSpelling( Ast, Node.Return );
+                                         },
+                                         [] ( const auto & ) { return std::string{}; } },
                        Ast.Type( Id ) );
 }
 
 /// Any of the node lists, whatever its inline capacity — one constraint
 /// instead of the three same_as arms a fixed SmallVec size would need.
 template <typename ListType, typename ElementType>
-concept ListOf = requires ( ListType &List ) {
+concept ListOf = requires( ListType &List ) {
     { List[0] } -> std::same_as<ElementType &>;
     { List.Size() } -> std::convertible_to<std::size_t>;
 };
@@ -264,8 +263,8 @@ public:
     {
         if ( Env.Depth > MaxMacroDepth )
         {
-            Env.Diags.Error( ::Volt::Core::SourceRange{}, "macro expansion nested deeper than " +
-                                                              std::to_string( MaxMacroDepth ) + " levels" );
+            Env.Diags.Error( ::Volt::Core::SourceRange{},
+                             "macro expansion nested deeper than " + std::to_string( MaxMacroDepth ) + " levels" );
             return;
         }
         EvalStmts( Body, Out, bTailValue );
@@ -306,10 +305,10 @@ private:
             Owner.Memo.clear();
         }
 
-        MemoFrame ( const MemoFrame & )            = delete;
-        MemoFrame ( MemoFrame && )                 = delete;
-        MemoFrame &operator=( const MemoFrame & )  = delete;
-        MemoFrame &operator=( MemoFrame && )       = delete;
+        MemoFrame ( const MemoFrame & )           = delete;
+        MemoFrame ( MemoFrame && )                = delete;
+        MemoFrame &operator=( const MemoFrame & ) = delete;
+        MemoFrame &operator=( MemoFrame && )      = delete;
 
         ~MemoFrame ()
         {
@@ -645,30 +644,27 @@ private:
         const ExprNode Node = Src.Expr( Id );
 
         return std::visit(
-            Meta::Overloaded{
-                [&] ( const Identifier &Expr ) { return EvalIdentifier( Expr ); },
-                [&] ( const SelfExpr & ) { return EvalSelf(); },
-                [&] ( const Member &Expr ) { return EvalMember( Expr ); },
-                [&] ( const Call &Expr ) { return EvalCall( Expr ); },
-                [&] ( const Binary &Expr ) { return EvalBinary( Expr ); },
-                [&] ( const Unary &Expr ) { return EvalUnary( Expr ); },
-                [&] ( const Interp &Expr ) { return EvalParts( Expr.Parts, false ); },
-                [&] ( const CommandLit &Expr ) { return EvalCommand( Expr ); },
-                [&] ( const ArrayLit &Expr ) { return EvalArray( Expr ); },
-                // `@#{ ... }` names an instance variable: a runtime value
-                // whose *name* is compile-time, which is a matter for
-                // emission, not for evaluation.
-                [&] ( const IvarInterp & ) { return EvalResult{}; },
-                [&] ( const auto & )
-                {
-                    // A literal is a compile-time value but never a
-                    // compile-time *source* (R2): `json = "{"` stays a runtime
-                    // local, which is what makes the generated method build
-                    // its string at run time instead of at compile time.
-                    std::optional<MacroValue> Literal = ValueOfLiteralNode( Src, Node );
-                    const bool bKnown                 = Literal.has_value();
-                    return EvalResult{ .Value = std::move( Literal ), .bSource = false, .bFold = bKnown };
-                } },
+            Meta::Overloaded{ [&] ( const Identifier &Expr ) { return EvalIdentifier( Expr ); }, [&] ( const SelfExpr & )
+                              { return EvalSelf(); }, [&] ( const Member &Expr ) { return EvalMember( Expr ); },
+                              [&] ( const Call &Expr ) { return EvalCall( Expr ); }, [&] ( const Binary &Expr )
+                              { return EvalBinary( Expr ); }, [&] ( const Unary &Expr ) { return EvalUnary( Expr ); },
+                              [&] ( const Interp &Expr ) { return EvalParts( Expr.Parts, false ); },
+                              [&] ( const CommandLit &Expr ) { return EvalCommand( Expr ); },
+                              [&] ( const ArrayLit &Expr ) { return EvalArray( Expr ); },
+                              // `@#{ ... }` names an instance variable: a runtime value
+                              // whose *name* is compile-time, which is a matter for
+                              // emission, not for evaluation.
+                              [&] ( const IvarInterp & ) { return EvalResult{}; },
+                              [&] ( const auto & )
+                              {
+                                  // A literal is a compile-time value but never a
+                                  // compile-time *source* (R2): `json = "{"` stays a runtime
+                                  // local, which is what makes the generated method build
+                                  // its string at run time instead of at compile time.
+                                  std::optional<MacroValue> Literal = ValueOfLiteralNode( Src, Node );
+                                  const bool bKnown                 = Literal.has_value();
+                                  return EvalResult{ .Value = std::move( Literal ), .bSource = false, .bFold = bKnown };
+                              } },
             Node );
     }
 
@@ -1002,8 +998,8 @@ private:
             Env.Diags.Error( Node.Loc, "'@#{ ... }' needs an instance variable name known at compile time" );
             return Dst.Add( ExprNode{ NilLiteral{ .Loc = Node.Loc } } );
         }
-        return Dst.Add( ExprNode{ InstanceVar{ .Loc  = Node.Loc,
-                                               .Name = Dst.Strings().Intern( "@" + Stringify( *Name.Value ) ) } } );
+        return Dst.Add(
+            ExprNode{ InstanceVar{ .Loc = Node.Loc, .Name = Dst.Strings().Intern( "@" + Stringify( *Name.Value ) ) } } );
     }
 
     // A call is emitted by hand for one reason: its callee must *not* go
@@ -1012,7 +1008,7 @@ private:
     // `json.chomp( "," )` into whatever `json.chomp` is worth.
     [[nodiscard]] ExprId EmitCall ( const Call &Node )
     {
-        Call Copy = Node;
+        Call Copy   = Node;
         Copy.Callee = EmitCallee( Node.Callee );
         for ( std::size_t Index = 0; Index < Copy.Args.Size(); ++Index )
         {
@@ -1038,8 +1034,7 @@ private:
             return Emit( Id );
         }
         const Member Node = *Access;
-        return Dst.Add( ExprNode{
-            Member{ .Loc = Node.Loc, .Object = Emit( Node.Object ), .Name = Reintern( Node.Name ) } } );
+        return Dst.Add( ExprNode{ Member{ .Loc = Node.Loc, .Object = Emit( Node.Object ), .Name = Reintern( Node.Name ) } } );
     }
 
     template <typename NodeType> void EmitStmtNode ( const NodeType &Node, StmtList &Out )

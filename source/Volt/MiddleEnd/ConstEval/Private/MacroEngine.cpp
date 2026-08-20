@@ -64,9 +64,8 @@ namespace TypeSystem = Volt::MiddleEnd::TypeSystem;
 /// this is the write-back half of the copy-out discipline.
 void SetBody ( AstContext &Ast, DeclId Decl, DeclList Body )
 {
-    std::visit( Meta::Overloaded{ [&] ( Struct &Node ) { Node.Body = std::move( Body ); },
-                                  [&] ( Class &Node ) { Node.Body = std::move( Body ); },
-                                  [&] ( Mixin &Node ) { Node.Body = std::move( Body ); },
+    std::visit( Meta::Overloaded{ [&] ( Struct &Node ) { Node.Body = std::move( Body ); }, [&] ( Class &Node )
+                                  { Node.Body = std::move( Body ); }, [&] ( Mixin &Node ) { Node.Body = std::move( Body ); },
                                   [&] ( Enum &Node ) { Node.Body = std::move( Body ); },
                                   [&] ( Module &Node ) { Node.Body = std::move( Body ); }, [] ( auto & ) {} },
                 Ast.Decl( Decl ) );
@@ -220,10 +219,10 @@ private:
             {
                 continue;
             }
-            const std::uint32_t MixinUnit  = Store.Type( *Mixin ).Unit;
-            const DeclId MixinDecl         = Store.Type( *Mixin ).Decl;
-            const AstContext *MixinAst     = UnitAt( MixinUnit );
-            const DeclList *MixinBody      = MixinAst == nullptr ? nullptr : BodyOf( *MixinAst, MixinDecl );
+            const std::uint32_t MixinUnit = Store.Type( *Mixin ).Unit;
+            const DeclId MixinDecl        = Store.Type( *Mixin ).Decl;
+            const AstContext *MixinAst    = UnitAt( MixinUnit );
+            const DeclList *MixinBody     = MixinAst == nullptr ? nullptr : BodyOf( *MixinAst, MixinDecl );
             if ( MixinBody == nullptr )
             {
                 continue;
@@ -431,8 +430,8 @@ private:
         {
             return MagicSite{ .Path = {}, .Dir = {}, .Function = Function, .Line = 1, .Column = 1 };
         }
-        const std::string_view Path        = Sources.PathOf( Ast.FileId() );
-        const std::size_t Slash            = Path.find_last_of( '/' );
+        const std::string_view Path          = Sources.PathOf( Ast.FileId() );
+        const std::size_t Slash              = Path.find_last_of( '/' );
         const ::Volt::Core::LineColumn Where = Sources.Resolve( Ast.FileId(), Loc.Begin );
 
         return MagicSite{ .Path     = Path,
