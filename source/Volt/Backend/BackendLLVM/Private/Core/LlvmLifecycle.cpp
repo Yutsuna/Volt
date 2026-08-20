@@ -14,6 +14,8 @@
 
 #include "Core/LlvmBackendState.hpp"
 
+#include "Volt/Core/Support/PhaseTimer.hpp"
+
 #include <llvm/ADT/SmallString.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/FileSystem.h>
@@ -80,7 +82,10 @@ Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const Un
         return EEmitStatus::Ok;
     }
 
-    DefineAll( Impl->Services, Unit );
+    {
+        const Volt::Core::PhaseScope Timing( "backend.emit" );
+        DefineAll( Impl->Services, Unit );
+    }
     return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
 }
 
@@ -98,7 +103,10 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
     // ever discover has been enqueued. A drained body can itself enqueue more — a
     // generic method calling another generic method — so this drains to a
     // fixpoint rather than once.
-    Impl->Mono->Drain();
+    {
+        const Volt::Core::PhaseScope Timing( "backend.monomorphize" );
+        Impl->Mono->Drain();
+    }
     if ( Impl->Failed() )
     {
         return MakeFailure();
@@ -116,16 +124,22 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
     // guarantees the middle-end never hands over anything the module verifier
     // could reject), never a Volt source error — VerifyModule names the offending
     // function rather than the caller guessing.
-    if ( not Impl->Pipeline->VerifyModule() )
     {
-        return MakeFailure();
+        const Volt::Core::PhaseScope Timing( "backend.verify" );
+        if ( not Impl->Pipeline->VerifyModule() )
+        {
+            return MakeFailure();
+        }
     }
 
     // Runs even at -O0: PassBuilder's O0 pipeline is the minimal
     // semantically-required set, principally mem2reg, and the emitter itself
     // never builds SSA (llvm.md, "every alloca goes in the entry block") — it
     // depends on this pass to promote them back to registers.
-    Impl->Pipeline->RunOptimizationPipeline();
+    {
+        const Volt::Core::PhaseScope Timing( "backend.optimize" );
+        Impl->Pipeline->RunOptimizationPipeline();
+    }
 
     const std::string ModuleName = Impl->Ctx.Mod().getName().str();
     const std::string BaseName   = ModuleName.empty() ? std::string( "volt" ) : ModuleName;
