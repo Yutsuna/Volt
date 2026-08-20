@@ -137,7 +137,7 @@ void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
     }
 }
 
-void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView &Unit )
+void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView &Unit, bool bInlineEligibleOnly )
 {
     if ( Services.Build == nullptr or Services.Build->Types == nullptr )
     {
@@ -163,6 +163,10 @@ void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView 
         {
             if ( Entry.Unit == Unit.Ordinal )
             {
+                if ( bInlineEligibleOnly and Entry.InlineVerdict == MiddleEnd::TypeSystem::EInlineVerdict::Never )
+                {
+                    continue;
+                }
                 DefineMember( Services, Entry, Id, Unit );
             }
         }
@@ -172,11 +176,18 @@ void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView 
     {
         if ( Entry.Unit == Unit.Ordinal )
         {
+            if ( bInlineEligibleOnly and Entry.InlineVerdict == MiddleEnd::TypeSystem::EInlineVerdict::Never )
+            {
+                continue;
+            }
             DefineMember( Services, Entry, MiddleEnd::TypeSystem::NominalId{}, Unit );
         }
     }
 
     DefineSynthesized( Services, Unit );
 
-    EmitUnitInit( Services, Unit );
+    if ( not bInlineEligibleOnly )
+    {
+        EmitUnitInit( Services, Unit );
+    }
 }
