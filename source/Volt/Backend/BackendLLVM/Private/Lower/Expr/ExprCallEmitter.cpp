@@ -20,7 +20,20 @@
 
 llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitCall ( Frontend::ExprId Id, const Frontend::Call &Node )
 {
-    const MiddleEnd::IR::CalleeEntry *Entry = Frame().Callees->Get( Node.Callee );
+    Frontend::ExprId CalleeId = Node.Callee;
+    if ( Frame().Redirects != nullptr )
+    {
+        if ( const auto It = Frame().Redirects->find( CalleeId.Value ); It != Frame().Redirects->end() )
+        {
+            CalleeId = It->second;
+        }
+    }
+
+    const MiddleEnd::IR::CalleeEntry *Entry = Frame().Callees->Get( CalleeId );
+    if ( Entry == nullptr or Entry->Decl == nullptr )
+    {
+        Entry = Frame().Callees->Get( Node.Callee );
+    }
     if ( Entry == nullptr or Entry->Decl == nullptr )
     {
         static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
@@ -33,13 +46,13 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitCall ( Frontend::ExprId Id, c
     // the resolution is indirect, where the callee expression *is* the callable
     // being invoked: `f( x )` on a local holding a closure.
     Frontend::ExprId Receiver;
-    if ( const auto *Access = std::get_if<Frontend::Member>( &Frame().Unit->Ast->Expr( Node.Callee ) ); Access != nullptr )
+    if ( const auto *Access = std::get_if<Frontend::Member>( &Frame().Unit->Ast->Expr( CalleeId ) ); Access != nullptr )
     {
         Receiver = Access->Object;
     }
     else if ( Entry->bIndirect )
     {
-        Receiver = Node.Callee;
+        Receiver = CalleeId;
     }
 
     return EmitResolvedCall( Id, *Entry, Receiver, std::span<const Frontend::ExprId>{ Node.Args.begin(), Node.Args.Size() },

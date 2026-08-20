@@ -61,14 +61,49 @@ llvm::Value *Volt::Backend::Llvm::EmitBinary ( BodyEmitter &Emitter, Frontend::E
 
     llvm::IRBuilder<> &Builder = Emitter.Ctx().Builder();
 
+    auto CoerceToSame = [&] ( llvm::Value *V, llvm::Type *T ) -> llvm::Value *
+    {
+        if ( V->getType() == T )
+        {
+            return V;
+        }
+        if ( V->getType()->isIntegerTy() and T->isIntegerTy() )
+        {
+            if ( V->getType()->getIntegerBitWidth() < T->getIntegerBitWidth() )
+            {
+                return Builder.CreateZExt( V, T );
+            }
+            if ( V->getType()->getIntegerBitWidth() > T->getIntegerBitWidth() )
+            {
+                return Builder.CreateTrunc( V, T );
+            }
+        }
+        if ( V->getType()->isIntegerTy() and T->isFloatingPointTy() )
+        {
+            return Builder.CreateSIToFP( V, T );
+        }
+        if ( V->getType()->isFloatingPointTy() and T->isFloatingPointTy() )
+        {
+            if ( V->getType()->isFloatTy() and T->isDoubleTy() )
+            {
+                return Builder.CreateFPExt( V, T );
+            }
+            if ( V->getType()->isDoubleTy() and T->isFloatTy() )
+            {
+                return Builder.CreateFPTrunc( V, T );
+            }
+        }
+        return Emitter.CoerceWidth( V, T );
+    };
+
     if ( const BinOpRow *Row = FindBinOp( Family, Node.Op ); Row != nullptr )
     {
-        return Builder.CreateBinOp( Row->Opcode, Lhs, Emitter.CoerceWidth( Rhs, Lhs->getType() ) );
+        return Builder.CreateBinOp( Row->Opcode, Lhs, CoerceToSame( Rhs, Lhs->getType() ) );
     }
     if ( const CmpRow *Row = FindCmp( Family, Node.Op ); Row != nullptr )
     {
-        return Family == EOpFamily::Float ? Builder.CreateFCmp( Row->Predicate, Lhs, Rhs )
-                                          : Builder.CreateICmp( Row->Predicate, Lhs, Emitter.CoerceWidth( Rhs, Lhs->getType() ) );
+        return Family == EOpFamily::Float ? Builder.CreateFCmp( Row->Predicate, Lhs, CoerceToSame( Rhs, Lhs->getType() ) )
+                                          : Builder.CreateICmp( Row->Predicate, Lhs, CoerceToSame( Rhs, Lhs->getType() ) );
     }
 
     static_cast<void>( Emitter.Fail( "llvm: no machine instruction for '" + std::string( Frontend::TokenSpelling( Node.Op ) ) +
