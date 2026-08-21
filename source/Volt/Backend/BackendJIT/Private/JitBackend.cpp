@@ -24,9 +24,9 @@
 #include "JitCompiler.hpp"
 
 #include "Volt/BackendCore/UnwindTransport.hpp"
-#include "Volt/Core/Support/PhaseTimer.hpp"
 #include "Volt/BackendLlvmIr/IrGenerator.hpp"
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
+#include "Volt/Core/Support/PhaseTimer.hpp"
 
 #include <cstdint>
 #include <memory>
@@ -120,9 +120,9 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     Gen.SkipUnitsBelow             = Impl->Options.SkipUnitsBelow;
     Gen.bDefineInlineEligibleBelow = false;
 
-    // The artifact is loaded, not linked, so its entry glue was fixed up
-    // against its own build and cannot be reused.
-    Gen.bDefineEntryUnit = true;
+    // The artifact is loaded, not linked, so any seam it contains was filled
+    // in for its own build and cannot be reused.
+    Gen.bDefineCompilerSeamUnits = true;
 
     Gen.TargetTriple       = Impl->Compiler.TargetTriple();
     Gen.DataLayout         = Impl->Compiler.DataLayoutString();
