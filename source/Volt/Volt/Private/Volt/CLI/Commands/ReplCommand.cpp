@@ -114,6 +114,21 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
         {
             std::cout << Outcome.Message << '\n';
         }
+
+        // The value half of `=> 3 : Int32` was written by the evaluated code
+        // itself, straight to the descriptor, before Feed returned. Flushing
+        // first is what keeps the two halves in the order they are read: this
+        // stream is buffered and that one is not.
+        // Only when the value actually rendered. A line whose result has no
+        // `to_string` says nothing at all rather than announcing a type with no
+        // value beside it — `puts( x )` is a side effect the user came for, and
+        // a trailing `=> <StandardStream>` is noise. `:type` is where a type is
+        // asked for on purpose.
+        if ( Outcome.bRendered )
+        {
+            std::cout.flush();
+            std::cout << " : " << Outcome.ResultType << '\n';
+        }
         std::cout.flush();
 
         if ( Outcome.Status != Repl::EEvalStatus::Ok )
