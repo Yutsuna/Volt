@@ -1,0 +1,35 @@
+Program 'samples/Tests/RAII/ModuleGlobalLifetime/Source/Main.vl'
+├─ Annotation 'Link' @1:1
+│  └─ args
+│     └─ StringLiteral 'Producer' @1:8
+├─ ExprStmt @9:68
+│  └─ expr
+│     └─ If @9:68
+│        ├─ cond
+│        │  └─ Unary 'not' @9:71
+│        │     └─ operand
+│        │        └─ Call @9:89
+│        │           └─ callee
+│        │              └─ Identifier 'held_is_intact' @9:75
+│        └─ then
+│           └─ ExprStmt @9:1
+│              └─ expr
+│                 └─ RaiseExpr @9:1
+│                    └─ exception
+│                       └─ StringLiteral 'module variable 'held' did not survive its own initialiser' @9:7
+└─ ExprStmt @10:68
+   └─ expr
+      └─ If @10:68
+         ├─ cond
+         │  └─ Unary 'not' @10:71
+         │     └─ operand
+         │        └─ Call @10:89
+         │           └─ callee
+         │              └─ Identifier 'kept_is_intact' @10:75
+         └─ then
+            └─ ExprStmt @10:1
+               └─ expr
+                  └─ RaiseExpr @10:1
+                     └─ exception
+                        └─ StringLiteral 'module variable 'kept' did not survive its own initialiser' @10:7
+--- exit 0 ---

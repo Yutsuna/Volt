@@ -1,0 +1,603 @@
+Program 'samples/Bench/Benchmarks.vl'
+├─ Module 'Benchmark' @1:1
+│  └─ body
+│     └─ Method 'measure' self @3:3
+│        ├─ params
+│        │  ├─ Param 'label' @3:21
+│        │  │  └─ decl_type
+│        │  │     └─ TypeRef 'String' @3:29
+│        │  ├─ Param 'iterations' @3:37
+│        │  │  └─ decl_type
+│        │  │     └─ TypeRef 'UInt64' @3:50
+│        │  └─ Param 'task' is_block @3:58
+│        │     └─ decl_type
+│        │        └─ FuncType @3:66
+│        │           └─ return
+│        │              └─ TypeRef 'Void' @3:69
+│        ├─ return_type
+│        │  └─ TypeRef 'Void' @3:79
+│        └─ body
+│           ├─ ExprStmt @4:5
+│           │  └─ expr
+│           │     └─ Call @4:20
+│           │        ├─ callee
+│           │        │  └─ Member 'print' @4:14
+│           │        │     └─ object
+│           │        │        └─ Member 'stdout' @4:7
+│           │        │           └─ object
+│           │        │              └─ Identifier 'IO' @4:5
+│           │        └─ args
+│           │           └─ Binary '+' @4:81
+│           │              ├─ lhs
+│           │              │  └─ Binary '+' @4:58
+│           │              │     ├─ lhs
+│           │              │     │  └─ Binary '+' @4:51
+│           │              │     │     ├─ lhs
+│           │              │     │     │  └─ Binary '+' @4:43
+│           │              │     │     │     ├─ lhs
+│           │              │     │     │     │  └─ StringLiteral '• Benchmarking: ' @4:22
+│           │              │     │     │     └─ rhs
+│           │              │     │     │        └─ Identifier 'label' @4:45
+│           │              │     │     └─ rhs
+│           │              │     │        └─ StringLiteral ' (' @4:53
+│           │              │     └─ rhs
+│           │              │        └─ Member 'to_string' @4:70
+│           │              │           └─ object
+│           │              │              └─ Identifier 'iterations' @4:60
+│           │              └─ rhs
+│           │                 └─ StringLiteral ' runs)... ' @4:83
+│           ├─ ExprStmt @6:5
+│           │  └─ expr
+│           │     └─ Assign '=' @6:16
+│           │        ├─ target
+│           │        │  └─ Identifier 'start_time' @6:5
+│           │        └─ value
+│           │           └─ Call @6:28
+│           │              └─ callee
+│           │                 └─ Member 'clock' @6:22
+│           │                    └─ object
+│           │                       └─ Identifier 'LibC' @6:18
+│           ├─ ExprStmt @8:5
+│           │  └─ expr
+│           │     └─ Call @8:22
+│           │        ├─ callee
+│           │        │  └─ Member 'times' @8:15
+│           │        │     └─ object
+│           │        │        └─ Identifier 'iterations' @8:5
+│           │        └─ block_arg
+│           │           └─ Block @8:22
+│           │              └─ body
+│           │                 └─ ExprStmt @9:7
+│           │                    └─ expr
+│           │                       └─ Call @9:16
+│           │                          └─ callee
+│           │                             └─ Member 'call' @9:11
+│           │                                └─ object
+│           │                                   └─ Identifier 'task' @9:7
+│           ├─ ExprStmt @12:5
+│           │  └─ expr
+│           │     └─ Assign '=' @12:14
+│           │        ├─ target
+│           │        │  └─ Identifier 'end_time' @12:5
+│           │        └─ value
+│           │           └─ Call @12:26
+│           │              └─ callee
+│           │                 └─ Member 'clock' @12:20
+│           │                    └─ object
+│           │                       └─ Identifier 'LibC' @12:16
+│           ├─ ExprStmt @13:5
+│           │  └─ expr
+│           │     └─ Assign '=' @13:19
+│           │        ├─ target
+│           │        │  └─ Identifier 'elapsed_ticks' @13:5
+│           │        └─ value
+│           │           └─ Binary '-' @13:30
+│           │              ├─ lhs
+│           │              │  └─ Identifier 'end_time' @13:21
+│           │              └─ rhs
+│           │                 └─ Identifier 'start_time' @13:32
+│           └─ ExprStmt @15:5
+│              └─ expr
+│                 └─ Call @15:19
+│                    ├─ callee
+│                    │  └─ Member 'puts' @15:14
+│                    │     └─ object
+│                    │        └─ Member 'stdout' @15:7
+│                    │           └─ object
+│                    │              └─ Identifier 'IO' @15:5
+│                    └─ args
+│                       └─ Binary '+' @15:61
+│                          ├─ lhs
+│                          │  └─ Binary '+' @15:35
+│                          │     ├─ lhs
+│                          │     │  └─ StringLiteral 'OK [Ticks: ' @15:21
+│                          │     └─ rhs
+│                          │        └─ Member 'to_string' @15:50
+│                          │           └─ object
+│                          │              └─ Identifier 'elapsed_ticks' @15:37
+│                          └─ rhs
+│                             └─ StringLiteral ']' @15:63
+├─ Method 'bench_memory_throughput' @21:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @21:32
+│  └─ body
+│     ├─ ExprStmt @22:3
+│     │  └─ expr
+│     │     └─ Assign '=' @22:14
+│     │        ├─ target
+│     │        │  └─ Identifier 'block_size' @22:3
+│     │        └─ value
+│     │           └─ IntLiteral '65536' @22:16
+│     ├─ ExprStmt @23:3
+│     │  └─ expr
+│     │     └─ Assign '=' @23:18
+│     │        ├─ target
+│     │        │  └─ Identifier 'total_transfer' @23:3
+│     │        └─ value
+│     │           └─ IntLiteral '16777216' @23:20
+│     ├─ ExprStmt @24:3
+│     │  └─ expr
+│     │     └─ Assign '=' @24:8
+│     │        ├─ target
+│     │        │  └─ Identifier 'runs' @24:3
+│     │        └─ value
+│     │           └─ Binary '/' @24:25
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'total_transfer' @24:10
+│     │              └─ rhs
+│     │                 └─ Identifier 'block_size' @24:27
+│     └─ ExprStmt @26:3
+│        └─ expr
+│           └─ Call @26:20
+│              ├─ callee
+│              │  └─ Member 'measure' @26:12
+│              │     └─ object
+│              │        └─ Identifier 'Benchmark' @26:3
+│              ├─ args
+│              │  ├─ StringLiteral 'Buffer Allocation & Memset [64KiB blocks]' @26:22
+│              │  └─ Identifier 'runs' @26:67
+│              └─ block_arg
+│                 └─ Block @26:74
+│                    └─ body
+│                       ├─ ExprStmt @27:5
+│                       │  └─ expr
+│                       │     └─ Assign '=' @27:12
+│                       │        ├─ target
+│                       │        │  └─ Identifier 'buffer' @27:5
+│                       │        └─ value
+│                       │           └─ Call @27:35
+│                       │              ├─ callee
+│                       │              │  └─ Member 'malloc' @27:28
+│                       │              │     └─ object
+│                       │              │        └─ GenericInst @27:21
+│                       │              │           ├─ base
+│                       │              │           │  └─ Identifier 'Pointer' @27:14
+│                       │              │           └─ args
+│                       │              │              └─ TypeRef 'UInt8' @27:22
+│                       │              └─ args
+│                       │                 └─ Identifier 'block_size' @27:37
+│                       ├─ ExprStmt @28:5
+│                       │  └─ expr
+│                       │     └─ Call @28:16
+│                       │        ├─ callee
+│                       │        │  └─ Member 'memset' @28:9
+│                       │        │     └─ object
+│                       │        │        └─ Identifier 'LibC' @28:5
+│                       │        └─ args
+│                       │           ├─ Identifier 'buffer' @28:18
+│                       │           ├─ IntLiteral '42' @28:26
+│                       │           └─ Identifier 'block_size' @28:30
+│                       ├─ ExprStmt @30:5
+│                       │  └─ expr
+│                       │     └─ Call @30:12
+│                       │        ├─ callee
+│                       │        │  └─ Identifier 'assert!' @30:5
+│                       │        └─ args
+│                       │           └─ Binary '==' @30:34
+│                       │              ├─ lhs
+│                       │              │  └─ Deref @30:14
+│                       │              │     └─ operand
+│                       │              │        └─ Binary '+' @30:24
+│                       │              │           ├─ lhs
+│                       │              │           │  └─ Identifier 'buffer' @30:17
+│                       │              │           └─ rhs
+│                       │              │              └─ IntLiteral '0_u64' @30:26
+│                       │              └─ rhs
+│                       │                 └─ IntLiteral '42_u8' @30:37
+│                       ├─ ExprStmt @31:5
+│                       │  └─ expr
+│                       │     └─ Call @31:12
+│                       │        ├─ callee
+│                       │        │  └─ Identifier 'assert!' @31:5
+│                       │        └─ args
+│                       │           └─ Binary '==' @31:51
+│                       │              ├─ lhs
+│                       │              │  └─ Deref @31:14
+│                       │              │     └─ operand
+│                       │              │        └─ Binary '+' @31:24
+│                       │              │           ├─ lhs
+│                       │              │           │  └─ Identifier 'buffer' @31:17
+│                       │              │           └─ rhs
+│                       │              │              └─ Binary '-' @31:39
+│                       │              │                 ├─ lhs
+│                       │              │                 │  └─ Identifier 'block_size' @31:28
+│                       │              │                 └─ rhs
+│                       │              │                    └─ IntLiteral '1_u64' @31:41
+│                       │              └─ rhs
+│                       │                 └─ IntLiteral '42_u8' @31:54
+│                       └─ ExprStmt @33:5
+│                          └─ expr
+│                             └─ Member 'free' @33:11
+│                                └─ object
+│                                   └─ Identifier 'buffer' @33:5
+├─ Method 'bench_array_growth' @37:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @37:27
+│  └─ body
+│     └─ ExprStmt @38:3
+│        └─ expr
+│           └─ Call @38:20
+│              ├─ callee
+│              │  └─ Member 'measure' @38:12
+│              │     └─ object
+│              │        └─ Identifier 'Benchmark' @38:3
+│              ├─ args
+│              │  ├─ StringLiteral 'Dynamic Array Growth [up to 32KiB items]' @38:22
+│              │  └─ IntLiteral '100' @38:66
+│              └─ block_arg
+│                 └─ Block @38:72
+│                    └─ body
+│                       ├─ ExprStmt @39:5
+│                       │  └─ expr
+│                       │     └─ Assign '=' @39:9
+│                       │        ├─ target
+│                       │        │  └─ Identifier 'arr' @39:5
+│                       │        └─ value
+│                       │           └─ Call @39:27
+│                       │              ├─ callee
+│                       │              │  └─ Member 'new' @39:23
+│                       │              │     └─ object
+│                       │              │        └─ GenericInst @39:16
+│                       │              │           ├─ base
+│                       │              │           │  └─ Identifier 'Array' @39:11
+│                       │              │           └─ args
+│                       │              │              └─ TypeRef 'Int32' @39:17
+│                       │              └─ args
+│                       │                 └─ IntLiteral '8_u64' @39:29
+│                       ├─ ExprStmt @41:5
+│                       │  └─ expr
+│                       │     └─ Call @41:11
+│                       │        ├─ callee
+│                       │        │  └─ Member 'upto' @41:6
+│                       │        │     └─ object
+│                       │        │        └─ IntLiteral '0' @41:5
+│                       │        ├─ args
+│                       │        │  └─ IntLiteral '1024' @41:13
+│                       │        └─ block_arg
+│                       │           └─ Block @41:20
+│                       │              ├─ params
+│                       │              │  └─ Param 'val'
+│                       │              └─ body
+│                       │                 └─ ExprStmt @42:7
+│                       │                    └─ expr
+│                       │                       └─ Call @42:15
+│                       │                          ├─ callee
+│                       │                          │  └─ Member 'push' @42:10
+│                       │                          │     └─ object
+│                       │                          │        └─ Identifier 'arr' @42:7
+│                       │                          └─ args
+│                       │                             └─ Identifier 'val' @42:17
+│                       └─ ExprStmt @45:5
+│                          └─ expr
+│                             └─ Call @45:12
+│                                ├─ callee
+│                                │  └─ Identifier 'assert!' @45:5
+│                                └─ args
+│                                   └─ Binary '==' @45:23
+│                                      ├─ lhs
+│                                      │  └─ Member 'size' @45:17
+│                                      │     └─ object
+│                                      │        └─ Identifier 'arr' @45:14
+│                                      └─ rhs
+│                                         └─ IntLiteral '1025_u64' @45:26
+├─ Method 'bench_functional_pipeline' @50:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @50:34
+│  └─ body
+│     ├─ ExprStmt @51:3
+│     │  └─ expr
+│     │     └─ Assign '=' @51:15
+│     │        ├─ target
+│     │        │  └─ Identifier 'sample_size' @51:3
+│     │        └─ value
+│     │           └─ IntLiteral '4096' @51:17
+│     └─ ExprStmt @53:3
+│        └─ expr
+│           └─ Call @53:20
+│              ├─ callee
+│              │  └─ Member 'measure' @53:12
+│              │     └─ object
+│              │        └─ Identifier 'Benchmark' @53:3
+│              ├─ args
+│              │  ├─ StringLiteral 'Point-Free & Pipeline Processing [4KiB dataset]' @53:22
+│              │  └─ IntLiteral '50' @53:73
+│              └─ block_arg
+│                 └─ Block @53:78
+│                    └─ body
+│                       ├─ ExprStmt @54:5
+│                       │  └─ expr
+│                       │     └─ Assign '=' @54:13
+│                       │        ├─ target
+│                       │        │  └─ Identifier 'numbers' @54:5
+│                       │        └─ value
+│                       │           └─ Call @54:31
+│                       │              ├─ callee
+│                       │              │  └─ Member 'new' @54:27
+│                       │              │     └─ object
+│                       │              │        └─ GenericInst @54:20
+│                       │              │           ├─ base
+│                       │              │           │  └─ Identifier 'Array' @54:15
+│                       │              │           └─ args
+│                       │              │              └─ TypeRef 'Int32' @54:21
+│                       │              └─ args
+│                       │                 └─ Identifier 'sample_size' @54:33
+│                       ├─ ExprStmt @56:5
+│                       │  └─ expr
+│                       │     └─ Call @56:11
+│                       │        ├─ callee
+│                       │        │  └─ Member 'upto' @56:6
+│                       │        │     └─ object
+│                       │        │        └─ IntLiteral '0' @56:5
+│                       │        ├─ args
+│                       │        │  └─ IntLiteral '1000' @56:13
+│                       │        └─ block_arg
+│                       │           └─ Block @56:20
+│                       │              ├─ params
+│                       │              │  └─ Param 'i'
+│                       │              └─ body
+│                       │                 └─ ExprStmt @57:7
+│                       │                    └─ expr
+│                       │                       └─ Call @57:19
+│                       │                          ├─ callee
+│                       │                          │  └─ Member 'push' @57:14
+│                       │                          │     └─ object
+│                       │                          │        └─ Identifier 'numbers' @57:7
+│                       │                          └─ args
+│                       │                             └─ Identifier 'i' @57:21
+│                       ├─ ExprStmt @60:5
+│                       │  └─ expr
+│                       │     └─ Assign '=' @60:15
+│                       │        ├─ target
+│                       │        │  └─ Identifier 'transform' @60:5
+│                       │        └─ value
+│                       │           └─ Composition @60:28
+│                       │              ├─ lhs
+│                       │              │  └─ Section operator '+' '+' @60:19
+│                       │              │     └─ args
+│                       │              │        └─ IntLiteral '10' @60:23
+│                       │              └─ rhs
+│                       │                 └─ Section operator '*' '*' @60:33
+│                       │                    └─ args
+│                       │                       └─ IntLiteral '2' @60:37
+│                       ├─ ExprStmt @62:5
+│                       │  └─ expr
+│                       │     └─ Assign '=' @62:15
+│                       │        ├─ target
+│                       │        │  └─ Identifier 'processed' @62:5
+│                       │        └─ value
+│                       │           └─ Call @64:11
+│                       │              ├─ callee
+│                       │              │  └─ Member 'map' @64:7
+│                       │              │     └─ object
+│                       │              │        └─ Call @63:14
+│                       │              │           ├─ callee
+│                       │              │           │  └─ Member 'filter' @63:7
+│                       │              │           │     └─ object
+│                       │              │           │        └─ Identifier 'numbers' @62:17
+│                       │              │           └─ block_arg
+│                       │              │              └─ Lambda @63:16
+│                       │              │                 ├─ params
+│                       │              │                 │  └─ Param 'n' @63:18
+│                       │              │                 │     └─ decl_type
+│                       │              │                 │        └─ TypeRef 'Int32' @63:22
+│                       │              │                 └─ body
+│                       │              │                    └─ Binary '==' @63:39
+│                       │              │                       ├─ lhs
+│                       │              │                       │  └─ Binary '%' @63:35
+│                       │              │                       │     ├─ lhs
+│                       │              │                       │     │  └─ Identifier 'n' @63:33
+│                       │              │                       │     └─ rhs
+│                       │              │                       │        └─ IntLiteral '2' @63:37
+│                       │              │                       └─ rhs
+│                       │              │                          └─ IntLiteral '0' @63:42
+│                       │              └─ block_arg
+│                       │                 └─ Section static_capture @64:13
+│                       │                    └─ target_expr
+│                       │                       └─ Identifier 'transform' @64:14
+│                       ├─ ExprStmt @66:5
+│                       │  └─ expr
+│                       │     └─ Call @66:12
+│                       │        ├─ callee
+│                       │        │  └─ Identifier 'assert!' @66:5
+│                       │        └─ args
+│                       │           └─ Binary '==' @66:29
+│                       │              ├─ lhs
+│                       │              │  └─ Member 'size' @66:23
+│                       │              │     └─ object
+│                       │              │        └─ Identifier 'processed' @66:14
+│                       │              └─ rhs
+│                       │                 └─ IntLiteral '501_u64' @66:32
+│                       └─ ExprStmt @67:5
+│                          └─ expr
+│                             └─ Call @67:12
+│                                ├─ callee
+│                                │  └─ Identifier 'assert!' @67:5
+│                                └─ args
+│                                   └─ Binary '==' @67:27
+│                                      ├─ lhs
+│                                      │  └─ Index @67:23
+│                                      │     ├─ object
+│                                      │     │  └─ Identifier 'processed' @67:14
+│                                      │     └─ args
+│                                      │        └─ IntLiteral '0' @67:24
+│                                      └─ rhs
+│                                         └─ IntLiteral '20' @67:30
+├─ Method 'bench_numeric_crunch' @72:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @72:29
+│  └─ body
+│     ├─ ExprStmt @73:3
+│     │  └─ expr
+│     │     └─ Assign '=' @73:14
+│     │        ├─ target
+│     │        │  └─ Identifier 'operations' @73:3
+│     │        └─ value
+│     │           └─ IntLiteral '100000' @73:16
+│     └─ ExprStmt @75:3
+│        └─ expr
+│           └─ Call @75:20
+│              ├─ callee
+│              │  └─ Member 'measure' @75:12
+│              │     └─ object
+│              │        └─ Identifier 'Benchmark' @75:3
+│              ├─ args
+│              │  ├─ StringLiteral 'Scalar Math & Power of Two [100kHz steps]' @75:22
+│              │  └─ IntLiteral '10' @75:67
+│              └─ block_arg
+│                 └─ Block @75:72
+│                    └─ body
+│                       ├─ ExprStmt @76:5
+│                       │  └─ expr
+│                       │     └─ Assign '=' @76:9
+│                       │        ├─ target
+│                       │        │  └─ Identifier 'acc' @76:5
+│                       │        └─ value
+│                       │           └─ IntLiteral '0_i64' @76:11
+│                       ├─ ExprStmt @78:5
+│                       │  └─ expr
+│                       │     └─ Call @78:11
+│                       │        ├─ callee
+│                       │        │  └─ Member 'upto' @78:6
+│                       │        │     └─ object
+│                       │        │        └─ IntLiteral '0' @78:5
+│                       │        ├─ args
+│                       │        │  └─ Identifier 'operations' @78:13
+│                       │        └─ block_arg
+│                       │           └─ Block @78:26
+│                       │              ├─ params
+│                       │              │  └─ Param 'n'
+│                       │              └─ body
+│                       │                 └─ ExprStmt @79:7
+│                       │                    └─ expr
+│                       │                       └─ If @79:7
+│                       │                          ├─ cond
+│                       │                          │  └─ Member 'power_of_two?' @79:23
+│                       │                          │     └─ object
+│                       │                          │        └─ TypedExpr @79:10
+│                       │                          │           ├─ value
+│                       │                          │           │  └─ Identifier 'n' @79:12
+│                       │                          │           └─ type
+│                       │                          │              └─ TypeRef 'Int64' @79:16
+│                       │                          ├─ then
+│                       │                          │  └─ ExprStmt @80:9
+│                       │                          │     └─ expr
+│                       │                          │        └─ Assign '+=' @80:13
+│                       │                          │           ├─ target
+│                       │                          │           │  └─ Identifier 'acc' @80:9
+│                       │                          │           └─ value
+│                       │                          │              └─ Identifier 'n' @80:16
+│                       │                          └─ else
+│                       │                             └─ ExprStmt @82:9
+│                       │                                └─ expr
+│                       │                                   └─ Assign '+=' @82:13
+│                       │                                      ├─ target
+│                       │                                      │  └─ Identifier 'acc' @82:9
+│                       │                                      └─ value
+│                       │                                         └─ IntLiteral '1_i64' @82:16
+│                       └─ ExprStmt @86:5
+│                          └─ expr
+│                             └─ Call @86:12
+│                                ├─ callee
+│                                │  └─ Identifier 'assert!' @86:5
+│                                └─ args
+│                                   └─ Binary '>' @86:18
+│                                      ├─ lhs
+│                                      │  └─ Identifier 'acc' @86:14
+│                                      └─ rhs
+│                                         └─ IntLiteral '0_i64' @86:20
+├─ ExprStmt @91:1
+│  └─ expr
+│     └─ Call @91:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @91:1
+│        └─ args
+│           └─ Binary '==' @91:15
+│              ├─ lhs
+│              │  └─ IntLiteral '1024' @91:10
+│              └─ rhs
+│                 └─ IntLiteral '1024_u64' @91:18
+├─ ExprStmt @92:1
+│  └─ expr
+│     └─ Call @92:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @92:1
+│        └─ args
+│           └─ Binary '==' @92:15
+│              ├─ lhs
+│              │  └─ IntLiteral '1048576' @92:10
+│              └─ rhs
+│                 └─ IntLiteral '1048576_u64' @92:18
+├─ ExprStmt @93:1
+│  └─ expr
+│     └─ Call @93:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @93:1
+│        └─ args
+│           └─ Binary '==' @93:16
+│              ├─ lhs
+│              │  └─ IntLiteral '16777216' @93:10
+│              └─ rhs
+│                 └─ IntLiteral '16777216_u64' @93:19
+├─ ExprStmt @94:1
+│  └─ expr
+│     └─ Call @94:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @94:1
+│        └─ args
+│           └─ Binary '==' @94:17
+│              ├─ lhs
+│              │  └─ IntLiteral '100000' @94:10
+│              └─ rhs
+│                 └─ IntLiteral '100000' @94:20
+├─ ExprStmt @95:1
+│  └─ expr
+│     └─ Call @95:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @95:1
+│        └─ args
+│           └─ Binary '==' @95:15
+│              ├─ lhs
+│              │  └─ IntLiteral '1000000' @95:10
+│              └─ rhs
+│                 └─ IntLiteral '1000000' @95:18
+├─ ExprStmt @97:1
+│  └─ expr
+│     └─ Call @97:24
+│        └─ callee
+│           └─ Identifier 'bench_memory_throughput' @97:1
+├─ ExprStmt @98:1
+│  └─ expr
+│     └─ Call @98:19
+│        └─ callee
+│           └─ Identifier 'bench_array_growth' @98:1
+├─ ExprStmt @99:1
+│  └─ expr
+│     └─ Call @99:26
+│        └─ callee
+│           └─ Identifier 'bench_functional_pipeline' @99:1
+└─ ExprStmt @100:1
+   └─ expr
+      └─ Call @100:21
+         └─ callee
+            └─ Identifier 'bench_numeric_crunch' @100:1
+--- exit 0 ---
