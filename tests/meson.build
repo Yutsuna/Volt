@@ -262,4 +262,60 @@ if jit_enabled
             timeout: 60,
         )
     endforeach
+
+    repl_root = meson.current_source_dir() / 'repl'
+    repl_sh = repl_root / 'repl-test.sh'
+
+    repl_exact = [
+        'Eval/Arith',
+        'Eval/Persist',
+        'Eval/MultiLine',
+        'Eval/Redefine',
+        'Eval/StringPersist',
+        'Classify/EndInString',
+        'Classify/KeywordInComment',
+        'Classify/TrailingOperator',
+        'Classify/ModifierIf',
+        'Classify/NestedBlocks',
+    ]
+
+    foreach repl_case : repl_exact
+        test(
+            'repl/' + repl_case,
+            sh,
+            args: [
+                repl_sh,
+                volt_exe.full_path(),
+                repl_root / (repl_case + '.vl'),
+                'exact',
+                repl_root / (repl_case + '.expected'),
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'repl',
+            timeout: 120,
+        )
+    endforeach
+
+    repl_markers = [
+        ['Recover/SyntaxError', 'after'],
+    ]
+
+    foreach repl_case : repl_markers
+        test(
+            'repl/' + repl_case[0],
+            sh,
+            args: [
+                repl_sh,
+                volt_exe.full_path(),
+                repl_root / (repl_case[0] + '.vl'),
+                'contains',
+                repl_case[1],
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'repl',
+            timeout: 120,
+        )
+    endforeach
 endif

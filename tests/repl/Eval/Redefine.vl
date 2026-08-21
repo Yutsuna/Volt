@@ -1,0 +1,11 @@
+def base -> Int32
+  1
+end
+def caller -> Int32
+  base() * 10
+end
+puts( caller() )
+def base -> Int32
+  7
+end
+puts( caller() )
