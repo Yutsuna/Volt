@@ -8,7 +8,7 @@
 // kind of guess rules/zero-hardcode.md's spirit warns against — never bake in
 // what belongs to the platform toolchain.
 
-#include "Core/EmitterServices.hpp"
+#include "Target/AotServices.hpp"
 
 #include <string>
 #include <string_view>
@@ -28,7 +28,7 @@ namespace Backend
 
         public:
 
-            explicit LinkerDriver ( EmitterServices &InServices ) : Services( &InServices )
+            explicit LinkerDriver ( AotServices &InServices ) : Services( &InServices )
             {
             }
 
@@ -50,7 +50,7 @@ namespace Backend
 
         private:
 
-            EmitterServices *Services = nullptr;
+            AotServices *Services = nullptr;
         };
 
     } // namespace Llvm

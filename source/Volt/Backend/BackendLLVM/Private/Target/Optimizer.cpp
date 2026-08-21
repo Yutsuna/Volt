@@ -7,11 +7,11 @@
 
 #include "Target/TargetPipeline.hpp"
 
-#include "Core/ModuleContext.hpp"
-
 #include <llvm/Analysis/CGSCCPassManager.h>
+#include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Target/TargetMachine.h>
 
 #include <cstdint>
 
@@ -49,7 +49,7 @@ void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
     llvm::CGSCCAnalysisManager CGAM;
     llvm::ModuleAnalysisManager MAM;
 
-    llvm::PassBuilder PB( Services->Ctx->MachinePtr() );
+    llvm::PassBuilder PB( Services->Machine );
 
     PB.registerModuleAnalyses( MAM );
     PB.registerCGSCCAnalyses( CGAM );
@@ -61,5 +61,5 @@ void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
 
     llvm::ModulePassManager MPM =
         Level == llvm::OptimizationLevel::O0 ? PB.buildO0DefaultPipeline( Level ) : PB.buildPerModuleDefaultPipeline( Level );
-    MPM.run( Services->Ctx->Mod(), MAM );
+    MPM.run( *Services->Mod, MAM );
 }

@@ -2,8 +2,7 @@
 
 #include "Target/TargetPipeline.hpp"
 
-#include "Core/DiagnosticSink.hpp"
-#include "Core/ModuleContext.hpp"
+#include "Volt/BackendCore/DiagnosticSink.hpp"
 
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Module.h>
@@ -21,12 +20,12 @@ bool Volt::Backend::Llvm::TargetPipeline::VerifyModule ()
     // llvm::verifyModule prints on its own.
     std::string Report;
     llvm::raw_string_ostream Stream( Report );
-    if ( not llvm::verifyModule( Services->Ctx->Mod(), &Stream ) )
+    if ( not llvm::verifyModule( *Services->Mod, &Stream ) )
     {
         return true;
     }
 
-    for ( const llvm::Function &Fn : Services->Ctx->Mod() )
+    for ( const llvm::Function &Fn : *Services->Mod )
     {
         std::string FunctionReport;
         llvm::raw_string_ostream FunctionStream( FunctionReport );

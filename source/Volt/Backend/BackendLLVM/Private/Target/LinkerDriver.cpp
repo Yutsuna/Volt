@@ -2,7 +2,7 @@
 
 #include "Target/LinkerDriver.hpp"
 
-#include "Core/DiagnosticSink.hpp"
+#include "Volt/BackendCore/DiagnosticSink.hpp"
 
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/ErrorOr.h>
