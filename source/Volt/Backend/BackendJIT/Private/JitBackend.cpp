@@ -24,6 +24,7 @@
 #include "JitCompiler.hpp"
 
 #include "Volt/BackendCore/UnwindTransport.hpp"
+#include "Volt/Core/Support/PhaseTimer.hpp"
 #include "Volt/BackendLlvmIr/IrGenerator.hpp"
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
 
@@ -178,6 +179,8 @@ Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
         return MakeFailure();
     }
 
+    const Volt::Core::PhaseScope Timing( "backend.jit.add" );
+
     Impl->Generation = Impl->Compiler.OpenGeneration();
     if ( not Impl->Compiler.AddModule( Impl->Generation, Ir::TakeModule( *Impl->Gen ), Error ) )
     {
@@ -202,9 +205,15 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::Run ( std::span<const s
 
     std::uintptr_t Address = 0;
     std::string Error;
-    if ( not Impl->Compiler.Lookup( Impl->Options.EntrySymbol, Address, Error ) )
     {
-        return RunResult{ .bOk = false, .Code = 1, .Message = std::move( Error ) };
+        // ORC compiles lazily: this lookup is what forces the whole module
+        // through codegen, so it is where a JIT's real cost shows up. Timed
+        // separately from emission for exactly that reason.
+        const Volt::Core::PhaseScope Timing( "backend.jit.materialize" );
+        if ( not Impl->Compiler.Lookup( Impl->Options.EntrySymbol, Address, Error ) )
+        {
+            return RunResult{ .bOk = false, .Code = 1, .Message = std::move( Error ) };
+        }
     }
 
     // argv has to outlive the call and be NUL-terminated in both senses: each
