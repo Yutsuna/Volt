@@ -400,7 +400,16 @@ namespace
                                                     std::vector<FinalizeCandidate> ReturnAmbient,
                                                     std::vector<FinalizeCandidate> LoopAmbient,
                                                     std::optional<FinalizeCandidate> ImplicitCandidate = std::nullopt,
-                                                    Volt::Core::SourceRange EmptyBodyLoc               = {} )
+                                                    Volt::Core::SourceRange EmptyBodyLoc               = {},
+                                                    // Where this block's *fall-through* releases go. Null — the
+                                                    // ordinary case — means into the block's own cleanup region,
+                                                    // which runs when the block is left. Non-null hands them to the
+                                                    // caller instead, for a scope whose bindings outlive the block
+                                                    // that fills them: a unit's top level, whose locals are module
+                                                    // globals and are released at shutdown rather than at the end of
+                                                    // the initialiser. Early-exit releases are unaffected — those end
+                                                    // a lifetime that really does end there.
+                                                    Frontend::StmtList *DeferredExit = nullptr )
     {
         Frontend::AstContext &Ast = Context.Ctx.Ast;
 
@@ -703,6 +712,8 @@ namespace
         // covering fall-through / raise / non-local-break through the existing
         // EnsureBody unwind path (BeginRescueEmitter.cpp's EmitBegin).
         Frontend::StmtList EnsureBody;
+        Frontend::StmtList &FallThrough = DeferredExit != nullptr ? *DeferredExit : EnsureBody;
+
         for ( auto It = Candidates.rbegin(); It != Candidates.rend(); ++It )
         {
             if ( MovedOutNames.contains( It->Name.Value ) )
@@ -711,7 +722,7 @@ namespace
             }
             const MiddleEnd::TypeSystem::SemaTypeId LocalType = Context.Ctx.Values.SiteType( It->Site );
             const Frontend::ExprId CallId                     = BuildFinalizeCall( Context, Loc, *It, LocalType, MethodScope );
-            EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+            FallThrough.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
         }
         // ImplicitCandidate finalizes last on fall-through too — same "declared
         // before everything else in Body" reasoning as Step 3's splice.
@@ -719,7 +730,15 @@ namespace
         {
             const MiddleEnd::TypeSystem::SemaTypeId LocalType = Context.Ctx.Values.SiteType( ImplicitCandidate->Site );
             const Frontend::ExprId CallId = BuildFinalizeCall( Context, Loc, *ImplicitCandidate, LocalType, MethodScope );
-            EnsureBody.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+            FallThrough.PushBack( Ast.Add( Frontend::StmtNode{ Frontend::ExprStmt{ .Loc = Loc, .Expr = CallId } } ) );
+        }
+
+        // With every release deferred there is nothing for a cleanup region to
+        // run, and wrapping the body in an empty one would be a boundary that
+        // guards nothing.
+        if ( EnsureBody.IsEmpty() )
+        {
+            return SplicedBody;
         }
 
         // The region's single cleanup boundary. TailType is carried onto it so
@@ -1193,7 +1212,10 @@ bool RunDropOnReassign ( TypeCheckerContext &Context, const MiddleEnd::Resolver:
     return bChanged;
 }
 
-bool RunScopeCleanup ( TypeCheckerContext &Context, const MiddleEnd::Resolver::ScopeId Scope, Frontend::StmtList &Body )
+bool RunScopeCleanup ( TypeCheckerContext &Context,
+                       const MiddleEnd::Resolver::ScopeId Scope,
+                       Frontend::StmtList &Body,
+                       Frontend::StmtList *DeferredExit )
 {
     if ( not Scope.IsValid() or Body.IsEmpty() )
     {
@@ -1214,7 +1236,7 @@ bool RunScopeCleanup ( TypeCheckerContext &Context, const MiddleEnd::Resolver::S
         return false;
     }
 
-    Body = ProcessBlock( Context, Scope, std::move( Body ), /*bInLoop=*/false, {}, {} );
+    Body = ProcessBlock( Context, Scope, std::move( Body ), /*bInLoop=*/false, {}, {}, std::nullopt, {}, DeferredExit );
     return true;
 }
 

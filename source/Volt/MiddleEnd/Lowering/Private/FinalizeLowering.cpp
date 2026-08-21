@@ -1,4 +1,5 @@
 #include "Volt/MiddleEnd/Lowering/LoweringPasses.hpp"
+#include <unordered_set>
 
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
@@ -61,31 +62,26 @@ void Volt::MiddleEnd::Lowering::InsertFinalizeCalls ( TypeCheckerContext &Contex
         // alias-init guard, with no rule of its own.
         const bool bTopDrops = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
 
-        // RunScopeCleanup is deliberately *not* run here, and this is the one
-        // place where the unit's top level is not a method body.
+        // The unit scope's own releases go to teardown rather than into a
+        // cleanup region around the initialiser.
         //
-        // A file is a module and its top-level locals are its globals
-        // (rules/core-ast.md). A global has static storage and unit lifetime:
-        // it is initialised by `_V_init_<Unit>` and it outlives that call.
-        // Finalising it at the end of the initialiser — which is what treating
-        // the top level as an ordinary scope does — frees a module variable
-        // while the program is still running, and every later reader gets
-        // released memory. A `def` in the same file reading it after
-        // `_V_init_all` has moved on, or another unit's initialiser reading it
-        // at all, both observe the corruption.
-        //
-        // Destruction of a module variable is a shutdown concern, not a scope
-        // exit: it belongs to a `_V_fini_<Unit>` this compiler does not emit
-        // yet. Not freeing at shutdown leaks once, at exit; freeing at the end
-        // of the initialiser corrupts.
-        //
-        // The other two still run, and must: RunDropOnReassign releases the
-        // *old* value when a module variable is reassigned, which is an
-        // ordinary lifetime end and nothing to do with static storage, and
-        // RunTemporaries cleans up what a full expression built on its way to
-        // the assignment.
+        // A file is a module and its top-level locals are its globals: they
+        // have static storage and unit lifetime, so releasing one where the
+        // initialiser ends frees it while the program is still running —
+        // another unit's initialiser, or a `def` in this file called from one,
+        // then reads released memory. Everything else keeps its ordinary
+        // release: a local inside a top-level `while` is finalised per
+        // iteration, a temporary at the end of its full expression, and an
+        // early exit releases on the way out, all exactly as before.
+        Frontend::StmtList Teardown;
+        const bool bTopCleanup = Lifetime::RunScopeCleanup( Context, TopScope, TopBody, &Teardown );
+        for ( const Frontend::StmtId Id : Teardown )
+        {
+            Ast.TopTeardown.push_back( Id );
+        }
+
         const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody, /*bHasTailValue=*/false );
-        if ( bTopDrops or bTopTemporaries )
+        if ( bTopDrops or bTopCleanup or bTopTemporaries )
         {
             Ast.TopStmts.clear();
             for ( const Frontend::StmtId Id : TopBody )

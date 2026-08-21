@@ -29,7 +29,16 @@ namespace Volt::MiddleEnd::Analysis::Lifetime
 // releasing, or when it contains an exit shape this pass refuses to
 // half-instrument. Both are silent by design: RAII must be a no-op on
 // ordinary code.
-[[nodiscard]] bool RunScopeCleanup ( TypeCheckerContext &Context, MiddleEnd::Resolver::ScopeId Scope, Frontend::StmtList &Body );
+// `DeferredExit`, when given, receives this scope's *fall-through* releases
+// instead of the cleanup region that would otherwise run them on the way out.
+// One caller passes it: a unit's top level, whose bindings are module globals
+// with static storage — releasing one where the initialiser ends frees it while
+// the program is still running. Early-exit releases are never deferred: those
+// end a lifetime that really does end there.
+[[nodiscard]] bool RunScopeCleanup ( TypeCheckerContext &Context,
+                                     MiddleEnd::Resolver::ScopeId Scope,
+                                     Frontend::StmtList &Body,
+                                     Frontend::StmtList *DeferredExit = nullptr );
 
 // Releases what a local held when it is written a second time.
 //
