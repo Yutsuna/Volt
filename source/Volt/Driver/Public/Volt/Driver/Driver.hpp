@@ -173,6 +173,36 @@ namespace Driver
         std::string Message;
     };
 
+    // What `volt run` asks for. Deliberately not a BuildOptions: half of that
+    // struct is about naming an output file, and there is no output file.
+    struct RunOptions
+    {
+
+        std::string Target = "native";
+
+        // Passed through to the program as argv. argv[0] is supplied by the
+        // caller, like any other exec.
+        std::vector<std::string> ProgramArgs;
+
+        // Shared objects to resolve against before the process's own symbols.
+        std::vector<std::string> Dylibs;
+
+        std::uint8_t OptLevel = 0;
+        bool bVerbose         = false;
+    };
+
+    // What one Driver::Run() produced.
+    struct RunResult
+    {
+
+        bool bOk = false;
+
+        // The program's exit code. Meaningful only when bOk.
+        std::int32_t Code = 0;
+
+        std::string Message;
+    };
+
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and
     // gathers every diagnostic into one thread-safe engine.
@@ -219,6 +249,19 @@ namespace Driver
         // header never mentions LLVM), it just has BuildResult::bOk == false
         // with an explanatory Message for every Target.
         [[nodiscard]] BuildResult Build ( const BuildOptions &Options );
+
+        // Run an already-compiled build in this process, through BackendJIT
+        // instead of writing an artifact — `volt run`. Same three-phase
+        // protocol as Build(), same IR from the same emission layer; only the
+        // tail differs, which is the whole reason BackendLlvmIr exists.
+        //
+        // The exit code the program returned is RunResult::Code, and it is
+        // meaningful only when bOk: a false bOk means the program never got to
+        // run, and Message says why.
+        //
+        // Implemented in DriverRun.cpp, guarded by VOLT_ENABLE_JIT internally,
+        // so this header mentions no backend type — exactly like Build().
+        [[nodiscard]] RunResult Run ( const RunOptions &Options );
 
         [[nodiscard]] const CircuitGraph &Graph () const
         {
