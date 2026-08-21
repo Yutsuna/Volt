@@ -189,6 +189,11 @@ namespace Driver
 
         std::uint8_t OptLevel = 0;
         bool bVerbose         = false;
+
+        // Same meaning as on BuildOptions, and honoured for the same artifact:
+        // `volt run` loads the precompiled stdlib rather than JIT-compiling it.
+        bool bStdlibArtifactNoCache = false;
+        bool bStdlibArtifactFresh   = false;
     };
 
     // What one Driver::Run() produced.
@@ -202,6 +207,18 @@ namespace Driver
 
         std::string Message;
     };
+
+    class Driver;
+
+    // The precompiled native stdlib artifact for an already-compiled stdlib,
+    // built or reused. Shared by Build() and Run(): both want to stop
+    // recompiling a stdlib that has not changed, and the artifact is keyed on
+    // the stdlib's own content, so neither has to know about the other.
+    //
+    // Never a hard failure — nullopt simply means "compile the stdlib in this
+    // build after all", which is what both callers do without it.
+    [[nodiscard]] DRIVER_EXPORT std::optional<std::string> EnsureStdlibArtifact ( Driver &TheDriver,
+                                                                                 const BuildOptions &Options );
 
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and

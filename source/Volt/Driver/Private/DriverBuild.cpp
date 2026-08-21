@@ -52,8 +52,8 @@ namespace fs = std::filesystem;
 // the inner build itself failing all return nullopt — the caller's fallback
 // is simply not setting EmitOptions::bStdlibPrecompiled, i.e. an ordinary
 // full build.
-[[nodiscard]] std::optional<std::string> EnsureStdlibArtifact ( Volt::Driver::Driver &TheDriver,
-                                                                const Volt::Driver::BuildOptions &Options )
+[[nodiscard]] std::optional<std::string> EnsureStdlibArtifactImpl ( Volt::Driver::Driver &TheDriver,
+                                                                    const Volt::Driver::BuildOptions &Options )
 {
     if ( Options.bStdlibArtifactNoCache or TheDriver.StdlibUnitCount() == 0 )
     {
@@ -112,6 +112,14 @@ namespace fs = std::filesystem;
 
 } // namespace
 
+// Shared with DriverRun.cpp: `volt run` wants exactly the same artifact, in its
+// shared form, for exactly the same reason — the stdlib is already compiled, so
+// neither path should compile it again.
+std::optional<std::string> Volt::Driver::EnsureStdlibArtifact ( Driver &TheDriver, const BuildOptions &Options )
+{
+    return EnsureStdlibArtifactImpl( TheDriver, Options );
+}
+
 #endif // VOLT_ENABLE_LLVM
 
 Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Options )
@@ -163,7 +171,7 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
                                 .Message  = "Unsupported --stdlib-artifact '" + Options.StdlibArtifactKind +
                                            "': expected 'static' or 'shared'" };
         }
-        if ( const std::optional<std::string> Artifact = EnsureStdlibArtifact( *this, Options ) )
+        if ( const std::optional<std::string> Artifact = EnsureStdlibArtifactImpl( *this, Options ) )
         {
             EmitOpts.bStdlibPrecompiled = true;
             EmitOpts.ExtraLinkInputs.push_back( *Artifact );

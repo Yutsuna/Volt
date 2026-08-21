@@ -20,6 +20,7 @@
     #include <vector>
 #endif
 
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -42,12 +43,32 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
     JitOpts.Dylibs   = Options.Dylibs;
     JitOpts.OptLevel = Options.OptLevel;
 
-    // Every unit is emitted, stdlib included. Skipping the leading units needs a
-    // dylib that defines both their code *and* __volt_unwind_slots, so that
-    // JIT-ed code and that dylib share one copy of the transport state
-    // (UnwindTransport.hpp). Until the stdlib artifact carries the accessor,
-    // emitting everything is the configuration that is actually correct.
-    JitOpts.SkipUnitsBelow = 0;
+    // The stdlib, compiled once into a shared object and loaded rather than
+    // JIT-compiled on every run. This is the single biggest thing `volt run`
+    // costs without it: the stdlib is ~90 functions and dominates
+    // materialisation, while the script being run is usually a handful.
+    //
+    // The artifact has to be the *shared* one, and it has to be the one built
+    // with bDefineSlotAccessor: JIT-ed code reaches the unwind slots through
+    // __volt_unwind_slots, the stdlib's own native code reaches them by TLS
+    // relocation, and they are only the same storage because that accessor is
+    // defined inside this artifact (UnwindTransport.hpp).
+    //
+    // Missing artifact is not a failure: SkipUnitsBelow stays 0 and the stdlib
+    // is emitted into the module like anything else, which is slower and just
+    // as correct.
+    BuildOptions ArtifactOpts;
+    ArtifactOpts.StdlibArtifactKind     = "shared";
+    ArtifactOpts.OptLevel               = Options.OptLevel;
+    ArtifactOpts.bStdlibArtifactNoCache = Options.bStdlibArtifactNoCache;
+    ArtifactOpts.bStdlibArtifactFresh   = Options.bStdlibArtifactFresh;
+    ArtifactOpts.bVerbose               = Options.bVerbose;
+
+    if ( const std::optional<std::string> Artifact = EnsureStdlibArtifact( *this, ArtifactOpts ) )
+    {
+        JitOpts.Dylibs.insert( JitOpts.Dylibs.begin(), *Artifact );
+        JitOpts.SkipUnitsBelow = static_cast<std::uint32_t>( StdlibUnitCount() );
+    }
 
     Backend::Jit::JitBackend JitImpl;
     JitImpl.SetOptions( std::move( JitOpts ) );
