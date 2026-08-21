@@ -180,3 +180,43 @@ foreach test_path : exec_test_files
         )
     endif
 endforeach
+
+# -----------------------------------------------------------------------------
+# The same fixtures again, through `volt run` instead of `volt build` plus an
+# exec. This is a *differential* suite, not a second smoke test: both paths take
+# the identical IR out of BackendLlvmIr and differ only in the tail, so a
+# fixture that passes under `build` and fails under `run` isolates the failure
+# to the JIT tail — which is exactly the bug class worth catching early.
+#
+# Same expectation file, and deliberately so: `volt run` exits with the
+# program's own exit code, so nothing about a fixture has to know which path ran
+# it.
+
+if jit_enabled
+    foreach test_path : exec_test_files
+        if test_path == ''
+            continue
+        endif
+
+        expected_path = test_path + '.expected'
+        if fs.exists(expected_path)
+            rel_test = test_path.replace(samples_root + '/', '')
+            root_rel_test = 'samples' / rel_test
+            test(
+                'jit/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit',
+            )
+        endif
+    endforeach
+endif
