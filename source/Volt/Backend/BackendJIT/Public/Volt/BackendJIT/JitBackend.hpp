@@ -50,15 +50,28 @@ namespace Backend
             std::string EntryFunction = "__volt_entry";
             std::string EntrySymbol   = "__volt_jit_main";
 
-            // One llvm::Module per unit instead of one for the build — the
-            // only shape a reload or a REPL line can have, since replacing a
-            // unit means replacing a module.
+            // One llvm::Module per unit instead of one for the build. The
+            // default, for two reasons that point the same way.
             //
-            // It also starts faster, which is a consequence rather than the
-            // aim: ORC materialises a module the first time something in it is
-            // looked up, so splitting the build lets the code a run never
-            // reaches go through no codegen at all.
-            bool bPerUnitModules = false;
+            // It is the only shape a reload or a REPL line can have, since
+            // replacing a unit means replacing a module — so running the
+            // default path is running the path --watch and the REPL take, and
+            // a divergence between them cannot hide.
+            //
+            // It also starts faster: ORC materialises a module the first time
+            // something in it is looked up, so splitting the build lets the
+            // code a run never reaches go through no codegen at all.
+            bool bPerUnitModules = true;
+
+            // Reach every callee this build defines through `@volt.fn.<sym>`
+            // rather than by a direct relocation, so a reload can repoint a
+            // function with one pointer store and no caller is recompiled.
+            //
+            // Off for a plain `volt run`: it costs a load per call and buys
+            // nothing a one-shot run can use. `--watch` and the REPL turn it on,
+            // and Reload refuses outright without it — an indirection that was
+            // not emitted cannot be added afterwards.
+            bool bIndirectLinkage = false;
 
             std::uint8_t OptLevel = 0;
 

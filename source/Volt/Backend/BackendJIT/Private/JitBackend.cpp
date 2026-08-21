@@ -112,7 +112,7 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     Ir::IrOptions Gen;
     Gen.Granularity = Impl->Options.bPerUnitModules ? Ir::EModuleGranularity::PerUnit : Ir::EModuleGranularity::Whole;
     Gen.Tls         = Ir::ETlsAccess::Accessor;
-    Gen.Linkage     = Ir::ELinkage::Direct;
+    Gen.Linkage     = Impl->Options.bIndirectLinkage ? Ir::ELinkage::Indirect : Ir::ELinkage::Direct;
 
     // No inline-eligible exception to the skip: a skipped unit's code is in a
     // dylib and the JIT calls it there. The AOT path wants the opposite because
