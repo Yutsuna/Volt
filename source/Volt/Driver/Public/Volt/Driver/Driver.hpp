@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -393,6 +395,59 @@ namespace Driver
         // degrades to discovery order rather than dropping units on the floor.
         [[nodiscard]] std::vector<Backend::UnitView> MakeBackendViews () const;
 
+        // One unit's view, by discovery index. MakeBackendViews reorders into
+        // circuit link order and a REPL has no edges to order by, so a caller
+        // that has just appended a unit and wants only that one asks here
+        // rather than rebuilding the whole vector on every line.
+        [[nodiscard]] Backend::UnitView ViewOf ( std::size_t Index ) const;
+
+        // --- Incremental compilation (`volt repl`) -------------------------
+
+        // What one EvalLine produced. `Ordinal` is the discovery index the
+        // whole middle-end keys on, and it is meaningful even when bOk is
+        // false — a line that failed sema still occupies its slot.
+        struct EvalLineResult
+        {
+
+            bool bOk              = false;
+            std::uint32_t Ordinal = 0;
+            // Where in the diagnostic engine this line's own diagnostics
+            // start, so a caller can render exactly them and then drop them.
+            std::size_t DiagMark = 0;
+        };
+
+        // Compile one more unit into this already-compiled Driver — one REPL
+        // line — and leave everything before it untouched.
+        //
+        // The cost is the point: the seam and the sema passes run over the new
+        // unit alone, with every earlier unit passed as a null AST. That is not
+        // a REPL special case but the convention the stdlib frontend cache
+        // already established (CompileRefs, `bStdlibCacheHit`), and the three
+        // whole-program analyses honour it — InferReturnOwnership skips a
+        // member whose flag is already set, InferParameterEscape only sizes a
+        // slot that was never sized, and AnalyzeInlineCandidates only rewrites
+        // a verdict whose AST it was given. So line 530 costs what line 1 cost.
+        //
+        // **Invariant this relies on**: an already-compiled unit is never
+        // recompiled or re-emitted. Declaring a `def` grows TypeStore::Functions,
+        // which is a std::vector, so every `Member *` an earlier unit's
+        // CalleeMap holds is dangling afterwards. Nothing ever reads those
+        // again — each line is emitted the moment it compiles — and that is
+        // what makes the growth safe rather than lucky.
+        // `Seed` runs after the line is parsed and before anything resolves a
+        // name in it — the only window where a caller can add declarations the
+        // typed text does not contain. A REPL uses it to make the variables
+        // earlier lines declared visible to this one, without re-reading a
+        // single character of those lines.
+        [[nodiscard]] EvalLineResult
+        EvalLine ( std::string Label, std::string Text, const std::function<void( Frontend::AstContext & )> &Seed = {} );
+
+        // Render, and then forget, the diagnostics a single EvalLine produced.
+        // The engine outlives the session, so a caller that only renders would
+        // see line 3's error again on line 530 and HasErrors() would never
+        // clear.
+        void ConsumeLineDiagnostics ( std::size_t Mark, std::ostream &Out );
+
         // Mutable counterpart to Layouts(): a backend monomorphises generics
         // into this store's layout arena as call sites discover them
         // (BackendCore/BackendInput.hpp explains why `BackendInput::Types` is
@@ -434,6 +489,20 @@ namespace Driver
         // to consult or write its own cache — see WriteFrontendCache).
         CompileResult
         CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline = EPipeline::Full, std::size_t StdlibCount = 0 );
+
+        // The full pipeline over exactly one already-registered unit, with
+        // every other unit passed to the cross-unit passes as a null AST.
+        // Extracted from CompileRefs' serial seam rather than duplicated, so
+        // the two cannot drift on what "compiled" means.
+        void CompileOneMore ( std::size_t Index, const std::function<void( Frontend::AstContext & )> &Seed );
+
+        // The cross-unit serial seam, over whichever units `bDone` does not
+        // already mark as finished. Fills OutAsts with the read-only per-unit
+        // view the whole-program passes take, null where bDone is true.
+        void RunSerialSeam ( const std::vector<bool> &bDone, std::vector<const Frontend::AstContext *> &OutAsts );
+
+        // The whole-program ownership/inlining fixpoints over that same view.
+        void RunOwnershipSeam ( const std::vector<const Frontend::AstContext *> &UnitAsts );
 
         // Lex + parse one already-registered unit. Safe to call from any
         // worker thread: only `Bag` and `Unit` are touched.
@@ -514,6 +583,76 @@ namespace Driver
         // TryLoadFrontendCache/WriteFrontendCache to decide whether the cache
         // is consulted/refreshed/bypassed this run.
         FCacheOptions ActiveCacheOptions;
+    };
+
+    // What `volt repl` asks for. No output path, no program arguments, and no
+    // entry point: a session runs one unit at a time and never returns to a
+    // caller who wants an exit status.
+    struct ReplSessionOptions
+    {
+
+        std::uint8_t OptLevel = 0;
+
+        // The same knobs `run` and `build` take, so a session reuses the warm
+        // stdlib rather than recompiling it at every prompt.
+        FCacheOptions CacheOpts;
+
+        bool bVerbose = false;
+    };
+
+    // One `volt repl` session: a Driver that keeps growing, and the JIT the
+    // lines it compiles are evaluated in.
+    //
+    // Lives here rather than in the REPL module for the same reason Run() does:
+    // Driver is the only place a target resolves to a concrete backend, and a
+    // REPL front end must be able to evaluate a line without an LLVM header
+    // entering its translation units.
+    //
+    // Non-movable because it owns a Driver, whose CompileUnits cache their own
+    // addresses.
+    class DRIVER_EXPORT ReplSession : public FNonMovable, FNonCopyable
+    {
+
+    public:
+
+        ReplSession ();
+        ~ReplSession ();
+
+        // Compile the stdlib and the REPL prelude, materialise them, and run
+        // their initialisers. False with OutError set when the session cannot
+        // start at all; a diagnostic from the prelude itself goes to `Out`.
+        [[nodiscard]] bool Start ( const ReplSessionOptions &Options, std::ostream &Out, std::string &OutError );
+
+        // What one evaluated line produced.
+        struct LineResult
+        {
+
+            // Sema accepted it. False means nothing was emitted and nothing
+            // ran; the diagnostics have already gone to `Out`.
+            bool bCompiled = false;
+
+            // Its top-level statements ran to completion. False with
+            // bCompiled true means the line raised something nobody rescued,
+            // or the JIT refused it — `Message` says which.
+            bool bRan = false;
+
+            std::string Message;
+        };
+
+        // Compile one line into the session and run it. Never ends the
+        // session: every failure mode here is this line's, not the
+        // session's.
+        [[nodiscard]] LineResult Eval ( std::string Label, std::string Text, std::ostream &Out );
+
+        // How many lines have been fed in, successful or not. The label a
+        // caller gives the next line is its own business, but this is what
+        // numbers it.
+        [[nodiscard]] std::size_t LineCount () const;
+
+    private:
+
+        struct State;
+        std::unique_ptr<State> Impl;
     };
 
     // NativeCacheKey = FrontendCacheKey | TargetTriple | OptLevel | ArtifactKind | LTO

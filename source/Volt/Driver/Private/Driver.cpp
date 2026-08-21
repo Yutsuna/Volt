@@ -236,7 +236,10 @@ namespace
 // the cache was built. A cache from an older compiler has the declarations
 // without the expansion, which is exactly the "content, not shape" case 06 and
 // 08 already made.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453134ULL; // "VOLTFE14"
+// Bumped to "VOLTFE15" when `Frontend::LocalDecl` gained `bAlreadyLive`: the
+// cached AST is a reflected aggregate dump, so a new field shifts every byte
+// after it — the same reasoning as 05, 07, 10 and 13.
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453135ULL; // "VOLTFE15"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -418,6 +421,118 @@ void Volt::Driver::Driver::LowerOne ( CompileUnit &Unit, Core::DiagEngine::Bag &
     static_cast<void>( MiddleEnd::Core::RunPasses( Context, MiddleEnd::Core::EPassKind::Lowering ) );
 }
 
+// The cross-unit seam, over whichever units are not already done.
+//
+// `bDone` is indexed by unit ordinal: a true entry is a unit whose interface,
+// types, signatures and analysis flags are already in the store, so it is
+// neither republished nor re-analysed and every whole-program pass receives a
+// null AST for it. Two callers, one meaning — CompileRefs marks a cache-hit
+// stdlib prefix, and CompileOneMore marks everything except the line it is
+// compiling. Extracted rather than duplicated so those two cannot drift on
+// what "already done" implies.
+void Volt::Driver::Driver::RunSerialSeam ( const std::vector<bool> &bDone, std::vector<const Frontend::AstContext *> &OutAsts )
+{
+    Core::PhaseScope InterfaceTiming( "seam.interface" );
+
+    Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
+    for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+    {
+        if ( bDone[Index] )
+        {
+            continue; // already published and bound
+        }
+        const auto Ordinal = static_cast<std::uint32_t>( Index );
+        static_cast<void>( MiddleEnd::Resolver::PublishUnitInterface( Units[Index].Ast, Ordinal, Registry ) );
+        // Same seam, same reason: type binding is cross-unit, so it
+        // cannot be a per-file parallel pass. Once this loop ends the
+        // store is frozen and sema reads it without a lock.
+        static_cast<void>( MiddleEnd::Resolver::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
+    }
+
+    // Every unit's Phase A is done, so every type this build declares
+    // exists; attach the structural layout of every non-@[Primitive] one
+    // now, before any signature is resolved. Indexed the same way
+    // Member::Unit / NominalType::Unit are — discovery order — so this
+    // is the array ResolveStructLayouts recurses across when a field
+    // names an aggregate declared in a different file. An already-done
+    // unit passes null — its layouts are already attached, and
+    // ResolveStructLayouts documents null entries as skipped.
+    OutAsts.clear();
+    OutAsts.reserve( Units.size() );
+    for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+    {
+        OutAsts.push_back( bDone[Index] ? nullptr : &Units[Index].Ast );
+    }
+    MiddleEnd::Resolver::ResolveStructLayouts( OutAsts, Types, &SeamBag );
+
+    // Still serial, still the same seam, right after field layouts land
+    // and before any signature is resolved: synthesize an empty
+    // `finalize` for every non-generic Struct/Class that declares none
+    // of its own but has a cascade-candidate field
+    // (rules/raii-ownership.md — SynthesizeFinalizeStubs's
+    // own doc comment has the full contract). Needs a *mutable* AST per
+    // unit (it splices a new Method Decl into a type's own Body), unlike
+    // ResolveStructLayouts' read-only UnitAsts above — built the same
+    // way, a null entry for an already-done unit skipped identically.
+    std::vector<Frontend::AstContext *> MutableUnitAsts;
+    MutableUnitAsts.reserve( Units.size() );
+    for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+    {
+        MutableUnitAsts.push_back( bDone[Index] ? nullptr : &Units[Index].Ast );
+    }
+    MiddleEnd::Resolver::SynthesizeFinalizeStubs( MutableUnitAsts, Types );
+
+    // Still the same serial seam, and the last thing that may *add* to the
+    // store: evaluate every `macro def` for its target type, graft the
+    // method it generates into that type's Body and register it as a
+    // member, then run the `macro do` blocks in file order. It sits here
+    // rather than in a pass because a pass is per-unit, parallel, and holds
+    // a read-only store — while a macro-generated method has to become a
+    // member of a type that may live in another unit entirely, before the
+    // signature loop below can resolve it (MacroEngine.hpp).
+    MiddleEnd::ConstEval::ExpandTypeMacros( MutableUnitAsts, Types, Sources, SeamBag );
+
+    // Still serial, still the same seam, but a second pass: a signature
+    // may name a type declared in a file that comes later, so every name
+    // must exist before any signature is resolved — otherwise stdlib file
+    // order would silently decide what a member returns.
+    for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+    {
+        if ( bDone[Index] )
+        {
+            continue;
+        }
+        MiddleEnd::Resolver::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
+    }
+
+    MiddleEnd::Resolver::ComputeAllVTableSlots( Types );
+    Types.ComputeSubtypeIntervals();
+
+    Diagnostics.Merge( std::move( SeamBag ) );
+    InterfaceTiming.Stop();
+}
+
+// The whole-program ownership fixpoints, over the same null-AST convention.
+//
+// Safe to run with every unit but one nulled out, which is what makes an
+// incremental line cost what the first line cost: InferReturnOwnership skips a
+// member whose flag is already true, InferParameterEscape only sizes a slot
+// that was never sized, and AnalyzeInlineCandidates only rewrites a verdict
+// whose AST it was handed. None of the three reads a CalleeMap, which is what
+// makes them safe to run after TypeStore::Functions has grown and invalidated
+// every Member pointer an earlier unit resolved.
+void Volt::Driver::Driver::RunOwnershipSeam ( const std::vector<const Frontend::AstContext *> &UnitAsts )
+{
+    const Core::PhaseScope Timing( "seam.ownership" );
+    MiddleEnd::Analysis::Raii::InferReturnOwnership( UnitAsts, Types );
+    // The mirror question, same seam and same reasons: whether a callee
+    // keeps what it is handed. Independent of the fixpoint above — one
+    // reasons about results, the other about arguments — so the order
+    // between the two is free.
+    MiddleEnd::Analysis::Raii::InferParameterEscape( UnitAsts, Types );
+    MiddleEnd::Optimisations::AnalyzeInlineCandidates( UnitAsts, Types );
+}
+
 Volt::Driver::CompileResult
 Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline, std::size_t StdlibCount )
 {
@@ -503,90 +618,22 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
 
     if ( Pipeline == EPipeline::Full )
     {
-        // serial: publish each unit's top-level interface. This is
-        // the cross-unit seam — after this point the Registry is frozen and
-        // sema may read any unit's exported declarations without locks.
-        // Not a `{}` block: `UnitAsts` is declared inside this seam and read
-        // by the ownership fixpoints below it, so the region cannot be closed
-        // where it ends. Stopped explicitly instead.
-        Core::PhaseScope InterfaceTiming( "seam.interface" );
-
-        Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
-        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
+        // A cache-hit stdlib prefix is already published, bound, signed and
+        // analysed — it came out of the cache that way — so the seam skips it
+        // and every whole-program pass below sees a null AST in its slot.
+        std::vector<bool> bDone( Units.size(), false );
+        if ( bStdlibCacheHit )
         {
-            if ( bStdlibCacheHit and Index < StdlibCount )
+            for ( std::size_t Index = 0; Index < StdlibCount; ++Index )
             {
-                continue; // already published/bound, straight from the cache
+                bDone[Index] = true;
             }
-            const auto Ordinal = static_cast<std::uint32_t>( Index );
-            static_cast<void>( MiddleEnd::Resolver::PublishUnitInterface( Units[Index].Ast, Ordinal, Registry ) );
-            // Same seam, same reason: type binding is cross-unit, so it
-            // cannot be a per-file parallel pass. Once this loop ends the
-            // store is frozen and sema reads it without a lock.
-            static_cast<void>( MiddleEnd::Resolver::BindUnitTypes( Units[Index].Ast, Ordinal, Types, SeamBag ) );
         }
 
-        // Every unit's Phase A is done, so every type this build declares
-        // exists; attach the structural layout of every non-@[Primitive] one
-        // now, before any signature is resolved. Indexed the same way
-        // Member::Unit / NominalType::Unit are — discovery order — so this
-        // is the array ResolveStructLayouts recurses across when a field
-        // names an aggregate declared in a different file. A cache-hit
-        // stdlib slot passes null — its layouts are already attached, and
-        // ResolveStructLayouts documents null entries as skipped.
+        // Declared out here rather than inside the seam because the ownership
+        // fixpoints below read it too.
         std::vector<const Frontend::AstContext *> UnitAsts;
-        UnitAsts.reserve( Units.size() );
-        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
-        {
-            UnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
-        }
-        MiddleEnd::Resolver::ResolveStructLayouts( UnitAsts, Types, &SeamBag );
-
-        // Still serial, still the same seam, right after field layouts land
-        // and before any signature is resolved: synthesize an empty
-        // `finalize` for every non-generic Struct/Class that declares none
-        // of its own but has a cascade-candidate field
-        // (rules/raii-ownership.md — SynthesizeFinalizeStubs's
-        // own doc comment has the full contract). Needs a *mutable* AST per
-        // unit (it splices a new Method Decl into a type's own Body), unlike
-        // ResolveStructLayouts' read-only UnitAsts above — built the same
-        // way, a null entry for a cache-hit stdlib slot skipped identically.
-        std::vector<Frontend::AstContext *> MutableUnitAsts;
-        MutableUnitAsts.reserve( Units.size() );
-        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
-        {
-            MutableUnitAsts.push_back( ( bStdlibCacheHit and Index < StdlibCount ) ? nullptr : &Units[Index].Ast );
-        }
-        MiddleEnd::Resolver::SynthesizeFinalizeStubs( MutableUnitAsts, Types );
-
-        // Still the same serial seam, and the last thing that may *add* to the
-        // store: evaluate every `macro def` for its target type, graft the
-        // method it generates into that type's Body and register it as a
-        // member, then run the `macro do` blocks in file order. It sits here
-        // rather than in a pass because a pass is per-unit, parallel, and holds
-        // a read-only store — while a macro-generated method has to become a
-        // member of a type that may live in another unit entirely, before the
-        // signature loop below can resolve it (MacroEngine.hpp).
-        MiddleEnd::ConstEval::ExpandTypeMacros( MutableUnitAsts, Types, Sources, SeamBag );
-
-        // Still serial, still the same seam, but a second pass: a signature
-        // may name a type declared in a file that comes later, so every name
-        // must exist before any signature is resolved — otherwise stdlib file
-        // order would silently decide what a member returns.
-        for ( std::size_t Index = 0; Index < Units.size(); ++Index )
-        {
-            if ( bStdlibCacheHit and Index < StdlibCount )
-            {
-                continue;
-            }
-            MiddleEnd::Resolver::ResolveUnitSignatures( Units[Index].Ast, static_cast<std::uint32_t>( Index ), Types, SeamBag );
-        }
-
-        MiddleEnd::Resolver::ComputeAllVTableSlots( Types );
-        Types.ComputeSubtypeIntervals();
-
-        Diagnostics.Merge( std::move( SeamBag ) );
-        InterfaceTiming.Stop();
+        RunSerialSeam( bDone, UnitAsts );
 
         if ( bStdlibCacheHit )
         {
@@ -626,16 +673,7 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
         //
         // `UnitAsts` (the read-only view built above) is what it wants:
         // nothing here mutates an AST, only the store's own `Member` records.
-        {
-            const Core::PhaseScope Timing( "seam.ownership" );
-            MiddleEnd::Analysis::Raii::InferReturnOwnership( UnitAsts, Types );
-            // The mirror question, same seam and same reasons: whether a callee
-            // keeps what it is handed. Independent of the fixpoint above — one
-            // reasons about results, the other about arguments — so the order
-            // between the two is free.
-            MiddleEnd::Analysis::Raii::InferParameterEscape( UnitAsts, Types );
-            MiddleEnd::Optimisations::AnalyzeInlineCandidates( UnitAsts, Types );
-        }
+        RunOwnershipSeam( UnitAsts );
 
         // parallel, second half: typing, and every check built on typing.
         // Stdlib units are typed in the first wave so their bodies are completely
@@ -1066,6 +1104,94 @@ void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDu
         Frontend::AstDumper Dumper( Unit.Ast, Sources, Out, Options );
         Dumper.DumpFile();
     }
+}
+
+// --- Incremental compilation (`volt repl`) ---------------------------------
+
+void Volt::Driver::Driver::CompileOneMore ( const std::size_t Index, const std::function<void( Frontend::AstContext & )> &Seed )
+{
+    Core::DiagEngine::Bag Bag = Core::DiagEngine::MakeBag();
+    ParseOne( Units[Index], Bag );
+    Diagnostics.Merge( std::move( Bag ) );
+
+    // After the parse, before the seam: the AST is complete and nothing has
+    // resolved a name in it yet, which is the only moment a caller can add a
+    // declaration the source text does not contain.
+    if ( Seed )
+    {
+        Seed( Units[Index].Ast );
+    }
+
+    DriverUnitAsts.clear();
+    DriverUnitAsts.reserve( Units.size() );
+    for ( std::size_t Slot = 0; Slot < Units.size(); ++Slot )
+    {
+        DriverUnitAsts.push_back( &Units[Slot].Ast );
+    }
+
+    // Everything but this unit is finished business. That is the whole trick:
+    // the seam, the fixpoints and the sema passes all run over one AST, so the
+    // five-hundredth line costs what the first cost.
+    std::vector<bool> bDone( Units.size(), true );
+    bDone[Index] = false;
+
+    std::vector<const Frontend::AstContext *> UnitAsts;
+    RunSerialSeam( bDone, UnitAsts );
+
+    Core::DiagEngine::Bag LoweringBag = Core::DiagEngine::MakeBag();
+    RunSemaLoweringOne( Units[Index], LoweringBag );
+    Diagnostics.Merge( std::move( LoweringBag ) );
+
+    RunOwnershipSeam( UnitAsts );
+
+    Core::DiagEngine::Bag TypedBag = Core::DiagEngine::MakeBag();
+    RunSemaTypedOne( Units[Index], TypedBag );
+    Diagnostics.Merge( std::move( TypedBag ) );
+}
+
+Volt::Driver::Driver::EvalLineResult
+Volt::Driver::Driver::EvalLine ( std::string Label, std::string Text, const std::function<void( Frontend::AstContext & )> &Seed )
+{
+    EvalLineResult Result;
+    Result.DiagMark = Diagnostics.Mark();
+
+    const Core::FileId File = Sources.AddFile( std::move( Label ), std::move( Text ) );
+
+    // The module name is the one every REPL line shares, so a `def` typed on
+    // one line and called on the next is in the same namespace rather than in
+    // a new one per line.
+    const auto Index = Units.size();
+    Units.emplace_back( File, std::string( Sources.PathOf( File ) ), "Main", /*bInComponent=*/false );
+    Units.back().Types.BindUniverse( Types.Universe() );
+
+    Result.Ordinal = static_cast<std::uint32_t>( Index );
+
+    CompileOneMore( Index, Seed );
+
+    // Only this line's diagnostics decide whether this line ran. The engine
+    // still holds every earlier line's, and asking HasErrors() here would make
+    // one bad line poison the rest of the session.
+    Result.bOk = not Diagnostics.HasErrorsSince( Result.DiagMark );
+    return Result;
+}
+
+void Volt::Driver::Driver::ConsumeLineDiagnostics ( const std::size_t Mark, std::ostream &Out )
+{
+    Diagnostics.RenderSince( Mark, Sources, Out );
+    Diagnostics.TruncateTo( Mark );
+}
+
+Volt::Backend::UnitView Volt::Driver::Driver::ViewOf ( const std::size_t Index ) const
+{
+    const CompileUnit &Source = Units[Index];
+    return Backend::UnitView{ .Ordinal = static_cast<std::uint32_t>( Index ),
+                              .Module  = Source.Module,
+                              .Path    = Source.Path,
+                              .Ast     = &Source.Ast,
+                              .Values  = &Source.Types,
+                              .Callees = &Source.Callees,
+                              .Scopes  = &Source.Scopes,
+                              .Synth   = &Source.Synth };
 }
 
 std::vector<Volt::Backend::UnitView> Volt::Driver::Driver::MakeBackendViews () const
