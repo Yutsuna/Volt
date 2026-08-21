@@ -162,7 +162,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     // the request even when neither the receiver nor the method itself is
     // generic.
     const bool bGenericOwner = Owner.IsValid() and Svc.Build->Types->Type( Owner ).Params.Size() > 0;
-    if ( ( ( bGenericOwner or Entry.Decl->OwnGenerics > 0 ) and not FlatArgs.empty() ) or bInherited )
+    if ( bGenericOwner or ( Entry.Decl->OwnGenerics > 0 and not FlatArgs.empty() ) or bInherited )
     {
         Svc.Mono->Enqueue( MonoRequest{ .Owner = Owner, .Name = Entry.Decl->Name, .Args = FlatArgs } );
     }
