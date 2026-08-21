@@ -14,6 +14,7 @@
 
     #include <filesystem>
     #include <memory>
+    #include <unistd.h>
 #endif
 
 #include <cstdint>
@@ -101,11 +102,34 @@ namespace fs = std::filesystem;
 
     const std::vector<Volt::Backend::UnitView> Views = Isolated->MakeBackendViews();
     const Volt::Backend::BackendInput BackendIn{ .Types = &Isolated->MutableLayouts(), .Units = Views };
-    if ( not Volt::Backend::Llvm::BuildStdlibArtifact( BackendIn, Options.OptLevel, Options.bLto, bShared, Artifact.string(),
-                                                       Meta.string() ) )
+
+    // Built beside the real name, then renamed into place. Several compilations
+    // can run at once — a parallel test suite is the ordinary case — and they
+    // all derive the same key, so they all decide to build the same file. A
+    // reader that opens it midway through a write sees a truncated object and
+    // fails in a way that has nothing to do with what it was compiling. rename
+    // within one directory is atomic, so a reader sees either no file or a
+    // finished one, and a redundant build is only wasted work.
+    const std::string Tag      = std::to_string( static_cast<long long>( ::getpid() ) );
+    const fs::path PendingArt  = NativeDir / ( Volt::Core::ToHex( NativeKey ) + "." + Tag + ".pending" );
+    const fs::path PendingMeta = NativeDir / ( Volt::Core::ToHex( NativeKey ) + "." + Tag + ".pending.meta" );
+
+    if ( not Volt::Backend::Llvm::BuildStdlibArtifact( BackendIn, Options.OptLevel, Options.bLto, bShared, PendingArt.string(),
+                                                       PendingMeta.string() ) )
     {
+        fs::remove( PendingArt, Ec );
+        fs::remove( PendingMeta, Ec );
         return std::nullopt;
     }
+
+    fs::rename( PendingArt, Artifact, Ec );
+    if ( Ec )
+    {
+        fs::remove( PendingArt, Ec );
+        fs::remove( PendingMeta, Ec );
+        return std::nullopt;
+    }
+    fs::rename( PendingMeta, Meta, Ec );
 
     return Artifact.string();
 }

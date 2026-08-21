@@ -218,7 +218,7 @@ namespace Driver
     // Never a hard failure — nullopt simply means "compile the stdlib in this
     // build after all", which is what both callers do without it.
     [[nodiscard]] DRIVER_EXPORT std::optional<std::string> EnsureStdlibArtifact ( Driver &TheDriver,
-                                                                                 const BuildOptions &Options );
+                                                                                  const BuildOptions &Options );
 
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and
