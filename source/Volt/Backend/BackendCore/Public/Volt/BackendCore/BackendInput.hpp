@@ -15,7 +15,9 @@
 
 #include <cstdint>
 #include <span>
+#include <string>
 #include <string_view>
+#include <unordered_map>
 
 namespace Volt
 {
@@ -48,6 +50,22 @@ namespace Backend
         // Sema/Layout/SynthesizedFunctions.hpp. Null in tools that stop
         // before codegen, same contract as the other pointers here.
         const MiddleEnd::IR::SynthesizedFunctions *Synth = nullptr;
+
+        // Unit-scope bindings whose storage belongs to a *different* unit that
+        // is already resident, keyed by the binding site this unit knows them
+        // by and valued by the exact symbol that storage carries.
+        //
+        // Null everywhere but a REPL, and a REPL is the only place the
+        // situation exists: `x` typed on line 2 is `@_V_global_2_x`, and line
+        // 530 has its own binding site for the same storage. Without this the
+        // emitter would mint `@_V_global_530_x` — a second, zeroed variable
+        // that happens to share a name.
+        //
+        // A site listed here is *declared*, never defined: the line that owns
+        // it defined it, and defining it again is how a session loses every
+        // value the user has put in it.
+        const std::unordered_map<MiddleEnd::Resolver::BindingSite, std::string, MiddleEnd::Resolver::BindingSiteHash>
+            *ExternalGlobals = nullptr;
     };
 
     // The whole build: units in circuit link order (dependencies before

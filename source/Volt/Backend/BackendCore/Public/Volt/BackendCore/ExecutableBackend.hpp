@@ -91,7 +91,16 @@ namespace Backend
         [[nodiscard]] virtual ReloadResult Reload ( const BackendInput &Build, const UnitView &Unit ) = 0;
 
         // Compile one incremental unit and run its initialiser — one REPL line.
-        [[nodiscard]] virtual RunResult EvalUnit ( const UnitView &Unit ) = 0;
+        //
+        // `Build` is the compilation this unit came out of, and it is a
+        // different object on every line for the same reason Reload takes one:
+        // a REPL grows its type store as it goes, and the view a backend was
+        // begun with describes a build that has since gained units.
+        //
+        // Unlike Run, a failure here is a diagnostic and not the end of the
+        // session: bOk == false with a Message means this line did not run,
+        // never that the session is over.
+        [[nodiscard]] virtual RunResult EvalUnit ( const BackendInput &Build, const UnitView &Unit ) = 0;
 
         // The address a mangled symbol materialised at, for tests and
         // debugging. Zero when it does not resolve.
