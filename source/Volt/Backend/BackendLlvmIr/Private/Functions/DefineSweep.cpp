@@ -199,5 +199,6 @@ void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView 
     if ( not bInlineEligibleOnly )
     {
         EmitUnitInit( Services, Unit );
+        EmitUnitFini( Services, Unit );
     }
 }

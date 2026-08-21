@@ -86,6 +86,49 @@ bool Volt::Backend::Llvm::EmitInitAll ( EmitterServices &Services )
     return true;
 }
 
+bool Volt::Backend::Llvm::EmitFiniAll ( EmitterServices &Services )
+{
+    // `_V_fini_all`: the mirror of `_V_init_all`, and the one symbol the
+    // prelude's `@[External( "volt", "_V_fini_all" )]` declaration names.
+    //
+    // No post-call check between steps, unlike the init sequence. Teardown runs
+    // *because* the program is over — including when it is over on account of
+    // an exception — so an exception in flight is not a reason to stop
+    // releasing, and a release that raised would leave the rest leaked.
+    llvm::LLVMContext &Context = Services.Ctx->Context();
+    llvm::Module &Mod          = Services.Ctx->Mod();
+
+    llvm::Function *FiniAllFn = Mod.getFunction( "_V_fini_all" );
+    if ( FiniAllFn == nullptr )
+    {
+        llvm::FunctionType *FnTy = llvm::FunctionType::get( Services.Ctx->Builder().getVoidTy(), false );
+        FiniAllFn                = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, "_V_fini_all", &Mod );
+    }
+    if ( not FiniAllFn->empty() )
+    {
+        return true;
+    }
+
+    llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", FiniAllFn ) };
+
+    if ( Services.Build != nullptr )
+    {
+        for ( const std::string &Symbol : Backend::SynthesizeFiniAll( Services.Build->Units ) )
+        {
+            llvm::Function *FiniFn = Mod.getFunction( Symbol );
+            if ( FiniFn == nullptr )
+            {
+                llvm::FunctionType *FnTy = llvm::FunctionType::get( Services.Ctx->Builder().getVoidTy(), false );
+                FiniFn                   = llvm::Function::Create( FnTy, llvm::Function::ExternalLinkage, Symbol, &Mod );
+            }
+            static_cast<void>( Shell.CreateCall( FiniFn ) );
+        }
+    }
+
+    static_cast<void>( Shell.CreateRetVoid() );
+    return true;
+}
+
 bool Volt::Backend::Llvm::EmitEntryPoint ( EmitterServices &Services )
 {
     llvm::LLVMContext &Context = Services.Ctx->Context();
@@ -99,6 +142,14 @@ bool Volt::Backend::Llvm::EmitEntryPoint ( EmitterServices &Services )
     }
 
     if ( not EmitInitAll( Services ) )
+    {
+        return false;
+    }
+
+    // Guarded behind the entry point for the same reason EmitSymbolNames is:
+    // a library build has no program to be over, so it defines no teardown
+    // sequence and the artifact it produces carries none.
+    if ( not EmitFiniAll( Services ) )
     {
         return false;
     }

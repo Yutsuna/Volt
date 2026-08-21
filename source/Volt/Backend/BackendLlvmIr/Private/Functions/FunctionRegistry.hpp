@@ -173,6 +173,9 @@ namespace Backend
         // and returns immediately.
         [[nodiscard]] bool EmitInitAll ( EmitterServices &Services );
 
+        // Gives `_V_fini_all` its body: every unit's `_V_fini_<N>`, in reverse.
+        [[nodiscard]] bool EmitFiniAll ( EmitterServices &Services );
+
         // Gives `_V_symbol_name` (declared, never defined, by the stdlib
         // Symbol's `@[External( "volt", "_V_symbol_name" )]`) its body: the
         // build's whole symbol table, as a switch from the value SymbolRegistry
@@ -189,6 +192,10 @@ namespace Backend
         // Emit the synthetic module initialization function `_V_init_<Ordinal>`
         // which executes the unit's TopStmts in file order.
         void EmitUnitInit ( EmitterServices &Services, const UnitView &Unit );
+
+        // `_V_fini_<Ordinal>` — what the unit releases when the program is over.
+        // Emitted only for a unit that has something to release.
+        void EmitUnitFini ( EmitterServices &Services, const UnitView &Unit );
 
     } // namespace Llvm
 
