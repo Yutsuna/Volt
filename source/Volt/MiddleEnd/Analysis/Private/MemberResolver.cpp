@@ -589,6 +589,41 @@ bool Volt::MiddleEnd::Analysis::IsMachineSuppliedOn ( const TypeCheckerContext &
     return Kind == LayoutKind::Primitive or Kind == LayoutKind::Pointer;
 }
 
+bool Volt::MiddleEnd::Analysis::IsMachineConversionOn ( const TypeCheckerContext &Context,
+                                                       Volt::MiddleEnd::TypeSystem::NominalId Base,
+                                                       const Volt::MiddleEnd::TypeSystem::Member &Entry )
+{
+    using namespace Volt::MiddleEnd::TypeSystem;
+
+    if ( not IsMachineSuppliedOn( Context, Base ) or not Entry.bAbstract or Entry.Kind != EMemberKind::Method )
+    {
+        return false;
+    }
+
+    if ( not Entry.bSelf and Entry.Params.IsEmpty() )
+    {
+        if ( not Entry.Result.IsValid() )
+        {
+            return false;
+        }
+        const SigType &Sig = Context.Ctx.Types.Sig( Entry.Result );
+        return IsMachineSuppliedOn( Context, Sig.Base );
+    }
+
+    if ( Entry.bSelf and Entry.Params.Size() == 1 )
+    {
+        if ( not Entry.Result.IsValid() or not Entry.Params[0].IsValid() )
+        {
+            return false;
+        }
+        const SigType &RetSig   = Context.Ctx.Types.Sig( Entry.Result );
+        const SigType &ParamSig = Context.Ctx.Types.Sig( Entry.Params[0] );
+        return IsMachineSuppliedOn( Context, RetSig.Base ) and IsMachineSuppliedOn( Context, ParamSig.Base );
+    }
+
+    return false;
+}
+
 Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
     TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId Receiver, bool bReceiverIsNakedType, std::string_view Name )
 {
@@ -627,7 +662,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::MemberType (
             }
             else if ( not Found.Decl->bSelf and Found.Decl->Params.Size() == 0 )
             {
-                Entry.MachineConversion = MC::PtrToInt;
+                Entry.MachineConversion = MC::ScalarConvert;
             }
         }
     }

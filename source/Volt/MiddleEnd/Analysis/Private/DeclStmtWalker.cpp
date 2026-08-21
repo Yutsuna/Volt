@@ -69,7 +69,8 @@ void CheckAbstractConformance ( MiddleEnd::Analysis::TypeCheckerContext &Context
             // On a primitive, `+` is a machine instruction, not a body the
             // stdlib could ever write. Same exemption as the unknown-member
             // diagnostic, through the same predicate.
-            if ( MiddleEnd::Analysis::IsBuiltinOpOn( Context, Id, Name ) )
+            if ( MiddleEnd::Analysis::IsBuiltinOpOn( Context, Id, Name ) or
+                 MiddleEnd::Analysis::IsMachineConversionOn( Context, Id, Entry ) )
             {
                 continue;
             }

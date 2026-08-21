@@ -41,9 +41,10 @@ namespace MiddleEnd
         // LayoutKind and the member's signature shape — never by name.
         enum class EMachineConversion : std::uint8_t
         {
-            None,     // ordinary call (has a body, or is a builtin op)
-            PtrToInt, // instance, 0 params → ptrtoint self
-            IntToPtr, // static,   1 param  → inttoptr arg[0]
+            None,          // ordinary call (has a body, or is a builtin op)
+            PtrToInt,      // instance, 0 params → ptrtoint self
+            IntToPtr,      // static,   1 param  → inttoptr arg[0]
+            ScalarConvert, // instance, 0 params → convert primitive/pointer scalar to primitive/pointer scalar
         };
 
         // One resolved callee, with its already-instantiated signature.
