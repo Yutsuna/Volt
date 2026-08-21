@@ -95,6 +95,27 @@ bool Volt::Backend::Llvm::ModuleContext::InitTarget ( std::string_view ModuleNam
     return true;
 }
 
+std::unique_ptr<llvm::Module> Volt::Backend::Llvm::ModuleContext::Rotate ( std::string_view NextName )
+{
+    if ( Module == nullptr )
+    {
+        return nullptr;
+    }
+
+    std::unique_ptr<llvm::Module> Finished = std::move( Module );
+
+    Module = std::make_unique<llvm::Module>( NextName, *Ctx );
+    Module->setTargetTriple( Finished->getTargetTriple() );
+    Module->setDataLayout( Finished->getDataLayout() );
+
+    // A new builder, not a reset one: the old one's insert point names a block
+    // in the module just closed, and an emitter that kept writing would append
+    // to a module nobody will look at again.
+    Build = std::make_unique<llvm::IRBuilder<>>( *Ctx );
+
+    return Finished;
+}
+
 bool Volt::Backend::Llvm::ModuleContext::Terminated () const
 {
     if ( Build == nullptr )

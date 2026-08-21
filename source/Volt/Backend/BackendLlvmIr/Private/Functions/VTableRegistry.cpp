@@ -2,6 +2,7 @@
 
 #include "Core/EmitterServices.hpp"
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Functions/FunctionRegistry.hpp"
 #include "Types/TypeMapper.hpp"
 #include "Volt/BackendCore/DiagnosticSink.hpp"
@@ -33,7 +34,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::VTableRegistry::GetOrCreateVTable ( M
 
     if ( const auto It = Cache.find( Def.SymbolName ); It != Cache.end() )
     {
-        return It->second;
+        return LocalCopy( *Services, It->second );
     }
 
     llvm::LLVMContext &Context = Services->Ctx->Context();
@@ -66,7 +67,12 @@ llvm::GlobalVariable *Volt::Backend::Llvm::VTableRegistry::GetOrCreateVTable ( M
     llvm::ArrayType *ArrayTy = llvm::ArrayType::get( PtrTy, Elements.size() );
     llvm::Constant *Init     = llvm::ConstantArray::get( ArrayTy, Elements );
 
-    auto *Global = new llvm::GlobalVariable( Module, ArrayTy, true, llvm::GlobalValue::InternalLinkage, Init, Def.SymbolName );
+    // Same reasoning as a unit-scope global's: private to the build while the
+    // build is one module, nameable by every other module once it is not.
+    const llvm::GlobalValue::LinkageTypes Linkage =
+        PerUnitModules( *Services ) ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::InternalLinkage;
+
+    auto *Global = new llvm::GlobalVariable( Module, ArrayTy, true, Linkage, Init, Def.SymbolName );
     Cache.emplace( Def.SymbolName, Global );
     return Global;
 }

@@ -34,12 +34,11 @@
 bool Volt::Backend::Llvm::EmitSymbolNames ( EmitterServices &Services )
 {
     llvm::LLVMContext &Context = Services.Ctx->Context();
-    llvm::Module &Mod          = Services.Ctx->Mod();
 
     // The name the stdlib's `@[External( "volt", "_V_symbol_name" )]` declares.
     // Absent means no stdlib declared it — a tooling build, or a build with
     // `--no-stdlib` — and there is then nothing that could call it.
-    llvm::Function *NameFn = Mod.getFunction( "_V_symbol_name" );
+    llvm::Function *NameFn = Services.Functions->Find( "_V_symbol_name" );
     if ( NameFn == nullptr or not NameFn->empty() or Services.Build == nullptr )
     {
         return true;

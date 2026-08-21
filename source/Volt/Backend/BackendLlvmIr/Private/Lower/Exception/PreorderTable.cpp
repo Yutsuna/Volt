@@ -2,7 +2,9 @@
 
 #include "Lower/Exception/ExceptionLowering.hpp"
 
+#include "Core/EmitterServices.hpp"
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DerivedTypes.h>
@@ -16,7 +18,7 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::PreorderTable ()
 {
     if ( PreorderTableVar != nullptr )
     {
-        return PreorderTableVar;
+        return LocalCopy( *Services, PreorderTableVar );
     }
 
     MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
@@ -34,7 +36,15 @@ llvm::GlobalVariable *Volt::Backend::Llvm::ExceptionLowering::PreorderTable ()
     }
 
     llvm::ArrayType *TableType = llvm::ArrayType::get( Int32Ty, Count );
-    PreorderTableVar = new llvm::GlobalVariable( Services->Ctx->Mod(), TableType, true, llvm::GlobalValue::InternalLinkage,
+
+    // One table for the build, so the module that first needed it is the one
+    // that holds it and the rest declare it. Internal while the build is a
+    // single module: nothing outside it has any business reading a table whose
+    // indices are this build's own nominal ids.
+    const llvm::GlobalValue::LinkageTypes Linkage =
+        PerUnitModules( *Services ) ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::InternalLinkage;
+
+    PreorderTableVar = new llvm::GlobalVariable( Services->Ctx->Mod(), TableType, true, Linkage,
                                                  llvm::ConstantArray::get( TableType, Rows ), "volt.type.preorder" );
     return PreorderTableVar;
 }

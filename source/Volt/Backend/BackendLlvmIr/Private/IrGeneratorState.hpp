@@ -66,6 +66,10 @@ struct Volt::Backend::Ir::IrGenerator::State
     // know which indirection slots to repoint.
     std::vector<std::string> LastUnit;
 
+    // Every module closed so far, oldest first. Empty in Whole granularity,
+    // where the one module stays in Ctx until the emission is taken.
+    std::vector<std::unique_ptr<llvm::Module>> Closed;
+
     // --- Services ------------------------------------------------------------
     //
     // By pointer, and constructed in the body of State's constructor rather than
@@ -87,6 +91,19 @@ struct Volt::Backend::Ir::IrGenerator::State
     std::unique_ptr<Llvm::VTableRegistry> VTables;
 
     // --- Convenience ---------------------------------------------------------
+
+    // Close the module being written and open the next one. The unit ordinal
+    // is what tells the emitters which definitions belong here and which are
+    // now somebody else's to hold; NoUnitOrdinal names the shared modules at
+    // either end of the emission.
+    void CloseModule ( const std::string &NextName, std::uint32_t NextUnit )
+    {
+        if ( std::unique_ptr<llvm::Module> Finished = Ctx.Rotate( NextName ); Finished != nullptr )
+        {
+            Closed.push_back( std::move( Finished ) );
+        }
+        Services.CurrentUnit = NextUnit;
+    }
 
     [[nodiscard]] bool Failed () const
     {

@@ -23,6 +23,7 @@
 #include "Lower/Exception/ExceptionLowering.hpp"
 
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Volt/BackendCore/UnwindTransport.hpp"
 
 #include <llvm/IR/Constants.h>
@@ -68,7 +69,7 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::ExceptionValueSlot ( llvm::
 
     if ( ExcValue != nullptr )
     {
-        return ExcValue;
+        return LocalCopy( *Services, ExcValue );
     }
 
     llvm::LLVMContext &Context = Services->Ctx->Context();
@@ -89,7 +90,7 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::ExceptionTagSlot ( llvm::IR
 
     if ( ExcTag != nullptr )
     {
-        return ExcTag;
+        return LocalCopy( *Services, ExcTag );
     }
 
     llvm::LLVMContext &Context = Services->Ctx->Context();
@@ -110,7 +111,7 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::BreakFlagSlot ( llvm::IRBui
 
     if ( BrkFlag != nullptr )
     {
-        return BrkFlag;
+        return LocalCopy( *Services, BrkFlag );
     }
 
     llvm::LLVMContext &Context = Services->Ctx->Context();

@@ -11,8 +11,8 @@
 //
 // Two shapes of access, because the two tails want opposite things: the AOT
 // tail optimises and emits the module in place, so it borrows; the JIT tail
-// hands the module to ORC, which takes ownership of the module *and* the
-// context that typed it, so it moves both out.
+// hands the modules to ORC, which takes ownership of them *and* of the context
+// that typed them, so it moves everything out.
 
 #include "BackendLlvmIr_export.hpp"
 
@@ -34,23 +34,28 @@ namespace Backend
     namespace Ir
     {
 
-        // A module and the context it was typed in, kept together because
-        // neither outlives the other — exactly what orc::ThreadSafeModule wants.
-        struct OwnedModule
+        // Everything the emission produced, and the context that types it.
+        //
+        // One context for the batch, not one each: llvm::Type is context-owned,
+        // so modules of a single build have to share one or they cannot refer to
+        // each other's functions by signature at all. ORC's unit of ownership is
+        // exactly this pair — a ThreadSafeContext, and the modules opened in it.
+        //
+        // `Modules` is in emission order, which is: the declarations the build
+        // opens with, then one module per unit in circuit link order, then the
+        // shared module Finish caps the emission with (monomorphisations,
+        // `_V_init_all`, the symbol table, the entry point). Whole granularity
+        // yields exactly one entry, and it is that last one.
+        struct OwnedModules
         {
 
             std::unique_ptr<llvm::LLVMContext> Context;
-            std::unique_ptr<llvm::Module> Module;
+            std::vector<std::unique_ptr<llvm::Module>> Modules;
         };
 
-        // Move the finished module out. In Whole granularity that is the one
-        // module; in PerUnit it is the prelude. The generator emits nothing
-        // afterwards.
-        [[nodiscard]] BACKENDLLVMIR_EXPORT OwnedModule TakeModule ( IrGenerator &Gen );
-
-        // The per-unit modules in emission order, which is circuit link order.
-        // Empty in Whole granularity.
-        [[nodiscard]] BACKENDLLVMIR_EXPORT std::vector<OwnedModule> TakeUnitModules ( IrGenerator &Gen );
+        // Move the finished emission out. The generator emits nothing
+        // afterwards — the context leaves with it.
+        [[nodiscard]] BACKENDLLVMIR_EXPORT OwnedModules TakeModules ( IrGenerator &Gen );
 
         // Non-owning borrows, for the AOT tail that verifies, optimises and
         // emits over the module the generator still owns.

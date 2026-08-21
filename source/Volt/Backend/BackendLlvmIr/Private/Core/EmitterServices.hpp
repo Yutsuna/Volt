@@ -141,7 +141,23 @@ namespace Backend
             // TypeStore and every function declaration would otherwise ask it
             // again.
             const std::vector<std::uint8_t> *PrecompiledUnits = nullptr;
+
+            // Under PerUnit granularity, the ordinal of the unit whose module
+            // is being written right now — the one module allowed to *define*
+            // that unit's bodies. NoUnitOrdinal while the shared module is
+            // being written: the declarations Begin sweeps out, and everything
+            // Finish caps the emission with. Whole granularity leaves it alone
+            // and nothing reads it.
+            static constexpr std::uint32_t NoUnitOrdinal = 0xFFFFFFFFU;
+            std::uint32_t CurrentUnit                    = NoUnitOrdinal;
         };
+
+        // One module per unit, rather than one for the whole build. Read often
+        // enough — and through a pointer often enough — to be worth naming.
+        [[nodiscard]] inline bool PerUnitModules ( const EmitterServices &Services )
+        {
+            return Services.Options != nullptr and Services.Options->Granularity == Ir::EModuleGranularity::PerUnit;
+        }
 
     } // namespace Llvm
 

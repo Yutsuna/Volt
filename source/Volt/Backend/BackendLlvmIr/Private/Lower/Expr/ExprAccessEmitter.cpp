@@ -10,6 +10,7 @@
 #include "Lower/Expr/ExprEmitter.hpp"
 
 #include "Core/EmitterServices.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Functions/FunctionRegistry.hpp"
 #include "Lower/BodyEmitter.hpp"
 #include "Lower/FunctionFrame.hpp"
@@ -101,5 +102,8 @@ llvm::Value *Volt::Backend::Llvm::EmitFuncAddr ( BodyEmitter &Emitter, const Fro
         static_cast<void>( Emitter.Fail( "llvm: FuncAddr targets a Decl with no resolved free-function entry" ) );
         return nullptr;
     }
-    return It->second;
+
+    // The unit that lifted this closure may own a module of its own; the
+    // address taken here has to name the copy this module can see.
+    return LocalCopy( Services, It->second );
 }

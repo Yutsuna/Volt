@@ -78,6 +78,14 @@ namespace Backend
             // not a failure.
             llvm::Function *DeclareMember ( const MiddleEnd::TypeSystem::Member &Entry, MiddleEnd::TypeSystem::NominalId Owner );
 
+            // The function already registered under a mangled symbol, as seen
+            // from the module being written; null when this build never
+            // declared it. For the seams that have to read back a *declaration*
+            // the stdlib wrote — its shape is the contract — and cannot ask the
+            // current module, which under PerUnit granularity holds only what
+            // it needed itself.
+            [[nodiscard]] llvm::Function *Find ( const std::string &Symbol );
+
         private:
 
             EmitterServices *Services = nullptr;

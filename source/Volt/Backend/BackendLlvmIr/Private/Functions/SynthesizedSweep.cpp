@@ -2,7 +2,8 @@
 //
 // A synthesized function has no self, no mangling and no cross-unit symbol: it
 // is reached only through a FuncAddr naming its Decl directly, so its LLVM name
-// only has to be distinct within the module, never resolvable. Its signature
+// only has to be distinct across the build — unit ordinal and Decl id are what
+// make it so — and never has to be resolvable by a user. Its signature
 // comes straight from already-resolved SemaTypeIds — the lowering pass that
 // created the entry only ever runs once those have settled — instead of a
 // MiddleEnd::TypeSystem::Member's SigTypeId/FlatArgs substitution.
@@ -14,6 +15,7 @@
 #include "Functions/FunctionRegistry.hpp"
 
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Functions/ParameterBinder.hpp"
 #include "Lower/BodyEmitter.hpp"
 #include "Lower/FunctionFrame.hpp"
@@ -63,8 +65,27 @@ void Volt::Backend::Llvm::DeclareSynthesizedFn ( EmitterServices &Services,
 
     llvm::FunctionType *Signature = llvm::FunctionType::get( Result, Params, false );
     const std::string Name        = "__synth." + std::to_string( Unit.Ordinal ) + "." + std::to_string( Fn.Decl.Value );
-    llvm::Function *LlvmFn = llvm::Function::Create( Signature, llvm::Function::PrivateLinkage, Name, Services.Ctx->ModPtr() );
-    Services.SynthesizedFns->emplace( UnitDeclKey{ .Ordinal = Unit.Ordinal, .Decl = Fn.Decl }, LlvmFn );
+
+    const UnitDeclKey Key{ .Ordinal = Unit.Ordinal, .Decl = Fn.Decl };
+    if ( const auto It = Services.SynthesizedFns->find( Key ); It != Services.SynthesizedFns->end() )
+    {
+        // Already declared. Translating it is not a no-op under PerUnit: the
+        // caller is about to emit a body that reaches this function, and it has
+        // to reach the copy belonging to the module being written.
+        static_cast<void>( LocalCopy( Services, It->second ) );
+        return;
+    }
+
+    // A lifted closure is private to its unit while there is one module — the
+    // name is an implementation detail nobody links against. Split across
+    // modules it stops being private in fact: a monomorphised body emitted in
+    // the shared module can reach a closure its generic's unit lifted, and a
+    // private symbol is unreachable from anywhere else.
+    const llvm::GlobalValue::LinkageTypes Linkage =
+        PerUnitModules( Services ) ? llvm::Function::ExternalLinkage : llvm::Function::PrivateLinkage;
+
+    llvm::Function *LlvmFn = llvm::Function::Create( Signature, Linkage, Name, Services.Ctx->ModPtr() );
+    Services.SynthesizedFns->emplace( Key, LlvmFn );
 }
 
 void Volt::Backend::Llvm::DeclareSynthesized ( EmitterServices &Services, const UnitView &Unit )
@@ -102,7 +123,16 @@ void Volt::Backend::Llvm::DefineSynthesizedFn ( EmitterServices &Services,
         return;
     }
     llvm::Function *LlvmFn = It->second;
-    llvm::Type *Result     = LlvmFn->getReturnType();
+
+    // Not ours to define: either another module already holds the body (PerUnit),
+    // or this entry was declared and filled in earlier. Either way a second
+    // entry block here would append to a function that already has one.
+    if ( LlvmFn->getParent() != Services.Ctx->ModPtr() or not LlvmFn->empty() )
+    {
+        return;
+    }
+
+    llvm::Type *Result = LlvmFn->getReturnType();
 
     FunctionFrame Frame;
     Frame.Fn            = LlvmFn;

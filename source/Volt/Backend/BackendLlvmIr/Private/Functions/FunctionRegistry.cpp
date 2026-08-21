@@ -1,6 +1,7 @@
 #include "Functions/FunctionRegistry.hpp"
 
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Functions/SignatureBuilder.hpp"
 
 #include "Volt/BackendCore/CompilerSeams.hpp"
@@ -94,7 +95,11 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     const std::string Symbol = SymbolOf( Entry, Owner, FlatArgs );
     if ( const auto It = Functions.find( Symbol ); It != Functions.end() )
     {
-        return It->second;
+        // The cache is build-wide and the module is not: under PerUnit
+        // granularity the hit may name a function belonging to a module already
+        // closed, and what this call site needs is that same function as seen
+        // from the one being written.
+        return LocalCopy( *Services, It->second );
     }
 
     llvm::FunctionType *Signature = Services->Signatures->FunctionTypeOf( Entry, Owner, FlatArgs );
@@ -125,8 +130,15 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     const llvm::GlobalValue::LinkageTypes Mergeable =
         Services->Options->bRetainMergeableBodies ? llvm::Function::WeakODRLinkage : llvm::Function::LinkOnceODRLinkage;
 
+    // Mergeable linkage exists so a linker can fold copies of one body that
+    // several translation units each emitted. Splitting a build across modules
+    // creates no such copies — a body is emitted in its own unit's module and
+    // nowhere else, and an instantiation is deduped before it is emitted at all
+    // — while it does create cross-module *references*, which have to be plain
+    // external ones. So PerUnit exports everything and merges nothing.
     const llvm::GlobalValue::LinkageTypes Linkage =
-        ( bDeclaredElsewhere or ( FlatArgs.empty() and not bInlineEligible ) or ( bGeneric and FlatArgs.empty() ) )
+        ( PerUnitModules( *Services ) or bDeclaredElsewhere or ( FlatArgs.empty() and not bInlineEligible ) or
+          ( bGeneric and FlatArgs.empty() ) )
             ? llvm::Function::ExternalLinkage
             : Mergeable;
     llvm::Function *Fn = llvm::Function::Create( Signature, Linkage, Symbol, Services->Ctx->ModPtr() );
@@ -143,6 +155,12 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     }
     Functions.emplace( Symbol, Fn );
     return Fn;
+}
+
+llvm::Function *Volt::Backend::Llvm::FunctionRegistry::Find ( const std::string &Symbol )
+{
+    const auto It = Functions.find( Symbol );
+    return It == Functions.end() ? nullptr : LocalCopy( *Services, It->second );
 }
 
 llvm::Function *Volt::Backend::Llvm::FunctionRegistry::DeclareMember ( const MiddleEnd::TypeSystem::Member &Entry,

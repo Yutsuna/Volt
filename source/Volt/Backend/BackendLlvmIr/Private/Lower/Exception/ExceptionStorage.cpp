@@ -4,6 +4,7 @@
 #include "Lower/Exception/ExceptionLowering.hpp"
 
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Volt/BackendCore/UnwindTransport.hpp"
 
 #include <llvm/IR/Constants.h>
@@ -69,7 +70,7 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSlot ( llvm
 
     if ( ExcStorage != nullptr )
     {
-        return ExcStorage;
+        return LocalCopy( *Services, ExcStorage );
     }
 
     llvm::LLVMContext &Context = Services->Ctx->Context();

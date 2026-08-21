@@ -9,6 +9,7 @@
 
 #include "Core/EmitterServices.hpp"
 #include "Core/ModuleContext.hpp"
+#include "Core/ModuleLocal.hpp"
 #include "Lower/BodyEmitter.hpp"
 #include "Lower/FunctionFrame.hpp"
 #include "Types/TypeMapper.hpp"
@@ -53,14 +54,22 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const MiddleEnd::Resolv
             const UnitGlobalKey Key{ .Ordinal = Local.Unit->Ordinal, .Site = Site };
             if ( const auto GlobIt = Services().ModuleGlobals->find( Key ); GlobIt != Services().ModuleGlobals->end() )
             {
-                return GlobIt->second;
+                // Translated, not returned as found: split across modules, this
+                // binding is one piece of storage that several of them read, and
+                // a per-module copy would silently be a *second* variable.
+                return LocalCopy( Services(), GlobIt->second );
             }
 
             const std::string GlobalName = "_V_global_" + std::to_string( Local.Unit->Ordinal ) + "_" + std::string( Name );
 
-            auto *GlobalVar =
-                new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false, llvm::GlobalValue::InternalLinkage,
-                                          llvm::Constant::getNullValue( Shape ), GlobalName );
+            // Internal while the build is one module — nothing outside it has a
+            // name for this. PerUnit gives every other module a name for it, so
+            // it has to be one the JIT can resolve.
+            const llvm::GlobalValue::LinkageTypes Linkage =
+                PerUnitModules( Services() ) ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::InternalLinkage;
+
+            auto *GlobalVar = new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false, Linkage,
+                                                        llvm::Constant::getNullValue( Shape ), GlobalName );
             Services().ModuleGlobals->emplace( Key, GlobalVar );
             return GlobalVar;
         }

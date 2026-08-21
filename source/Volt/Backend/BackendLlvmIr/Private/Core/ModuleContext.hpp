@@ -95,6 +95,18 @@ namespace Backend
             // `return` / `break`.
             [[nodiscard]] bool Terminated () const;
 
+            // Close the module being written and open a fresh one beside it,
+            // in the *same* context. That sharing is the point: llvm::Type is
+            // context-owned, so every type cache built for the first module
+            // stays valid for all of them, and ORC is handed one
+            // ThreadSafeContext covering the batch.
+            //
+            // Triple and data layout are copied from the outgoing module rather
+            // than re-derived: they were a build decision made once in
+            // InitTarget, and re-deriving them is how two modules of one build
+            // would ever come to disagree.
+            [[nodiscard]] std::unique_ptr<llvm::Module> Rotate ( std::string_view NextName );
+
             // Hand both halves to a consumer that must own them together — the
             // ThreadSafeModule case. The context is emptied along with the
             // module, so nothing may be emitted through this object afterwards.

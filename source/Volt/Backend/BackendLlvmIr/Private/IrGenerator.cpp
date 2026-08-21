@@ -90,7 +90,15 @@ void Volt::Backend::Ir::IrGenerator::Begin ( const BackendInput &Input )
     // One llvm::Module per build, in Whole granularity: the simplest correct
     // thing. The entry module is last in circuit link order, so it names the
     // module.
-    const std::string_view Name = Input.Units.empty() ? std::string_view{ "volt" } : Input.Units.back().Module;
+    //
+    // PerUnit opens on a module of its own all the same, because DeclareAll
+    // below has to write its declarations somewhere and no unit owns them. It
+    // ends up holding nothing but declarations, and a consumer is free to drop
+    // it for that reason.
+    const bool bPerUnit         = Impl->Options.Granularity == EModuleGranularity::PerUnit;
+    const std::string_view Name = bPerUnit              ? std::string_view{ "volt.declarations" }
+                                  : Input.Units.empty() ? std::string_view{ "volt" }
+                                                        : Input.Units.back().Module;
 
     const Llvm::TargetSpec Spec{ .Triple             = Impl->Options.TargetTriple,
                                  .DataLayout         = Impl->Options.DataLayout,
@@ -140,6 +148,14 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::EmitUnit ( const Unit
     // two are separate options rather than one.
     const bool bPrecompiled = Llvm::UnitIsPrecompiled( Impl->Services, Unit.Ordinal );
 
+    // Everything below this point belongs to this unit's own module. Opened
+    // before the precompiled branch, not after it: a skipped unit still emits
+    // its lifted closures, and those are its own to hold too.
+    if ( Impl->Options.Granularity == EModuleGranularity::PerUnit )
+    {
+        Impl->CloseModule( "volt.unit." + std::to_string( Unit.Ordinal ), Unit.Ordinal );
+    }
+
     if ( bPrecompiled and not Impl->Options.bDefineInlineEligibleBelow )
     {
         // Its ordinary bodies come from the artifact, but its lifted closure
@@ -162,6 +178,15 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::Finish ()
     if ( Impl->Failed() )
     {
         return EEmitStatus::Error;
+    }
+
+    // What Finish emits belongs to no unit: an instantiation is minted for the
+    // build, `_V_init_all` names every unit at once, and the entry point is the
+    // build's. Under PerUnit they go to a shared module of their own, so no
+    // unit's module can be reloaded out from under them.
+    if ( Impl->Options.Granularity == EModuleGranularity::PerUnit )
+    {
+        Impl->CloseModule( "volt.shared", Llvm::EmitterServices::NoUnitOrdinal );
     }
 
     // Every unit is defined by now, so every instantiation a concrete body could
@@ -199,19 +224,42 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::Finish ()
     if ( Impl->Options.bVerify )
     {
         const Volt::Core::PhaseScope Timing( "backend.verify" );
-        std::string Text;
-        llvm::raw_string_ostream Stream( Text );
-        if ( llvm::verifyModule( Impl->Ctx.Mod(), &Stream ) )
+
+        // Every module, not only the one still open. ORC materialises lazily,
+        // so a module nothing looks up is never code-generated and its
+        // malformed IR would surface as nothing at all — or as a crash the
+        // first time some later run did reach it.
+        const auto Verify = [this] ( llvm::Module &Mod ) -> bool
         {
-            for ( const llvm::Function &Fn : Impl->Ctx.Mod() )
+            std::string Text;
+            llvm::raw_string_ostream Stream( Text );
+            if ( not llvm::verifyModule( Mod, &Stream ) )
+            {
+                return true;
+            }
+            for ( const llvm::Function &Fn : Mod )
             {
                 if ( llvm::verifyFunction( Fn ) )
                 {
-                    return Impl->Fail( "llvm: module verification failed in '" + std::string( Fn.getName() ) +
-                                       "': " + Stream.str() );
+                    static_cast<void>( Impl->Fail( "llvm: module verification failed in '" + std::string( Fn.getName() ) +
+                                                   "': " + Stream.str() ) );
+                    return false;
                 }
             }
-            return Impl->Fail( "llvm: module verification failed: " + Stream.str() );
+            static_cast<void>( Impl->Fail( "llvm: module verification failed: " + Stream.str() ) );
+            return false;
+        };
+
+        for ( const std::unique_ptr<llvm::Module> &Mod : Impl->Closed )
+        {
+            if ( Mod != nullptr and not Verify( *Mod ) )
+            {
+                return EEmitStatus::Error;
+            }
+        }
+        if ( not Verify( Impl->Ctx.Mod() ) )
+        {
+            return EEmitStatus::Error;
         }
     }
 
@@ -243,22 +291,22 @@ std::vector<std::string> Volt::Backend::Ir::IrGenerator::LastUnitSymbols () cons
 // Defined here rather than in a file of its own: they are four one-line reaches
 // into State, and State is only complete in this translation unit.
 
-Volt::Backend::Ir::OwnedModule Volt::Backend::Ir::TakeModule ( IrGenerator &Gen )
+Volt::Backend::Ir::OwnedModules Volt::Backend::Ir::TakeModules ( IrGenerator &Gen )
 {
     IrGenerator::State *Impl = Gen.Peek();
 
-    // Module first: it is emptied along with the builder, and the context has
-    // to outlive both.
-    std::unique_ptr<llvm::Module> Mod = Impl->Ctx.TakeModule();
-    return OwnedModule{ .Context = Impl->Ctx.TakeContext(), .Module = std::move( Mod ) };
-}
+    // Modules first: the one still open is emptied along with the builder, and
+    // the context has to outlive all of them.
+    OwnedModules Out;
+    Out.Modules = std::move( Impl->Closed );
+    Impl->Closed.clear();
 
-std::vector<Volt::Backend::Ir::OwnedModule> Volt::Backend::Ir::TakeUnitModules ( IrGenerator &Gen )
-{
-    // Whole granularity keeps everything in the one module TakeModule hands
-    // back. PerUnit lands with the hot-reload milestone.
-    static_cast<void>( Gen );
-    return {};
+    if ( std::unique_ptr<llvm::Module> Last = Impl->Ctx.TakeModule(); Last != nullptr )
+    {
+        Out.Modules.push_back( std::move( Last ) );
+    }
+    Out.Context = Impl->Ctx.TakeContext();
+    return Out;
 }
 
 llvm::Module &Volt::Backend::Ir::ModuleOf ( IrGenerator &Gen )

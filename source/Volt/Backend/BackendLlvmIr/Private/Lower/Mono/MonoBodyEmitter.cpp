@@ -60,7 +60,14 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         return;
     }
 
-    Fn->setLinkage( llvm::GlobalValue::LinkOnceODRLinkage );
+    // Whole granularity emits every instantiation into the one module and lets
+    // the linker fold identical copies coming from other objects. PerUnit has
+    // no linker behind it and every other module refers to this one by name, so
+    // FunctionFor's external linkage is left as it stands.
+    if ( not PerUnitModules( *Services ) )
+    {
+        Fn->setLinkage( llvm::GlobalValue::LinkOnceODRLinkage );
+    }
 
     MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
 
