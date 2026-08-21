@@ -141,17 +141,17 @@ namespace Backend
             // why it stays the default.
             bool bRetainMergeableBodies = false;
 
-            // Emit the entry function's own unit even when it falls below the
-            // skip line.
+            // Emit any unit that declares a compiler seam
+            // (CompilerSeams::Library) even when it falls below the skip line.
             //
-            // A build that *links* the artifact must not: the static linker
-            // resolves the artifact's `__volt_entry` against this build's
-            // `_V_init_all`, so emitting a second copy is a duplicate-symbol
-            // error at the link. A JIT that *loads* the artifact gets no such
-            // fixup — the artifact's copy would call whatever `_V_init_all` it
-            // was built against, initialising only the units it knew — so it
-            // has to emit its own and let that shadow the artifact's.
-            bool bDefineEntryUnit = false;
+            // Set by a consumer that *loads* the artifact rather than linking
+            // it. A seam's definition is build-specific — `_V_init_all` names
+            // this build's units, `_V_symbol_name` its symbols — so the copy
+            // inside an artifact answers for the build that produced it. A
+            // static link repoints the artifact's reference at this build's
+            // definition and needs none of this; worse, emitting a second copy
+            // there is a duplicate-symbol error. A JIT gets no such fixup.
+            bool bDefineCompilerSeamUnits = false;
 
             // A TargetMachine is only needed by a consumer that will run
             // addPassesToEmitFile. The JIT has none and wants none.

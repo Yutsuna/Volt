@@ -1,10 +1,9 @@
-// FunctionRegistry.cpp — the symbol cache and on-demand declaration.
-
 #include "Functions/FunctionRegistry.hpp"
 
 #include "Core/ModuleContext.hpp"
 #include "Functions/SignatureBuilder.hpp"
 
+#include "Volt/BackendCore/CompilerSeams.hpp"
 #include "Volt/BackendCore/Mangler.hpp"
 
 #include <iostream>
@@ -30,24 +29,62 @@ std::string Volt::Backend::Llvm::FunctionRegistry::SymbolOf ( const MiddleEnd::T
 
 bool Volt::Backend::Llvm::UnitIsPrecompiled ( const EmitterServices &Services, std::uint32_t UnitOrdinal )
 {
-    const Ir::IrOptions &Options = *Services.Options;
-    if ( UnitOrdinal >= Options.SkipUnitsBelow )
+    if ( Services.PrecompiledUnits == nullptr or UnitOrdinal >= Services.PrecompiledUnits->size() )
     {
         return false;
     }
+    return ( *Services.PrecompiledUnits )[UnitOrdinal] != 0;
+}
 
-    if ( Options.bDefineEntryUnit and Services.Build != nullptr and Services.Build->Types != nullptr and
-         not Options.EntryFunction.empty() )
+std::vector<std::uint8_t> Volt::Backend::Llvm::ResolvePrecompiledUnits ( const EmitterServices &Services )
+{
+    const Ir::IrOptions &Options = *Services.Options;
+
+    std::vector<std::uint8_t> Skip( Options.SkipUnitsBelow, static_cast<std::uint8_t>( 1 ) );
+    if ( Skip.empty() or Services.Build == nullptr or Services.Build->Types == nullptr )
     {
-        // Read off the TypeStore rather than matched on a path, so nothing here
-        // knows what the prelude is called (rules/zero-hardcode.md).
-        const MiddleEnd::TypeSystem::Member *Entry = Services.Build->Types->LookupFunction( Options.EntryFunction );
-        if ( Entry != nullptr and Entry->Unit == UnitOrdinal )
+        return Skip;
+    }
+
+    // A unit that declares a compiler seam is emitted here whatever the skip
+    // line says, when the artifact is *loaded* rather than linked. The seam's
+    // definition is build-specific — `_V_init_all` names this build's units,
+    // `_V_symbol_name` this build's symbols — so the artifact's copy answers
+    // for the build it was made from. A statically linked build has no such
+    // problem: the linker resolves the artifact's reference against this
+    // build's definition, and a second copy would be a duplicate symbol.
+    if ( not Options.bDefineCompilerSeamUnits )
+    {
+        return Skip;
+    }
+
+    MiddleEnd::TypeSystem::TypeStore &Store = *Services.Build->Types;
+
+    const auto Keep = [&] ( const MiddleEnd::TypeSystem::Member &Entry )
+    {
+        if ( not Entry.ExternLib.IsValid() or Entry.Unit >= Skip.size() )
         {
-            return false;
+            return;
+        }
+        if ( Store.Text( Entry.ExternLib ) == Backend::CompilerSeams::Library )
+        {
+            Skip[Entry.Unit] = 0;
+        }
+    };
+
+    for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+    {
+        const MiddleEnd::TypeSystem::NominalId Id{ static_cast<MiddleEnd::TypeSystem::NominalId::ValueType>( Index ) };
+        for ( const MiddleEnd::TypeSystem::Member &Entry : Store.Type( Id ).Members )
+        {
+            Keep( Entry );
         }
     }
-    return true;
+    for ( const MiddleEnd::TypeSystem::Member &Entry : Store.FreeFunctions() )
+    {
+        Keep( Entry );
+    }
+    return Skip;
 }
 
 llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const MiddleEnd::TypeSystem::Member &Entry,
@@ -83,8 +120,7 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     // inline-eligible bodies below the skip line so an optimised build can
     // inline across the boundary, and a definition must not be a declaration.
     const bool bDefinedHereAnyway = bInlineEligible and Services->Options->bDefineInlineEligibleBelow;
-    const bool bDeclaredElsewhere =
-        FlatArgs.empty() and not bDefinedHereAnyway and UnitIsPrecompiled( *Services, Entry.Unit );
+    const bool bDeclaredElsewhere = FlatArgs.empty() and not bDefinedHereAnyway and UnitIsPrecompiled( *Services, Entry.Unit );
 
     const llvm::GlobalValue::LinkageTypes Mergeable =
         Services->Options->bRetainMergeableBodies ? llvm::Function::WeakODRLinkage : llvm::Function::LinkOnceODRLinkage;

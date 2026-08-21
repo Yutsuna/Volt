@@ -103,6 +103,11 @@ void Volt::Backend::Ir::IrGenerator::Begin ( const BackendInput &Input )
         return;
     }
 
+    // Before DeclareAll, because the linkage every declaration gets depends on
+    // whether its unit will be defined here.
+    Impl->PrecompiledUnits          = Llvm::ResolvePrecompiledUnits( Impl->Services );
+    Impl->Services.PrecompiledUnits = &Impl->PrecompiledUnits;
+
     // Declare before defining anything: a body emitted in the first unit may call
     // something declared in the last, and one pass over the store means that
     // resolves immediately instead of needing a fixup pass.
@@ -137,7 +142,12 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::EmitUnit ( const Unit
 
     if ( bPrecompiled and not Impl->Options.bDefineInlineEligibleBelow )
     {
-        return EEmitStatus::Ok;
+        // Its ordinary bodies come from the artifact, but its lifted closure
+        // bodies cannot: they carry no mangled symbol, so nothing can import
+        // them, and a generic from this unit instantiated *here* reaches one
+        // through a FuncAddr.
+        Llvm::DefineSynthesizedOnly( Impl->Services, Unit );
+        return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
     }
 
     {

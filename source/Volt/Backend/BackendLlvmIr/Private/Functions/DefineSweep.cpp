@@ -137,6 +137,16 @@ void Volt::Backend::Llvm::DefineMember ( EmitterServices &Services,
     }
 }
 
+void Volt::Backend::Llvm::DefineSynthesizedOnly ( EmitterServices &Services, const UnitView &Unit )
+{
+    if ( Services.Build == nullptr or Services.Build->Types == nullptr )
+    {
+        return;
+    }
+    DeclareSynthesized( Services, Unit );
+    DefineSynthesized( Services, Unit );
+}
+
 void Volt::Backend::Llvm::DefineAll ( EmitterServices &Services, const UnitView &Unit, bool bInlineEligibleOnly )
 {
     if ( Services.Build == nullptr or Services.Build->Types == nullptr )

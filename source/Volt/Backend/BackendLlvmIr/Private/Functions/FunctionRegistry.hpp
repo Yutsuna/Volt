@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace Volt
 {
@@ -36,6 +37,17 @@ namespace Backend
         // both ask, and a disagreement between them is either a missing symbol
         // or a duplicate one — so they ask the same function.
         [[nodiscard]] bool UnitIsPrecompiled ( const EmitterServices &Services, std::uint32_t UnitOrdinal );
+
+        // Computes what UnitIsPrecompiled then answers from. Called once, in
+        // Begin, before anything is declared.
+        [[nodiscard]] std::vector<std::uint8_t> ResolvePrecompiledUnits ( const EmitterServices &Services );
+
+        // The closure bodies ClosureLifting synthesised for one unit. Emitted
+        // even for a unit whose ordinary bodies come from a precompiled
+        // artifact: a synthesised function has no mangled symbol — it is never
+        // looked up by name — so it cannot be imported from anywhere, and a
+        // monomorphised body emitted *here* can name one through a FuncAddr.
+        void DefineSynthesizedOnly ( EmitterServices &Services, const UnitView &Unit );
 
         class FunctionRegistry
         {

@@ -27,6 +27,7 @@
 #include <optional>
 #include <unordered_map>
 #include <variant>
+#include <vector>
 
 namespace Volt
 {
@@ -133,6 +134,13 @@ namespace Backend
             // --- Build-wide caches that belong to no single service ----------
             ModuleGlobalMap *ModuleGlobals   = nullptr;
             SynthesizedFnMap *SynthesizedFns = nullptr;
+
+            // Indexed by unit ordinal: 1 when that unit's code lives in an
+            // artifact this build links or loads rather than emits. Resolved
+            // once in Begin, because the answer involves a walk of the whole
+            // TypeStore and every function declaration would otherwise ask it
+            // again.
+            const std::vector<std::uint8_t> *PrecompiledUnits = nullptr;
         };
 
     } // namespace Llvm

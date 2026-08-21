@@ -151,8 +151,8 @@ bool Volt::Backend::Llvm::ExceptionLowering::EmitSlotAccessor ()
                                             llvm::Constant::getNullValue( TableTy ), "volt.exc.slots" );
     Table->setThreadLocal( true );
 
-    llvm::Function *Fn = llvm::Function::Create( llvm::FunctionType::get( Address, false ),
-                                                 llvm::Function::ExternalLinkage, Name, &Mod );
+    llvm::Function *Fn =
+        llvm::Function::Create( llvm::FunctionType::get( Address, false ), llvm::Function::ExternalLinkage, Name, &Mod );
     llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", Fn ) };
 
     // Stored unconditionally on every call rather than behind a

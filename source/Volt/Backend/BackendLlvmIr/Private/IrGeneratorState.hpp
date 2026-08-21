@@ -34,6 +34,7 @@
 #include "Types/AbiVerifier.hpp"
 #include "Types/TypeMapper.hpp"
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -57,6 +58,7 @@ struct Volt::Backend::Ir::IrGenerator::State
 
     // --- Build-wide caches that belong to no single service ------------------
 
+    std::vector<std::uint8_t> PrecompiledUnits;
     Llvm::ModuleGlobalMap ModuleGlobals;
     Llvm::SynthesizedFnMap SynthesizedFns;
 
