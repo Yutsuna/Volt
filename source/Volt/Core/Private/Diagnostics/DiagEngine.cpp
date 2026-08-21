@@ -3,6 +3,7 @@
 #include "Volt/Core/Diagnostics/Diagnostic.hpp"
 #include "Volt/Core/Diagnostics/SourceManager.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <iterator>
 #include <ostream>
@@ -107,6 +108,60 @@ std::size_t Volt::Core::DiagEngine::Count () const noexcept
 {
     const std::scoped_lock Guard{ Mutex };
     return Store.size();
+}
+
+std::size_t Volt::Core::DiagEngine::Mark () const noexcept
+{
+    const std::scoped_lock Guard{ Mutex };
+    return Store.size();
+}
+
+void Volt::Core::DiagEngine::RenderSince ( const std::size_t From, const SourceManager &Sources, std::ostream &Out ) const
+{
+    const std::scoped_lock Guard{ Mutex };
+
+    for ( std::size_t Index = std::min( From, Store.size() ); Index < Store.size(); ++Index )
+    {
+        const Diagnostic &Diag = Store[Index];
+        RenderOne( Sources, Out, Diag.Severity, Diag.Range, Diag.Message );
+        for ( const DiagnosticNote &Note : Diag.Notes )
+        {
+            RenderOne( Sources, Out, ESeverity::Note, Note.Range, Note.Message );
+        }
+    }
+}
+
+bool Volt::Core::DiagEngine::HasErrorsSince ( const std::size_t From ) const noexcept
+{
+    const std::scoped_lock Guard{ Mutex };
+
+    for ( std::size_t Index = std::min( From, Store.size() ); Index < Store.size(); ++Index )
+    {
+        if ( Store[Index].Severity == ESeverity::Error )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void Volt::Core::DiagEngine::TruncateTo ( const std::size_t From )
+{
+    const std::scoped_lock Guard{ Mutex };
+
+    if ( From >= Store.size() )
+    {
+        return;
+    }
+
+    for ( std::size_t Index = From; Index < Store.size(); ++Index )
+    {
+        if ( Store[Index].Severity == ESeverity::Error and ErrorCount > 0 )
+        {
+            --ErrorCount;
+        }
+    }
+    Store.resize( From );
 }
 
 /**

@@ -125,6 +125,30 @@ namespace Core
          */
         void Render ( const SourceManager &Sources, std::ostream &Out ) const;
 
+        /**
+         * @brief A position in the diagnostic store, for a caller that consumes it in slices.
+         * @details A REPL compiles one line per evaluation into a Driver that lives for the
+         *          whole session, so the engine accumulates every line's diagnostics
+         *          forever. Without a mark, line 530 re-renders line 3's error and
+         *          HasErrors() stays true for good. Mark before compiling, render what came
+         *          after, then truncate back.
+         */
+        [[nodiscard]] std::size_t Mark () const noexcept;
+
+        /** @brief Render only the diagnostics reported since Mark. */
+        void RenderSince ( std::size_t From, const SourceManager &Sources, std::ostream &Out ) const;
+
+        /** @brief Whether any diagnostic reported since Mark is an error. */
+        [[nodiscard]] bool HasErrorsSince ( std::size_t From ) const noexcept;
+
+        /**
+         * @brief Drop every diagnostic reported since Mark, restoring the error count.
+         * @details What makes the slice a slice: the caller has rendered them and owns
+         *          them now, and the engine must forget them or the next query sees them
+         *          again.
+         */
+        void TruncateTo ( std::size_t From );
+
     private:
 
         mutable std::mutex Mutex;
