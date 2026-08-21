@@ -190,6 +190,11 @@ namespace Driver
         std::uint8_t OptLevel = 0;
         bool bVerbose         = false;
 
+        // Emit one module per unit rather than one for the build. Identical in
+        // behaviour, and the shape reloading and the REPL need; exercised on
+        // its own rather than only once something depends on it.
+        bool bPerUnitModules = false;
+
         // Same meaning as on BuildOptions, and honoured for the same artifact:
         // `volt run` loads the precompiled stdlib rather than JIT-compiling it.
         bool bStdlibArtifactNoCache = false;
