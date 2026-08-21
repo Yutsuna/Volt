@@ -200,8 +200,7 @@ struct Volt::Repl::Evaluator::State
                 Frontend::ExprNode{ Frontend::StringLiteral{ .Loc = {}, .Value = Ast.Strings().Intern( Var.Symbol ) } } ) );
             Ast.TopDecls.push_back( Ast.Add( Frontend::DeclNode{ std::move( Marker ) } ) );
 
-            Frontend::ExternalVar Declaration{
-                .Loc = {}, .Name = Ast.Strings().Intern( Var.Name ), .DeclType = Annotation };
+            Frontend::ExternalVar Declaration{ .Loc = {}, .Name = Ast.Strings().Intern( Var.Name ), .DeclType = Annotation };
             Ast.TopDecls.push_back( Ast.Add( Frontend::DeclNode{ std::move( Declaration ) } ) );
         }
     }
@@ -285,9 +284,8 @@ struct Volt::Repl::Evaluator::State
             }
 
             VarByName.emplace( Text, Vars.size() );
-            Vars.push_back( SessionVar{ .Name   = Text,
-                                        .Type   = Type,
-                                        .Symbol = "_V_global_" + std::to_string( Ordinal ) + "_" + Text } );
+            Vars.push_back(
+                SessionVar{ .Name = Text, .Type = Type, .Symbol = "_V_global_" + std::to_string( Ordinal ) + "_" + Text } );
         }
     }
 
@@ -408,11 +406,11 @@ Volt::Repl::EvalOutcome Volt::Repl::Evaluator::Feed ( const std::string_view Lin
 {
     if ( not Impl->bStarted )
     {
-        return EvalOutcome{ .Status     = EEvalStatus::DidNotRun,
+        return EvalOutcome{ .Status      = EEvalStatus::DidNotRun,
                             .Diagnostics = {},
-                            .Message    = "repl: the session was never started",
-                            .ResultType = {},
-                            .bRendered  = false };
+                            .Message     = "repl: the session was never started",
+                            .ResultType  = {},
+                            .bRendered   = false };
     }
     return Impl->Feed( Line, /*bMayEcho=*/true );
 }
