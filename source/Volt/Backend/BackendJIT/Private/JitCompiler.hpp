@@ -50,7 +50,12 @@ namespace Backend
 
             [[nodiscard]] GenerationId OpenGeneration ();
 
-            [[nodiscard]] bool AddModule ( GenerationId Gen, Ir::OwnedModule Module, std::string &OutError );
+            // Adds a whole emission at once: the modules, and the context
+            // they share. A module that defines nothing is dropped rather than
+            // added — under PerUnit granularity most of them define nothing
+            // (every unit whose code came from a dylib), and a materialisation
+            // unit that can never be asked for anything is pure bookkeeping.
+            [[nodiscard]] bool AddModules ( GenerationId Gen, Ir::OwnedModules Modules, std::string &OutError );
 
             // Unmaps a generation's code. Forbidden while any frame may still
             // be inside it.

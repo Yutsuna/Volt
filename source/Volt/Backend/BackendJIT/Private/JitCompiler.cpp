@@ -14,6 +14,10 @@
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <llvm/IR/Function.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/Module.h>
+
 #include <map>
 #include <mutex>
 #include <string>
@@ -43,6 +47,28 @@ std::string Consume ( llvm::Error Err )
     return llvm::toString( std::move( Err ) );
 }
 
+// A module holding only declarations resolves nothing and materialises
+// nothing, so adding it to a dylib costs a symbol-table scan and buys an entry
+// nobody can ever look up.
+bool DefinesAnything ( const llvm::Module &Mod )
+{
+    for ( const llvm::Function &Fn : Mod )
+    {
+        if ( not Fn.isDeclaration() )
+        {
+            return true;
+        }
+    }
+    for ( const llvm::GlobalVariable &Var : Mod.globals() )
+    {
+        if ( Var.hasInitializer() )
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 struct Volt::Backend::Jit::JitCompiler::Impl
@@ -51,6 +77,12 @@ struct Volt::Backend::Jit::JitCompiler::Impl
     std::unique_ptr<llvm::orc::LLJIT> Jit;
     std::map<GenerationId, llvm::orc::ResourceTrackerSP> Trackers;
     GenerationId NextGeneration = 1;
+
+    // The one context every module of this session was typed in. Held here
+    // rather than moved into the first ThreadSafeModule because a later
+    // generation — a reload, a REPL line — has to be opened in the same one.
+    llvm::orc::ThreadSafeContext Ctx;
+    bool bContextAdopted = false;
 };
 
 Volt::Backend::Jit::JitCompiler::JitCompiler () : P( std::make_unique<Impl>() )
@@ -94,7 +126,7 @@ Volt::Backend::Jit::GenerationId Volt::Backend::Jit::JitCompiler::OpenGeneration
     return Id;
 }
 
-bool Volt::Backend::Jit::JitCompiler::AddModule ( GenerationId Gen, Ir::OwnedModule Module, std::string &OutError )
+bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedModules Modules, std::string &OutError )
 {
     const auto Found = P->Trackers.find( Gen );
     if ( Found == P->Trackers.end() )
@@ -102,19 +134,40 @@ bool Volt::Backend::Jit::JitCompiler::AddModule ( GenerationId Gen, Ir::OwnedMod
         OutError = "jit: no such generation";
         return false;
     }
-    if ( Module.Module == nullptr or Module.Context == nullptr )
+    if ( Modules.Modules.empty() )
     {
         OutError = "jit: the emission produced no module";
         return false;
     }
 
-    // ThreadSafeModule takes both halves, which is the whole reason
-    // ModuleContext owns its LLVMContext by pointer.
-    llvm::orc::ThreadSafeModule Safe( std::move( Module.Module ), std::move( Module.Context ) );
-    if ( llvm::Error Err = P->Jit->addIRModule( Found->second, std::move( Safe ) ) )
+    // The context is adopted once and kept: every module of this session shares
+    // it, which is what lets one module call a function another one defines. A
+    // later batch — a reload, a REPL line — arrives without one and is opened
+    // in the context already held.
+    if ( Modules.Context != nullptr )
     {
-        OutError = "jit: could not add the module: " + Consume( std::move( Err ) );
+        P->Ctx = llvm::orc::ThreadSafeContext( std::move( Modules.Context ) );
+    }
+    else if ( not P->bContextAdopted )
+    {
+        OutError = "jit: the first batch of modules brought no context";
         return false;
+    }
+    P->bContextAdopted = true;
+
+    for ( std::unique_ptr<llvm::Module> &Mod : Modules.Modules )
+    {
+        if ( Mod == nullptr or not DefinesAnything( *Mod ) )
+        {
+            continue;
+        }
+
+        const std::string Name( Mod->getName() );
+        if ( llvm::Error Err = P->Jit->addIRModule( Found->second, llvm::orc::ThreadSafeModule( std::move( Mod ), P->Ctx ) ) )
+        {
+            OutError = "jit: could not add the module '" + Name + "': " + Consume( std::move( Err ) );
+            return false;
+        }
     }
     return true;
 }

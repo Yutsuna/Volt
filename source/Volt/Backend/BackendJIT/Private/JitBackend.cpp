@@ -110,7 +110,7 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     }
 
     Ir::IrOptions Gen;
-    Gen.Granularity = Ir::EModuleGranularity::Whole;
+    Gen.Granularity = Impl->Options.bPerUnitModules ? Ir::EModuleGranularity::PerUnit : Ir::EModuleGranularity::Whole;
     Gen.Tls         = Ir::ETlsAccess::Accessor;
     Gen.Linkage     = Ir::ELinkage::Direct;
 
@@ -186,7 +186,7 @@ Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
     const Volt::Core::PhaseScope Timing( "backend.jit.add" );
 
     Impl->Generation = Impl->Compiler.OpenGeneration();
-    if ( not Impl->Compiler.AddModule( Impl->Generation, Ir::TakeModule( *Impl->Gen ), Error ) )
+    if ( not Impl->Compiler.AddModules( Impl->Generation, Ir::TakeModules( *Impl->Gen ), Error ) )
     {
         static_cast<void>( Impl->Fail( std::move( Error ) ) );
         return MakeFailure();

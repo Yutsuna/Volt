@@ -50,6 +50,11 @@ namespace Backend
             std::string EntryFunction = "__volt_entry";
             std::string EntrySymbol   = "__volt_jit_main";
 
+            // One llvm::Module per unit instead of one for the build. Costs a
+            // little at startup and buys the only shape a reload or a REPL line
+            // can have: a body of code that can be replaced on its own.
+            bool bPerUnitModules = false;
+
             std::uint8_t OptLevel = 0;
 
             // 0 keeps compilation synchronous, which is what a one-shot
