@@ -21,6 +21,7 @@
 #include <span>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 namespace Volt
@@ -86,10 +87,23 @@ namespace Backend
             // it needed itself.
             [[nodiscard]] llvm::Function *Find ( const std::string &Symbol );
 
+            // Whether a call to this symbol may go through an indirection slot
+            // (FunctionSlots.hpp). True for a body this build emits itself and
+            // could therefore replace; false for an @[External] boundary and
+            // for a unit whose code came from a precompiled artifact, neither
+            // of which a reload can reach. Answered from what the declaration
+            // already decided, so the call site and the slot definition cannot
+            // disagree about which symbols are indirect.
+            [[nodiscard]] bool IsIndirectable ( const std::string &Symbol ) const
+            {
+                return Indirectable.contains( Symbol );
+            }
+
         private:
 
             EmitterServices *Services = nullptr;
             std::unordered_map<std::string, llvm::Function *> Functions;
+            std::unordered_set<std::string> Indirectable;
         };
 
         // --- The sweeps ------------------------------------------------------

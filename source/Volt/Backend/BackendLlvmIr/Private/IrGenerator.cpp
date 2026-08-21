@@ -20,6 +20,8 @@
 
 #include "IrGeneratorState.hpp"
 
+#include "Functions/FunctionSlots.hpp"
+
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
 
 #include "Volt/Core/Support/PhaseTimer.hpp"
@@ -122,6 +124,39 @@ void Volt::Backend::Ir::IrGenerator::Begin ( const BackendInput &Input )
     Llvm::DeclareAll( Impl->Services );
 }
 
+namespace
+{
+
+// Every nominal the unit declares, with the size and alignment its instances
+// actually have. Read straight after the unit is emitted, when the layout
+// engine has resolved everything the unit's own bodies needed.
+std::vector<Volt::Backend::Ir::IrGenerator::UnitShape> CollectShapes ( Volt::Backend::Ir::IrGenerator::State &Impl,
+                                                                       std::uint32_t Ordinal )
+{
+    std::vector<Volt::Backend::Ir::IrGenerator::UnitShape> Out;
+    if ( Impl.Build == nullptr or Impl.Build->Types == nullptr or not Impl.Layouts.has_value() )
+    {
+        return Out;
+    }
+
+    const Volt::MiddleEnd::TypeSystem::TypeStore &Store = *Impl.Build->Types;
+    for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
+    {
+        using NominalId = Volt::MiddleEnd::TypeSystem::NominalId;
+        const NominalId Id{ static_cast<NominalId::ValueType>( Index ) };
+        const Volt::MiddleEnd::TypeSystem::NominalType &Type = Store.Type( Id );
+        if ( Type.Unit != Ordinal or not Type.Layout.IsValid() )
+        {
+            continue;
+        }
+        const Volt::Backend::SizeAlign Shape = Impl.Layouts->Of( Type.Layout );
+        Out.push_back( { .Name = std::string( Store.Text( Type.Name ) ), .Size = Shape.Size, .Alignment = Shape.Alignment } );
+    }
+    return Out;
+}
+
+} // namespace
+
 Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::EmitUnit ( const UnitView &Unit )
 {
     if ( Impl->Failed() )
@@ -170,6 +205,12 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::EmitUnit ( const Unit
         const Volt::Core::PhaseScope Timing( "backend.emit" );
         Llvm::DefineAll( Impl->Services, Unit, /*bInlineEligibleOnly=*/bPrecompiled );
     }
+
+    // Read while this unit's module is still the open one — under PerUnit that
+    // module holds this unit's definitions and nothing else, which is exactly
+    // the set a reload of this unit would have to repoint.
+    Impl->LastUnit   = Llvm::LocalDefinedSymbols( Impl->Services );
+    Impl->LastShapes = CollectShapes( *Impl, Unit.Ordinal );
     return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
 }
 
@@ -221,6 +262,11 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::Finish ()
     // name the offending function. A consumer with no such pipeline — the JIT —
     // turns this on, because handing a malformed module to ORC crashes inside
     // the JIT instead of reporting anything.
+    // The module Finish itself filled never goes through CloseModule, so its
+    // own definitions — the instantiations, and the seams — get their slots
+    // here instead.
+    Llvm::DefineLocalSlots( Impl->Services );
+
     if ( Impl->Options.bVerify )
     {
         const Volt::Core::PhaseScope Timing( "backend.verify" );
@@ -281,9 +327,19 @@ std::string_view Volt::Backend::Ir::IrGenerator::Error () const noexcept
     return Impl->Diag.Message();
 }
 
-std::vector<std::string> Volt::Backend::Ir::IrGenerator::LastUnitSymbols () const
+std::string Volt::Backend::Ir::SlotNameOf ( std::string_view Symbol )
+{
+    return "volt.fn." + std::string( Symbol );
+}
+
+std::vector<Volt::Backend::Ir::IrGenerator::UnitSymbol> Volt::Backend::Ir::IrGenerator::LastUnitSymbols () const
 {
     return Impl->LastUnit;
+}
+
+std::vector<Volt::Backend::Ir::IrGenerator::UnitShape> Volt::Backend::Ir::IrGenerator::LastUnitShapes () const
+{
+    return Impl->LastShapes;
 }
 
 // --- LlvmAccess.hpp ---------------------------------------------------------

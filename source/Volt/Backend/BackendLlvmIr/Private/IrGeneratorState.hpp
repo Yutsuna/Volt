@@ -26,6 +26,7 @@
 #include "Core/EmitterServices.hpp"
 #include "Core/ModuleContext.hpp"
 #include "Functions/FunctionRegistry.hpp"
+#include "Functions/FunctionSlots.hpp"
 #include "Functions/SignatureBuilder.hpp"
 #include "Functions/VTableRegistry.hpp"
 #include "Lower/Closure/ClosureLowering.hpp"
@@ -64,11 +65,8 @@ struct Volt::Backend::Ir::IrGenerator::State
 
     // Symbols the last EmitUnit defined, for a hot-reload consumer that has to
     // know which indirection slots to repoint.
-    std::vector<std::string> LastUnit;
-
-    // Every module closed so far, oldest first. Empty in Whole granularity,
-    // where the one module stays in Ctx until the emission is taken.
-    std::vector<std::unique_ptr<llvm::Module>> Closed;
+    std::vector<IrGenerator::UnitSymbol> LastUnit;
+    std::vector<IrGenerator::UnitShape> LastShapes;
 
     // --- Services ------------------------------------------------------------
     //
@@ -79,6 +77,19 @@ struct Volt::Backend::Ir::IrGenerator::State
 
     DiagnosticSink Diag;
     Llvm::ModuleContext Ctx;
+
+    // Every module closed so far, oldest first. Empty in Whole granularity,
+    // where the one module stays in Ctx until the emission is taken.
+    //
+    // Declared *after* Ctx, and that is not cosmetic: an llvm::Module's
+    // destructor unregisters it from the LLVMContext that typed it, so a
+    // module outliving its context dereferences freed memory. Members are
+    // destroyed in reverse declaration order, so this has to come after the
+    // context to be destroyed before it. The ordinary path never notices —
+    // TakeModules empties this first — but a generator that is abandoned
+    // rather than harvested (an emission refused before it is used) does.
+    std::vector<std::unique_ptr<llvm::Module>> Closed;
+
     Llvm::EmitterServices Services;
 
     std::unique_ptr<Llvm::TypeMapper> Types;
@@ -98,6 +109,11 @@ struct Volt::Backend::Ir::IrGenerator::State
     // either end of the emission.
     void CloseModule ( const std::string &NextName, std::uint32_t NextUnit )
     {
+        // Last thing this module gets: by now every body it will ever hold is
+        // in it, so a slot can be initialised to its definition without any
+        // call site having had to care which of the two was emitted first.
+        Llvm::DefineLocalSlots( Services );
+
         if ( std::unique_ptr<llvm::Module> Finished = Ctx.Rotate( NextName ); Finished != nullptr )
         {
             Closed.push_back( std::move( Finished ) );

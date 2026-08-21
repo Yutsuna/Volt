@@ -154,6 +154,14 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
         break;
     }
     Functions.emplace( Symbol, Fn );
+
+    // Recorded here rather than recomputed at the call site: `bDeclaredElsewhere`
+    // is the same question a reload asks — is this body ours to replace — and
+    // deriving it twice is how the two answers drift apart.
+    if ( not Entry.ExternSymbol.IsValid() and not bDeclaredElsewhere )
+    {
+        Indirectable.insert( Symbol );
+    }
     return Fn;
 }
 

@@ -12,6 +12,7 @@
 #include "Core/EmitterServices.hpp"
 #include "Core/ModuleContext.hpp"
 #include "Functions/FunctionRegistry.hpp"
+#include "Functions/FunctionSlots.hpp"
 #include "Lower/BodyEmitter.hpp"
 #include "Lower/Exception/ExceptionLowering.hpp"
 #include "Lower/FunctionFrame.hpp"
@@ -293,7 +294,7 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     {
         Actuals[Index] = CoerceWidth( Actuals[Index], Signature->getParamType( static_cast<unsigned>( Index ) ) );
     }
-    llvm::Value *Result = Ctx().Builder().CreateCall( Callee, Actuals );
+    llvm::Value *Result = Ctx().Builder().CreateCall( Signature, CalleeValue( Svc, Callee ), Actuals );
 
     // The mirror of CoerceWidth's aggregate case: a struct comes back by value,
     // and every consumer here expects an aggregate to *be* an address. Spilling

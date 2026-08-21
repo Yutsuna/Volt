@@ -68,8 +68,14 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const MiddleEnd::Resolv
             const llvm::GlobalValue::LinkageTypes Linkage =
                 PerUnitModules( Services() ) ? llvm::GlobalValue::ExternalLinkage : llvm::GlobalValue::InternalLinkage;
 
-            auto *GlobalVar = new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false, Linkage,
-                                                        llvm::Constant::getNullValue( Shape ), GlobalName );
+            // A replacement emission declares this storage rather than
+            // defining it: the program that is already running owns the
+            // variable, and giving the new code its own zeroed copy would lose
+            // every value the program has put there.
+            const bool bReplacing   = Services().Options != nullptr and Services().Options->bReplaceUnit;
+            llvm::Constant *Initial = bReplacing ? nullptr : llvm::Constant::getNullValue( Shape );
+
+            auto *GlobalVar = new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false, Linkage, Initial, GlobalName );
             Services().ModuleGlobals->emplace( Key, GlobalVar );
             return GlobalVar;
         }

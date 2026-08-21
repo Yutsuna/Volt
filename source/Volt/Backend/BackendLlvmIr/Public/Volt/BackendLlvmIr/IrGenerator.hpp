@@ -81,6 +81,13 @@ namespace Backend
             Indirect = 1,
         };
 
+        // The linker name of the indirection slot holding `Symbol`'s current
+        // address, under ELinkage::Indirect. Public because it is a contract
+        // between the emission and whoever repoints the slot: the emitter
+        // defines the global, a reload looks it up by this name and stores
+        // through it, and the two must spell it the same way.
+        [[nodiscard]] BACKENDLLVMIR_EXPORT std::string SlotNameOf ( std::string_view Symbol );
+
         struct IrOptions
         {
 
@@ -109,6 +116,16 @@ namespace Backend
             // shim at all — a shared library, or a JIT that calls the entry
             // function directly.
             std::string EntrySymbol = "main";
+
+            // This emission replaces one unit of an already-running build
+            // rather than producing a build of its own. Two things follow, and
+            // both are about not stealing state from the running program:
+            // module-level storage is declared instead of defined — the
+            // running program owns that storage, and a second definition would
+            // hand the new code a fresh, zeroed copy of every top-level
+            // variable — and no indirection slot is defined, because the slots
+            // are what the running program reaches the new code *through*.
+            bool bReplaceUnit = false;
 
             // AOT leaves this off and verifies in its own pipeline, where the
             // failure is reported with the offending function named. A JIT has
@@ -195,9 +212,49 @@ namespace Backend
             [[nodiscard]] bool Failed () const noexcept;
             [[nodiscard]] std::string_view Error () const noexcept;
 
+            // One symbol the last EmitUnit defined, with the shape a caller
+            // was compiled to call it by.
+            //
+            // The signature is carried separately because the mangled name
+            // does not encode it: Volt has no overloading, so a name is a name
+            // and nothing about the parameters reaches it. A reload has to
+            // notice a parameter type that moved anyway — every already-
+            // compiled caller in another unit still passes the old shape — so
+            // it compares this instead of the name.
+            struct UnitSymbol
+            {
+
+                std::string Name;
+
+                // The lowered function type, printed. Two emissions of the
+                // same function agree on it exactly; a widened parameter, a
+                // changed return, a gained argument all read as a difference.
+                std::string Signature;
+
+                [[nodiscard]] bool operator==( const UnitSymbol & ) const = default;
+            };
+
             // The symbols the last EmitUnit defined. A hot-reload consumer uses
             // this to know which indirection slots to repoint.
-            [[nodiscard]] std::vector<std::string> LastUnitSymbols () const;
+            [[nodiscard]] std::vector<UnitSymbol> LastUnitSymbols () const;
+
+            // The in-memory shape of every type the last EmitUnit's unit
+            // declares. A reload compares this against what the running
+            // program was built with: a type whose size or alignment moved has
+            // instances already laid out the old way, and new code reading
+            // them would read the wrong bytes. Names rather than ids, because
+            // the two builds being compared mint ids independently.
+            struct UnitShape
+            {
+
+                std::string Name;
+                std::size_t Size      = 0;
+                std::size_t Alignment = 1;
+
+                [[nodiscard]] bool operator==( const UnitShape & ) const = default;
+            };
+
+            [[nodiscard]] std::vector<UnitShape> LastUnitShapes () const;
 
             // Incomplete here on purpose — this is what keeps LLVM out of
             // this header. LlvmAccess.hpp completes it for the two consumers
