@@ -47,6 +47,10 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FRunCommand::GetOptions ()
             [this] ( std::string_view Val ) { this->Dylibs.emplace_back( Val ); }
         },
         {
+            "", "--per-unit", "", "Emit one module per unit (the shape reload and the REPL need)",
+            [this] ( std::string_view ) { this->bPerUnitModules = true; }
+        },
+        {
             "-v", "--verbose", "", "Enable verbose output",
             [this] ( std::string_view ) { this->bVerbose = true; this->StdlibFlags.bVerbose = true; }
         }
@@ -153,6 +157,7 @@ std::int32_t Volt::CLI::FRunCommand::Execute ( std::span<const std::string_view>
     RunOpts.Target                 = Target;
     RunOpts.Dylibs                 = Dylibs;
     RunOpts.bVerbose               = bVerbose;
+    RunOpts.bPerUnitModules        = bPerUnitModules;
     RunOpts.bStdlibArtifactNoCache = StdlibFlags.bNoStdlibCache;
     RunOpts.bStdlibArtifactFresh   = StdlibFlags.bFreshStdlib;
 
