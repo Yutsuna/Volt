@@ -1,0 +1,10 @@
+@[Link("Producer")]
+
+#{
+  @brief Read Producer's module variables from a later unit's initialiser.
+  @details The whole point is the ordering: `_V_init_Producer` has already
+           returned by the time this runs, so anything it released on its way
+           out is released now.
+#}
+raise "module variable 'held' did not survive its own initialiser" if not held_is_intact()
+raise "module variable 'kept' did not survive its own initialiser" if not kept_is_intact()

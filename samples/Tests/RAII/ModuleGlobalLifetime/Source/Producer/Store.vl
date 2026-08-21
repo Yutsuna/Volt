@@ -1,0 +1,23 @@
+#{
+  @brief A module-level variable that owns its value, and a reader for it.
+  @details A file is a module and its top-level locals are its globals, so
+           `kept` has static storage and unit lifetime: `_V_init_Producer`
+           initialises it and it stays valid for the rest of the run. Treating
+           the top level as an ordinary scope instead — finalising its bindings
+           on the way out of the initialiser — freed this buffer before any
+           other unit's initialiser had run, and every reader after that saw
+           released memory.
+
+           `held` is the same shape with no owned value, so a run where only
+           `kept` is wrong tells the two apart.
+#}
+kept = "a" + "b"
+held = 41 + 1
+
+def kept_is_intact -> Bool
+  kept == "ab"
+end
+
+def held_is_intact -> Bool
+  held == 42
+end
