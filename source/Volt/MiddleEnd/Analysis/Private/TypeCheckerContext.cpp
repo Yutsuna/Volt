@@ -1,8 +1,10 @@
 #include "Volt/MiddleEnd/Analysis/TypeCheckerContext.hpp"
+
 #include "ExprInferencer.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Node.hpp"
 #include "Volt/MiddleEnd/TypeSystem/SemaType.hpp"
+#include "Volt/MiddleEnd/TypeSystem/TypeResolve.hpp"
 
 /**
  * Ctor
@@ -67,6 +69,28 @@ Volt::MiddleEnd::Analysis::TypeCheckerContext::FindLocal ( Frontend::ExprId Use,
             // backend itself reads for a Unit-scope binding (`SlotFor`,
             // StmtEmitter.cpp).
             FoundType = Ctx.Values.SiteType( *Site );
+
+            // ... unless the binding is an `external name : Type`, which has
+            // no top-level statement to have been typed by. Its type is on the
+            // declaration, in the store, where Phase B resolved it; typed here
+            // once and recorded so every later reader — this function and the
+            // backend both — finds it the same way it finds any other
+            // unit-scope binding.
+            if ( not FoundType.IsValid() )
+            {
+                if ( const auto *Decl = std::get_if<Frontend::DeclId>( &*Site ) )
+                {
+                    if ( const TypeSystem::Member *Variable = Ctx.Types.LookupVariable( Ctx.Ast.Text( Name ) );
+                         Variable != nullptr and Variable->Decl == *Decl )
+                    {
+                        FoundType = TypeSystem::Instantiate( Ctx.Types, Variable->Result, {}, SemaTypeId{}, Ctx.Values );
+                        if ( FoundType.IsValid() )
+                        {
+                            Ctx.Values.SetSiteType( *Site, FoundType );
+                        }
+                    }
+                }
+            }
         }
     }
     else if ( const auto It = Locals.find( Name ); It != Locals.end() )

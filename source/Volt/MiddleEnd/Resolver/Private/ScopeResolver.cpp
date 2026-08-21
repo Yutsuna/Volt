@@ -48,6 +48,24 @@ public:
     void Run ()
     {
         const ScopeId Root = Context.Scopes.PushScope( ScopeId{}, EScopeKind::Unit );
+
+        // Declared before anything is walked, for the same reason a type's
+        // members are declared in a pass of their own: a module-level
+        // declaration is visible to the whole file regardless of where it sits
+        // in it. A statement above an `external x : Int32` reads the same `x`
+        // as one below it.
+        for ( const Frontend::DeclId Id : Context.Ast.TopDecls )
+        {
+            if ( not Id.IsValid() )
+            {
+                continue;
+            }
+            if ( const auto *External = std::get_if<Frontend::ExternalVar>( &Context.Ast.Decl( Id ) ) )
+            {
+                Context.Scopes.Declare( Root, External->Name, BindingSite{ Id } );
+            }
+        }
+
         // Top-level statements first: a file is a module, and its top-level
         // locals are its globals (rules/core-ast.md's sibling decision) — a
         // `def` declared anywhere in the file can read them, so their binding
@@ -152,6 +170,9 @@ private:
                         WalkDecl( Child, Inner );
                     }
                 },
+                // Already declared, in the pass above, and it has nothing to
+                // walk: no initialiser, no body.
+                [] ( const Frontend::ExternalVar & ) {},
                 [&] ( const Frontend::Class &Node ) { WalkTypeBody( Node.Body, Current ); },
                 [&] ( const Frontend::Struct &Node ) { WalkTypeBody( Node.Body, Current ); },
                 [&] ( const Frontend::Mixin &Node ) { WalkTypeBody( Node.Body, Current ); },

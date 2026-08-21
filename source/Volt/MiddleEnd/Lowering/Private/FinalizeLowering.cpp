@@ -59,10 +59,33 @@ void Volt::MiddleEnd::Lowering::InsertFinalizeCalls ( TypeCheckerContext &Contex
         // them instrument what it produced exactly as they would hand-written
         // source — and its `__old` copy is refused candidacy by the ordinary
         // alias-init guard, with no rule of its own.
-        const bool bTopDrops       = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
-        const bool bTopCleanup     = Lifetime::RunScopeCleanup( Context, TopScope, TopBody );
+        const bool bTopDrops = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
+
+        // RunScopeCleanup is deliberately *not* run here, and this is the one
+        // place where the unit's top level is not a method body.
+        //
+        // A file is a module and its top-level locals are its globals
+        // (rules/core-ast.md). A global has static storage and unit lifetime:
+        // it is initialised by `_V_init_<Unit>` and it outlives that call.
+        // Finalising it at the end of the initialiser — which is what treating
+        // the top level as an ordinary scope does — frees a module variable
+        // while the program is still running, and every later reader gets
+        // released memory. A `def` in the same file reading it after
+        // `_V_init_all` has moved on, or another unit's initialiser reading it
+        // at all, both observe the corruption.
+        //
+        // Destruction of a module variable is a shutdown concern, not a scope
+        // exit: it belongs to a `_V_fini_<Unit>` this compiler does not emit
+        // yet. Not freeing at shutdown leaks once, at exit; freeing at the end
+        // of the initialiser corrupts.
+        //
+        // The other two still run, and must: RunDropOnReassign releases the
+        // *old* value when a module variable is reassigned, which is an
+        // ordinary lifetime end and nothing to do with static storage, and
+        // RunTemporaries cleans up what a full expression built on its way to
+        // the assignment.
         const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody, /*bHasTailValue=*/false );
-        if ( bTopDrops or bTopCleanup or bTopTemporaries )
+        if ( bTopDrops or bTopTemporaries )
         {
             Ast.TopStmts.clear();
             for ( const Frontend::StmtId Id : TopBody )

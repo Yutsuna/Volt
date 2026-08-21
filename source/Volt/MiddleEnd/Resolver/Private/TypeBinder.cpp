@@ -162,6 +162,42 @@ namespace MiddleEnd::Resolver
         // do in ForEachTypeDecl: `@[External( "libc", "malloc" )]` sits on a
         // free function in the stdlib, so dropping them here would lose every
         // C symbol in the build.
+        // Every `external name : Type` at module level, with the annotations
+        // that precede it. Same shape and same annotation rule as
+        // ForEachFreeFunction below — `@[External( "lib", "symbol" )]` renames
+        // the symbol for a variable exactly as it does for a `def`.
+        template <typename DeclContainer, typename Fn>
+        void ForEachExternalVar ( const Frontend::AstContext &Ast, const DeclContainer &Decls, Fn &&Visit )
+        {
+            std::vector<PendingAnnotation> Pending;
+
+            for ( const Frontend::DeclId Id : Decls )
+            {
+                if ( not Id.IsValid() )
+                {
+                    continue;
+                }
+
+                const Frontend::DeclNode &Node = Ast.Decl( Id );
+
+                if ( const auto *Anno = std::get_if<Frontend::Annotation>( &Node ) )
+                {
+                    Pending.push_back( PendingAnnotation{ .Name = Anno->Name, .Args = Anno->Args, .Loc = Anno->Loc } );
+                    continue;
+                }
+
+                std::visit(
+                    Meta::Overloaded{
+                        [&] ( const Frontend::Module &Nested ) { ForEachExternalVar( Ast, Nested.Body, Visit ); },
+                        [&] ( const Frontend::ExternalVar &Entry ) { Visit( Id, Entry, Pending ); },
+                        [] ( const auto & ) {},
+                    },
+                    Node );
+
+                Pending.clear();
+            }
+        }
+
         template <typename DeclContainer, typename Fn>
         void ForEachFreeFunction ( const Frontend::AstContext &Ast, const DeclContainer &Decls, Fn &&Visit )
         {
@@ -861,6 +897,20 @@ namespace MiddleEnd::Resolver
                 ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), *Slot );
                 ++Bound;
             }
+
+            // `external name : Type` — the same identity-first shape as
+            // BindFunction, and the same default: with no annotation the symbol
+            // is the declared name verbatim, which is what binding a C global
+            // needs. Its *type* is resolved in Phase B like every other
+            // signature, because it may name a type another file declares.
+            void BindVariable ( Frontend::DeclId Id,
+                                const Frontend::ExternalVar &Entry,
+                                const std::vector<PendingAnnotation> &Pending )
+            {
+                Member *Slot = Store.DeclareVariable( Ast.Text( Entry.Name ), Unit, Id );
+                ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), *Slot );
+                ++Bound;
+            }
         };
 
         // --- Phase B ---------------------------------------------------------
@@ -1299,6 +1349,23 @@ namespace MiddleEnd::Resolver
                 Slot->MinParams    = MinParams;
                 ++Resolved;
             }
+
+            // `external name : Type`. Phase B like every other signature,
+            // because the declared type may name a type another file declares —
+            // exactly the reason a field's type is resolved here and not where
+            // the field is bound.
+            void ResolveVariable ( Frontend::DeclId Id, const Frontend::ExternalVar &Entry )
+            {
+                Member *Slot = Store.VariableByDecl( Unit, Id );
+                if ( Slot == nullptr )
+                {
+                    return;
+                }
+
+                SigSink Sink{ .Store = Store, .Diags = &Diags };
+                Slot->Result = ResolveTypeExpr( Ast, Store, {}, Sink, Entry.DeclType );
+                ++Resolved;
+            }
         };
 
     } // namespace
@@ -1312,6 +1379,9 @@ namespace MiddleEnd::Resolver
         ForEachFreeFunction( Ast, Ast.TopDecls,
                              [&] ( Frontend::DeclId Id, const Frontend::Method &Entry,
                                    const std::vector<PendingAnnotation> &Pending ) { Bind.BindFunction( Id, Entry, Pending ); } );
+        ForEachExternalVar( Ast, Ast.TopDecls,
+                            [&] ( Frontend::DeclId Id, const Frontend::ExternalVar &Entry,
+                                  const std::vector<PendingAnnotation> &Pending ) { Bind.BindVariable( Id, Entry, Pending ); } );
         DeclareModules( Ast, Ast.TopDecls, Store );
         return Bind.Bound;
     }
@@ -1322,6 +1392,9 @@ namespace MiddleEnd::Resolver
                                         Volt::Core::DiagEngine::Bag &Diags )
     {
         SignatureResolver Step{ .Ast = Ast, .Store = Store, .Diags = Diags, .Unit = Unit };
+        ForEachExternalVar( Ast, Ast.TopDecls,
+                            [&] ( Frontend::DeclId Id, const Frontend::ExternalVar &Entry,
+                                  const std::vector<PendingAnnotation> & ) { Step.ResolveVariable( Id, Entry ); } );
         ForEachTypeDecl( Ast, Ast.TopDecls,
                          [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> & ) { Step.Resolve( Decl ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,

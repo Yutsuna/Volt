@@ -342,10 +342,8 @@ void Volt::MiddleEnd::Analysis::WalkStmt ( TypeCheckerContext &Context, Frontend
                 }
 
                 // Definite assignment: a typed declaration with no initializer
-                // (`x : T`) is uninitialized until explicitly assigned —
-                // unless it names storage that is already live, which is what a
-                // REPL's synthetic declarations do (Stmt.hpp, bAlreadyLive).
-                if ( Bound.IsValid() and not Node.Init.IsValid() and not Node.bAlreadyLive )
+                // (`x : T`) is uninitialized until explicitly assigned.
+                if ( Bound.IsValid() and not Node.Init.IsValid() )
                 {
                     Context.UninitializedLocals.insert( Node.Name );
                 }
