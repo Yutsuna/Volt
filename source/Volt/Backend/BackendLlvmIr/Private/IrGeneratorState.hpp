@@ -68,6 +68,10 @@ struct Volt::Backend::Ir::IrGenerator::State
     std::vector<IrGenerator::UnitSymbol> LastUnit;
     std::vector<IrGenerator::UnitShape> LastShapes;
 
+    // Every symbol every module of this emission defined, in close order.
+    // Unlike LastUnit this is cumulative and unit-less — see CloseModule.
+    std::vector<std::string> AllDefined;
+
     // --- Services ------------------------------------------------------------
     //
     // By pointer, and constructed in the body of State's constructor rather than
@@ -113,6 +117,15 @@ struct Volt::Backend::Ir::IrGenerator::State
         // in it, so a slot can be initialised to its definition without any
         // call site having had to care which of the two was emitted first.
         Llvm::DefineLocalSlots( Services );
+
+        // Every symbol, not just the ones a unit owns: `volt.shared` holds the
+        // monomorphisations, and those belong to no unit at all. A consumer
+        // that emits again into the same live program has to know about them or
+        // it emits a second definition of one (IrOptions::IsAlreadyDefined).
+        for ( std::string &Name : Llvm::LocalDefinedNames( Services ) )
+        {
+            AllDefined.push_back( std::move( Name ) );
+        }
 
         if ( std::unique_ptr<llvm::Module> Finished = Ctx.Rotate( NextName ); Finished != nullptr )
         {

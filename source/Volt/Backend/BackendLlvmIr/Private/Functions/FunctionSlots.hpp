@@ -63,6 +63,13 @@ namespace Backend
         // each EmitUnit.
         [[nodiscard]] std::vector<Ir::IrGenerator::UnitSymbol> LocalDefinedSymbols ( EmitterServices &Services );
 
+        // Every name the current module puts in the symbol table — functions
+        // with a body and globals with an initialiser — with no filter at all.
+        // What a consumer emitting repeatedly into one live program needs, and
+        // strictly wider than LocalDefinedSymbols: a monomorphisation is
+        // defined here without being indirectable.
+        [[nodiscard]] std::vector<std::string> LocalDefinedNames ( EmitterServices &Services );
+
     } // namespace Llvm
 
 } // namespace Backend

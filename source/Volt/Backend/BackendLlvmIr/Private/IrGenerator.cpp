@@ -267,6 +267,14 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::Finish ()
     // here instead.
     Llvm::DefineLocalSlots( Impl->Services );
 
+    // ... and, for the same reason, are recorded here rather than there. This
+    // is the module the monomorphisations land in, so leaving it out would tell
+    // a REPL that `Array<Int32>#push` does not exist yet on every single line.
+    for ( std::string &Name : Llvm::LocalDefinedNames( Impl->Services ) )
+    {
+        Impl->AllDefined.push_back( std::move( Name ) );
+    }
+
     if ( Impl->Options.bVerify )
     {
         const Volt::Core::PhaseScope Timing( "backend.verify" );
@@ -335,6 +343,11 @@ std::string Volt::Backend::Ir::SlotNameOf ( std::string_view Symbol )
 std::vector<Volt::Backend::Ir::IrGenerator::UnitSymbol> Volt::Backend::Ir::IrGenerator::LastUnitSymbols () const
 {
     return Impl->LastUnit;
+}
+
+std::vector<std::string> Volt::Backend::Ir::IrGenerator::DefinedSymbols () const
+{
+    return Impl->AllDefined;
 }
 
 std::vector<Volt::Backend::Ir::IrGenerator::UnitShape> Volt::Backend::Ir::IrGenerator::LastUnitShapes () const

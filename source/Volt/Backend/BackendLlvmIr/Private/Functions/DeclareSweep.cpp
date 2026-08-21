@@ -74,6 +74,20 @@ void Volt::Backend::Llvm::DeclareAll ( EmitterServices &Services )
         static_cast<void>( Services.Functions->DeclareMember( Entry, MiddleEnd::TypeSystem::NominalId{} ) );
     }
 
+    // Every unit's initialiser, for the one function that names them all.
+    //
+    // Guarded on the same condition `_V_init_all` itself is: EmitEntryPoint
+    // returns before EmitInitAll when there is no entry symbol, so an emission
+    // without one never calls a unit init it did not define. Declaring them
+    // anyway is not merely waste — it is waste proportional to the number of
+    // units, paid on *every* emission, which is the difference between a REPL
+    // whose five-hundredth line costs what its first cost and one whose
+    // sessions grow quadratically.
+    if ( Services.Options->EntrySymbol.empty() )
+    {
+        return;
+    }
+
     llvm::FunctionType *InitFnTy = llvm::FunctionType::get( Services.Ctx->Builder().getVoidTy(), false );
     for ( const UnitView &Unit : Services.Build->Units )
     {

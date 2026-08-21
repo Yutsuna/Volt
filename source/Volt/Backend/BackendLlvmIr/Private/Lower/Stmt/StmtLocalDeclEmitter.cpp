@@ -60,6 +60,27 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const MiddleEnd::Resolv
                 return LocalCopy( Services(), GlobIt->second );
             }
 
+            // Storage an earlier, still-resident unit owns (UnitView::
+            // ExternalGlobals). Declared here under the name it already has,
+            // never defined: a definition would hand this unit a fresh, zeroed
+            // copy of a variable that currently holds a value.
+            if ( Local.Unit->ExternalGlobals != nullptr )
+            {
+                if ( const auto Elsewhere = Local.Unit->ExternalGlobals->find( Site );
+                     Elsewhere != Local.Unit->ExternalGlobals->end() )
+                {
+                    auto *Foreign = Ctx().Mod().getGlobalVariable( Elsewhere->second, /*AllowInternal=*/true );
+                    if ( Foreign == nullptr )
+                    {
+                        Foreign = new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false,
+                                                            llvm::GlobalValue::ExternalLinkage, /*Initializer=*/nullptr,
+                                                            Elsewhere->second );
+                    }
+                    Services().ModuleGlobals->emplace( Key, Foreign );
+                    return Foreign;
+                }
+            }
+
             const std::string GlobalName = "_V_global_" + std::to_string( Local.Unit->Ordinal ) + "_" + std::string( Name );
 
             // Internal while the build is one module — nothing outside it has a

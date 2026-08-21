@@ -60,6 +60,16 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         return;
     }
 
+    // A consumer that emits repeatedly into one live program has this
+    // instantiation already, and under PerUnit it carries external linkage —
+    // so emitting it again is a duplicate definition, not a mergeable copy.
+    // Leave the declaration FunctionFor made and stop: the call about to be
+    // emitted resolves to the definition that already exists.
+    if ( Services->Options->IsAlreadyDefined and Services->Options->IsAlreadyDefined( Fn->getName() ) )
+    {
+        return;
+    }
+
     // Whole granularity emits every instantiation into the one module and lets
     // the linker fold identical copies coming from other objects. PerUnit has
     // no linker behind it and every other module refers to this one by name, so

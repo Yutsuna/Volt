@@ -88,6 +88,20 @@ void Volt::Backend::Llvm::DefineLocalSlots ( EmitterServices &Services )
         {
             continue;
         }
+
+        // Same rule as bReplaceUnit above, asked per symbol instead of per
+        // emission — which is what a REPL needs, because one line can define a
+        // brand new function (its slot belongs here) and redefine an existing
+        // one (its slot belongs to the line that first defined it) at once.
+        //
+        // Defining a second copy is not a harmless duplicate: the patch would
+        // land on this module's copy while every already-compiled caller keeps
+        // reading the original, and the redefinition would silently do nothing.
+        if ( Services.Options->HasIndirectionSlot and Services.Options->HasIndirectionSlot( Fn.getName() ) )
+        {
+            continue;
+        }
+
         llvm::GlobalVariable *Slot = SlotIn( Mod, Fn.getName() );
         if ( Slot->hasInitializer() )
         {
@@ -95,6 +109,35 @@ void Volt::Backend::Llvm::DefineLocalSlots ( EmitterServices &Services )
         }
         Slot->setInitializer( &Fn );
     }
+}
+
+std::vector<std::string> Volt::Backend::Llvm::LocalDefinedNames ( EmitterServices &Services )
+{
+    // Deliberately unfiltered, unlike LocalDefinedSymbols below: that one
+    // answers "what could a reload repoint", which is only ever a unit's own
+    // functions. This one answers "what does this module put in the symbol
+    // table", and a monomorphisation is in there without being indirectable at
+    // all — it belongs to no unit, so nothing ever declared it as one.
+    std::vector<std::string> Out;
+    if ( Services.Ctx == nullptr )
+    {
+        return Out;
+    }
+    for ( const llvm::Function &Fn : Services.Ctx->Mod() )
+    {
+        if ( not Fn.isDeclaration() )
+        {
+            Out.push_back( Fn.getName().str() );
+        }
+    }
+    for ( const llvm::GlobalVariable &Global : Services.Ctx->Mod().globals() )
+    {
+        if ( Global.hasInitializer() )
+        {
+            Out.push_back( Global.getName().str() );
+        }
+    }
+    return Out;
 }
 
 std::vector<Volt::Backend::Ir::IrGenerator::UnitSymbol> Volt::Backend::Llvm::LocalDefinedSymbols ( EmitterServices &Services )

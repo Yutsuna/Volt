@@ -27,6 +27,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -173,6 +174,39 @@ namespace Backend
             // A TargetMachine is only needed by a consumer that will run
             // addPassesToEmitFile. The JIT has none and wants none.
             bool bNeedTargetMachine = true;
+
+            // "Do you already have a definition of this symbol?"
+            //
+            // Asked of *monomorphised* bodies only, and only by a consumer that
+            // emits repeatedly into one live program — a REPL. Under PerUnit an
+            // instantiation keeps external linkage on purpose, because other
+            // modules name it, so a second emission of `Int32#to_string` is a
+            // duplicate definition rather than a mergeable copy. SkipUnitsBelow
+            // cannot answer this: an instantiation belongs to no unit, it
+            // belongs to the call site that first asked for it.
+            //
+            // Empty (the default) means "nothing exists yet", which is what a
+            // build that emits once is. A true answer leaves the declaration
+            // FunctionFor already created and emits no body.
+            std::function<bool( std::string_view )> IsAlreadyDefined;
+
+            // "Does this symbol already have an indirection slot?"
+            //
+            // SkipUnitsBelow answers "is this body ours to define", and for an
+            // ahead-of-time consumer the answer to that settles the call shape
+            // too: a body in a dylib has no slot, so it is reached by
+            // relocation. A REPL breaks that equivalence. Every line before this
+            // one is below the skip line — its code is resident and must not be
+            // emitted again — and yet each was emitted *by this session*, with
+            // a slot of its own, precisely so a later `def` can replace it.
+            //
+            // Without this, redefining a function at the prompt compiles, adds
+            // a second body, patches a slot nobody reads, and silently keeps
+            // calling the old one.
+            //
+            // Empty (the default) means "nothing below the skip line is
+            // slotted", which is exactly true of a precompiled artifact.
+            std::function<bool( std::string_view )> HasIndirectionSlot;
         };
 
         // Emission is a three-phase protocol, in this order: Begin once, EmitUnit
@@ -255,6 +289,12 @@ namespace Backend
             };
 
             [[nodiscard]] std::vector<UnitShape> LastUnitShapes () const;
+
+            // Every symbol this whole emission defined, `volt.shared`'s
+            // monomorphisations included. Valid after Finish; what a consumer
+            // emitting repeatedly into one live program feeds back through
+            // IrOptions::IsAlreadyDefined.
+            [[nodiscard]] std::vector<std::string> DefinedSymbols () const;
 
             // Incomplete here on purpose — this is what keeps LLVM out of
             // this header. LlvmAccess.hpp completes it for the two consumers
