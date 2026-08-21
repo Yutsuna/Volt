@@ -20,6 +20,7 @@
 // invalidate the `Member *` / `NominalType &` handles Sema handed out.
 
 #include "BackendCore_export.hpp"
+#include "Volt/BackendCore/BackendInput.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstdint>
@@ -114,6 +115,34 @@ namespace Backend
     [[nodiscard]] BACKENDCORE_EXPORT std::vector<std::uint32_t> SelfSubtree ( const MiddleEnd::TypeSystem::TypeStore &Store,
                                                                               MiddleEnd::TypeSystem::NominalId Base,
                                                                               std::span<const std::uint32_t> FlatArgs );
+
+    // --- The SemaTypeId side of the same currency --------------------------
+    //
+    // An *inferred* type (SemaTypeId — per unit, per expression) becomes a
+    // *memory shape* (LayoutId — build-wide) by being flattened into the
+    // MonoRequest encoding first. Both live here rather than beside any one
+    // target's type mapper: the encoding is the single currency InstanceLayouts,
+    // Monomorphizer and Mangler share, so a layout, a symbol and a queue entry
+    // can never mean different instantiations — and no target may reach it by a
+    // route of its own.
+
+    // The pre-order flattening of an inferred type: per node, its NominalId
+    // then its own argument count. `Build` is searched for the unit that owns
+    // `Id` when `Values` does not (a monomorphised body reads types belonging
+    // to the unit that declared the generic, not to the one instantiating it).
+    BACKENDCORE_EXPORT void FlattenValueType ( const BackendInput &Build,
+                                               const MiddleEnd::TypeSystem::UnitTypes &Values,
+                                               MiddleEnd::TypeSystem::SemaTypeId Id,
+                                               std::vector<std::uint32_t> &Out );
+
+    // The memory shape of a value of that inferred type. Invalid when the type
+    // is absent — which inside a generic body is normal (UnitTypes::IsDeferred)
+    // and everywhere else is a middle-end hole the caller reports.
+    [[nodiscard]] BACKENDCORE_EXPORT MiddleEnd::TypeSystem::LayoutId
+    LayoutOfValue ( const BackendInput &Build,
+                    InstanceLayouts &Instances,
+                    const MiddleEnd::TypeSystem::UnitTypes &Values,
+                    MiddleEnd::TypeSystem::SemaTypeId Id );
 
 } // namespace Backend
 
