@@ -30,4 +30,17 @@ struct InitStep
 // Build the flat sequence from the circuit's unit views.
 [[nodiscard]] BACKENDCORE_EXPORT std::vector<InitStep> SynthesizeInitAll ( std::span<const UnitView> Units );
 
+// The mirror, for `_V_fini_all`: every unit's teardown, in reverse.
+//
+// Reverse because destruction is the reverse of construction — a unit
+// initialised after another may hold something the earlier one owns — and
+// unconditional because teardown runs *because* the program is over, including
+// when it is over on account of an exception. There is no early bail-out and
+// therefore no `bLast`.
+//
+// Only units that have something to tear down appear: `_V_fini_<N>` is emitted
+// for a unit with a module variable to release and for no other, so naming one
+// that does not exist would leave `_V_fini_all` calling an undefined symbol.
+[[nodiscard]] BACKENDCORE_EXPORT std::vector<std::string> SynthesizeFiniAll ( std::span<const UnitView> Units );
+
 } // namespace Volt::Backend

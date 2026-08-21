@@ -48,7 +48,6 @@ namespace Backend
         // Sema/Layout/SynthesizedFunctions.hpp. Null in tools that stop
         // before codegen, same contract as the other pointers here.
         const MiddleEnd::IR::SynthesizedFunctions *Synth = nullptr;
-
     };
 
     // The whole build: units in circuit link order (dependencies before
