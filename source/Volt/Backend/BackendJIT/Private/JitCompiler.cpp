@@ -17,6 +17,10 @@
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Module.h>
+#include <llvm/Support/FileSystem.h>
+#include <llvm/Support/raw_ostream.h>
+
+#include <cstdlib>
 
 #include <map>
 #include <mutex>
@@ -45,6 +49,26 @@ void InitialiseNativeTarget ()
 std::string Consume ( llvm::Error Err )
 {
     return llvm::toString( std::move( Err ) );
+}
+
+// Every module that reaches ORC, appended to the file VOLT_JIT_DUMP_IR names.
+// The JIT has no `--emit ir` of its own — its modules are handed straight to
+// ORC and never written anywhere — so without this the only way to see what
+// the JIT actually compiled is a debugger.
+void DumpIfAsked ( const llvm::Module &Mod )
+{
+    const char *Where = std::getenv( "VOLT_JIT_DUMP_IR" );
+    if ( Where == nullptr )
+    {
+        return;
+    }
+
+    std::error_code Ec;
+    llvm::raw_fd_ostream Out( std::string( Where ), Ec, llvm::sys::fs::OF_Append );
+    if ( not Ec )
+    {
+        Mod.print( Out, nullptr );
+    }
 }
 
 // A module holding only declarations resolves nothing and materialises
@@ -76,6 +100,10 @@ struct Volt::Backend::Jit::JitCompiler::Impl
 
     std::unique_ptr<llvm::orc::LLJIT> Jit;
     std::map<GenerationId, llvm::orc::ResourceTrackerSP> Trackers;
+
+    // Only for a generation that owns one; a plain generation is a tracker
+    // over the main dylib and is absent here.
+    std::map<GenerationId, llvm::orc::JITDylib *> Dylibs;
     GenerationId NextGeneration = 1;
 
     // The one context every module of this session was typed in. Held here
@@ -126,6 +154,28 @@ Volt::Backend::Jit::GenerationId Volt::Backend::Jit::JitCompiler::OpenGeneration
     return Id;
 }
 
+bool Volt::Backend::Jit::JitCompiler::OpenReplacement ( GenerationId &OutGen, std::string &OutError )
+{
+    const GenerationId Id = P->NextGeneration++;
+
+    llvm::Expected<llvm::orc::JITDylib &> Made = P->Jit->createJITDylib( "volt.gen." + std::to_string( Id ) );
+    if ( not Made )
+    {
+        OutError = "jit: could not open a generation dylib: " + Consume( Made.takeError() );
+        return false;
+    }
+
+    // Itself first, then the main dylib: what the replacement defines is what
+    // the replacement's own calls should reach, and everything else — the
+    // stdlib, the other units, the process — resolves exactly as before.
+    Made->addToLinkOrder( P->Jit->getMainJITDylib() );
+
+    P->Dylibs[Id]   = &*Made;
+    P->Trackers[Id] = Made->createResourceTracker();
+    OutGen          = Id;
+    return true;
+}
+
 bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedModules Modules, std::string &OutError )
 {
     const auto Found = P->Trackers.find( Gen );
@@ -163,6 +213,7 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
         }
 
         const std::string Name( Mod->getName() );
+        DumpIfAsked( *Mod );
         if ( llvm::Error Err = P->Jit->addIRModule( Found->second, llvm::orc::ThreadSafeModule( std::move( Mod ), P->Ctx ) ) )
         {
             OutError = "jit: could not add the module '" + Name + "': " + Consume( std::move( Err ) );
@@ -186,6 +237,27 @@ bool Volt::Backend::Jit::JitCompiler::DropGeneration ( GenerationId Gen, std::st
         return false;
     }
     P->Trackers.erase( Found );
+    return true;
+}
+
+bool Volt::Backend::Jit::JitCompiler::LookupIn ( GenerationId Gen,
+                                                 std::string_view Symbol,
+                                                 std::uintptr_t &OutAddr,
+                                                 std::string &OutError )
+{
+    const auto Found = P->Dylibs.find( Gen );
+    if ( Found == P->Dylibs.end() )
+    {
+        return Lookup( Symbol, OutAddr, OutError );
+    }
+
+    llvm::Expected<llvm::orc::ExecutorAddr> Addr = P->Jit->lookup( *Found->second, Symbol );
+    if ( not Addr )
+    {
+        OutError = "jit: '" + std::string( Symbol ) + "' did not resolve: " + Consume( Addr.takeError() );
+        return false;
+    }
+    OutAddr = static_cast<std::uintptr_t>( Addr->getValue() );
     return true;
 }
 

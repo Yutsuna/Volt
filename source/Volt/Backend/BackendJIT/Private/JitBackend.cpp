@@ -28,7 +28,9 @@
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
 #include "Volt/Core/Support/PhaseTimer.hpp"
 
+#include <algorithm>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -51,7 +53,51 @@ struct Volt::Backend::Jit::JitBackend::State
     GenerationId Generation = 0;
     bool bMaterialised      = false;
 
+    // What each unit contributed to the running program, kept so a reload of
+    // that unit has something to compare its replacement against. Recorded per
+    // unit rather than per build because that is the granularity a reload
+    // works at.
+    std::map<std::uint32_t, std::vector<Ir::IrGenerator::UnitSymbol>> UnitSymbols;
+    std::map<std::uint32_t, std::vector<Ir::IrGenerator::UnitShape>> UnitShapes;
+
+    // The slot address for a symbol, resolved once. A reload writes through it
+    // and a later reload of the same symbol writes through the same one — the
+    // slot never moves, which is the entire point of it.
+    std::map<std::string, std::uintptr_t> Slots;
+
     std::string Error;
+
+    // Everything the emission needs to be runnable in-process, in one place:
+    // a reload builds a second emission and every one of these has to match,
+    // or the replacement is compiled for a different machine than the code it
+    // is replacing.
+    [[nodiscard]] Ir::IrOptions MakeIrOptions () const
+    {
+        Ir::IrOptions Opts;
+        Opts.Granularity = Options.bPerUnitModules ? Ir::EModuleGranularity::PerUnit : Ir::EModuleGranularity::Whole;
+        Opts.Tls         = Ir::ETlsAccess::Accessor;
+        Opts.Linkage     = Options.bIndirectLinkage ? Ir::ELinkage::Indirect : Ir::ELinkage::Direct;
+
+        // No inline-eligible exception to the skip: a skipped unit's code is in a
+        // dylib and the JIT calls it there. The AOT path wants the opposite because
+        // it can inline across the boundary; nothing here can.
+        Opts.SkipUnitsBelow             = Options.SkipUnitsBelow;
+        Opts.bDefineInlineEligibleBelow = false;
+
+        // The artifact is loaded, not linked, so any seam it contains was filled
+        // in for its own build and cannot be reused.
+        Opts.bDefineCompilerSeamUnits = true;
+
+        Opts.TargetTriple       = Compiler.TargetTriple();
+        Opts.DataLayout         = Compiler.DataLayoutString();
+        Opts.bNeedTargetMachine = false;
+
+        Opts.EntryFunction = Options.EntryFunction;
+        Opts.EntrySymbol   = Options.EntrySymbol;
+        Opts.bVerify       = true;
+
+        return Opts;
+    }
 
     [[nodiscard]] bool Failed () const
     {
@@ -109,28 +155,7 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
         return;
     }
 
-    Ir::IrOptions Gen;
-    Gen.Granularity = Impl->Options.bPerUnitModules ? Ir::EModuleGranularity::PerUnit : Ir::EModuleGranularity::Whole;
-    Gen.Tls         = Ir::ETlsAccess::Accessor;
-    Gen.Linkage     = Impl->Options.bIndirectLinkage ? Ir::ELinkage::Indirect : Ir::ELinkage::Direct;
-
-    // No inline-eligible exception to the skip: a skipped unit's code is in a
-    // dylib and the JIT calls it there. The AOT path wants the opposite because
-    // it can inline across the boundary; nothing here can.
-    Gen.SkipUnitsBelow             = Impl->Options.SkipUnitsBelow;
-    Gen.bDefineInlineEligibleBelow = false;
-
-    // The artifact is loaded, not linked, so any seam it contains was filled
-    // in for its own build and cannot be reused.
-    Gen.bDefineCompilerSeamUnits = true;
-
-    Gen.TargetTriple       = Impl->Compiler.TargetTriple();
-    Gen.DataLayout         = Impl->Compiler.DataLayoutString();
-    Gen.bNeedTargetMachine = false;
-
-    Gen.EntryFunction = Impl->Options.EntryFunction;
-    Gen.EntrySymbol   = Impl->Options.EntrySymbol;
-    Gen.bVerify       = true;
+    Ir::IrOptions Gen = Impl->MakeIrOptions();
 
     Impl->Gen.emplace( std::move( Gen ) );
     Impl->Gen->Begin( Input );
@@ -142,7 +167,14 @@ Volt::Backend::EEmitStatus Volt::Backend::Jit::JitBackend::EmitUnit ( const Unit
     {
         return EEmitStatus::Error;
     }
-    return Impl->Gen->EmitUnit( Unit );
+
+    const EEmitStatus Status = Impl->Gen->EmitUnit( Unit );
+    if ( Status == EEmitStatus::Ok )
+    {
+        Impl->UnitSymbols[Unit.Ordinal] = Impl->Gen->LastUnitSymbols();
+        Impl->UnitShapes[Unit.Ordinal]  = Impl->Gen->LastUnitShapes();
+    }
+    return Status;
 }
 
 Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
@@ -247,15 +279,132 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::Run ( std::span<const s
     return RunResult{ .bOk = true, .Code = Code, .Message = {} };
 }
 
-Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const UnitView &Unit )
+Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const BackendInput &Build, const UnitView &Unit )
 {
-    // Needs PerUnit granularity and Indirect linkage, neither of which this
-    // milestone emits. Refused rather than half-done: a reload that silently
-    // did nothing would be worse than one that says it cannot.
-    static_cast<void>( Unit );
-    return ReloadResult{ .Status         = EReloadStatus::Refused,
-                         .Message        = "jit: hot reload needs per-unit modules and indirect linkage",
-                         .PatchedSymbols = 0 };
+    const auto Refuse = [] ( std::string Why )
+    { return ReloadResult{ .Status = EReloadStatus::Refused, .Message = std::move( Why ), .PatchedSymbols = 0 }; };
+    const auto Failed = [] ( std::string Why )
+    { return ReloadResult{ .Status = EReloadStatus::Error, .Message = std::move( Why ), .PatchedSymbols = 0 }; };
+
+    if ( not Impl->bMaterialised )
+    {
+        return Failed( "jit: nothing has been materialised, so there is nothing to reload into" );
+    }
+    if ( not Impl->Options.bPerUnitModules or not Impl->Options.bIndirectLinkage )
+    {
+        return Refuse( "jit: hot reload needs per-unit modules and indirect linkage; this session was built with neither" );
+    }
+
+    const auto KnownSymbols = Impl->UnitSymbols.find( Unit.Ordinal );
+    if ( KnownSymbols == Impl->UnitSymbols.end() )
+    {
+        return Refuse( "jit: unit " + std::to_string( Unit.Ordinal ) + " was never emitted by this session" );
+    }
+
+    // --- Emit the replacement ------------------------------------------------
+    //
+    // A whole IrGenerator, not a reuse of the running one: the running one was
+    // built over the old type store and gave its modules and its context to ORC
+    // at Finalize. This is a second, complete emission that happens to define
+    // one unit's bodies and declare everything else.
+    Ir::IrOptions Opts       = Impl->MakeIrOptions();
+    Opts.bReplaceUnit        = true;
+    Opts.EntrySymbol         = {};
+    Opts.bDefineSlotAccessor = false;
+
+    // The running program already has both seams filled in, and its copies are
+    // the ones every unit calls. A second definition here would be dead code at
+    // best and a divergent symbol table at worst.
+    Opts.bDefineCompilerSeamUnits = false;
+
+    Ir::IrGenerator Replacement( std::move( Opts ) );
+    Replacement.Begin( Build );
+    if ( Replacement.EmitUnit( Unit ) != EEmitStatus::Ok or Replacement.Finish() != EEmitStatus::Ok )
+    {
+        return Failed( "jit: the replacement for '" + std::string( Unit.Path ) +
+                       "' did not emit: " + std::string( Replacement.Error() ) );
+    }
+
+    // --- Decide whether it may be swapped in ---------------------------------
+    //
+    // Both checks are one-sided on purpose. The JIT cannot inspect the stack,
+    // so it cannot know whether a frame of the old code is live or whether an
+    // instance of a changed type exists. It answers the stricter question it
+    // *can* answer, and is therefore sometimes needlessly refusing and never
+    // wrongly accepting. The fallback is a full restart, which this target
+    // makes cheap.
+    const std::vector<Ir::IrGenerator::UnitSymbol> NewSymbols = Replacement.LastUnitSymbols();
+    for ( const Ir::IrGenerator::UnitSymbol &Was : KnownSymbols->second )
+    {
+        const auto Still = std::find_if( NewSymbols.begin(), NewSymbols.end(),
+                                         [&Was] ( const Ir::IrGenerator::UnitSymbol &Now ) { return Now.Name == Was.Name; } );
+        if ( Still == NewSymbols.end() )
+        {
+            // Every caller elsewhere in the build still reaches this symbol
+            // through its slot, and there is nothing left to point the slot at.
+            return Refuse( "jit: '" + Was.Name + "' is gone from the new '" + std::string( Unit.Path ) +
+                           "' — a function callers already resolved cannot simply disappear" );
+        }
+        if ( Still->Signature != Was.Signature )
+        {
+            // The callers that were *not* recompiled still push the old shape
+            // onto the stack. Nothing here can find them — a JIT cannot walk
+            // the callers of a symbol any more than it can walk live frames —
+            // so this refuses on the signature alone, with no condition
+            // attached: stricter than it has to be, and never wrong.
+            return Refuse( "jit: '" + Was.Name + "' changed shape (" + Was.Signature + " -> " + Still->Signature +
+                           ") — callers compiled against the old one are still running" );
+        }
+    }
+
+    const auto KnownShapes = Impl->UnitShapes.find( Unit.Ordinal );
+    if ( KnownShapes != Impl->UnitShapes.end() and Replacement.LastUnitShapes() != KnownShapes->second )
+    {
+        return Refuse( "jit: a type declared in '" + std::string( Unit.Path ) +
+                       "' changed size, alignment or existence — instances of it are already laid out the old way" );
+    }
+
+    // --- Swap it in ----------------------------------------------------------
+    GenerationId Gen = 0;
+    std::string Error;
+    if ( not Impl->Compiler.OpenReplacement( Gen, Error ) )
+    {
+        return Failed( std::move( Error ) );
+    }
+    if ( not Impl->Compiler.AddModules( Gen, Ir::TakeModules( Replacement ), Error ) )
+    {
+        return Failed( std::move( Error ) );
+    }
+
+    // The old generation is deliberately *not* dropped. Removing it would unmap
+    // its executable memory, and a frame still running there would die on the
+    // next instruction. The cost is resident memory — tens of kilobytes per
+    // reload — and it is the right trade against a crash.
+    std::size_t Patched = 0;
+    for ( const Ir::IrGenerator::UnitSymbol &Symbol : NewSymbols )
+    {
+        std::uintptr_t &Slot = Impl->Slots[Symbol.Name];
+        if ( Slot == 0 and not Impl->Compiler.Lookup( Ir::SlotNameOf( Symbol.Name ), Slot, Error ) )
+        {
+            return Failed( "jit: '" + Symbol.Name + "' has no indirection slot to repoint: " + Error );
+        }
+
+        std::uintptr_t Address = 0;
+        if ( not Impl->Compiler.LookupIn( Gen, Symbol.Name, Address, Error ) )
+        {
+            return Failed( std::move( Error ) );
+        }
+
+        // The only window in the whole mechanism. One aligned pointer store, so
+        // a thread calling through this slot right now reads either the old
+        // address or the new one and never a mixture of the two.
+        *reinterpret_cast<std::uintptr_t *>( Slot ) = Address; // NOLINT(performance-no-int-to-ptr)
+        ++Patched;
+    }
+
+    Impl->UnitSymbols[Unit.Ordinal] = NewSymbols;
+    Impl->UnitShapes[Unit.Ordinal]  = Replacement.LastUnitShapes();
+    return ReloadResult{ .Status = EReloadStatus::Ok, .Message = {}, .PatchedSymbols = Patched };
 }
 
 Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const UnitView &Unit )

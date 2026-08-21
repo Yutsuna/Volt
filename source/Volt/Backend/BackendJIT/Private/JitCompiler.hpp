@@ -50,6 +50,15 @@ namespace Backend
 
             [[nodiscard]] GenerationId OpenGeneration ();
 
+            // A generation in a JITDylib of its own, linked against the main
+            // one. What a reload needs: the replacement defines symbols the
+            // running program already defines, and ORC rejects a duplicate
+            // definition inside one dylib while accepting it across two. The
+            // replacement lands beside the original rather than on top of it,
+            // and which of the two anyone reaches is decided by the
+            // indirection slot, not by the symbol table.
+            [[nodiscard]] bool OpenReplacement ( GenerationId &OutGen, std::string &OutError );
+
             // Adds a whole emission at once: the modules, and the context
             // they share. A module that defines nothing is dropped rather than
             // added — under PerUnit granularity most of them define nothing
@@ -63,6 +72,11 @@ namespace Backend
 
             // Forces materialisation and yields the address.
             [[nodiscard]] bool Lookup ( std::string_view Symbol, std::uintptr_t &OutAddr, std::string &OutError );
+
+            // The same, resolved from inside one generation's own dylib, so a
+            // symbol a replacement redefined resolves to the replacement.
+            [[nodiscard]] bool
+            LookupIn ( GenerationId Gen, std::string_view Symbol, std::uintptr_t &OutAddr, std::string &OutError );
 
             // Resolve undefined symbols against a shared object.
             [[nodiscard]] bool AddDylib ( std::string_view Path, std::string &OutError );
