@@ -96,6 +96,27 @@ namespace Frontend
         EAccessor Accessor     = EAccessor::None;
     };
 
+    // `external name : Type` — a name for storage this unit does not own.
+    //
+    // The data half of `external def`, and the same idea: a declaration, never
+    // a definition. It allocates nothing, initialises nothing and finalises
+    // nothing; it says that a symbol of this shape exists elsewhere and gives
+    // it a name here. `@[External( "lib", "symbol" )]` renames the symbol
+    // exactly as it does for a method, and its absence means the symbol is the
+    // declared name verbatim — which is what binding a C global (`errno`,
+    // `stdout`) needs.
+    //
+    // A Decl rather than a statement, unlike the ordinary module variable a
+    // top-level `x = 5` produces: this one has no initialiser to run, so there
+    // is nothing for it to do in `_V_init`, and being a Decl is what says so.
+    struct ExternalVar
+    {
+
+        Core::SourceRange Loc;
+        Symbol Name;
+        TypeId DeclType;
+    };
+
     // `include Target`
     struct Include
     {
