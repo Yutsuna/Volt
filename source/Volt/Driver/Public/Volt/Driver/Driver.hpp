@@ -190,10 +190,36 @@ namespace Driver
         std::uint8_t OptLevel = 0;
         bool bVerbose         = false;
 
-        // Emit one module per unit rather than one for the build. Identical in
-        // behaviour, and the shape reloading and the REPL need; exercised on
-        // its own rather than only once something depends on it.
-        bool bPerUnitModules = false;
+        // Emit one module per unit rather than one for the build. The
+        // default: it is both faster to start and the shape reloading and the
+        // REPL need, so the ordinary run exercises the path they take. Clear
+        // it to emit a single module, which is what `--whole-module` is for.
+        bool bPerUnitModules = true;
+
+        // Emit calls through the hot-reload indirection. Costs a load per call,
+        // so it is off unless something means to reload — `--watch`.
+        bool bIndirectLinkage = false;
+
+        // Stay resident after the program returns, watch its sources, and on a
+        // change recompile the one file that moved, patch the running code's
+        // indirection slots to the new bodies, and run it again. Implies
+        // bIndirectLinkage: a call that was emitted as a direct relocation has
+        // no slot to repoint, and adding one afterwards would mean recompiling
+        // every caller — which is just a restart with extra steps.
+        bool bWatch = false;
+
+        // What --watch recompiles when a file changes: the same inputs the
+        // caller compiled this Driver from. A manifest when the program is a
+        // circuit, the file list otherwise; the Driver cannot recover either
+        // from what it already compiled, because both collapse into the same
+        // flat unit list.
+        std::string WatchManifest;
+        std::vector<std::string> WatchInputs;
+
+        // The cache knobs the first compilation ran with, so a recompilation
+        // inside the watch loop reuses the same warmed stdlib rather than
+        // rebuilding it on every keystroke.
+        FCacheOptions CacheOpts;
 
         // Same meaning as on BuildOptions, and honoured for the same artifact:
         // `volt run` loads the precompiled stdlib rather than JIT-compiling it.
