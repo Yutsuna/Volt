@@ -127,11 +127,10 @@ namespace Core
 
         /**
          * @brief A position in the diagnostic store, for a caller that consumes it in slices.
-         * @details A REPL compiles one line per evaluation into a Driver that lives for the
-         *          whole session, so the engine accumulates every line's diagnostics
-         *          forever. Without a mark, line 530 re-renders line 3's error and
-         *          HasErrors() stays true for good. Mark before compiling, render what came
-         *          after, then truncate back.
+         * @details An incremental caller compiles one unit per step into an engine that
+         *          outlives every step, so diagnostics accumulate forever. Without a mark,
+         *          step 530 re-renders step 3's error and HasErrors() stays true for good.
+         *          Mark before compiling, render what came after, then truncate back.
          */
         [[nodiscard]] std::size_t Mark () const noexcept;
 
