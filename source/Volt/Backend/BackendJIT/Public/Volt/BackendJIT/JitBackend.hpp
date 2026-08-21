@@ -111,7 +111,7 @@ namespace Backend
             // --- IJitBackend --------------------------------------------------
             [[nodiscard]] RunResult Run ( std::span<const std::string_view> ProgramArgs ) override;
             [[nodiscard]] ReloadResult Reload ( const BackendInput &Build, const UnitView &Unit ) override;
-            [[nodiscard]] RunResult EvalUnit ( const UnitView &Unit ) override;
+            [[nodiscard]] RunResult EvalUnit ( const BackendInput &Build, const UnitView &Unit ) override;
             [[nodiscard]] std::uintptr_t LookupSymbol ( std::string_view Mangled ) override;
 
         private:
