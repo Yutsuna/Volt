@@ -120,6 +120,10 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     Gen.SkipUnitsBelow             = Impl->Options.SkipUnitsBelow;
     Gen.bDefineInlineEligibleBelow = false;
 
+    // The artifact is loaded, not linked, so its entry glue was fixed up
+    // against its own build and cannot be reused.
+    Gen.bDefineEntryUnit = true;
+
     Gen.TargetTriple       = Impl->Compiler.TargetTriple();
     Gen.DataLayout         = Impl->Compiler.DataLayoutString();
     Gen.bNeedTargetMachine = false;
