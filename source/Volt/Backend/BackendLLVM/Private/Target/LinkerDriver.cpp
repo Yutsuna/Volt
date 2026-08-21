@@ -180,7 +180,16 @@ bool Volt::Backend::Llvm::LinkerDriver::LinkSharedLibrary ( std::string_view Obj
     // `-shared -fPIC`: InitTarget already selected Reloc::PIC_ for every build, so
     // the object itself needs no different codegen — only the driver's final link
     // mode changes.
-    std::vector<std::string> Args{ *Driver, "-shared", "-fPIC", "-o", std::string( OutputPath ), std::string( ObjectPath ) };
+    // `-z lazy` because this object is deliberately *not* self-contained: the
+    // prelude's `__volt_entry` calls `_V_init_all` and `_V_symbol_name`, two
+    // seams only a whole build can define (Prelude.vl declares them
+    // @[External]). A statically linked program gets them from its own object;
+    // a JIT that loads this artifact defines them in its JITDylib and never
+    // enters this copy of `__volt_entry` at all. Either way the reference must
+    // not be resolved at load time — and most toolchains default to BIND_NOW,
+    // which would make dlopen fail on a file that is otherwise perfectly usable.
+    std::vector<std::string> Args{ *Driver,   "-shared", "-fPIC", "-Wl,-z,lazy", "-o", std::string( OutputPath ),
+                                   std::string( ObjectPath ) };
 
     for ( const std::string &Extra : Services->Options->ExtraLinkInputs )
     {

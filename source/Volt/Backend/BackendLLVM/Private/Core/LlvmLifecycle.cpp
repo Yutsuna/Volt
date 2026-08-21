@@ -50,6 +50,9 @@ void Volt::Backend::Llvm::LlvmBackend::Begin ( const BackendInput &Input )
     Gen.EntrySymbol   = Impl->Options.EntrySymbol;
     Gen.bDebugInfo    = Impl->Options.bDebugInfo;
 
+    Gen.bDefineSlotAccessor     = Impl->Options.bDefineSlotAccessor;
+    Gen.bRetainMergeableBodies  = Impl->Options.bRetainMergeableBodies;
+
     // Verification stays in this module's own pipeline, where the failure is
     // reported with the offending function named.
     Gen.bVerify = false;
