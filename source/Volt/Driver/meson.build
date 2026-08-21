@@ -22,9 +22,6 @@ driver_export = configure_file(
 driver_deps = [compile_options_dep, volt_middleend_dep, backendcore_dep]
 driver_args = [
     '-DVOLT_DEV_STDLIB_DIR="' + meson.project_source_root() / 'source' / 'Lib' + '"',
-    '-DVOLT_DEV_REPL_PRELUDE_DIR="'
-    + meson.project_source_root() / 'source' / 'Volt' / 'REPL' / 'Prelude'
-    + '"',
 ]
 driver_args += build_shared ? ['-DDRIVER_BUILD_SHARED'] : []
 if get_option('enable_llvm')

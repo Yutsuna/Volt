@@ -1108,19 +1108,28 @@ void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDu
 
 // --- Incremental compilation (`volt repl`) ---------------------------------
 
-void Volt::Driver::Driver::CompileOneMore ( const std::size_t Index, const std::function<void( Frontend::AstContext & )> &Seed )
+std::size_t Volt::Driver::Driver::AppendUnit ( std::string Label, std::string Text )
 {
+    const Core::FileId File = Sources.AddFile( std::move( Label ), std::move( Text ) );
+
+    // One module name for every appended unit, so a `def` in one and a call in
+    // the next share a namespace rather than each getting one of their own.
+    const std::size_t Index = Units.size();
+    Units.emplace_back( File, std::string( Sources.PathOf( File ) ), "Main", /*bInComponent=*/false );
+    Units.back().Types.BindUniverse( Types.Universe() );
+
     Core::DiagEngine::Bag Bag = Core::DiagEngine::MakeBag();
     ParseOne( Units[Index], Bag );
     Diagnostics.Merge( std::move( Bag ) );
 
-    // After the parse, before the seam: the AST is complete and nothing has
-    // resolved a name in it yet, which is the only moment a caller can add a
-    // declaration the source text does not contain.
-    if ( Seed )
-    {
-        Seed( Units[Index].Ast );
-    }
+    return Index;
+}
+
+Volt::Driver::Driver::UnitResult Volt::Driver::Driver::AnalyzeUnit ( const std::size_t Index )
+{
+    UnitResult Result;
+    Result.Ordinal  = static_cast<std::uint32_t>( Index );
+    Result.DiagMark = Diagnostics.Mark();
 
     DriverUnitAsts.clear();
     DriverUnitAsts.reserve( Units.size() );
@@ -1129,9 +1138,7 @@ void Volt::Driver::Driver::CompileOneMore ( const std::size_t Index, const std::
         DriverUnitAsts.push_back( &Units[Slot].Ast );
     }
 
-    // Everything but this unit is finished business. That is the whole trick:
-    // the seam, the fixpoints and the sema passes all run over one AST, so the
-    // five-hundredth line costs what the first cost.
+    // Everything but this unit is finished business.
     std::vector<bool> bDone( Units.size(), true );
     bDone[Index] = false;
 
@@ -1147,30 +1154,10 @@ void Volt::Driver::Driver::CompileOneMore ( const std::size_t Index, const std::
     Core::DiagEngine::Bag TypedBag = Core::DiagEngine::MakeBag();
     RunSemaTypedOne( Units[Index], TypedBag );
     Diagnostics.Merge( std::move( TypedBag ) );
-}
 
-Volt::Driver::Driver::EvalLineResult
-Volt::Driver::Driver::EvalLine ( std::string Label, std::string Text, const std::function<void( Frontend::AstContext & )> &Seed )
-{
-    EvalLineResult Result;
-    Result.DiagMark = Diagnostics.Mark();
-
-    const Core::FileId File = Sources.AddFile( std::move( Label ), std::move( Text ) );
-
-    // The module name is the one every REPL line shares, so a `def` typed on
-    // one line and called on the next is in the same namespace rather than in
-    // a new one per line.
-    const auto Index = Units.size();
-    Units.emplace_back( File, std::string( Sources.PathOf( File ) ), "Main", /*bInComponent=*/false );
-    Units.back().Types.BindUniverse( Types.Universe() );
-
-    Result.Ordinal = static_cast<std::uint32_t>( Index );
-
-    CompileOneMore( Index, Seed );
-
-    // Only this line's diagnostics decide whether this line ran. The engine
-    // still holds every earlier line's, and asking HasErrors() here would make
-    // one bad line poison the rest of the session.
+    // Only this unit's diagnostics decide whether it compiled. The engine still
+    // holds every earlier one's, and asking HasErrors() here would make one bad
+    // unit poison everything after it.
     Result.bOk = not Diagnostics.HasErrorsSince( Result.DiagMark );
     return Result;
 }
