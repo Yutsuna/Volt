@@ -18,7 +18,7 @@ volt_exe = executable(
     files(volt_sources),
     cpp_pch: common_pch_header,
     include_directories: include_directories('Public'),
-    dependencies: [compile_options_dep, driver_dep],
+    dependencies: [compile_options_dep, driver_dep, replcore_dep, repleval_dep],
     gnu_symbol_visibility: 'hidden',
     install: true,
 )
