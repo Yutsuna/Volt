@@ -47,8 +47,16 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FRunCommand::GetOptions ()
             [this] ( std::string_view Val ) { this->Dylibs.emplace_back( Val ); }
         },
         {
-            "", "--per-unit", "", "Emit one module per unit (the shape reload and the REPL need)",
-            [this] ( std::string_view ) { this->bPerUnitModules = true; }
+            "", "--whole-module", "", "Emit a single module for the build instead of one per unit",
+            [this] ( std::string_view ) { this->bWholeModule = true; }
+        },
+        {
+            "", "--indirect", "", "Emit calls through the hot-reload indirection (what --watch turns on)",
+            [this] ( std::string_view ) { this->bIndirectCalls = true; }
+        },
+        {
+            "-w", "--watch", "", "Stay resident: on a source change, reload the file that moved and run again",
+            [this] ( std::string_view ) { this->bWatch = true; }
         },
         {
             "-v", "--verbose", "", "Enable verbose output",
@@ -125,11 +133,13 @@ std::int32_t Volt::CLI::FRunCommand::Execute ( std::span<const std::string_view>
 
     const Driver::FCacheOptions CacheOpts = ToDriverCacheOptions( StdlibFlags );
 
+    std::string WatchManifest;
     if ( const std::optional<fs::path> Manifest = Driver::DiscoverManifest( Input ) )
     {
         Core::FLogger::Info( "Circuit manifest found: " + Manifest->string(), "run" );
         Core::FLogger::Progress( "Compiling...", "run" );
-        Compiled = TheDriver.CompileCircuit( Manifest->string(), CacheOpts );
+        WatchManifest = Manifest->string();
+        Compiled      = TheDriver.CompileCircuit( WatchManifest, CacheOpts );
     }
     else
     {
@@ -157,7 +167,12 @@ std::int32_t Volt::CLI::FRunCommand::Execute ( std::span<const std::string_view>
     RunOpts.Target                 = Target;
     RunOpts.Dylibs                 = Dylibs;
     RunOpts.bVerbose               = bVerbose;
-    RunOpts.bPerUnitModules        = bPerUnitModules;
+    RunOpts.bPerUnitModules        = not bWholeModule;
+    RunOpts.bIndirectLinkage       = bIndirectCalls or bWatch;
+    RunOpts.bWatch                 = bWatch;
+    RunOpts.WatchManifest          = WatchManifest;
+    RunOpts.WatchInputs            = { Input };
+    RunOpts.CacheOpts              = CacheOpts;
     RunOpts.bStdlibArtifactNoCache = StdlibFlags.bNoStdlibCache;
     RunOpts.bStdlibArtifactFresh   = StdlibFlags.bFreshStdlib;
 

@@ -59,8 +59,10 @@ namespace CLI
         std::string OptLevel;
         std::vector<std::string> Dylibs;
 
-        bool bVerbose        = false;
-        bool bPerUnitModules = false;
+        bool bVerbose       = false;
+        bool bWholeModule   = false;
+        bool bIndirectCalls = false;
+        bool bWatch         = false;
 
         FStdlibCacheFlags StdlibFlags;
     };
