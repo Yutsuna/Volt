@@ -28,6 +28,28 @@ std::string Volt::Backend::Llvm::FunctionRegistry::SymbolOf ( const MiddleEnd::T
     return MangleFunction( *Services->Build->Types, Entry, Owner, FlatArgs );
 }
 
+bool Volt::Backend::Llvm::UnitIsPrecompiled ( const EmitterServices &Services, std::uint32_t UnitOrdinal )
+{
+    const Ir::IrOptions &Options = *Services.Options;
+    if ( UnitOrdinal >= Options.SkipUnitsBelow )
+    {
+        return false;
+    }
+
+    if ( Options.bDefineEntryUnit and Services.Build != nullptr and Services.Build->Types != nullptr and
+         not Options.EntryFunction.empty() )
+    {
+        // Read off the TypeStore rather than matched on a path, so nothing here
+        // knows what the prelude is called (rules/zero-hardcode.md).
+        const MiddleEnd::TypeSystem::Member *Entry = Services.Build->Types->LookupFunction( Options.EntryFunction );
+        if ( Entry != nullptr and Entry->Unit == UnitOrdinal )
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const MiddleEnd::TypeSystem::Member &Entry,
                                                                      MiddleEnd::TypeSystem::NominalId Owner,
                                                                      std::span<const std::uint32_t> FlatArgs )
@@ -57,7 +79,12 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     // Only for the un-instantiated symbol, though. A monomorphised instance
     // (FlatArgs non-empty) is minted per build from the generic's body, so it
     // is not in the artifact and still needs its own mergeable definition here.
-    const bool bDeclaredElsewhere = FlatArgs.empty() and Entry.Unit < Services->Options->SkipUnitsBelow;
+    // ... unless this build defines it anyway: the AOT path still emits the
+    // inline-eligible bodies below the skip line so an optimised build can
+    // inline across the boundary, and a definition must not be a declaration.
+    const bool bDefinedHereAnyway = bInlineEligible and Services->Options->bDefineInlineEligibleBelow;
+    const bool bDeclaredElsewhere =
+        FlatArgs.empty() and not bDefinedHereAnyway and UnitIsPrecompiled( *Services, Entry.Unit );
 
     const llvm::GlobalValue::LinkageTypes Mergeable =
         Services->Options->bRetainMergeableBodies ? llvm::Function::WeakODRLinkage : llvm::Function::LinkOnceODRLinkage;

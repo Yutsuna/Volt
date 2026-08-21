@@ -34,25 +34,6 @@
 #include <string>
 #include <utility>
 
-namespace
-{
-
-// True when `Unit` is the one that declares `EntryName`. Read off the TypeStore
-// rather than matched on a path, so nothing here knows what the prelude is
-// called (rules/zero-hardcode.md).
-[[nodiscard]] bool DeclaresEntry ( const Volt::Backend::BackendInput &Build, const std::string &EntryName,
-                                   const Volt::Backend::UnitView &Unit )
-{
-    if ( Build.Types == nullptr or EntryName.empty() )
-    {
-        return false;
-    }
-    const Volt::MiddleEnd::TypeSystem::Member *Entry = Build.Types->LookupFunction( EntryName );
-    return Entry != nullptr and Entry->Unit == Unit.Ordinal;
-}
-
-} // namespace
-
 Volt::Backend::Ir::IrGenerator::State::State ( IrOptions InOptions ) : Options( std::move( InOptions ) )
 {
     Services.Build          = nullptr;
@@ -152,13 +133,7 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::EmitUnit ( const Unit
     // inline-eligible bodies so an optimised build can inline across the
     // boundary. The JIT wants the skip without that exception, which is why the
     // two are separate options rather than one.
-    // ... with one exception, and it is not an optimisation: the unit that
-    // declares the entry function. Its `__volt_entry` calls `_V_init_all`, the
-    // seam that initialises *every* unit in the build, so the copy inside a
-    // precompiled artifact initialises only what that artifact knew about.
-    // Emitting it here is what makes the entry point belong to this build.
-    const bool bEntryUnit   = DeclaresEntry( *Impl->Build, Impl->Options.EntryFunction, Unit );
-    const bool bPrecompiled = Unit.Ordinal < Impl->Options.SkipUnitsBelow and not bEntryUnit;
+    const bool bPrecompiled = Llvm::UnitIsPrecompiled( Impl->Services, Unit.Ordinal );
 
     if ( bPrecompiled and not Impl->Options.bDefineInlineEligibleBelow )
     {

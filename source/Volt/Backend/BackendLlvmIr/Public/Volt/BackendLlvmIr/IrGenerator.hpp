@@ -141,6 +141,18 @@ namespace Backend
             // why it stays the default.
             bool bRetainMergeableBodies = false;
 
+            // Emit the entry function's own unit even when it falls below the
+            // skip line.
+            //
+            // A build that *links* the artifact must not: the static linker
+            // resolves the artifact's `__volt_entry` against this build's
+            // `_V_init_all`, so emitting a second copy is a duplicate-symbol
+            // error at the link. A JIT that *loads* the artifact gets no such
+            // fixup — the artifact's copy would call whatever `_V_init_all` it
+            // was built against, initialising only the units it knew — so it
+            // has to emit its own and let that shadow the artifact's.
+            bool bDefineEntryUnit = false;
+
             // A TargetMachine is only needed by a consumer that will run
             // addPassesToEmitFile. The JIT has none and wants none.
             bool bNeedTargetMachine = true;

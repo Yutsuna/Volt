@@ -31,6 +31,12 @@ namespace Backend
     namespace Llvm
     {
 
+        // True when `UnitOrdinal`'s code lives in an artifact this build links
+        // or loads rather than emits. The linkage decision and the define sweep
+        // both ask, and a disagreement between them is either a missing symbol
+        // or a duplicate one — so they ask the same function.
+        [[nodiscard]] bool UnitIsPrecompiled ( const EmitterServices &Services, std::uint32_t UnitOrdinal );
+
         class FunctionRegistry
         {
 
