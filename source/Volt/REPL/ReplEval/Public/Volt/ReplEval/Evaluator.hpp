@@ -62,6 +62,22 @@ namespace Repl
 
         // A host-level explanation, set only for DidNotRun.
         std::string Message;
+
+        // The rendered type of what the line produced, when it produced
+        // something — `"Int32"`, `"Array<Int32>"`. Empty for a `def`, an
+        // assignment, or any statement that is not one bare expression.
+        //
+        // The *value* is not here and never will be: rendering it is Volt's
+        // job (the REPL prelude's `__volt_repl_echo`), and by the time this
+        // struct exists the rendered text has already been written. Only the
+        // type is the host's to say.
+        std::string ResultType;
+
+        // The value text has already been written to the descriptor by the
+        // evaluated code. False with a non-empty ResultType means the value
+        // exists but has no `to_string` — there is a type to name and nothing
+        // truthful to show.
+        bool bRendered = false;
     };
 
     class REPLEVAL_EXPORT Evaluator
