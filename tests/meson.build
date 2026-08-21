@@ -37,12 +37,6 @@ foreach sample_path : sample_files
     endif
 
     rel_sample = sample_path.replace(samples_root + '/', '')
-    # Root-relative, e.g. `samples/JSX/Foo.vlx` — never the absolute
-    # `sample_path`. `volt parse` echoes whatever `-i` gets, verbatim, in its
-    # `Program '...'` header, and that header is exactly what a golden file
-    # records: an absolute path would bake this machine's checkout location
-    # into a committed fixture. `workdir` below is what makes the relative
-    # path resolve the same way on any machine or in CI.
     root_rel_sample = 'samples' / rel_sample
     golden_path = golden_root / (rel_sample + '.golden')
     lowered_golden_path = golden_root / (rel_sample + '.lowered.golden')
@@ -181,17 +175,6 @@ foreach test_path : exec_test_files
     endif
 endforeach
 
-# -----------------------------------------------------------------------------
-# The same fixtures again, through `volt run` instead of `volt build` plus an
-# exec. This is a *differential* suite, not a second smoke test: both paths take
-# the identical IR out of BackendLlvmIr and differ only in the tail, so a
-# fixture that passes under `build` and fails under `run` isolates the failure
-# to the JIT tail — which is exactly the bug class worth catching early.
-#
-# Same expectation file, and deliberately so: `volt run` exits with the
-# program's own exit code, so nothing about a fixture has to know which path ran
-# it.
-
 if jit_enabled
     foreach test_path : exec_test_files
         if test_path == ''
@@ -216,6 +199,22 @@ if jit_enabled
                 depends: volt_exe,
                 workdir: meson.project_source_root(),
                 suite: 'jit',
+            )
+
+            test(
+                'jit-perunit/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run --per-unit -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit-perunit',
             )
         endif
     endforeach
