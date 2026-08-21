@@ -3,6 +3,7 @@ struct Char
   include Comparable
   include Hashable
   include Arithmetic
+  include Numeric
 
   #----------------------------------------------------------------------------
 

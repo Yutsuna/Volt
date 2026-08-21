@@ -35,7 +35,7 @@ struct Pointer<T>
   end
 
   def to_string -> String
-    "Pointer[#{self.to_address()}]"
+    "Pointer<T>@0x#{self.to_address().to_hex()}"
   end
 
 end

@@ -1,10 +1,28 @@
 mixin Numeric
   include Comparable
 
+  #----------------------------------------------------------------------------
+
   abstract def +( other : self ) -> self
   abstract def -( other : self ) -> self
   abstract def *( other : self ) -> self
   abstract def /( other : self ) -> self
+
+  #----------------------------------------------------------------------------
+
+  abstract def to_i8   -> Int8
+  abstract def to_i16  -> Int16
+  abstract def to_i32  -> Int32
+  abstract def to_i64  -> Int64
+  abstract def to_u8   -> UInt8
+  abstract def to_u16  -> UInt16
+  abstract def to_u32  -> UInt32
+  abstract def to_u64  -> UInt64
+  abstract def to_f32  -> Float32
+  abstract def to_f64  -> Float64
+  abstract def to_char -> Char
+
+  #----------------------------------------------------------------------------
 
   def step( to : self, by : self = 1, &block : self -> Void ) -> Void
     current = self
@@ -35,4 +53,17 @@ mixin Numeric
     return if self <= 0
     ( self - self ).step( self - 1, 1, &block )
   end
+
+  #----------------------------------------------------------------------------
+
+  def zero? -> Bool
+    self == 0
+  end
+
+  def negative? -> Bool
+    self < 0
+  end
+
+  #----------------------------------------------------------------------------
+
 end

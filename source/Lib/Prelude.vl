@@ -1,15 +1,21 @@
 #{
-  @brief The program's real entry point (BackendLLVM's EmitOptions::EntryFunction).
-  @details The C `main` shim (LlvmEmitter.cpp, EmitEntryPoint) does nothing but
-           call this and return its result: reporting an uncaught exception and
-           choosing the exit status are ordinary Volt code, not a backend concern
-           (rules/zero-hardcode.md). `__volt_run_units` is `_V_init_all`, a
-           symbol the backend itself defines (LlvmEmitter.cpp, EmitInitAll) —
-           every unit's top-level statements, in order.
+  @brief Executes top-level initialization statements for all compilation units in order.
+  @details Bound to the backend-generated symbol `_V_init_all`.
 #}
 @[External( "volt", "_V_init_all" )]
 external def __volt_run_units -> Void
 
+#{
+  @brief Tears down module-level static variables in reverse initialization order.
+  @details Bound to the backend-generated symbol `_V_fini_all`.
+#}
+@[External( "volt", "_V_fini_all" )]
+external def __volt_release_units -> Void
+
+#{
+  @brief Runtime entry point invoked by the C `main` wrapper.
+  @return Process exit status (`0` on success, `1` on uncaught exception).
+#}
 def __volt_entry -> Int32
   begin
     __volt_run_units()
@@ -17,5 +23,8 @@ def __volt_entry -> Int32
   rescue e : Exception
     e.report_unhandled()
     1
+  ensure
+    # Guarantee unit teardown even on uncaught exceptions.
+    __volt_release_units()
   end
 end
