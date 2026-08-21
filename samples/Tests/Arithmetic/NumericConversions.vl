@@ -1,0 +1,58 @@
+def test_int_conversions -> Void
+  x = 42
+  assert!( x.to_i8 == 42_i8 )
+  assert!( x.to_i16 == 42_i16 )
+  assert!( x.to_i32 == 42 )
+  assert!( x.to_i64 == 42_i64 )
+
+  assert!( x.to_u8 == 42_u8 )
+  assert!( x.to_u16 == 42_u16 )
+  assert!( x.to_u32 == 42_u32 )
+  assert!( x.to_u64 == 42_u64 )
+end
+
+def test_signed_unsigned_extension -> Void
+  neg = -1_i8
+  assert!( neg.to_i32 == -1 )
+  assert!( neg.to_i64 == -1_i64 )
+
+  u = 255_u8
+  assert!( u.to_i32 == 255 )
+  assert!( u.to_u64 == 255_u64 )
+end
+
+def test_truncation -> Void
+  big = 0x12345678_i64
+  assert!( big.to_i32 == 0x12345678 )
+  assert!( big.to_i16 == 0x5678_i16 )
+  assert!( big.to_i8 == 0x78_i8 )
+end
+
+def test_float_conversions -> Void
+  f = 3.14
+  assert!( f.to_i32 == 3 )
+  assert!( f.to_i64 == 3_i64 )
+  assert!( f.to_u32 == 3_u32 )
+
+  i = 100
+  assert!( i.to_f64 == 100.0 )
+
+  f32_val = f.to_f32
+  assert!( f32_val.to_f64 > 3.13 and f32_val.to_f64 < 3.15 )
+end
+
+def test_char_conversions -> Void
+  c = 'A'
+  assert!( c.to_i32 == 65 )
+  assert!( c.to_u8 == 65_u8 )
+  assert!( c.to_u64 == 65_u64 )
+
+  num = 66
+  assert!( num.to_char == 'B' )
+end
+
+test_int_conversions()
+test_signed_unsigned_extension()
+test_truncation()
+test_float_conversions()
+test_char_conversions()
