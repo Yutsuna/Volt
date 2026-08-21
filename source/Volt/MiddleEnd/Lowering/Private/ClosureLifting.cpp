@@ -47,16 +47,20 @@ MiddleEnd::TypeSystem::SemaTypeId BytePointerType ( MiddleEnd::Analysis::TypeChe
 
 Frontend::TypeId BuildTypeRef ( TypeCheckerContext &Context, MiddleEnd::TypeSystem::SemaTypeId Type )
 {
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
     if ( not Context.Ctx.Values.Has( Type ) )
     {
-        return Frontend::TypeId{};
+        Frontend::SymbolList Path;
+        Path.PushBack( Ast.Strings().Intern( "Void" ) );
+        return Ast.Add( Frontend::TypeRef{ .Loc = {}, .Path = std::move( Path ), .Generics = {} } );
     }
     const auto Val = Context.Ctx.Values.Get( Type );
     if ( not Val.Base.IsValid() )
     {
-        return Frontend::TypeId{};
+        Frontend::SymbolList Path;
+        Path.PushBack( Ast.Strings().Intern( "Void" ) );
+        return Ast.Add( Frontend::TypeRef{ .Loc = {}, .Path = std::move( Path ), .Generics = {} } );
     }
-    Frontend::AstContext &Ast       = Context.Ctx.Ast;
     const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( Val.Base ).Name );
     Frontend::TypeList Args;
     for ( const auto Arg : Val.Args )

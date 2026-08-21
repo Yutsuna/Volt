@@ -48,16 +48,23 @@ inline void ConstrainNode ( const Volt::Frontend::Identifier &Node,
     // sites called this — overwriting it here would make `-> Int32` accept a
     // trailing `big`, which is exactly the silence phase C exists to remove.
     const auto It = Self.UnconstrainedVarInitializers.find( Node.Name );
-    if ( It == Self.UnconstrainedVarInitializers.end() )
+    if ( It != Self.UnconstrainedVarInitializers.end() )
     {
+        const Volt::Frontend::ExprId InitExpr = It->second;
+        Self.UnconstrainedVarInitializers.erase( It );
+        Self.Ctx.Values.SetExprType( Expr, TargetType );
+        Self.WriteLocal( Expr, Node.Name, TargetType );
+        Self.ConstrainExprType( InitExpr, TargetType );
         return;
     }
 
-    const Volt::Frontend::ExprId InitExpr = It->second;
-    Self.UnconstrainedVarInitializers.erase( It );
-    Self.Ctx.Values.SetExprType( Expr, TargetType );
-    Self.WriteLocal( Expr, Node.Name, TargetType );
-    Self.ConstrainExprType( InitExpr, TargetType );
+    if ( Self.UnconstrainedParams.contains( Node.Name ) )
+    {
+        Self.UnconstrainedParams.erase( Node.Name );
+        Self.Ctx.Values.SetExprType( Expr, TargetType );
+        Self.WriteLocal( Expr, Node.Name, TargetType );
+        return;
+    }
 }
 
 inline void ConstrainNode ( const Volt::Frontend::Ternary &Node,
