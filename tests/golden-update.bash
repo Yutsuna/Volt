@@ -13,14 +13,6 @@ readonly RESOLVED="${6:?Missing RESOLVED argument}"
 readonly STAMP="$(realpath -m "${7:?Missing STAMP argument}")"
 
 mkdir -p -- "${GOLDEN%/*}"
-
-# `-i "$SAMPLE"` must stay project-root-relative: `volt parse` echoes it
-# verbatim in the `Program '...'` header, and that header is exactly what
-# the golden file records. An absolute path would bake this machine's
-# checkout location into a committed fixture — works here, breaks on any
-# other machine or in CI. `cd` first so the relative path resolves the same
-# way everywhere, matching the `workdir` the comparison tests run under
-# (tests/meson.build).
 cd -- "$ROOT"
 
 

@@ -1,0 +1,11 @@
+def inner -> Int32
+  9
+end
+
+def outer -> Int32
+  inner() + 1
+end
+
+def __volt_entry -> Int32
+  outer()
+end

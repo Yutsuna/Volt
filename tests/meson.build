@@ -202,11 +202,11 @@ if jit_enabled
             )
 
             test(
-                'jit-perunit/' + rel_test,
+                'jit-whole/' + rel_test,
                 sh,
                 args: [
                     '-c',
-                    '"$1" run --per-unit -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    '"$1" run --whole-module -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
                     'sh',
                     volt_exe.full_path(),
                     root_rel_test,
@@ -214,8 +214,52 @@ if jit_enabled
                 ],
                 depends: volt_exe,
                 workdir: meson.project_source_root(),
-                suite: 'jit-perunit',
+                suite: 'jit-whole',
+            )
+            test(
+                'jit-indirect/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run --indirect -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit-indirect',
             )
         endif
+    endforeach
+
+    reload_root = meson.current_source_dir() / 'reload'
+    reload_sh = reload_root / 'reload-test.sh'
+
+    reload_cases = [
+        ['Ok/BodyChanged', 'exit 7'],
+        ['Ok/CalleeChanged', 'exit 10'],
+        ['Refused/SignatureChanged', 'changed shape'],
+        ['Refused/LayoutChanged', 'changed size, alignment or existence'],
+        ['Refused/DoesNotCompile', 'keeping the running code'],
+    ]
+
+    foreach reload_case : reload_cases
+        test(
+            'jit-reload/' + reload_case[0],
+            sh,
+            args: [
+                reload_sh,
+                volt_exe.full_path(),
+                reload_root / (reload_case[0] + '.before.vl'),
+                reload_root / (reload_case[0] + '.after.vl'),
+                reload_case[1],
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'jit-reload',
+            timeout: 60,
+        )
     endforeach
 endif
