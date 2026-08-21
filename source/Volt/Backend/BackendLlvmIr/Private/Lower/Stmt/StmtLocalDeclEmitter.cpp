@@ -38,6 +38,29 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const MiddleEnd::Resolv
         return It->second;
     }
 
+    // `external name : Type` — storage this unit names and does not
+    // own. Declared under the symbol the store resolved for it, never
+    // defined: a definition would hand this unit a fresh, zeroed copy
+    // of something another unit or object file already holds.
+    if ( const auto *Decl = std::get_if<Frontend::DeclId>( &Site );
+         Decl != nullptr and Services().Build != nullptr and Services().Build->Types != nullptr )
+    {
+        const MiddleEnd::TypeSystem::TypeStore &Store = *Services().Build->Types;
+        const MiddleEnd::TypeSystem::Member *Variable = Store.LookupVariable( Name );
+        if ( Variable != nullptr and Variable->Decl == *Decl and Variable->ExternSymbol.IsValid() )
+        {
+            const std::string Linkage( Store.Text( Variable->ExternSymbol ) );
+
+            auto *Foreign = Ctx().Mod().getGlobalVariable( Linkage, /*AllowInternal=*/true );
+            if ( Foreign == nullptr )
+            {
+                Foreign = new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false, llvm::GlobalValue::ExternalLinkage,
+                                                    /*Initializer=*/nullptr, Linkage );
+            }
+            return Foreign;
+        }
+    }
+
     if ( Local.Unit != nullptr and Local.Unit->Scopes != nullptr )
     {
         MiddleEnd::Resolver::ScopeId OwnerScopeId;
@@ -58,27 +81,6 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::SlotFor ( const MiddleEnd::Resolv
                 // binding is one piece of storage that several of them read, and
                 // a per-module copy would silently be a *second* variable.
                 return LocalCopy( Services(), GlobIt->second );
-            }
-
-            // Storage an earlier, still-resident unit owns (UnitView::
-            // ExternalGlobals). Declared here under the name it already has,
-            // never defined: a definition would hand this unit a fresh, zeroed
-            // copy of a variable that currently holds a value.
-            if ( Local.Unit->ExternalGlobals != nullptr )
-            {
-                if ( const auto Elsewhere = Local.Unit->ExternalGlobals->find( Site );
-                     Elsewhere != Local.Unit->ExternalGlobals->end() )
-                {
-                    auto *Foreign = Ctx().Mod().getGlobalVariable( Elsewhere->second, /*AllowInternal=*/true );
-                    if ( Foreign == nullptr )
-                    {
-                        Foreign = new llvm::GlobalVariable( Ctx().Mod(), Shape, /*isConstant=*/false,
-                                                            llvm::GlobalValue::ExternalLinkage, /*Initializer=*/nullptr,
-                                                            Elsewhere->second );
-                    }
-                    Services().ModuleGlobals->emplace( Key, Foreign );
-                    return Foreign;
-                }
             }
 
             const std::string GlobalName = "_V_global_" + std::to_string( Local.Unit->Ordinal ) + "_" + std::string( Name );

@@ -50,8 +50,9 @@ namespace Backend
             Whole = 0,
 
             // One module per unit, plus a prelude module holding the shared
-            // globals and the entry point. What hot reload and the REPL need,
-            // because ORC can only replace a module as a unit.
+            // globals and the entry point. What replacing one unit's code in a
+            // running program needs, because ORC can only replace a module as
+            // a unit.
             PerUnit = 1,
         };
 
@@ -178,7 +179,7 @@ namespace Backend
             // "Do you already have a definition of this symbol?"
             //
             // Asked of *monomorphised* bodies only, and only by a consumer that
-            // emits repeatedly into one live program — a REPL. Under PerUnit an
+            // emits repeatedly into one live program. Under PerUnit an
             // instantiation keeps external linkage on purpose, because other
             // modules name it, so a second emission of `Int32#to_string` is a
             // duplicate definition rather than a mergeable copy. SkipUnitsBelow
@@ -195,14 +196,15 @@ namespace Backend
             // SkipUnitsBelow answers "is this body ours to define", and for an
             // ahead-of-time consumer the answer to that settles the call shape
             // too: a body in a dylib has no slot, so it is reached by
-            // relocation. A REPL breaks that equivalence. Every line before this
-            // one is below the skip line — its code is resident and must not be
-            // emitted again — and yet each was emitted *by this session*, with
-            // a slot of its own, precisely so a later `def` can replace it.
+            // relocation. Emitting repeatedly into one live program breaks that
+            // equivalence: an earlier emission's code is below the skip line —
+            // resident, and not to be emitted again — and yet it was emitted by
+            // *this* consumer, with a slot of its own, precisely so a later one
+            // can replace it.
             //
-            // Without this, redefining a function at the prompt compiles, adds
-            // a second body, patches a slot nobody reads, and silently keeps
-            // calling the old one.
+            // Without this, replacing such a function compiles, adds a second
+            // body, patches a slot nobody reads, and silently keeps calling the
+            // old one.
             //
             // Empty (the default) means "nothing below the skip line is
             // slotted", which is exactly true of a precompiled artifact.

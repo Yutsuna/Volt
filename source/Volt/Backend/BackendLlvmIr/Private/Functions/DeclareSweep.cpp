@@ -80,9 +80,9 @@ void Volt::Backend::Llvm::DeclareAll ( EmitterServices &Services )
     // returns before EmitInitAll when there is no entry symbol, so an emission
     // without one never calls a unit init it did not define. Declaring them
     // anyway is not merely waste — it is waste proportional to the number of
-    // units, paid on *every* emission, which is the difference between a REPL
-    // whose five-hundredth line costs what its first cost and one whose
-    // sessions grow quadratically.
+    // units, paid on *every* emission. For a consumer that emits once that is
+    // invisible; for one that emits repeatedly into a growing build it is the
+    // difference between a flat cost per emission and a quadratic one.
     if ( Services.Options->EntrySymbol.empty() )
     {
         return;

@@ -159,10 +159,11 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     // is the same question a reload asks — is this body ours to replace — and
     // deriving it twice is how the two answers drift apart.
     //
-    // The second clause is what a REPL adds: a body below the skip line that
-    // this session nevertheless emitted, and gave a slot to, is still reachable
-    // through that slot and must still be called through it — otherwise
-    // redefining it at the prompt patches something no call site reads.
+    // The second clause separates two questions the skip line answers at once
+    // for an artifact and not for a live program: a body below the skip line
+    // that *this consumer* emitted, and gave a slot to, is still reachable
+    // through that slot and must still be called through it. Otherwise
+    // replacing it later patches something no call site reads.
     const bool bSlottedElsewhere = Services->Options->HasIndirectionSlot and Services->Options->HasIndirectionSlot( Symbol );
 
     if ( not Entry.ExternSymbol.IsValid() and ( not bDeclaredElsewhere or bSlottedElsewhere ) )

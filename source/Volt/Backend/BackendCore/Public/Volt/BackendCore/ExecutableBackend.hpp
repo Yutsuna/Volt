@@ -10,7 +10,7 @@
 // Those verbs are virtual, which is within rules the rest of the backend keeps:
 // the ban is on a virtual call *per node*, never per execution
 // (backend/core-interfaces.md). Run happens once per `volt run`; EvalUnit once
-// per REPL line.
+// per incremental unit.
 //
 // No toolchain type appears here, deliberately. The Driver includes this header
 // to reach a JIT the way it includes TargetBackend.hpp to reach an AOT emitter,
@@ -74,8 +74,8 @@ namespace Backend
 
         ~IJitBackend () override = default;
 
-        // Run the entry point. Once per session in `run` mode; a REPL uses
-        // EvalUnit instead.
+        // Run the entry point. Once per build; a consumer that evaluates a
+        // growing program one unit at a time uses EvalUnit instead.
         [[nodiscard]] virtual RunResult Run ( std::span<const std::string_view> ProgramArgs ) = 0;
 
         // Recompile an already-emitted unit and repoint its symbols. Requires a
@@ -90,16 +90,17 @@ namespace Backend
         // comparable, and what a refusal compares.
         [[nodiscard]] virtual ReloadResult Reload ( const BackendInput &Build, const UnitView &Unit ) = 0;
 
-        // Compile one incremental unit and run its initialiser — one REPL line.
+        // Compile one more unit into an already-materialised build and run
+        // its initialiser.
         //
         // `Build` is the compilation this unit came out of, and it is a
-        // different object on every line for the same reason Reload takes one:
-        // a REPL grows its type store as it goes, and the view a backend was
-        // begun with describes a build that has since gained units.
+        // different object every time, for the same reason Reload takes one:
+        // an incremental build grows its type store as it goes, and the view a
+        // backend was begun with describes a build that has since gained units.
         //
-        // Unlike Run, a failure here is a diagnostic and not the end of the
-        // session: bOk == false with a Message means this line did not run,
-        // never that the session is over.
+        // Unlike Run, a failure here is a diagnostic and not the end of
+        // anything: bOk == false with a Message means this unit did not run,
+        // never that what is already resident has stopped working.
         [[nodiscard]] virtual RunResult EvalUnit ( const BackendInput &Build, const UnitView &Unit ) = 0;
 
         // The address a mangled symbol materialised at, for tests and

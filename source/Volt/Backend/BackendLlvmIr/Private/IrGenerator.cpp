@@ -268,8 +268,9 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::Finish ()
     Llvm::DefineLocalSlots( Impl->Services );
 
     // ... and, for the same reason, are recorded here rather than there. This
-    // is the module the monomorphisations land in, so leaving it out would tell
-    // a REPL that `Array<Int32>#push` does not exist yet on every single line.
+    // is the module the monomorphisations land in, so a consumer that emits
+    // again into the same live program would be told this build defines none of
+    // them and would emit a second copy of every one.
     for ( std::string &Name : Llvm::LocalDefinedNames( Impl->Services ) )
     {
         Impl->AllDefined.push_back( std::move( Name ) );

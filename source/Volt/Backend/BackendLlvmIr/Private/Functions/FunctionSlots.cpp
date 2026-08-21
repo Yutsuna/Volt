@@ -90,9 +90,9 @@ void Volt::Backend::Llvm::DefineLocalSlots ( EmitterServices &Services )
         }
 
         // Same rule as bReplaceUnit above, asked per symbol instead of per
-        // emission — which is what a REPL needs, because one line can define a
-        // brand new function (its slot belongs here) and redefine an existing
-        // one (its slot belongs to the line that first defined it) at once.
+        // emission, because one emission can do both at once: define a brand
+        // new function (its slot belongs here) and redefine an existing one
+        // (its slot belongs to the emission that first defined it).
         //
         // Defining a second copy is not a harmless duplicate: the patch would
         // land on this module's copy while every already-compiled caller keeps
