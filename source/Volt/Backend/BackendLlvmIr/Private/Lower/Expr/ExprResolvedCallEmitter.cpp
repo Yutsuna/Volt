@@ -19,6 +19,7 @@
 #include "Lower/Mono/MonoDriver.hpp"
 #include "Types/TypeMapper.hpp"
 #include "Volt/BackendCore/DiagnosticSink.hpp"
+#include "Volt/BackendCore/InstructionSchema.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
@@ -42,33 +43,6 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         return EmitIndirectDispatch( *this, Id, Entry, Receiver, Args, Block );
     }
 
-    // A machine conversion tagged by MemberResolver on a bodyless
-    // non-operator member of a Pointer/Primitive receiver. The backend reads
-    // the enum — no Volt name ever enters this module.
-    if ( Entry.Decl->bAbstract )
-    {
-        using MC = MiddleEnd::IR::EMachineConversion;
-        switch ( Entry.MachineConversion )
-        {
-        case MC::PtrToInt:
-        {
-            llvm::Value *Self = EmitExpr( Receiver );
-            return Self ? Ctx().Builder().CreatePtrToInt( Self, Ctx().Builder().getInt64Ty() ) : nullptr;
-        }
-        case MC::IntToPtr:
-        {
-            llvm::Value *Addr = Args.empty() ? nullptr : EmitExpr( Args[0] );
-            return Addr ? Ctx().Builder().CreateIntToPtr( Addr, llvm::PointerType::get( Ctx().Context(), 0 ) ) : nullptr;
-        }
-        case MC::None:
-            break;
-        }
-        static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
-                                 " resolves to an abstract member with no body, and neither a machine conversion "
-                                 "nor a builtin operator is registered for its receiver's layout" ) );
-        return nullptr;
-    }
-
     const MiddleEnd::TypeSystem::UnitTypes *SourceValues = Frame().Values;
     if ( Frame().Unit != nullptr and Frame().Unit->Values != nullptr )
     {
@@ -84,6 +58,120 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
         }
     }
     const MiddleEnd::TypeSystem::UnitTypes &Values = *SourceValues;
+
+    // A machine conversion tagged by MemberResolver on a bodyless
+    // non-operator member of a Pointer/Primitive receiver. The backend reads
+    // the enum — no Volt name ever enters this module.
+    if ( Entry.Decl->bAbstract )
+    {
+        using MC = MiddleEnd::IR::EMachineConversion;
+        switch ( Entry.MachineConversion )
+        {
+        case MC::PtrToInt:
+        {
+            llvm::Value *Self = EmitExpr( Receiver );
+            return Self ? Ctx().Builder().CreatePtrToInt( Self, Ctx().Builder().getInt64Ty() ) : nullptr;
+        }
+        case MC::IntToPtr:
+        {
+            llvm::Value *Addr = Args.empty() ? ( Receiver.IsValid() ? EmitExpr( Receiver ) : nullptr ) : EmitExpr( Args[0] );
+            return Addr ? Ctx().Builder().CreateIntToPtr( Addr, llvm::PointerType::get( Ctx().Context(), 0 ) ) : nullptr;
+        }
+        case MC::ScalarConvert:
+        {
+            llvm::Value *Self = EmitExpr( Receiver );
+            if ( Self == nullptr )
+            {
+                return nullptr;
+            }
+
+            const MiddleEnd::TypeSystem::LayoutId DstShape = Types().LayoutOfValue( Values, Entry.Result );
+            llvm::Type *TargetType                         = Types().TypeOfLayout( DstShape );
+            if ( TargetType == nullptr )
+            {
+                return Self;
+            }
+
+            llvm::Type *SrcType = Self->getType();
+            if ( SrcType == TargetType )
+            {
+                return Self;
+            }
+
+            llvm::IRBuilder<> &Builder                     = Ctx().Builder();
+            const MiddleEnd::TypeSystem::LayoutId SrcShape = Types().LayoutOfExpr( Frame(), Receiver );
+            const std::string_view SrcSpelling             = Types().SpellingOf( SrcShape );
+            const std::string_view DstSpelling             = Types().SpellingOf( DstShape );
+            const EOpFamily SrcFamily                      = FamilyOf( SrcSpelling );
+            const EOpFamily DstFamily                      = FamilyOf( DstSpelling );
+
+            // Integer -> Integer
+            if ( SrcType->isIntegerTy() and TargetType->isIntegerTy() )
+            {
+                const unsigned SrcBits = SrcType->getIntegerBitWidth();
+                const unsigned DstBits = TargetType->getIntegerBitWidth();
+                if ( SrcBits > DstBits )
+                {
+                    return Builder.CreateTrunc( Self, TargetType );
+                }
+                if ( SrcBits < DstBits )
+                {
+                    return SrcFamily == EOpFamily::SInt ? Builder.CreateSExt( Self, TargetType )
+                                                        : Builder.CreateZExt( Self, TargetType );
+                }
+                return Self;
+            }
+
+            // Integer -> Float
+            if ( SrcType->isIntegerTy() and TargetType->isFloatingPointTy() )
+            {
+                return SrcFamily == EOpFamily::SInt ? Builder.CreateSIToFP( Self, TargetType )
+                                                    : Builder.CreateUIToFP( Self, TargetType );
+            }
+
+            // Float -> Integer
+            if ( SrcType->isFloatingPointTy() and TargetType->isIntegerTy() )
+            {
+                return DstFamily == EOpFamily::SInt ? Builder.CreateFPToSI( Self, TargetType )
+                                                    : Builder.CreateFPToUI( Self, TargetType );
+            }
+
+            // Float -> Float
+            if ( SrcType->isFloatingPointTy() and TargetType->isFloatingPointTy() )
+            {
+                if ( SrcType->isDoubleTy() and TargetType->isFloatTy() )
+                {
+                    return Builder.CreateFPTrunc( Self, TargetType );
+                }
+                if ( SrcType->isFloatTy() and TargetType->isDoubleTy() )
+                {
+                    return Builder.CreateFPExt( Self, TargetType );
+                }
+                return Self;
+            }
+
+            // Pointer -> Integer
+            if ( SrcType->isPointerTy() and TargetType->isIntegerTy() )
+            {
+                return Builder.CreatePtrToInt( Self, TargetType );
+            }
+
+            // Integer -> Pointer
+            if ( SrcType->isIntegerTy() and TargetType->isPointerTy() )
+            {
+                return Builder.CreateIntToPtr( Self, TargetType );
+            }
+
+            return Self;
+        }
+        case MC::None:
+            break;
+        }
+        static_cast<void>( Fail( "llvm: call at expression " + std::to_string( Id.Value ) +
+                                 " resolves to an abstract member with no body, and neither a machine conversion "
+                                 "nor a builtin operator is registered for its receiver's layout" ) );
+        return nullptr;
+    }
 
     MiddleEnd::TypeSystem::NominalId Owner;
     if ( Values.Has( Entry.Receiver ) )
