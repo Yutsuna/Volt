@@ -2,6 +2,7 @@
 
 #include "Target/LinkerDriver.hpp"
 
+#include "Volt/BackendCore/CompilerSeams.hpp"
 #include "Volt/BackendCore/DiagnosticSink.hpp"
 
 #include <llvm/ADT/StringRef.h>
@@ -82,7 +83,7 @@ namespace
 // that spells itself, e.g. "SDL2") passes through as `-lSDL2`.
 [[nodiscard]] std::string LibraryFlag ( const std::string &Library )
 {
-    if ( Library == "volt" )
+    if ( Library == Volt::Backend::CompilerSeams::Library )
     {
         return std::string{};
     }
@@ -188,8 +189,8 @@ bool Volt::Backend::Llvm::LinkerDriver::LinkSharedLibrary ( std::string_view Obj
     // enters this copy of `__volt_entry` at all. Either way the reference must
     // not be resolved at load time — and most toolchains default to BIND_NOW,
     // which would make dlopen fail on a file that is otherwise perfectly usable.
-    std::vector<std::string> Args{ *Driver,   "-shared", "-fPIC", "-Wl,-z,lazy", "-o", std::string( OutputPath ),
-                                   std::string( ObjectPath ) };
+    std::vector<std::string> Args{
+        *Driver, "-shared", "-fPIC", "-Wl,-z,lazy", "-o", std::string( OutputPath ), std::string( ObjectPath ) };
 
     for ( const std::string &Extra : Services->Options->ExtraLinkInputs )
     {

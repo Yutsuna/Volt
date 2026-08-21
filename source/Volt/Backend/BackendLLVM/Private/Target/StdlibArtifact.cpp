@@ -127,7 +127,7 @@ bool Volt::Backend::Llvm::BuildStdlibArtifact ( const BackendInput &Build,
     // addresses the globals directly and needs no accessor.
     Opts.bDefineSlotAccessor    = bShared;
     Opts.bRetainMergeableBodies = bShared;
-    Opts.OutputPath    = TempFile.str().str();
+    Opts.OutputPath             = TempFile.str().str();
 
     LlvmBackend Impl;
     Impl.SetOptions( Opts );
