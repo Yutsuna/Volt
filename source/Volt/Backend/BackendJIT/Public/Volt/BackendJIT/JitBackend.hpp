@@ -50,9 +50,14 @@ namespace Backend
             std::string EntryFunction = "__volt_entry";
             std::string EntrySymbol   = "__volt_jit_main";
 
-            // One llvm::Module per unit instead of one for the build. Costs a
-            // little at startup and buys the only shape a reload or a REPL line
-            // can have: a body of code that can be replaced on its own.
+            // One llvm::Module per unit instead of one for the build — the
+            // only shape a reload or a REPL line can have, since replacing a
+            // unit means replacing a module.
+            //
+            // It also starts faster, which is a consequence rather than the
+            // aim: ORC materialises a module the first time something in it is
+            // looked up, so splitting the build lets the code a run never
+            // reaches go through no codegen at all.
             bool bPerUnitModules = false;
 
             std::uint8_t OptLevel = 0;
