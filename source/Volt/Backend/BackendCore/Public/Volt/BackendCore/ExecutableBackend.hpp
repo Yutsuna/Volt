@@ -81,7 +81,14 @@ namespace Backend
         // Recompile an already-emitted unit and repoint its symbols. Requires a
         // session built with per-unit modules and indirect linkage; refuses,
         // with a message saying so, otherwise.
-        [[nodiscard]] virtual ReloadResult Reload ( const UnitView &Unit ) = 0;
+        //
+        // `Build` is the *new* compilation the unit came out of, not the one
+        // this backend was begun with: recompiling one file means recompiling
+        // the front end, and what comes back is a whole new type store with
+        // ids of its own. The running program keeps the old one — its
+        // instances are laid out to it — which is exactly what makes the two
+        // comparable, and what a refusal compares.
+        [[nodiscard]] virtual ReloadResult Reload ( const BackendInput &Build, const UnitView &Unit ) = 0;
 
         // Compile one incremental unit and run its initialiser — one REPL line.
         [[nodiscard]] virtual RunResult EvalUnit ( const UnitView &Unit ) = 0;
