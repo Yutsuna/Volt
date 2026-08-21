@@ -1,0 +1,100 @@
+module Benchmark
+
+  def self.measure( label : String, iterations : UInt64, &task : -> Void ) -> Void
+    IO.stdout.print( "• Benchmarking: " + label + " (" + iterations.to_string + " runs)... " )
+
+    start_time = LibC.clock()
+
+    iterations.times do
+      task.call()
+    end
+
+    end_time = LibC.clock()
+    elapsed_ticks = end_time - start_time
+
+    IO.stdout.puts( "OK [Ticks: " + elapsed_ticks.to_string + "]" )
+  end
+
+end
+
+
+def bench_memory_throughput -> Void
+  block_size = 64KiB
+  total_transfer = 16MiB
+  runs = total_transfer / block_size
+
+  Benchmark.measure( "Buffer Allocation & Memset [64KiB blocks]", runs ) do
+    buffer = Pointer<UInt8>.malloc( block_size )
+    LibC.memset( buffer, 42, block_size )
+
+    assert!( *( buffer + 0_u64 ) == 42_u8 )
+    assert!( *( buffer + ( block_size - 1_u64 ) ) == 42_u8 )
+
+    buffer.free
+  end
+end
+
+def bench_array_growth -> Void
+  Benchmark.measure( "Dynamic Array Growth [up to 32KiB items]", 100 ) do
+    arr = Array<Int32>.new( 8_u64 )
+
+    0.upto( 1024 ) do |val|
+      arr.push( val )
+    end
+
+    assert!( arr.size == 1025_u64 )
+  end
+end
+
+
+def bench_functional_pipeline -> Void
+  sample_size = 4KiB
+
+  Benchmark.measure( "Point-Free & Pipeline Processing [4KiB dataset]", 50 ) do
+    numbers = Array<Int32>.new( sample_size )
+
+    0.upto( 1000 ) do |i|
+      numbers.push( i )
+    end
+
+    transform = ( &.+ 10 ) >> ( &.* 2 )
+
+    processed = numbers
+      .filter( ( n : Int32 ) => n % 2 == 0 )
+      .map( &transform )
+
+    assert!( processed.size == 501_u64 )
+    assert!( processed[0] == 20 )
+  end
+end
+
+
+def bench_numeric_crunch -> Void
+  operations = 100kHz
+
+  Benchmark.measure( "Scalar Math & Power of Two [100kHz steps]", 10 ) do
+    acc = 0_i64
+
+    0.upto( operations ) do |n|
+      if ( n : Int64 ).power_of_two?
+        acc += n
+      else
+        acc += 1_i64
+      end
+    end
+
+    assert!( acc > 0_i64 )
+  end
+end
+
+
+assert!( 1KiB == 1024_u64 )
+assert!( 1MiB == 1048576_u64 )
+assert!( 16MiB == 16777216_u64 )
+assert!( 100kHz == 100000 )
+assert!( 1MHz == 1000000 )
+
+bench_memory_throughput()
+bench_array_growth()
+bench_functional_pipeline()
+bench_numeric_crunch()
