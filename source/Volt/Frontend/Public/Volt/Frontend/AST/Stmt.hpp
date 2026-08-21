@@ -65,7 +65,6 @@ namespace Frontend
         Symbol Name{};
         TypeId DeclType{};
         ExprId Init{};
-
     };
 
     // `when Pattern1, Pattern2 then Body...`

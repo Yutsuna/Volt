@@ -22,6 +22,7 @@ namespace Frontend
         Meta::SerializeArena( W, Params );
         Meta::Serialize( W, TopDecls );
         Meta::Serialize( W, TopStmts );
+        Meta::Serialize( W, TopTeardown );
 
         const auto Counter = static_cast<std::uint64_t>( SymCounter );
         Meta::Serialize( W, Counter );
@@ -54,6 +55,10 @@ namespace Frontend
             return false;
         }
         if ( not Meta::Deserialize( R, TopStmts ) )
+        {
+            return false;
+        }
+        if ( not Meta::Deserialize( R, TopTeardown ) )
         {
             return false;
         }
