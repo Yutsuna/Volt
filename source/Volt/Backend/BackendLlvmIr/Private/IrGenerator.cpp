@@ -34,6 +34,25 @@
 #include <string>
 #include <utility>
 
+namespace
+{
+
+// True when `Unit` is the one that declares `EntryName`. Read off the TypeStore
+// rather than matched on a path, so nothing here knows what the prelude is
+// called (rules/zero-hardcode.md).
+[[nodiscard]] bool DeclaresEntry ( const Volt::Backend::BackendInput &Build, const std::string &EntryName,
+                                   const Volt::Backend::UnitView &Unit )
+{
+    if ( Build.Types == nullptr or EntryName.empty() )
+    {
+        return false;
+    }
+    const Volt::MiddleEnd::TypeSystem::Member *Entry = Build.Types->LookupFunction( EntryName );
+    return Entry != nullptr and Entry->Unit == Unit.Ordinal;
+}
+
+} // namespace
+
 Volt::Backend::Ir::IrGenerator::State::State ( IrOptions InOptions ) : Options( std::move( InOptions ) )
 {
     Services.Build          = nullptr;
@@ -133,7 +152,14 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::EmitUnit ( const Unit
     // inline-eligible bodies so an optimised build can inline across the
     // boundary. The JIT wants the skip without that exception, which is why the
     // two are separate options rather than one.
-    const bool bPrecompiled = Unit.Ordinal < Impl->Options.SkipUnitsBelow;
+    // ... with one exception, and it is not an optimisation: the unit that
+    // declares the entry function. Its `__volt_entry` calls `_V_init_all`, the
+    // seam that initialises *every* unit in the build, so the copy inside a
+    // precompiled artifact initialises only what that artifact knew about.
+    // Emitting it here is what makes the entry point belong to this build.
+    const bool bEntryUnit   = DeclaresEntry( *Impl->Build, Impl->Options.EntryFunction, Unit );
+    const bool bPrecompiled = Unit.Ordinal < Impl->Options.SkipUnitsBelow and not bEntryUnit;
+
     if ( bPrecompiled and not Impl->Options.bDefineInlineEligibleBelow )
     {
         return EEmitStatus::Ok;
@@ -170,6 +196,13 @@ Volt::Backend::EEmitStatus Volt::Backend::Ir::IrGenerator::Finish ()
     // instantiation, and before any verification, which is what proves the shim
     // is well formed like any other function.
     if ( not Llvm::EmitEntryPoint( Impl->Services ) )
+    {
+        return EEmitStatus::Error;
+    }
+
+    // After the entry point, so the slots it may itself have created exist by
+    // now and the accessor points at the same ones every body uses.
+    if ( Impl->Options.bDefineSlotAccessor and not Impl->Exceptions->EmitSlotAccessor() )
     {
         return EEmitStatus::Error;
     }

@@ -22,6 +22,8 @@
 #include "Core/LlvmFwd.hpp"
 
 #include <cstddef>
+#include <utility>
+#include <vector>
 
 namespace Volt
 {
@@ -97,6 +99,12 @@ namespace Backend
             // in O(1) by checking whether the raised type's Left number is
             // within the target clause's [Left, Right] interval.
             [[nodiscard]] llvm::GlobalVariable *PreorderTable ();
+
+            // Define UnwindTransport::SlotAccessorSymbol over this module's own
+            // slots, so a JIT that loads this artifact and skips its units
+            // still shares one copy of the transport state with it. Only ever
+            // called under ETlsAccess::Direct — see IrOptions::bDefineSlotAccessor.
+            [[nodiscard]] bool EmitSlotAccessor ();
 
             // --- Emission into a body -----------------------------------------
 

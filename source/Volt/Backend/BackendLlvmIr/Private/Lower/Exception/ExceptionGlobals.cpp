@@ -121,3 +121,56 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::BreakFlagSlot ( llvm::IRBui
     BrkFlag->setThreadLocal( true );
     return BrkFlag;
 }
+
+bool Volt::Backend::Llvm::ExceptionLowering::EmitSlotAccessor ()
+{
+    // Nothing to point at: under Accessor this module *calls* the accessor
+    // rather than owning the slots, so defining one here would be circular.
+    if ( Services->Options->Tls == Ir::ETlsAccess::Accessor )
+    {
+        return true;
+    }
+
+    llvm::LLVMContext &Context = Services->Ctx->Context();
+    llvm::Module &Mod          = Services->Ctx->Mod();
+    llvm::Type *Address        = llvm::PointerType::get( Context, 0 );
+
+    const std::string Name( Volt::Backend::UnwindTransport::SlotAccessorSymbol );
+    if ( Mod.getFunction( Name ) != nullptr )
+    {
+        return true;
+    }
+
+    const std::vector<llvm::Type *> Fields( Volt::Backend::UnwindTransport::SlotTableEntries, Address );
+    llvm::StructType *TableTy = llvm::StructType::get( Context, Fields, false );
+
+    // The table is itself thread-local: it holds this thread's slot addresses,
+    // and a TLS address is not a constant, so it cannot be a static
+    // initialiser. Filling it is the accessor's body.
+    auto *Table = new llvm::GlobalVariable( Mod, TableTy, false, llvm::GlobalValue::InternalLinkage,
+                                            llvm::Constant::getNullValue( TableTy ), "volt.exc.slots" );
+    Table->setThreadLocal( true );
+
+    llvm::Function *Fn = llvm::Function::Create( llvm::FunctionType::get( Address, false ),
+                                                 llvm::Function::ExternalLinkage, Name, &Mod );
+    llvm::IRBuilder<> Shell{ llvm::BasicBlock::Create( Context, "entry", Fn ) };
+
+    // Stored unconditionally on every call rather than behind a
+    // once-initialised guard: four stores of a constant address are cheaper
+    // than the branch and the flag would be, and there is nothing to get wrong.
+    const std::pair<std::size_t, llvm::Value *> Slots[] = {
+        { Volt::Backend::UnwindTransport::SlotTableValueIndex, ExceptionValueSlot( Shell ) },
+        { Volt::Backend::UnwindTransport::SlotTableTagIndex, ExceptionTagSlot( Shell ) },
+        { Volt::Backend::UnwindTransport::SlotTableBreakIndex, BreakFlagSlot( Shell ) },
+        { Volt::Backend::UnwindTransport::SlotTableStorageIndex, ExceptionStorageSlot( Shell ) },
+    };
+
+    for ( const auto &[Index, Slot] : Slots )
+    {
+        llvm::Value *Entry = Shell.CreateStructGEP( TableTy, Table, static_cast<unsigned>( Index ) );
+        static_cast<void>( Shell.CreateStore( Slot, Entry ) );
+    }
+
+    static_cast<void>( Shell.CreateRet( Table ) );
+    return true;
+}

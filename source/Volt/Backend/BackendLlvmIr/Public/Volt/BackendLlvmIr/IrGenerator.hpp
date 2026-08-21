@@ -117,6 +117,30 @@ namespace Backend
 
             bool bDebugInfo = true;
 
+            // Emit a definition of UnwindTransport::SlotAccessorSymbol over
+            // this module's own transport globals.
+            //
+            // Set by whoever builds an artifact that a JIT will later load and
+            // skip over: the artifact's native code reaches the slots by TLS
+            // relocation, JIT-ed code reaches them through this accessor, and
+            // the two are only the same storage because the accessor is
+            // defined *here*, beside the globals it hands back. Meaningless
+            // under ETlsAccess::Accessor, which defines no globals to point at.
+            bool bDefineSlotAccessor = false;
+
+            // Give mergeable definitions WeakODR rather than LinkOnceODR
+            // linkage, so the linker keeps and exports them.
+            //
+            // Set for the same reason as bDefineSlotAccessor, and by the same
+            // caller: an artifact a JIT will load has to export everything it
+            // defines. LinkOnceODR is *discardable* — an inline-eligible body
+            // that got inlined at every call site inside the artifact leaves no
+            // reference behind, so the linker drops the out-of-line copy, and a
+            // JIT that skipped that unit then finds no symbol at all. For a
+            // program being linked once that discarding is pure win, which is
+            // why it stays the default.
+            bool bRetainMergeableBodies = false;
+
             // A TargetMachine is only needed by a consumer that will run
             // addPassesToEmitFile. The JIT has none and wants none.
             bool bNeedTargetMachine = true;

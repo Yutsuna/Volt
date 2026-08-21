@@ -47,10 +47,25 @@ llvm::Function *Volt::Backend::Llvm::FunctionRegistry::FunctionFor ( const Middl
     const MiddleEnd::TypeSystem::TypeStore &Store = *Services->Build->Types;
     const bool bGeneric        = ( Owner.IsValid() and Store.Type( Owner ).Params.Size() > 0 ) or Entry.OwnGenerics > 0;
     const bool bInlineEligible = ( Entry.InlineVerdict != MiddleEnd::TypeSystem::EInlineVerdict::Never );
+
+    // A body this build will never emit, because the unit it belongs to is
+    // already compiled into an artifact we link or load. It has to be a plain
+    // external *declaration*: LinkOnceODR describes a definition that may be
+    // merged, and a LinkOnceODR global with no body is not valid IR at all —
+    // "Global is external, but doesn't have external or weak linkage".
+    //
+    // Only for the un-instantiated symbol, though. A monomorphised instance
+    // (FlatArgs non-empty) is minted per build from the generic's body, so it
+    // is not in the artifact and still needs its own mergeable definition here.
+    const bool bDeclaredElsewhere = FlatArgs.empty() and Entry.Unit < Services->Options->SkipUnitsBelow;
+
+    const llvm::GlobalValue::LinkageTypes Mergeable =
+        Services->Options->bRetainMergeableBodies ? llvm::Function::WeakODRLinkage : llvm::Function::LinkOnceODRLinkage;
+
     const llvm::GlobalValue::LinkageTypes Linkage =
-        ( ( FlatArgs.empty() and not bInlineEligible ) or ( bGeneric and FlatArgs.empty() ) )
+        ( bDeclaredElsewhere or ( FlatArgs.empty() and not bInlineEligible ) or ( bGeneric and FlatArgs.empty() ) )
             ? llvm::Function::ExternalLinkage
-            : llvm::Function::LinkOnceODRLinkage;
+            : Mergeable;
     llvm::Function *Fn = llvm::Function::Create( Signature, Linkage, Symbol, Services->Ctx->ModPtr() );
     switch ( Entry.InlineVerdict )
     {
