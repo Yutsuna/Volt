@@ -18,4 +18,5 @@ if get_option('enable_llvm')
 endif
 subdir('Driver')
 subdir('Backend/BackendWASM')
+subdir('REPL')
 subdir('Volt')

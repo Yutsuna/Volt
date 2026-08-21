@@ -65,6 +65,19 @@ namespace Frontend
         Symbol Name{};
         TypeId DeclType{};
         ExprId Init{};
+
+        // The storage this names already exists and already holds a value, so
+        // an initialiser here would overwrite it rather than establish it.
+        //
+        // Never set by the parser: a declaration written in source either has
+        // an initialiser or does not. Set only by a caller that synthesizes a
+        // declaration for storage some *other*, still-resident unit owns —
+        // which is a REPL, and only a REPL (BackendCore::UnitView::
+        // ExternalGlobals). Definite assignment reads it and nothing else does:
+        // without it, `x = 5` on one line and `x * 2` on the next warns that
+        // `x` is used before being initialized, which is true of this unit's
+        // AST and false of the program.
+        bool bAlreadyLive = false;
     };
 
     // `when Pattern1, Pattern2 then Body...`
