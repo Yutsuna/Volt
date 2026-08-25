@@ -590,8 +590,8 @@ bool Volt::MiddleEnd::Analysis::IsMachineSuppliedOn ( const TypeCheckerContext &
 }
 
 bool Volt::MiddleEnd::Analysis::IsMachineConversionOn ( const TypeCheckerContext &Context,
-                                                       Volt::MiddleEnd::TypeSystem::NominalId Base,
-                                                       const Volt::MiddleEnd::TypeSystem::Member &Entry )
+                                                        Volt::MiddleEnd::TypeSystem::NominalId Base,
+                                                        const Volt::MiddleEnd::TypeSystem::Member &Entry )
 {
     using namespace Volt::MiddleEnd::TypeSystem;
 
