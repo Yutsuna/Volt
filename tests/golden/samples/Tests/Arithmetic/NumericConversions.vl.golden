@@ -1,0 +1,440 @@
+Program 'samples/Tests/Arithmetic/NumericConversions.vl'
+├─ Method 'test_int_conversions' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:29
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'x' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '42' @2:7
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Call @3:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @3:3
+│     │        └─ args
+│     │           └─ Binary '==' @3:20
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i8' @3:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @3:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42_i8' @3:23
+│     ├─ ExprStmt @4:3
+│     │  └─ expr
+│     │     └─ Call @4:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @4:3
+│     │        └─ args
+│     │           └─ Binary '==' @4:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i16' @4:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @4:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42_i16' @4:24
+│     ├─ ExprStmt @5:3
+│     │  └─ expr
+│     │     └─ Call @5:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @5:3
+│     │        └─ args
+│     │           └─ Binary '==' @5:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i32' @5:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @5:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42' @5:24
+│     ├─ ExprStmt @6:3
+│     │  └─ expr
+│     │     └─ Call @6:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @6:3
+│     │        └─ args
+│     │           └─ Binary '==' @6:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i64' @6:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @6:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42_i64' @6:24
+│     ├─ ExprStmt @8:3
+│     │  └─ expr
+│     │     └─ Call @8:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @8:3
+│     │        └─ args
+│     │           └─ Binary '==' @8:20
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_u8' @8:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @8:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42_u8' @8:23
+│     ├─ ExprStmt @9:3
+│     │  └─ expr
+│     │     └─ Call @9:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @9:3
+│     │        └─ args
+│     │           └─ Binary '==' @9:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_u16' @9:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @9:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42_u16' @9:24
+│     ├─ ExprStmt @10:3
+│     │  └─ expr
+│     │     └─ Call @10:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @10:3
+│     │        └─ args
+│     │           └─ Binary '==' @10:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_u32' @10:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'x' @10:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '42_u32' @10:24
+│     └─ ExprStmt @11:3
+│        └─ expr
+│           └─ Call @11:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @11:3
+│              └─ args
+│                 └─ Binary '==' @11:21
+│                    ├─ lhs
+│                    │  └─ Member 'to_u64' @11:13
+│                    │     └─ object
+│                    │        └─ Identifier 'x' @11:12
+│                    └─ rhs
+│                       └─ IntLiteral '42_u64' @11:24
+├─ Method 'test_signed_unsigned_extension' @14:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @14:39
+│  └─ body
+│     ├─ ExprStmt @15:3
+│     │  └─ expr
+│     │     └─ Assign '=' @15:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'neg' @15:3
+│     │        └─ value
+│     │           └─ Unary '-' @15:9
+│     │              └─ operand
+│     │                 └─ IntLiteral '1_i8' @15:10
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Call @16:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @16:3
+│     │        └─ args
+│     │           └─ Binary '==' @16:23
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i32' @16:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'neg' @16:12
+│     │              └─ rhs
+│     │                 └─ Unary '-' @16:26
+│     │                    └─ operand
+│     │                       └─ IntLiteral '1' @16:27
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Call @17:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @17:3
+│     │        └─ args
+│     │           └─ Binary '==' @17:23
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i64' @17:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'neg' @17:12
+│     │              └─ rhs
+│     │                 └─ Unary '-' @17:26
+│     │                    └─ operand
+│     │                       └─ IntLiteral '1_i64' @17:27
+│     ├─ ExprStmt @19:3
+│     │  └─ expr
+│     │     └─ Assign '=' @19:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'u' @19:3
+│     │        └─ value
+│     │           └─ IntLiteral '255_u8' @19:7
+│     ├─ ExprStmt @20:3
+│     │  └─ expr
+│     │     └─ Call @20:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @20:3
+│     │        └─ args
+│     │           └─ Binary '==' @20:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i32' @20:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'u' @20:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '255' @20:24
+│     └─ ExprStmt @21:3
+│        └─ expr
+│           └─ Call @21:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @21:3
+│              └─ args
+│                 └─ Binary '==' @21:21
+│                    ├─ lhs
+│                    │  └─ Member 'to_u64' @21:13
+│                    │     └─ object
+│                    │        └─ Identifier 'u' @21:12
+│                    └─ rhs
+│                       └─ IntLiteral '255_u64' @21:24
+├─ Method 'test_truncation' @24:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @24:24
+│  └─ body
+│     ├─ ExprStmt @25:3
+│     │  └─ expr
+│     │     └─ Assign '=' @25:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'big' @25:3
+│     │        └─ value
+│     │           └─ IntLiteral '0x12345678_i64' @25:9
+│     ├─ ExprStmt @26:3
+│     │  └─ expr
+│     │     └─ Call @26:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @26:3
+│     │        └─ args
+│     │           └─ Binary '==' @26:23
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i32' @26:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'big' @26:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0x12345678' @26:26
+│     ├─ ExprStmt @27:3
+│     │  └─ expr
+│     │     └─ Call @27:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @27:3
+│     │        └─ args
+│     │           └─ Binary '==' @27:23
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i16' @27:15
+│     │              │     └─ object
+│     │              │        └─ Identifier 'big' @27:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0x5678_i16' @27:26
+│     └─ ExprStmt @28:3
+│        └─ expr
+│           └─ Call @28:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @28:3
+│              └─ args
+│                 └─ Binary '==' @28:22
+│                    ├─ lhs
+│                    │  └─ Member 'to_i8' @28:15
+│                    │     └─ object
+│                    │        └─ Identifier 'big' @28:12
+│                    └─ rhs
+│                       └─ IntLiteral '0x78_i8' @28:25
+├─ Method 'test_float_conversions' @31:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @31:31
+│  └─ body
+│     ├─ ExprStmt @32:3
+│     │  └─ expr
+│     │     └─ Assign '=' @32:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'f' @32:3
+│     │        └─ value
+│     │           └─ FloatLiteral '3.14' @32:7
+│     ├─ ExprStmt @33:3
+│     │  └─ expr
+│     │     └─ Call @33:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @33:3
+│     │        └─ args
+│     │           └─ Binary '==' @33:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i32' @33:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'f' @33:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '3' @33:24
+│     ├─ ExprStmt @34:3
+│     │  └─ expr
+│     │     └─ Call @34:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @34:3
+│     │        └─ args
+│     │           └─ Binary '==' @34:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i64' @34:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'f' @34:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '3_i64' @34:24
+│     ├─ ExprStmt @35:3
+│     │  └─ expr
+│     │     └─ Call @35:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @35:3
+│     │        └─ args
+│     │           └─ Binary '==' @35:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_u32' @35:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'f' @35:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '3_u32' @35:24
+│     ├─ ExprStmt @37:3
+│     │  └─ expr
+│     │     └─ Assign '=' @37:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'i' @37:3
+│     │        └─ value
+│     │           └─ IntLiteral '100' @37:7
+│     ├─ ExprStmt @38:3
+│     │  └─ expr
+│     │     └─ Call @38:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @38:3
+│     │        └─ args
+│     │           └─ Binary '==' @38:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_f64' @38:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'i' @38:12
+│     │              └─ rhs
+│     │                 └─ FloatLiteral '100.0' @38:24
+│     ├─ ExprStmt @40:3
+│     │  └─ expr
+│     │     └─ Assign '=' @40:11
+│     │        ├─ target
+│     │        │  └─ Identifier 'f32_val' @40:3
+│     │        └─ value
+│     │           └─ Member 'to_f32' @40:14
+│     │              └─ object
+│     │                 └─ Identifier 'f' @40:13
+│     └─ ExprStmt @41:3
+│        └─ expr
+│           └─ Call @41:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @41:3
+│              └─ args
+│                 └─ Binary 'and' @41:34
+│                    ├─ lhs
+│                    │  └─ Binary '>' @41:27
+│                    │     ├─ lhs
+│                    │     │  └─ Member 'to_f64' @41:19
+│                    │     │     └─ object
+│                    │     │        └─ Identifier 'f32_val' @41:12
+│                    │     └─ rhs
+│                    │        └─ FloatLiteral '3.13' @41:29
+│                    └─ rhs
+│                       └─ Binary '<' @41:53
+│                          ├─ lhs
+│                          │  └─ Member 'to_f64' @41:45
+│                          │     └─ object
+│                          │        └─ Identifier 'f32_val' @41:38
+│                          └─ rhs
+│                             └─ FloatLiteral '3.15' @41:55
+├─ Method 'test_char_conversions' @44:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @44:30
+│  └─ body
+│     ├─ ExprStmt @45:3
+│     │  └─ expr
+│     │     └─ Assign '=' @45:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @45:3
+│     │        └─ value
+│     │           └─ CharLiteral 'A' @45:7
+│     ├─ ExprStmt @46:3
+│     │  └─ expr
+│     │     └─ Call @46:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @46:3
+│     │        └─ args
+│     │           └─ Binary '==' @46:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_i32' @46:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c' @46:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '65' @46:24
+│     ├─ ExprStmt @47:3
+│     │  └─ expr
+│     │     └─ Call @47:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @47:3
+│     │        └─ args
+│     │           └─ Binary '==' @47:20
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_u8' @47:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c' @47:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '65_u8' @47:23
+│     ├─ ExprStmt @48:3
+│     │  └─ expr
+│     │     └─ Call @48:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @48:3
+│     │        └─ args
+│     │           └─ Binary '==' @48:21
+│     │              ├─ lhs
+│     │              │  └─ Member 'to_u64' @48:13
+│     │              │     └─ object
+│     │              │        └─ Identifier 'c' @48:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '65_u64' @48:24
+│     ├─ ExprStmt @50:3
+│     │  └─ expr
+│     │     └─ Assign '=' @50:7
+│     │        ├─ target
+│     │        │  └─ Identifier 'num' @50:3
+│     │        └─ value
+│     │           └─ IntLiteral '66' @50:9
+│     └─ ExprStmt @51:3
+│        └─ expr
+│           └─ Call @51:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @51:3
+│              └─ args
+│                 └─ Binary '==' @51:24
+│                    ├─ lhs
+│                    │  └─ Member 'to_char' @51:15
+│                    │     └─ object
+│                    │        └─ Identifier 'num' @51:12
+│                    └─ rhs
+│                       └─ CharLiteral 'B' @51:27
+├─ ExprStmt @54:1
+│  └─ expr
+│     └─ Call @54:21
+│        └─ callee
+│           └─ Identifier 'test_int_conversions' @54:1
+├─ ExprStmt @55:1
+│  └─ expr
+│     └─ Call @55:31
+│        └─ callee
+│           └─ Identifier 'test_signed_unsigned_extension' @55:1
+├─ ExprStmt @56:1
+│  └─ expr
+│     └─ Call @56:16
+│        └─ callee
+│           └─ Identifier 'test_truncation' @56:1
+├─ ExprStmt @57:1
+│  └─ expr
+│     └─ Call @57:23
+│        └─ callee
+│           └─ Identifier 'test_float_conversions' @57:1
+└─ ExprStmt @58:1
+   └─ expr
+      └─ Call @58:22
+         └─ callee
+            └─ Identifier 'test_char_conversions' @58:1
+--- exit 0 ---

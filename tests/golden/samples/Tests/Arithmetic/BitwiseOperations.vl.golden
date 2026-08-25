@@ -1,0 +1,555 @@
+Program 'samples/Tests/Arithmetic/BitwiseOperations.vl'
+├─ Method 'test_bitwise_and' @1:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @1:25
+│  └─ body
+│     ├─ ExprStmt @2:3
+│     │  └─ expr
+│     │     └─ Assign '=' @2:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @2:3
+│     │        └─ value
+│     │           └─ IntLiteral '0b1100' @2:7
+│     ├─ ExprStmt @3:3
+│     │  └─ expr
+│     │     └─ Assign '=' @3:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @3:3
+│     │        └─ value
+│     │           └─ IntLiteral '0b1010' @3:7
+│     ├─ ExprStmt @4:3
+│     │  └─ expr
+│     │     └─ Call @4:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @4:3
+│     │        └─ args
+│     │           └─ Binary '==' @4:22
+│     │              ├─ lhs
+│     │              │  └─ Binary '&' @4:16
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @4:14
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'b' @4:18
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0b1000' @4:25
+│     ├─ ExprStmt @6:3
+│     │  └─ expr
+│     │     └─ Assign '=' @6:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @6:3
+│     │        └─ value
+│     │           └─ IntLiteral '0xFF' @6:7
+│     ├─ ExprStmt @7:3
+│     │  └─ expr
+│     │     └─ Assign '&=' @7:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @7:3
+│     │        └─ value
+│     │           └─ IntLiteral '0x0F' @7:8
+│     └─ ExprStmt @8:3
+│        └─ expr
+│           └─ Call @8:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @8:3
+│              └─ args
+│                 └─ Binary '==' @8:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'c' @8:12
+│                    └─ rhs
+│                       └─ IntLiteral '0x0F' @8:17
+├─ Method 'test_bitwise_or' @11:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @11:24
+│  └─ body
+│     ├─ ExprStmt @12:3
+│     │  └─ expr
+│     │     └─ Assign '=' @12:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @12:3
+│     │        └─ value
+│     │           └─ IntLiteral '0b1100' @12:7
+│     ├─ ExprStmt @13:3
+│     │  └─ expr
+│     │     └─ Assign '=' @13:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @13:3
+│     │        └─ value
+│     │           └─ IntLiteral '0b1010' @13:7
+│     ├─ ExprStmt @14:3
+│     │  └─ expr
+│     │     └─ Call @14:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @14:3
+│     │        └─ args
+│     │           └─ Binary '==' @14:22
+│     │              ├─ lhs
+│     │              │  └─ Binary '|' @14:16
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @14:14
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'b' @14:18
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0b1110' @14:25
+│     ├─ ExprStmt @16:3
+│     │  └─ expr
+│     │     └─ Assign '=' @16:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @16:3
+│     │        └─ value
+│     │           └─ IntLiteral '0xF0' @16:7
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Assign '|=' @17:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @17:3
+│     │        └─ value
+│     │           └─ IntLiteral '0x0F' @17:8
+│     └─ ExprStmt @18:3
+│        └─ expr
+│           └─ Call @18:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @18:3
+│              └─ args
+│                 └─ Binary '==' @18:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'c' @18:12
+│                    └─ rhs
+│                       └─ IntLiteral '0xFF' @18:17
+├─ Method 'test_bitwise_xor' @21:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @21:25
+│  └─ body
+│     ├─ ExprStmt @22:3
+│     │  └─ expr
+│     │     └─ Assign '=' @22:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @22:3
+│     │        └─ value
+│     │           └─ IntLiteral '0b1100' @22:7
+│     ├─ ExprStmt @23:3
+│     │  └─ expr
+│     │     └─ Assign '=' @23:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @23:3
+│     │        └─ value
+│     │           └─ IntLiteral '0b1010' @23:7
+│     ├─ ExprStmt @24:3
+│     │  └─ expr
+│     │     └─ Call @24:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @24:3
+│     │        └─ args
+│     │           └─ Binary '==' @24:22
+│     │              ├─ lhs
+│     │              │  └─ Binary '^' @24:16
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @24:14
+│     │              │     └─ rhs
+│     │              │        └─ Identifier 'b' @24:18
+│     │              └─ rhs
+│     │                 └─ IntLiteral '0b0110' @24:25
+│     ├─ ExprStmt @26:3
+│     │  └─ expr
+│     │     └─ Assign '=' @26:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @26:3
+│     │        └─ value
+│     │           └─ IntLiteral '0xAA' @26:7
+│     ├─ ExprStmt @27:3
+│     │  └─ expr
+│     │     └─ Assign '^=' @27:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @27:3
+│     │        └─ value
+│     │           └─ IntLiteral '0xFF' @27:8
+│     └─ ExprStmt @28:3
+│        └─ expr
+│           └─ Call @28:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @28:3
+│              └─ args
+│                 └─ Binary '==' @28:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'c' @28:12
+│                    └─ rhs
+│                       └─ IntLiteral '0x55' @28:17
+├─ Method 'test_bitwise_shift_left' @31:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @31:32
+│  └─ body
+│     ├─ ExprStmt @32:3
+│     │  └─ expr
+│     │     └─ Assign '=' @32:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @32:3
+│     │        └─ value
+│     │           └─ IntLiteral '1' @32:7
+│     ├─ ExprStmt @33:3
+│     │  └─ expr
+│     │     └─ Call @33:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @33:3
+│     │        └─ args
+│     │           └─ Binary '==' @33:23
+│     │              ├─ lhs
+│     │              │  └─ Binary '<<' @33:16
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @33:14
+│     │              │     └─ rhs
+│     │              │        └─ IntLiteral '3' @33:19
+│     │              └─ rhs
+│     │                 └─ IntLiteral '8' @33:26
+│     ├─ ExprStmt @35:3
+│     │  └─ expr
+│     │     └─ Assign '=' @35:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @35:3
+│     │        └─ value
+│     │           └─ IntLiteral '2' @35:7
+│     ├─ ExprStmt @36:3
+│     │  └─ expr
+│     │     └─ Assign '<<=' @36:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @36:3
+│     │        └─ value
+│     │           └─ IntLiteral '4' @36:9
+│     └─ ExprStmt @37:3
+│        └─ expr
+│           └─ Call @37:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @37:3
+│              └─ args
+│                 └─ Binary '==' @37:14
+│                    ├─ lhs
+│                    │  └─ Identifier 'c' @37:12
+│                    └─ rhs
+│                       └─ IntLiteral '32' @37:17
+├─ Method 'test_bitwise_shift_right' @40:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @40:33
+│  └─ body
+│     ├─ ExprStmt @41:3
+│     │  └─ expr
+│     │     └─ Assign '=' @41:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @41:3
+│     │        └─ value
+│     │           └─ IntLiteral '32' @41:7
+│     ├─ ExprStmt @42:3
+│     │  └─ expr
+│     │     └─ Call @42:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @42:3
+│     │        └─ args
+│     │           └─ Binary '==' @42:23
+│     │              ├─ lhs
+│     │              │  └─ Binary '>>' @42:16
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'a' @42:14
+│     │              │     └─ rhs
+│     │              │        └─ IntLiteral '3' @42:19
+│     │              └─ rhs
+│     │                 └─ IntLiteral '4' @42:26
+│     ├─ ExprStmt @44:3
+│     │  └─ expr
+│     │     └─ Assign '=' @44:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @44:3
+│     │        └─ value
+│     │           └─ IntLiteral '64' @44:7
+│     ├─ ExprStmt @45:3
+│     │  └─ expr
+│     │     └─ Assign '>>=' @45:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'c' @45:3
+│     │        └─ value
+│     │           └─ IntLiteral '2' @45:9
+│     ├─ ExprStmt @46:3
+│     │  └─ expr
+│     │     └─ Call @46:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @46:3
+│     │        └─ args
+│     │           └─ Binary '==' @46:14
+│     │              ├─ lhs
+│     │              │  └─ Identifier 'c' @46:12
+│     │              └─ rhs
+│     │                 └─ IntLiteral '16' @46:17
+│     ├─ ExprStmt @49:3
+│     │  └─ expr
+│     │     └─ Assign '=' @49:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'u' @49:3
+│     │        └─ value
+│     │           └─ Member 'to_u32' @49:17
+│     │              └─ object
+│     │                 └─ IntLiteral '0x80000000' @49:7
+│     ├─ ExprStmt @50:3
+│     │  └─ expr
+│     │     └─ Call @50:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @50:3
+│     │        └─ args
+│     │           └─ Binary '==' @50:23
+│     │              ├─ lhs
+│     │              │  └─ Binary '>>' @50:16
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'u' @50:14
+│     │              │     └─ rhs
+│     │              │        └─ IntLiteral '1' @50:19
+│     │              └─ rhs
+│     │                 └─ Member 'to_u32' @50:36
+│     │                    └─ object
+│     │                       └─ IntLiteral '0x40000000' @50:26
+│     ├─ ExprStmt @53:3
+│     │  └─ expr
+│     │     └─ Assign '=' @53:5
+│     │        ├─ target
+│     │        │  └─ Identifier 's' @53:3
+│     │        └─ value
+│     │           └─ Unary '-' @53:7
+│     │              └─ operand
+│     │                 └─ IntLiteral '8' @53:8
+│     └─ ExprStmt @54:3
+│        └─ expr
+│           └─ Call @54:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @54:3
+│              └─ args
+│                 └─ Binary '==' @54:23
+│                    ├─ lhs
+│                    │  └─ Binary '>>' @54:16
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 's' @54:14
+│                    │     └─ rhs
+│                    │        └─ IntLiteral '1' @54:19
+│                    └─ rhs
+│                       └─ Unary '-' @54:26
+│                          └─ operand
+│                             └─ IntLiteral '4' @54:27
+├─ Method 'test_bitwise_not' @57:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @57:25
+│  └─ body
+│     ├─ ExprStmt @58:3
+│     │  └─ expr
+│     │     └─ Assign '=' @58:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'a' @58:3
+│     │        └─ value
+│     │           └─ Member 'to_u8' @58:8
+│     │              └─ object
+│     │                 └─ IntLiteral '0' @58:7
+│     ├─ ExprStmt @59:3
+│     │  └─ expr
+│     │     └─ Call @59:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @59:3
+│     │        └─ args
+│     │           └─ Binary '==' @59:19
+│     │              ├─ lhs
+│     │              │  └─ Unary '~' @59:14
+│     │              │     └─ operand
+│     │              │        └─ Identifier 'a' @59:15
+│     │              └─ rhs
+│     │                 └─ Member 'to_u8' @59:25
+│     │                    └─ object
+│     │                       └─ IntLiteral '255' @59:22
+│     ├─ ExprStmt @61:3
+│     │  └─ expr
+│     │     └─ Assign '=' @61:5
+│     │        ├─ target
+│     │        │  └─ Identifier 'b' @61:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @61:7
+│     └─ ExprStmt @62:3
+│        └─ expr
+│           └─ Call @62:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @62:3
+│              └─ args
+│                 └─ Binary '==' @62:19
+│                    ├─ lhs
+│                    │  └─ Unary '~' @62:14
+│                    │     └─ operand
+│                    │        └─ Identifier 'b' @62:15
+│                    └─ rhs
+│                       └─ Unary '-' @62:22
+│                          └─ operand
+│                             └─ IntLiteral '1' @62:23
+├─ Method 'test_different_widths' @65:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Void' @65:30
+│  └─ body
+│     ├─ ExprStmt @66:3
+│     │  └─ expr
+│     │     └─ Assign '=' @66:10
+│     │        ├─ target
+│     │        │  └─ Identifier 'u8_val' @66:3
+│     │        └─ value
+│     │           └─ Member 'to_u8' @66:22
+│     │              └─ object
+│     │                 └─ IntLiteral '0b00001111' @66:12
+│     ├─ ExprStmt @67:3
+│     │  └─ expr
+│     │     └─ Call @67:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @67:3
+│     │        └─ args
+│     │           └─ Binary '==' @67:42
+│     │              ├─ lhs
+│     │              │  └─ Binary '&' @67:21
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'u8_val' @67:14
+│     │              │     └─ rhs
+│     │              │        └─ Member 'to_u8' @67:33
+│     │              │           └─ object
+│     │              │              └─ IntLiteral '0b00000101' @67:23
+│     │              └─ rhs
+│     │                 └─ Member 'to_u8' @67:55
+│     │                    └─ object
+│     │                       └─ IntLiteral '0b00000101' @67:45
+│     ├─ ExprStmt @68:3
+│     │  └─ expr
+│     │     └─ Call @68:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @68:3
+│     │        └─ args
+│     │           └─ Binary '==' @68:42
+│     │              ├─ lhs
+│     │              │  └─ Binary '|' @68:21
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'u8_val' @68:14
+│     │              │     └─ rhs
+│     │              │        └─ Member 'to_u8' @68:33
+│     │              │           └─ object
+│     │              │              └─ IntLiteral '0b11110000' @68:23
+│     │              └─ rhs
+│     │                 └─ Member 'to_u8' @68:48
+│     │                    └─ object
+│     │                       └─ IntLiteral '255' @68:45
+│     ├─ ExprStmt @69:3
+│     │  └─ expr
+│     │     └─ Call @69:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @69:3
+│     │        └─ args
+│     │           └─ Binary '==' @69:42
+│     │              ├─ lhs
+│     │              │  └─ Binary '^' @69:21
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'u8_val' @69:14
+│     │              │     └─ rhs
+│     │              │        └─ Member 'to_u8' @69:33
+│     │              │           └─ object
+│     │              │              └─ IntLiteral '0b00001111' @69:23
+│     │              └─ rhs
+│     │                 └─ Member 'to_u8' @69:46
+│     │                    └─ object
+│     │                       └─ IntLiteral '0' @69:45
+│     ├─ ExprStmt @70:3
+│     │  └─ expr
+│     │     └─ Call @70:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @70:3
+│     │        └─ args
+│     │           └─ Binary '==' @70:34
+│     │              ├─ lhs
+│     │              │  └─ Binary '<<' @70:21
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'u8_val' @70:14
+│     │              │     └─ rhs
+│     │              │        └─ Member 'to_u8' @70:25
+│     │              │           └─ object
+│     │              │              └─ IntLiteral '2' @70:24
+│     │              └─ rhs
+│     │                 └─ Member 'to_u8' @70:47
+│     │                    └─ object
+│     │                       └─ IntLiteral '0b00111100' @70:37
+│     ├─ ExprStmt @72:3
+│     │  └─ expr
+│     │     └─ Assign '=' @72:11
+│     │        ├─ target
+│     │        │  └─ Identifier 'u64_val' @72:3
+│     │        └─ value
+│     │           └─ Member 'to_u64' @72:23
+│     │              └─ object
+│     │                 └─ IntLiteral '0x12345678' @72:13
+│     ├─ ExprStmt @73:3
+│     │  └─ expr
+│     │     └─ Call @73:10
+│     │        ├─ callee
+│     │        │  └─ Identifier 'assert!' @73:3
+│     │        └─ args
+│     │           └─ Binary '==' @73:37
+│     │              ├─ lhs
+│     │              │  └─ Binary '>>' @73:22
+│     │              │     ├─ lhs
+│     │              │     │  └─ Identifier 'u64_val' @73:14
+│     │              │     └─ rhs
+│     │              │        └─ Member 'to_u64' @73:27
+│     │              │           └─ object
+│     │              │              └─ IntLiteral '16' @73:25
+│     │              └─ rhs
+│     │                 └─ Member 'to_u64' @73:46
+│     │                    └─ object
+│     │                       └─ IntLiteral '0x1234' @73:40
+│     └─ ExprStmt @74:3
+│        └─ expr
+│           └─ Call @74:10
+│              ├─ callee
+│              │  └─ Identifier 'assert!' @74:3
+│              └─ args
+│                 └─ Binary '==' @74:36
+│                    ├─ lhs
+│                    │  └─ Binary '<<' @74:22
+│                    │     ├─ lhs
+│                    │     │  └─ Identifier 'u64_val' @74:14
+│                    │     └─ rhs
+│                    │        └─ Member 'to_u64' @74:26
+│                    │           └─ object
+│                    │              └─ IntLiteral '8' @74:25
+│                    └─ rhs
+│                       └─ Binary '*' @74:49
+│                          ├─ lhs
+│                          │  └─ Identifier 'u64_val' @74:41
+│                          └─ rhs
+│                             └─ Member 'to_u64' @74:54
+│                                └─ object
+│                                   └─ IntLiteral '256' @74:51
+├─ ExprStmt @77:1
+│  └─ expr
+│     └─ Call @77:17
+│        └─ callee
+│           └─ Identifier 'test_bitwise_and' @77:1
+├─ ExprStmt @78:1
+│  └─ expr
+│     └─ Call @78:16
+│        └─ callee
+│           └─ Identifier 'test_bitwise_or' @78:1
+├─ ExprStmt @79:1
+│  └─ expr
+│     └─ Call @79:17
+│        └─ callee
+│           └─ Identifier 'test_bitwise_xor' @79:1
+├─ ExprStmt @80:1
+│  └─ expr
+│     └─ Call @80:24
+│        └─ callee
+│           └─ Identifier 'test_bitwise_shift_left' @80:1
+├─ ExprStmt @81:1
+│  └─ expr
+│     └─ Call @81:25
+│        └─ callee
+│           └─ Identifier 'test_bitwise_shift_right' @81:1
+├─ ExprStmt @82:1
+│  └─ expr
+│     └─ Call @82:17
+│        └─ callee
+│           └─ Identifier 'test_bitwise_not' @82:1
+└─ ExprStmt @83:1
+   └─ expr
+      └─ Call @83:22
+         └─ callee
+            └─ Identifier 'test_different_widths' @83:1
+--- exit 0 ---
