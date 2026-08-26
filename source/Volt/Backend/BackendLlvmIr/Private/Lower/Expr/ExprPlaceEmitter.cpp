@@ -196,11 +196,33 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::LoadPlace ( Frontend::ExprId Id )
         return Address;
     }
 
-    llvm::Type *Loaded = Types().TypeOfLayout( Shape );
-    if ( Loaded == nullptr )
+    llvm::Type *Value = Types().TypeOfLayout( Shape );
+    if ( Value == nullptr )
     {
         static_cast<void>( Fail( "llvm: expression " + std::to_string( Id.Value ) + " has no resolved layout to load" ) );
         return nullptr;
     }
-    return Ctx().Builder().CreateLoad( Loaded, Address );
+
+    // Read at the width the address actually holds, which is EmitStore's own
+    // rule read backwards: a slot that records its type answers, and a GEP into
+    // an aggregate does not, so its field is byte-addressable
+    // (TypeMapper::StorageTypeOfLayout).
+    llvm::Type *Slot = SlotTypeOf( Address );
+    if ( Slot == nullptr or Slot->isAggregateType() )
+    {
+        Slot = Types().StorageTypeOfLayout( Shape );
+    }
+
+    llvm::Value *Loaded = Ctx().Builder().CreateLoad( Slot == nullptr ? Value : Slot, Address );
+
+    // Back down to the register type. Only the storage widening above can have
+    // opened a gap, and it only ever widens, so this narrows exactly what it
+    // widened and is a no-op for every layout whose width is already a whole
+    // number of bytes.
+    if ( Loaded->getType() != Value and Loaded->getType()->isIntegerTy() and Value->isIntegerTy() and
+         Value->getIntegerBitWidth() < Loaded->getType()->getIntegerBitWidth() )
+    {
+        return Ctx().Builder().CreateTrunc( Loaded, Value );
+    }
+    return Loaded;
 }

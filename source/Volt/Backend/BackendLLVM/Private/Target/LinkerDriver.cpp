@@ -2,8 +2,8 @@
 
 #include "Target/LinkerDriver.hpp"
 
-#include "Volt/BackendCore/CompilerSeams.hpp"
 #include "Volt/BackendCore/DiagnosticSink.hpp"
+#include "Volt/Core/Support/CompilerSeams.hpp"
 
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/ErrorOr.h>
@@ -83,7 +83,7 @@ namespace
 // that spells itself, e.g. "SDL2") passes through as `-lSDL2`.
 [[nodiscard]] std::string LibraryFlag ( const std::string &Library )
 {
-    if ( Library == Volt::Backend::CompilerSeams::Library )
+    if ( Library == Volt::Core::CompilerSeams::Library )
     {
         return std::string{};
     }
@@ -143,6 +143,17 @@ bool Volt::Backend::Llvm::LinkerDriver::LinkExecutable ( std::string_view Object
     {
         Args.push_back( Extra );
     }
+
+    // The other half of ObjectEmitter's per-function sections, and useless
+    // without them. The stdlib archive is one object, so the moment anything in
+    // it is referenced the linker brings in all of it; this is what then drops
+    // the parts the program cannot reach. Safe against the section-level
+    // granularity it is given — `main`, the init/fini arrays and every dynamic
+    // symbol are roots — and an executable is the only artifact it is applied
+    // to, never the shared stdlib, whose exports are the point of it existing.
+    //
+    // ELF spelling, matching the `-z lazy` already assumed below.
+    Args.emplace_back( "-Wl,--gc-sections" );
 
     AppendPreferredLinker( Args );
 

@@ -26,7 +26,7 @@ module IO
 
     def puts( str : String ) -> self
       write_string( str )
-      write_byte( 10_u8 ) # '\n'
+      write_string( "\n" )
       self
     end
 

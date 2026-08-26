@@ -43,6 +43,13 @@ struct BACKENDCORE_EXPORT UnwindTransport
     static constexpr std::string_view ExceptionTagSlot   = "volt.exc.tag";
     static constexpr std::string_view BreakFlagSlot      = "volt.brk.flag";
 
+    // The in-flight object's storage — the fourth slot, named here for the same
+    // reason as the other three (SlotTableStorageIndex below says why it is one
+    // of them at all). It is *sized* where they are not, but the size is a
+    // property of the program, not of the name, so the spelling belongs here
+    // and the width stays with whoever measures it.
+    static constexpr std::string_view ExceptionStorageSlot = "volt.exc.storage";
+
     // The sentinel value in ExceptionTagSlot that means "nothing in flight".
     // Reuses NominalId::InvalidValue (0xFFFFFFFF) — the same sentinel
     // TypedId already uses for "no id".

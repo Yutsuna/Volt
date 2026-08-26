@@ -215,6 +215,59 @@ namespace MiddleEnd
             // unprovable case (a recursive cycle, an unresolvable callee) leaves
             // the result `Borrowed` — a measured leak, never a double free.
             bool bReturnsOwned = false;
+            // Can a call to this member *return with the unwind transport still
+            // armed* — the exception tag set, or the break flag set?
+            //
+            // Tier 1 propagates by returning (BackendCore/UnwindTransport.hpp),
+            // so every backend follows every Volt call with a check of that
+            // state. The check is two thread-local loads, a compare, an `or`, a
+            // branch, and a split of the basic block it sits in — paid at every
+            // call site of every body, whether or not anything in the program
+            // can actually raise. This bit is what lets a backend not emit one.
+            //
+            // Derived, never annotated, by `Unwind::InferUnwindFreedom` — a
+            // monotone fixpoint over the *resolved* call graph, which is why it
+            // runs at its own seam after `TypeChecker` rather than beside the
+            // RAII fixpoints: those read a name index because no `CalleeMap`
+            // exists yet at theirs.
+            //
+            // `true` is the safe default and the value an unanalysable member
+            // keeps — external, abstract, a cache-hit slot whose body was never
+            // parsed. A wrong `true` costs a check nobody needed; a wrong
+            // `false` drops a raise on the floor and resumes past it, which no
+            // test would necessarily catch. The fixpoint starts a body it can
+            // see at `false` and only ever raises it, which is what makes a
+            // recursive body that raises nothing come out `false`.
+            //
+            // Derived afresh in *every* build from the two summary fields
+            // below, never trusted from the cache: it is the one answer that
+            // depends on which types the build being compiled actually holds.
+            bool bCanUnwind = true;
+            // The two halves of `bCanUnwind`'s summary, and the only part of it
+            // that survives the stdlib cache.
+            //
+            // The verdict alone cannot be cached, and the reason is the whole
+            // shape of this pair. A stdlib member reaching an `abstract def` —
+            // `IO::Writer#write_string` calling the `write` its mixin only
+            // declares — has an answer that depends on the *implementations*,
+            // and a later build can add one the build that wrote the cache
+            // never saw. A `Writer` whose `write` raises, called through a
+            // cached "cannot unwind", is a raise resumed past in silence.
+            //
+            // So what is cached is the part that cannot change: whether the
+            // member arms the transport *without* going through any contract
+            // (`bUnwindLocal`), and which contracts it reaches
+            // (`UnwindAbstractCalls`). Both are closed transitively over
+            // concrete callees before being written, so a consumer needs
+            // neither the declaring unit's AST nor its call graph — it re-runs
+            // only the last step, unioning each named contract over the
+            // implementations *its own* store holds.
+            //
+            // `bUnwindLocal` keeps the same safe default and the same
+            // arbitration as `bCanUnwind`: `true` unless a body proved
+            // otherwise.
+            bool bUnwindLocal = true;
+            ::Volt::Core::SmallVec<Symbol, 2> UnwindAbstractCalls;
         };
 
         // One type as the compiler knows it: a name, where it was declared, and

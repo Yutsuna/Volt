@@ -76,7 +76,8 @@ llvm::Value *Volt::Backend::Llvm::ExceptionLowering::ExceptionStorageSlot ( llvm
     llvm::LLVMContext &Context = Services->Ctx->Context();
     llvm::ArrayType *Bytes     = llvm::ArrayType::get( llvm::Type::getInt8Ty( Context ), ExcStorageSize );
     ExcStorage = new llvm::GlobalVariable( Services->Ctx->Mod(), Bytes, false, llvm::GlobalValue::LinkOnceODRLinkage,
-                                           llvm::Constant::getNullValue( Bytes ), "volt.exc.storage" );
+                                           llvm::Constant::getNullValue( Bytes ),
+                                           std::string( Volt::Backend::UnwindTransport::ExceptionStorageSlot ) );
     ExcStorage->setThreadLocal( true );
     ExcStorage->setAlignment( llvm::Align( ExcStorageAlign ) );
     return ExcStorage;

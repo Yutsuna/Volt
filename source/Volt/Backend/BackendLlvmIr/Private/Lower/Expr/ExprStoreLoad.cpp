@@ -25,15 +25,9 @@
 
 #include <string>
 
-namespace
-{
-
-// The width a store destination actually has, when the address itself records
-// it. Opaque pointers carry no pointee, but the two shapes a slot ever takes
-// do: an `alloca` in the entry block, or a module global for a unit-scope
-// binding. Anything else — a GEP into an aggregate — answers nothing, and the
-// caller falls back on the layout it was handed.
-[[nodiscard]] llvm::Type *SlotTypeOf ( const llvm::Value *Address )
+// Declared in BodyEmitter.hpp — LoadPlace is the other end of this, and the two
+// have to read one address the same width.
+llvm::Type *Volt::Backend::Llvm::SlotTypeOf ( const llvm::Value *Address )
 {
     if ( const auto *Slot = llvm::dyn_cast<llvm::AllocaInst>( Address ) )
     {
@@ -45,8 +39,6 @@ namespace
     }
     return nullptr;
 }
-
-} // namespace
 
 void Volt::Backend::Llvm::BodyEmitter::EmitStore ( llvm::Value *Address,
                                                    llvm::Value *Value,
@@ -79,7 +71,12 @@ void Volt::Backend::Llvm::BodyEmitter::EmitStore ( llvm::Value *Address,
         llvm::Type *Slot = SlotTypeOf( Address );
         if ( Slot == nullptr or Slot->isAggregateType() )
         {
-            Slot = Types().TypeOfLayout( Shape );
+            // The storage type, not the register one: an address carrying no
+            // type of its own is a GEP into an aggregate, and an aggregate's
+            // fields are byte-addressable copies of their layout
+            // (TypeMapper::StorageTypeOfLayout). CoerceWidth below is what
+            // widens the value to meet it.
+            Slot = Types().StorageTypeOfLayout( Shape );
         }
         Value = CoerceWidth( Value, Slot );
         if ( Slot != nullptr and Value->getType() != Slot )

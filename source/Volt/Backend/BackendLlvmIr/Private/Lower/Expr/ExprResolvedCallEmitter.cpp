@@ -20,6 +20,7 @@
 #include "Types/TypeMapper.hpp"
 #include "Volt/BackendCore/DiagnosticSink.hpp"
 #include "Volt/BackendCore/InstructionSchema.hpp"
+#include "Volt/Core/Support/CompilerSeams.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
@@ -407,9 +408,22 @@ llvm::Value *Volt::Backend::Llvm::BodyEmitter::EmitResolvedCall ( Frontend::Expr
     // *other* Volt call's, never its own, so the post-call check only runs for
     // Volt code (or external symbols marked with library "volt", such as
     // _V_init_all).
-    const bool bVoltUnwindable =
-        not bExternal or ( Entry.Decl->ExternLib.IsValid() and Svc.Build != nullptr and Svc.Build->Types != nullptr and
-                           Svc.Build->Types->Text( Entry.Decl->ExternLib ) == "volt" );
+    const bool bForeign =
+        bExternal and not( Entry.Decl->ExternLib.IsValid() and Svc.Build != nullptr and Svc.Build->Types != nullptr and
+                           Svc.Build->Types->Text( Entry.Decl->ExternLib ) == Core::CompilerSeams::Library );
+
+    // The same question asked of Volt code, and the reason most calls in most
+    // programs now carry no check at all: `Unwind::InferUnwindFreedom` has
+    // already proved, over the resolved call graph, that nothing this callee
+    // can reach arms the transport (UnwindInference.hpp). A `false` here is a
+    // proof, not a guess — every unanalysable case keeps the bit's safe `true`.
+    //
+    // The block-bound arm goes with it. That arm exists to *consume* a `break`
+    // the trailing `do … end` took, and a `break` reaches the callee's frame
+    // only by the callee calling the block — an indirect call, which is one of
+    // the things that pins `bCanUnwind` to `true`. A callee proved unwind-free
+    // therefore never invoked the block at all, and there is nothing to consume.
+    const bool bVoltUnwindable = not bForeign and Entry.Decl->bCanUnwind;
     if ( bVoltUnwindable )
     {
         if ( bBlockBound )

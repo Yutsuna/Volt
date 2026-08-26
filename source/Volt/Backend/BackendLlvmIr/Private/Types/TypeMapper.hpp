@@ -42,6 +42,24 @@ namespace Backend
             // unresolved.
             [[nodiscard]] llvm::Type *TypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id );
 
+            // The same layout as one byte-addressable copy of itself. A machine
+            // addresses whole bytes, so a primitive declared narrower than a
+            // byte still occupies one wherever it is stored, and the register
+            // type is not the type that byte has.
+            //
+            // The distinction only bites where the same bytes are reachable two
+            // ways. An aggregate is assigned by `memcpy`, SROA splits that copy
+            // at byte granularity, and a field it also sees written at the
+            // declared width is a field it cannot reconcile: the slot survives
+            // as an `alloca`, unpromoted, and so does every branch reading it.
+            // So aggregate fields are storage-typed, and the two ends of a field
+            // access — EmitStore and LoadPlace — widen and narrow around them.
+            //
+            // Read off the declared width and nothing else, like everything else
+            // here: a width already a whole number of bytes is its own storage
+            // type (rules/zero-hardcode.md).
+            [[nodiscard]] llvm::Type *StorageTypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id );
+
             // How a value of this layout crosses a call boundary. Scalars
             // travel in a register; an aggregate travels by pointer, which is
             // what abi.md fixes for all three targets. Null when unresolved.

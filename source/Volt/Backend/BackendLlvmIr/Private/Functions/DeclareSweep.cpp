@@ -11,6 +11,7 @@
 
 #include "Core/ModuleContext.hpp"
 
+#include "Volt/BackendCore/InitAllSynthesizer.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 
 #include <llvm/IR/DerivedTypes.h>
@@ -91,6 +92,13 @@ void Volt::Backend::Llvm::DeclareAll ( EmitterServices &Services )
     llvm::FunctionType *InitFnTy = llvm::FunctionType::get( Services.Ctx->Builder().getVoidTy(), false );
     for ( const UnitView &Unit : Services.Build->Units )
     {
+        // Same rule EmitInitAll names them by: a unit with an empty top level
+        // has no initializer to call, so declaring one would be a reference to
+        // a symbol nothing defines.
+        if ( not Backend::UnitHasInit( Unit ) )
+        {
+            continue;
+        }
         const std::string InitName = "_V_init_" + std::to_string( Unit.Ordinal );
         if ( Services.Ctx->Mod().getFunction( InitName ) == nullptr )
         {

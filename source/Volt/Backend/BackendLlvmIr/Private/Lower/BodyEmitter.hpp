@@ -47,6 +47,18 @@ namespace Backend
         struct EmitterServices;
         struct FunctionFrame;
 
+        // The width a slot actually has, when the address itself records it.
+        // Opaque pointers carry no pointee, but the two shapes a slot ever takes
+        // do: an `alloca` in the entry block, or a module global for a
+        // unit-scope binding. Anything else — a GEP into an aggregate — answers
+        // null, and the caller falls back on the layout it was handed.
+        //
+        // Both ends of a place access ask, and they have to get the same answer:
+        // EmitStore widens a value to the slot, LoadPlace narrows what it read
+        // back to the register type, and a disagreement between them is a store
+        // and a load of different widths against one address.
+        [[nodiscard]] llvm::Type *SlotTypeOf ( const llvm::Value *Address );
+
         class BodyEmitter final
         {
 

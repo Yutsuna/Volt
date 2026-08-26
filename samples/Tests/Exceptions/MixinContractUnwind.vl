@@ -1,0 +1,28 @@
+class RaisingStream
+  include IO::Writer
+
+  def write( _buffer : Pointer<Void>, _count : UInt64 ) -> Int64
+    raise ArgumentError.new( "refused" )
+  end
+end
+
+
+def attempt( stream : RaisingStream ) -> Int32
+  stream.puts( "must never be written" )
+  return 100
+end
+
+
+def main -> Int32
+  outcome = 0
+
+  begin
+    outcome = outcome + attempt( RaisingStream.new() )
+  rescue e : ArgumentError
+    outcome = outcome + 1
+  end
+
+  outcome
+end
+
+LibC.exit( main )
