@@ -171,7 +171,8 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
     EmitOpts.EntrySymbol = Options.EntrySymbol;
 
     std::string EmitLower = Options.Emit;
-    std::ranges::transform( EmitLower, EmitLower.begin(), [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+    std::ranges::transform( EmitLower, EmitLower.begin(),
+                            [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
 
     if ( EmitLower == "ir" )
     {
@@ -187,22 +188,34 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
             .bOk = false, .Artifact = {}, .Message = "Unsupported --emit '" + Options.Emit + "': expected 'ir' or 'obj'" };
     }
 
-    // The native stdlib artifact cache only applies to a full link:
-    // `--emit ir`/`--emit obj` stop before ExtraLinkInputs would ever reach
-    // the linker, and a stdlib body skipped here would simply never be
-    // defined anywhere in that intermediate artifact.
-    if ( EmitOpts.Stage == Backend::Llvm::EEmitStage::Link )
+    // Two questions, and the stage answers only the second one.
+    //
+    // Whether the stdlib's bodies already exist in an artifact decides what this
+    // *module* holds, so it is settled the same way whatever `--emit` asks for:
+    // an intermediate that answered it differently from a full link would not be
+    // that link's intermediate at all, and reading it — which is the only reason
+    // `--emit ir` exists — would describe a build nobody ran.
+    //
+    // Whether to hand that artifact to a linker is the stage's own question, and
+    // only Link answers yes. So an `--emit obj` object references the stdlib the
+    // way any object references a library it was compiled against, rather than
+    // carrying a second copy of it.
+    //
+    // A caller who wants a self-contained intermediate asks for one the way that
+    // already works: `--no-stdlib-cache` resolves no artifact, and every body is
+    // emitted here.
+    if ( Options.StdlibArtifactKind != "static" and Options.StdlibArtifactKind != "shared" )
     {
-        if ( Options.StdlibArtifactKind != "static" and Options.StdlibArtifactKind != "shared" )
+        return BuildResult{ .bOk      = false,
+                            .Artifact = {},
+                            .Message  = "Unsupported --stdlib-artifact '" + Options.StdlibArtifactKind +
+                                       "': expected 'static' or 'shared'" };
+    }
+    if ( const std::optional<std::string> Artifact = EnsureStdlibArtifactImpl( *this, Options ) )
+    {
+        EmitOpts.bStdlibPrecompiled = true;
+        if ( EmitOpts.Stage == Backend::Llvm::EEmitStage::Link )
         {
-            return BuildResult{ .bOk      = false,
-                                .Artifact = {},
-                                .Message  = "Unsupported --stdlib-artifact '" + Options.StdlibArtifactKind +
-                                           "': expected 'static' or 'shared'" };
-        }
-        if ( const std::optional<std::string> Artifact = EnsureStdlibArtifactImpl( *this, Options ) )
-        {
-            EmitOpts.bStdlibPrecompiled = true;
             EmitOpts.ExtraLinkInputs.push_back( *Artifact );
         }
     }
