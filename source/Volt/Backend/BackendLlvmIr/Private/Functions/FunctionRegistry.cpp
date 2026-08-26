@@ -4,8 +4,8 @@
 #include "Core/ModuleLocal.hpp"
 #include "Functions/SignatureBuilder.hpp"
 
-#include "Volt/BackendCore/CompilerSeams.hpp"
 #include "Volt/BackendCore/Mangler.hpp"
+#include "Volt/Core/Support/CompilerSeams.hpp"
 
 #include <iostream>
 #include <llvm/IR/DerivedTypes.h>
@@ -67,7 +67,7 @@ std::vector<std::uint8_t> Volt::Backend::Llvm::ResolvePrecompiledUnits ( const E
         {
             return;
         }
-        if ( Store.Text( Entry.ExternLib ) == Backend::CompilerSeams::Library )
+        if ( Store.Text( Entry.ExternLib ) == Core::CompilerSeams::Library )
         {
             Skip[Entry.Unit] = 0;
         }
