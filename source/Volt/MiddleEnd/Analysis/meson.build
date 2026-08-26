@@ -23,6 +23,7 @@ volt_middleend_analysis_lib = static_library(
         'Private/UnusedChecker.cpp',
         'Private/AstInvariant.cpp',
         'Private/InstantiationCache.cpp',
+        'Private/Unwind/UnwindInference.cpp',
         'Private/Raii/Ownership.cpp',
         'Private/Raii/OwnershipInference.cpp',
         'Private/Lifetime/CleanupRegion.cpp',
