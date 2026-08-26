@@ -115,6 +115,21 @@ private:
         return It.IsValid() ? It : From;
     }
 
+    void WalkType ( Frontend::TypeId Id, ScopeId Current )
+    {
+        if ( not Id.IsValid() )
+        {
+            return;
+        }
+
+        std::visit(
+            Meta::Overloaded{
+                [&] ( const Frontend::TypeOfType &Node ) { WalkExpr( Node.Value, Current ); },
+                [&] ( const auto &Node ) { WalkFields( Node, Current ); },
+            },
+            Context.Ast.Type( Id ) );
+    }
+
     // Params of a Method/Block declare into that scope; a default
     // value is evaluated where the scope opens, so it resolves there.
     void WalkParams ( const Frontend::ParamList &Params, ScopeId InScope )
@@ -123,6 +138,7 @@ private:
         {
             const Frontend::Param &Entry = Context.Ast.GetParam( Id );
             DeclareOrReport( InScope, Entry.Name, BindingSite{ Id }, Entry.Loc );
+            WalkType( Entry.DeclType, InScope );
             WalkExpr( Entry.Default, InScope );
         }
     }
@@ -271,6 +287,7 @@ private:
                 // so `x = x + 1`-style inits see the outer binding.
                 [&] ( const Frontend::LocalDecl &Node )
                 {
+                    WalkType( Node.DeclType, Current );
                     WalkExpr( Node.Init, Current );
                     DeclareOrReport( Current, Node.Name, BindingSite{ Id }, Node.Loc );
                 },
@@ -437,7 +454,11 @@ private:
                     {
                         const auto *Target   = std::get_if<Frontend::Identifier>( &Context.Ast.Expr( Node.Target ) );
                         const Binding *Found = Target != nullptr ? Context.Scopes.Resolve( Current, Target->Name ) : nullptr;
-                        if ( Target != nullptr and ( Found == nullptr or not IsValueBinding( Found->Site ) ) )
+                        const bool bIsStorage =
+                            Found != nullptr and
+                            ( IsValueBinding( Found->Site ) or ( std::holds_alternative<Frontend::DeclId>( Found->Site ) and
+                                                                 Context.Scopes.Get( Found->Owner ).Kind == EScopeKind::Unit ) );
+                        if ( Target != nullptr and not bIsStorage )
                         {
                             // `x = v if c` parses as `If{ Then: [Assign] }`
                             // (ApplyModifiers) — Current is the Then's own
@@ -505,11 +526,26 @@ private:
                                             WalkStmt( Child, Current );
                                         }
                                     }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::DeclId> )
+                                    {
+                                        WalkDecl( Field, Current );
+                                    }
                                     else if constexpr ( std::is_same_v<FieldType, Frontend::DeclList> )
                                     {
                                         for ( const Frontend::DeclId Child : Field )
                                         {
                                             WalkDecl( Child, Current );
+                                        }
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::TypeId> )
+                                    {
+                                        WalkType( Field, Current );
+                                    }
+                                    else if constexpr ( std::is_same_v<FieldType, Frontend::TypeList> )
+                                    {
+                                        for ( const Frontend::TypeId Child : Field )
+                                        {
+                                            WalkType( Child, Current );
                                         }
                                     }
                                     else if constexpr ( std::is_same_v<FieldType, Frontend::ParamList> )
@@ -519,7 +555,9 @@ private:
                                         // only the defaults resolve.
                                         for ( const Frontend::ParamId Child : Field )
                                         {
-                                            WalkExpr( Context.Ast.GetParam( Child ).Default, Current );
+                                            const auto &Param = Context.Ast.GetParam( Child );
+                                            WalkType( Param.DeclType, Current );
+                                            WalkExpr( Param.Default, Current );
                                         }
                                     }
                                 } );
