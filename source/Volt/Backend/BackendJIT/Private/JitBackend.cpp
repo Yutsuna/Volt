@@ -23,6 +23,7 @@
 
 #include "JitCompiler.hpp"
 
+#include "Volt/BackendCore/InitAllSynthesizer.hpp"
 #include "Volt/BackendCore/UnwindTransport.hpp"
 #include "Volt/BackendLlvmIr/IrGenerator.hpp"
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
@@ -628,24 +629,32 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const Backen
     }
 
     // --- Run its top-level statements ----------------------------------------
-    const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
-
-    std::uintptr_t Address = 0;
-    if ( not Impl->Compiler.LookupIn( Gen, InitSymbol, Address, Error ) )
-    {
-        return Failed( std::move( Error ) );
-    }
-
+    //
+    // When it has any: a line that declared a method and nothing else leaves an
+    // empty top level, and nothing emits an initializer for one
+    // (Backend::UnitHasInit). Looking the symbol up anyway would fail on an
+    // absence that means "nothing to run", which is not an error.
     std::uint32_t *Tag = Impl->ExceptionTag();
-    if ( Tag != nullptr )
+    if ( UnitHasInit( Unit ) )
     {
-        // Whatever a previous line left behind is not this line's business, and
-        // a stale tag would make this one look like it raised.
-        *Tag = UnwindTransport::NoExceptionTag;
-    }
+        const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
 
-    using InitFn = void ( * )();
-    reinterpret_cast<InitFn>( Address )(); // NOLINT(performance-no-int-to-ptr)
+        std::uintptr_t Address = 0;
+        if ( not Impl->Compiler.LookupIn( Gen, InitSymbol, Address, Error ) )
+        {
+            return Failed( std::move( Error ) );
+        }
+
+        if ( Tag != nullptr )
+        {
+            // Whatever a previous line left behind is not this line's business,
+            // and a stale tag would make this one look like it raised.
+            *Tag = UnwindTransport::NoExceptionTag;
+        }
+
+        using InitFn = void ( * )();
+        reinterpret_cast<InitFn>( Address )(); // NOLINT(performance-no-int-to-ptr)
+    }
 
     Impl->UnitSymbols[Unit.Ordinal] = Symbols;
     Impl->UnitShapes[Unit.Ordinal]  = Line.LastUnitShapes();
