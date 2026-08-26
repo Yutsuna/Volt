@@ -129,6 +129,11 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
             std::cout.flush();
             std::cout << " : " << Outcome.ResultType << '\n';
         }
+        else if ( not Outcome.ResultType.empty() )
+        {
+            std::cout.flush();
+            std::cout << "=> #<" << Outcome.ResultType << "> : " << Outcome.ResultType << '\n';
+        }
         std::cout.flush();
 
         if ( Outcome.Status != Repl::EEvalStatus::Ok )
