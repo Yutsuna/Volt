@@ -12,6 +12,7 @@
 #include "Lower/BodyEmitter.hpp"
 #include "Lower/FunctionFrame.hpp"
 
+#include "Volt/BackendCore/InitAllSynthesizer.hpp"
 #include "Volt/Frontend/AST/AstContext.hpp"
 
 #include <llvm/IR/BasicBlock.h>
@@ -74,7 +75,7 @@ void Volt::Backend::Llvm::EmitUnitFini ( EmitterServices &Services, const UnitVi
     // Emitted only when there is something to release. A unit with no module
     // variable of its own has no `_V_fini_<N>`, and SynthesizeFiniAll leaves it
     // out of the teardown sequence for the same reason.
-    if ( Unit.Ast == nullptr or Unit.Ast->TopTeardown.empty() )
+    if ( not Backend::UnitHasFini( Unit ) )
     {
         return;
     }
@@ -83,7 +84,11 @@ void Volt::Backend::Llvm::EmitUnitFini ( EmitterServices &Services, const UnitVi
 
 void Volt::Backend::Llvm::EmitUnitInit ( EmitterServices &Services, const UnitView &Unit )
 {
-    if ( Unit.Ast == nullptr )
+    // Emitted only when there is something to run, the mirror of EmitUnitFini
+    // above: this body is the unit's top-level statements and nothing else, so
+    // an empty top level is an empty function, and SynthesizeInitAll leaves it
+    // out of the init sequence for the same reason.
+    if ( not Backend::UnitHasInit( Unit ) )
     {
         return;
     }
