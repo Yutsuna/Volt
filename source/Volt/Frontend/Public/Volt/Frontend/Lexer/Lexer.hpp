@@ -87,6 +87,10 @@ namespace Frontend
         Core::StringInterner &Interner;
         Core::DiagEngine::Bag &Diagnostics;
         std::size_t Pos = 0;
+
+        // Set by SkipCommentOrDoc when a `#{` ran off the end of the input,
+        // cleared by the Error token Next hands back in its place.
+        bool bUnterminatedDoc = false;
     };
 
 } // namespace Frontend
