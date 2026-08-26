@@ -118,6 +118,15 @@ bool Volt::Frontend::Lexer::SkipCommentOrDoc ()
         if ( AtEnd() )
         {
             Diagnostics.Error( RangeFrom( Start ), "unterminated doc comment (expected '#}')" );
+
+            // Remembered rather than reported here, because this is the
+            // whitespace skipper and it has no token to hand back. `Next`
+            // turns it into an Error token in place of the Eof it would
+            // otherwise return, which is what every other unterminated
+            // construct in this file already does — a reader that only has the
+            // token stream (`Repl::Classify`, deciding whether a line is
+            // finished) can then see it without reading diagnostics.
+            bUnterminatedDoc = true;
         }
         else
         {
@@ -561,6 +570,11 @@ Volt::Frontend::Token Volt::Frontend::Lexer::Next ()
 
         if ( AtEnd() )
         {
+            if ( bUnterminatedDoc )
+            {
+                bUnterminatedDoc = false;
+                return Make( TokenKind::Error, Pos );
+            }
             return Make( TokenKind::Eof, Pos );
         }
 

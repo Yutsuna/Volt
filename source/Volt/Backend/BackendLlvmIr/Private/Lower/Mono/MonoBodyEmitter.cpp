@@ -111,6 +111,8 @@ void Volt::Backend::Llvm::MonoDriver::EmitMonomorphizedBody ( const MonoRequest 
         return;
     }
 
+    DeclareSynthesized( *Services, *DeclUnit );
+
     // Any Lambda/Block literal this instantiation's own re-walk reached is in
     // Overlay.Synth, already concretely typed in Overlay.Values (Reinstantiate.cpp:
     // the declaring unit's own generic-shaped pass never lowers one — nothing

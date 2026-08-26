@@ -74,7 +74,7 @@ namespace
     std::unordered_set<std::string> Out;
     for ( const Volt::Frontend::Token &Tok : Scanner.Tokenize() )
     {
-        if ( Tok.Kind == Volt::Frontend::TokenKind::Identifier )
+        if ( Tok.Kind == Volt::Frontend::TokenKind::Identifier or Tok.Kind == Volt::Frontend::TokenKind::Constant )
         {
             Out.emplace( Interner.Resolve( Tok.Lexeme ) );
         }
@@ -234,6 +234,17 @@ struct Volt::Repl::Evaluator::State
         // An assignment is already a binding and already has a name; rewriting
         // it would bind its value twice.
         if ( std::holds_alternative<Frontend::Assign>( Ast.Expr( Value ) ) )
+        {
+            return {};
+        }
+
+        // `counter += 10 if false` is a guard, not a value. An `If` with no
+        // `else` yields nothing down the path nobody took, and the checker
+        // still types it from the branch that exists — so binding it compiles
+        // and echoes whatever that storage happened to hold. Refused by shape,
+        // because the type is no help here and the run is too late.
+        if ( const auto *Branch = std::get_if<Frontend::If>( &Ast.Expr( Value ) );
+             Branch != nullptr and Branch->Else.Size() == 0 )
         {
             return {};
         }
@@ -448,6 +459,20 @@ Volt::Repl::EvalOutcome Volt::Repl::Evaluator::State::Feed ( const std::string_v
 
     if ( not Unit.bOk )
     {
+        // A bare expression was rewritten into a binding on the guess that it
+        // was worth one, and `assert!( x == 5 )` is the guess being wrong: the
+        // callee returns `Void`, so the binding — not the line — is what has no
+        // type. Nothing ran, because a unit that does not compile never reaches
+        // EvalUnit, so feeding it again as the statement the user actually
+        // wrote costs a second analysis and no second side effect. The line
+        // keeps its number: the first attempt is a unit nobody will hear about,
+        // and its diagnostics describe a line nobody typed.
+        if ( not Bound.empty() )
+        {
+            Lines = Serial;
+            return Feed( Line, /*bMayEcho=*/false );
+        }
+
         // The unit stays in the Driver and keeps its ordinal. Rolling back a
         // half-published interface is not something the seam can do, and a
         // declared-but-bodyless member costs a store entry nothing will emit.

@@ -44,6 +44,20 @@ namespace Repl
     // prompt hanging on a line that will never close.
     [[nodiscard]] REPLCORE_EXPORT ELineState Classify ( std::string_view Accumulated );
 
+    // Does this line continue the one before it rather than begin one of its
+    // own?
+    //
+    //     raw_users
+    //       .filter( (&.empty?.!) )
+    //       .map( &transform )
+    //
+    // True for a line whose first token cannot start a statement — a leading
+    // `.`, `&.`, `|>`, `<|`, `::`, `>>`, `<<` or `,`. The question Classify
+    // cannot answer: Classify is handed everything typed so far and this is
+    // about what comes next, so only a caller holding the next line can ask
+    // it. Blank lines and comment-only lines answer false.
+    [[nodiscard]] REPLCORE_EXPORT bool ContinuesPrevious ( std::string_view Line );
+
 } // namespace Repl
 
 } // namespace Volt

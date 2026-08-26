@@ -163,6 +163,22 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
     std::string Statement;
     std::string Line;
 
+    // One line of lookahead, held when it was read to be inspected and turned
+    // out not to continue what came before it.
+    std::string Pending;
+    bool bHavePending = false;
+
+    const auto ReadLine = [&] ( std::string &Out )
+    {
+        if ( bHavePending )
+        {
+            Out          = std::move( Pending );
+            bHavePending = false;
+            return true;
+        }
+        return static_cast<bool>( std::getline( std::cin, Out ) );
+    };
+
     while ( true )
     {
         if ( bInteractive )
@@ -171,7 +187,7 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
             std::cout.flush();
         }
 
-        if ( not std::getline( std::cin, Line ) )
+        if ( not ReadLine( Line ) )
         {
             break;
         }
@@ -182,6 +198,34 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
         if ( Repl::Classify( Statement ) == Repl::ELineState::NeedsMore )
         {
             continue;
+        }
+
+        // A statement that reads as finished may still be continued by what
+        // comes next: `raw_users` is a complete expression, and the `.filter`
+        // on the line below belongs to it. Only a script can be asked — the
+        // next line is already in the pipe — so only a script is. A terminal
+        // evaluated the previous line the moment Enter was pressed, and
+        // holding the prompt to find out whether a dot is coming would trade a
+        // rare join for a pause on every single line.
+        if ( not bInteractive )
+        {
+            while ( not bHavePending and std::getline( std::cin, Pending ) )
+            {
+                bHavePending = true;
+                if ( not Repl::ContinuesPrevious( Pending ) )
+                {
+                    break;
+                }
+
+                Statement += Pending;
+                Statement += '\n';
+                bHavePending = false;
+            }
+
+            if ( Repl::Classify( Statement ) == Repl::ELineState::NeedsMore )
+            {
+                continue;
+            }
         }
 
         Evaluate( Statement );

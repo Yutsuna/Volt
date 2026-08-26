@@ -40,11 +40,12 @@ using Volt::Frontend::TokenKind;
     }
 }
 
-// Keywords that open a block only at the head of a statement. `x = 1 if cond`
-// is a modifier and closes nothing; `if cond` on its own line wants an `end`.
-// Distinguished by position for the same reason Ruby distinguishes them there:
-// the spelling alone cannot tell the two apart.
-[[nodiscard]] bool OpensAtStatementHead ( const TokenKind Kind )
+// Keywords that open a block only where an expression may begin. `x = 1 if
+// cond` is a modifier and closes nothing; `if cond` on its own line wants an
+// `end`, and so does the `if` in `x = if cond` — nothing precedes it that it
+// could modify. Distinguished by position for the same reason Ruby
+// distinguishes them there: the spelling alone cannot tell the two apart.
+[[nodiscard]] bool OpensAtExprHead ( const TokenKind Kind )
 {
     switch ( Kind )
     {
@@ -136,8 +137,7 @@ Volt::Repl::ELineState Volt::Repl::Classify ( const std::string_view Accumulated
     std::ptrdiff_t Brackets = 0;
 
     // True at the very start and after every newline or `;` — where a
-    // statement may begin, and therefore where `if` means a block rather than
-    // a modifier.
+    // statement may begin.
     bool bAtStatementHead = true;
 
     TokenKind Last = TokenKind::Newline;
@@ -177,7 +177,14 @@ Volt::Repl::ELineState Volt::Repl::Classify ( const std::string_view Accumulated
             return ELineState::NeedsMore;
 
         default:
-            if ( AlwaysOpens( Tok.Kind ) or ( bAtStatementHead and OpensAtStatementHead( Tok.Kind ) ) )
+            // An expression may begin at a statement head, and also right after
+            // an operator still waiting for its right-hand side: in `val = if
+            // 10 > 5` the `if` is the value being assigned, and a REPL that
+            // read that line as complete would evaluate `val = if 10 > 5`,
+            // then `"greater"`, then `else` — each on its own, none of them
+            // what was written.
+            if ( AlwaysOpens( Tok.Kind ) or
+                 ( ( bAtStatementHead or WantsARightHandSide( Last ) ) and OpensAtExprHead( Tok.Kind ) ) )
             {
                 ++Blocks;
             }
@@ -197,4 +204,37 @@ Volt::Repl::ELineState Volt::Repl::Classify ( const std::string_view Accumulated
     }
 
     return WantsARightHandSide( Last ) ? ELineState::NeedsMore : ELineState::Complete;
+}
+
+bool Volt::Repl::ContinuesPrevious ( const std::string_view Line )
+{
+    Volt::Core::StringInterner Interner;
+    Volt::Core::DiagEngine::Bag Bag = Volt::Core::DiagEngine::MakeBag();
+
+    Volt::Frontend::Lexer Scanner( Volt::Core::FileId{}, Line, Interner, Bag );
+
+    for ( const Volt::Frontend::Token &Tok : Scanner.Tokenize() )
+    {
+        switch ( Tok.Kind )
+        {
+        // What a blank line and a comment-only line both lex to. Neither
+        // continues anything: a statement that ended is still ended.
+        case TokenKind::Newline:
+            continue;
+
+        case TokenKind::Dot:
+        case TokenKind::AmpDot:
+        case TokenKind::PipeGreater:
+        case TokenKind::LessPipe:
+        case TokenKind::ColonColon:
+        case TokenKind::Shr:
+        case TokenKind::Shl:
+        case TokenKind::Comma:
+            return true;
+
+        default:
+            return false;
+        }
+    }
+    return false;
 }
