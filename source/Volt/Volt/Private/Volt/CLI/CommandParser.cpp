@@ -108,6 +108,21 @@ Volt::CLI::CommandParser::FParseResult Volt::CLI::CommandParser::Parse ( std::sp
             }
 
             const FOption *Opt = FindOption( InOptions, OptName );
+            if ( Opt == nullptr and not Arg.starts_with( "--" ) and Arg.size() > 2 )
+            {
+                for ( const FOption &Candidate : InOptions )
+                {
+                    if ( not Candidate.ShortName.empty() and Candidate.HasValue() and Arg.starts_with( Candidate.ShortName ) )
+                    {
+                        Opt             = &Candidate;
+                        OptName         = Candidate.ShortName;
+                        InlineValue     = Arg.substr( Candidate.ShortName.size() );
+                        bHasInlineValue = true;
+                        break;
+                    }
+                }
+            }
+
             if ( Opt == nullptr )
             {
                 return MakeUnknownOptionError( std::string( OptName ) );
