@@ -5,7 +5,17 @@
 
 #include <algorithm>
 #include <map>
+#include <mutex>
+#include <unordered_map>
 #include <variant>
+
+namespace
+{
+
+std::mutex GSymbolMutex;
+std::unordered_map<std::uint64_t, std::string> GSymbolTable;
+
+} // namespace
 
 std::string_view Volt::Backend::SymbolNameOf ( std::string_view Lexeme )
 {
@@ -31,7 +41,24 @@ std::uint64_t Volt::Backend::SymbolValueOf ( std::string_view Name )
     // Zero is reserved so a symbol is never indistinguishable from a
     // zero-initialised slot; the displacement is arbitrary and only has to be
     // stable.
-    return Hash == 0 ? Prime : Hash;
+    const std::uint64_t Value = Hash == 0 ? Prime : Hash;
+
+    {
+        std::lock_guard Lock( GSymbolMutex );
+        GSymbolTable.try_emplace( Value, Name );
+    }
+
+    return Value;
+}
+
+extern "C" const char *_V_symbol_name ( std::uint64_t Value )
+{
+    std::lock_guard Lock( GSymbolMutex );
+    if ( const auto It = GSymbolTable.find( Value ); It != GSymbolTable.end() )
+    {
+        return It->second.c_str();
+    }
+    return "";
 }
 
 std::vector<Volt::Backend::FSymbolEntry> Volt::Backend::CollectSymbols ( const BackendInput &Build, std::string &Clash )

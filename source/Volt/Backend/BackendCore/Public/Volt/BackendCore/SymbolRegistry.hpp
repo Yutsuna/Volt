@@ -69,3 +69,5 @@ namespace Backend
 } // namespace Backend
 
 } // namespace Volt
+
+extern "C" BACKENDCORE_EXPORT const char *_V_symbol_name ( std::uint64_t Value );
