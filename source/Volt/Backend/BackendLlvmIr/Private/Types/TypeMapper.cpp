@@ -108,7 +108,10 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( MiddleEnd::TypeSyste
                 Fields.reserve( Node.Fields.Size() );
                 for ( const MiddleEnd::TypeSystem::FieldLayout &Field : Node.Fields )
                 {
-                    llvm::Type *Inner = TypeOfLayout( Field.Type );
+                    // Storage-typed, not register-typed: these bytes are also
+                    // reachable through a memcpy of the whole aggregate, and the
+                    // two views have to agree. See StorageTypeOfLayout.
+                    llvm::Type *Inner = StorageTypeOfLayout( Field.Type );
                     if ( Inner == nullptr )
                     {
                         static_cast<void>( Services->Diag->Fail( "llvm: aggregate field '" +
@@ -133,6 +136,23 @@ llvm::Type *Volt::Backend::Llvm::TypeMapper::TypeOfLayout ( MiddleEnd::TypeSyste
         Cache.emplace( Id.Value, Result );
     }
     return Result;
+}
+
+llvm::Type *Volt::Backend::Llvm::TypeMapper::StorageTypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id )
+{
+    llvm::Type *Value = TypeOfLayout( Id );
+
+    // Only an integer has a width the machine can round: a float's format *is*
+    // its width, a pointer is a machine word, and an aggregate is already built
+    // out of storage types by the branch above.
+    if ( Value == nullptr or not Value->isIntegerTy() )
+    {
+        return Value;
+    }
+
+    const unsigned Bits  = Value->getIntegerBitWidth();
+    const unsigned Bytes = ( Bits + 7U ) / 8U;
+    return Bits == Bytes * 8U ? Value : llvm::Type::getIntNTy( Services->Ctx->Context(), Bytes * 8U );
 }
 
 llvm::Type *Volt::Backend::Llvm::TypeMapper::ParamTypeOfLayout ( MiddleEnd::TypeSystem::LayoutId Id )
