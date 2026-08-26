@@ -215,6 +215,30 @@ namespace MiddleEnd
             // unprovable case (a recursive cycle, an unresolvable callee) leaves
             // the result `Borrowed` — a measured leak, never a double free.
             bool bReturnsOwned = false;
+            // Can a call to this member *return with the unwind transport still
+            // armed* — the exception tag set, or the break flag set?
+            //
+            // Tier 1 propagates by returning (BackendCore/UnwindTransport.hpp),
+            // so every backend follows every Volt call with a check of that
+            // state. The check is two thread-local loads, a compare, an `or`, a
+            // branch, and a split of the basic block it sits in — paid at every
+            // call site of every body, whether or not anything in the program
+            // can actually raise. This bit is what lets a backend not emit one.
+            //
+            // Derived, never annotated, by `Unwind::InferUnwindFreedom` — a
+            // monotone fixpoint over the *resolved* call graph, which is why it
+            // runs at its own seam after `TypeChecker` rather than beside the
+            // RAII fixpoints: those read a name index because no `CalleeMap`
+            // exists yet at theirs.
+            //
+            // `true` is the safe default and the value an unanalysable member
+            // keeps — external, abstract, a cache-hit slot whose body was never
+            // parsed. A wrong `true` costs a check nobody needed; a wrong
+            // `false` drops a raise on the floor and resumes past it, which no
+            // test would necessarily catch. The fixpoint starts a body it can
+            // see at `false` and only ever raises it, which is what makes a
+            // recursive body that raises nothing come out `false`.
+            bool bCanUnwind = true;
         };
 
         // One type as the compiler knows it: a name, where it was declared, and
