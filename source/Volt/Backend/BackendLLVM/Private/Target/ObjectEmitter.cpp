@@ -25,6 +25,20 @@ bool Volt::Backend::Llvm::TargetPipeline::EmitObjectFile ( std::string_view Path
         return false;
     }
 
+    // One section per function and per datum, so the link has something to
+    // discard at. It matters most for the artifact this same emitter produces
+    // for the stdlib cache: an archive's unit of extraction is the *member*, and
+    // that archive holds exactly one, so referencing a single stdlib function
+    // pulls in every other one. Without `--gc-sections` having sections to work
+    // on, a `puts` program carries the whole library's text; with them, the
+    // linker keeps what it can reach and drops the rest.
+    //
+    // Set on the machine rather than at construction (ModuleContext.cpp) on
+    // purpose: that machine is shared with the JIT, which links nothing and
+    // would only pay the extra section headers.
+    Services->Machine->Options.FunctionSections = true;
+    Services->Machine->Options.DataSections     = true;
+
     llvm::legacy::PassManager CodegenPasses;
     if ( Services->Machine->addPassesToEmitFile( CodegenPasses, Stream, nullptr, llvm::CodeGenFileType::ObjectFile ) )
     {
