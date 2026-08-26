@@ -1,2 +1,4 @@
 hello
+=> #<StandardStream @fd=1> : StandardStream
 hello
+=> #<StandardStream @fd=1> : StandardStream
