@@ -1,8 +1,11 @@
 #include "Volt/Frontend/AST/AstContext.hpp"
+#include "Volt/Frontend/AST/AstQuery.hpp"
 #include "Volt/Frontend/AST/Expr.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 
+#include <unordered_set>
 #include <variant>
+#include <vector>
 
 namespace
 {
@@ -30,9 +33,14 @@ public:
         // them out of the sweep is intentional.
         const std::size_t OriginalCount = Context.ExprCount();
 
-        for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
+        for ( std::size_t Index = OriginalCount; Index > 0; --Index )
         {
-            const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+            const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index - 1 ) };
+            if ( ConsumedNodes.contains( Id.Value ) )
+            {
+                continue;
+            }
+
             switch ( KindOf( Context.Expr( Id ) ) )
             {
             case Frontend::ExprKind::Section:
@@ -49,10 +57,111 @@ public:
 
 private:
 
-    // Both lowerings copy their source node by value before the first Add(),
-    // and return a node the caller stores back into the slot — the assignment
-    // sequences the call before the left operand, so no Add() can invalidate
-    // the destination.
+    std::unordered_set<Frontend::ExprId::ValueType> ConsumedNodes;
+
+    [[nodiscard]] Frontend::ExprId BuildSectionBody ( Frontend::ExprId SectionId, Frontend::ExprId ParamRef )
+    {
+        const Frontend::Section Sec = std::get<Frontend::Section>( Context.Expr( SectionId ) );
+        Frontend::ExprId BodyExpr{};
+
+        switch ( Sec.Kind )
+        {
+        case Frontend::ESectionKind::InstanceMethod:
+        {
+            Frontend::Member Mem;
+            Mem.Loc                    = Sec.Loc;
+            Mem.Object                 = ParamRef;
+            Mem.Name                   = Sec.Target;
+            const Frontend::ExprId MId = Context.Add( Mem );
+
+            Frontend::Call Cal;
+            Cal.Loc    = Sec.Loc;
+            Cal.Callee = MId;
+            Cal.Args   = Sec.Args;
+            for ( std::size_t Idx = 0; Idx < Sec.Args.Size(); ++Idx )
+            {
+                Cal.ArgNames.PushBack( Volt::Core::Symbol{} );
+            }
+            BodyExpr = Context.Add( Cal );
+            break;
+        }
+        case Frontend::ESectionKind::Operator:
+        {
+            if ( Sec.Args.Size() == 1 )
+            {
+                Frontend::Binary Bin;
+                Bin.Loc  = Sec.Loc;
+                Bin.Op   = Sec.Op;
+                Bin.Lhs  = ParamRef;
+                Bin.Rhs  = Sec.Args[0];
+                BodyExpr = Context.Add( Bin );
+            }
+            else
+            {
+                Frontend::Unary Un;
+                Un.Loc     = Sec.Loc;
+                Un.Op      = Sec.Op;
+                Un.Operand = ParamRef;
+                BodyExpr   = Context.Add( Un );
+            }
+            break;
+        }
+        case Frontend::ESectionKind::StaticCapture:
+        {
+            Frontend::Call Cal;
+            Cal.Loc    = Sec.Loc;
+            Cal.Callee = Sec.TargetExpr;
+            Cal.Args.PushBack( ParamRef );
+            Cal.ArgNames.PushBack( Volt::Core::Symbol{} );
+            BodyExpr = Context.Add( Cal );
+            break;
+        }
+        }
+
+        if ( Sec.bNegated )
+        {
+            Frontend::Unary Un;
+            Un.Loc     = Sec.Loc;
+            Un.Op      = Frontend::TokenKind::Bang;
+            Un.Operand = BodyExpr;
+            BodyExpr   = Context.Add( Un );
+        }
+
+        return BodyExpr;
+    }
+
+    [[nodiscard]] Frontend::ExprId BuildStep ( Frontend::ExprId StepId, Frontend::ExprId ArgExpr )
+    {
+        const Frontend::ExprKind Kind = Frontend::KindOf( Context.Expr( StepId ) );
+        if ( Kind == Frontend::ExprKind::Section )
+        {
+            ConsumedNodes.insert( StepId.Value );
+            const Frontend::ExprId Res = BuildSectionBody( StepId, ArgExpr );
+            Context.Expr( StepId )     = Frontend::NilLiteral{ .Loc = Frontend::LocOf( Context.Expr( StepId ) ) };
+            return Res;
+        }
+        if ( Kind == Frontend::ExprKind::Composition )
+        {
+            ConsumedNodes.insert( StepId.Value );
+            const Frontend::ExprId Res = BuildCompositionBody( StepId, ArgExpr );
+            Context.Expr( StepId )     = Frontend::NilLiteral{ .Loc = Frontend::LocOf( Context.Expr( StepId ) ) };
+            return Res;
+        }
+
+        Frontend::Call Cal;
+        Cal.Loc    = Frontend::LocOf( Context.Expr( StepId ) );
+        Cal.Callee = StepId;
+        Cal.Args.PushBack( ArgExpr );
+        Cal.ArgNames.PushBack( Volt::Core::Symbol{} );
+        return Context.Add( Cal );
+    }
+
+    [[nodiscard]] Frontend::ExprId BuildCompositionBody ( Frontend::ExprId CompId, Frontend::ExprId ParamRef )
+    {
+        const Frontend::Composition Comp = std::get<Frontend::Composition>( Context.Expr( CompId ) );
+        const Frontend::ExprId InnerExpr = BuildStep( Comp.Lhs, ParamRef );
+        return BuildStep( Comp.Rhs, InnerExpr );
+    }
 
     [[nodiscard]] Frontend::ExprNode LowerSection ( Frontend::ExprId SectionId )
     {
@@ -74,78 +183,7 @@ private:
         IdNode.Name                   = ParamName;
         const Frontend::ExprId IdExpr = Context.Add( IdNode );
 
-        Frontend::ExprId BodyExpr{};
-
-        switch ( Sec.Kind )
-        {
-        case Frontend::ESectionKind::InstanceMethod:
-        {
-            Frontend::Member Mem;
-            Mem.Loc                    = Sec.Loc;
-            Mem.Object                 = IdExpr;
-            Mem.Name                   = Sec.Target;
-            const Frontend::ExprId MId = Context.Add( Mem );
-
-            Frontend::Call Cal;
-            Cal.Loc    = Sec.Loc;
-            Cal.Callee = MId;
-            Cal.Args   = Sec.Args;
-            for ( std::size_t Idx = 0; Idx < Sec.Args.Size(); ++Idx )
-            {
-                Cal.ArgNames.PushBack( Volt::Core::Symbol{} );
-            }
-            BodyExpr = Context.Add( Cal );
-            break;
-        }
-        // An operator, unlike a named method, must desugar to a `Binary`/
-        // `Unary` node rather than `Member`+`Call`: on a primitive receiver
-        // MemberType deliberately records no resolution for a Binary/Unary's
-        // own Member sub-node (rules/core-ast.md's operator contract — the
-        // backend derives the instruction from the receiver's Primitive
-        // spelling instead), and only Binary/Unary's own emitter knows that
-        // convention. A `Call` node has no such fallback and expects every
-        // callee to have resolved to something.
-        case Frontend::ESectionKind::Operator:
-        {
-            if ( Sec.Args.Size() == 1 )
-            {
-                Frontend::Binary Bin;
-                Bin.Loc  = Sec.Loc;
-                Bin.Op   = Sec.Op;
-                Bin.Lhs  = IdExpr;
-                Bin.Rhs  = Sec.Args[0];
-                BodyExpr = Context.Add( Bin );
-            }
-            else
-            {
-                Frontend::Unary Un;
-                Un.Loc     = Sec.Loc;
-                Un.Op      = Sec.Op;
-                Un.Operand = IdExpr;
-                BodyExpr   = Context.Add( Un );
-            }
-            break;
-        }
-        case Frontend::ESectionKind::StaticCapture:
-        {
-            Frontend::Call Cal;
-            Cal.Loc    = Sec.Loc;
-            Cal.Callee = Sec.TargetExpr;
-            Cal.Args.PushBack( IdExpr );
-            Cal.ArgNames.PushBack( Volt::Core::Symbol{} );
-            BodyExpr = Context.Add( Cal );
-            break;
-        }
-        }
-
-        if ( Sec.bNegated )
-        {
-            Frontend::Unary Un;
-            Un.Loc     = Sec.Loc;
-            Un.Op      = Frontend::TokenKind::Bang;
-            Un.Operand = BodyExpr;
-            BodyExpr   = Context.Add( Un );
-        }
+        const Frontend::ExprId BodyExpr = BuildSectionBody( SectionId, IdExpr );
 
         Frontend::Lambda Lam;
         Lam.Loc        = Sec.Loc;
@@ -175,25 +213,13 @@ private:
         IdNode.Name                   = ParamName;
         const Frontend::ExprId IdExpr = Context.Add( IdNode );
 
-        Frontend::Call InnerCall;
-        InnerCall.Loc    = Comp.Loc;
-        InnerCall.Callee = Comp.Lhs;
-        InnerCall.Args.PushBack( IdExpr );
-        InnerCall.ArgNames.PushBack( Volt::Core::Symbol{} );
-        const Frontend::ExprId InnerExpr = Context.Add( InnerCall );
-
-        Frontend::Call OuterCall;
-        OuterCall.Loc    = Comp.Loc;
-        OuterCall.Callee = Comp.Rhs;
-        OuterCall.Args.PushBack( InnerExpr );
-        OuterCall.ArgNames.PushBack( Volt::Core::Symbol{} );
-        const Frontend::ExprId OuterExpr = Context.Add( OuterCall );
+        const Frontend::ExprId BodyExpr = BuildCompositionBody( CompId, IdExpr );
 
         Frontend::Lambda Lam;
         Lam.Loc        = Comp.Loc;
         Lam.Params     = Params;
         Lam.ReturnType = Frontend::ExprId{};
-        Lam.Body       = OuterExpr;
+        Lam.Body       = BodyExpr;
         return Lam;
     }
 

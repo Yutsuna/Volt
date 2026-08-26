@@ -36,6 +36,10 @@ Volt::MiddleEnd::Analysis::BindClosureParams ( TypeCheckerContext &Context, cons
         {
             ParamType = Expected[1 + Index];
         }
+        else if ( not ParamType.IsValid() )
+        {
+            Context.UnconstrainedParams.insert( Entry.Name );
+        }
 
         Context.LocalTypes[BindingSite{ PId }] = ParamType;
         Context.LocalSites[Entry.Name]         = BindingSite{ PId };

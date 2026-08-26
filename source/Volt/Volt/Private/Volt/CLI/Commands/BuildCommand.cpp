@@ -8,6 +8,8 @@
 #include "Volt/Driver/Driver.hpp"
 #include "Volt/Frontend/AST/AstDump.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -51,7 +53,13 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
         },
         {
             "", "--emit", "KIND", "Stop after an intermediate artifact (ir|obj)",
-            [this] ( std::string_view Val ) { this->Emit = Val; }
+            [this] ( std::string_view Val )
+            {
+                std::string Lower( Val );
+                std::transform( Lower.begin(), Lower.end(), Lower.begin(),
+                                [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+                this->Emit = std::move( Lower );
+            }
         },
         {
             "", "--lto", "", "Enable link-time optimization (native only)",

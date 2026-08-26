@@ -1,0 +1,4 @@
+def twice( n : Int32 ) -> Int32
+  n * 2
+end
+puts( twice( 21 ) )

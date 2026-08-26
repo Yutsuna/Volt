@@ -2,8 +2,7 @@
 
 #include "Target/TargetPipeline.hpp"
 
-#include "Core/DiagnosticSink.hpp"
-#include "Core/ModuleContext.hpp"
+#include "Volt/BackendCore/DiagnosticSink.hpp"
 
 #include <llvm/IR/Module.h>
 #include <llvm/Support/FileSystem.h>
@@ -22,6 +21,6 @@ bool Volt::Backend::Llvm::TargetPipeline::EmitIrFile ( std::string_view Path )
             Services->Diag->Fail( "llvm: could not open '" + std::string( Path ) + "' for --emit ir: " + Error.message() ) );
         return false;
     }
-    Services->Ctx->Mod().print( Stream, nullptr );
+    Services->Mod->print( Stream, nullptr );
     return not Stream.has_error();
 }

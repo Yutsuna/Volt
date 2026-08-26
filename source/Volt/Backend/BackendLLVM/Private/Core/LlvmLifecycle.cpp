@@ -1,18 +1,20 @@
 // LlvmLifecycle.cpp — Begin / EmitUnit / Finalize.
 //
-// The shape of a build, and nothing else: set up the module and the host target,
-// declare everything reachable, define it unit by unit, then drain, verify,
-// optimise and emit. Every step delegates; the ordering *is* the content of this
-// file, and it is load-bearing at three points in particular —
+// The shape of an ahead-of-time build. Emission itself is one call into
+// BackendLlvmIr; what is left here is the tail that turns the finished module
+// into an artifact — verify, optimise, then `.ll`, `.o`, or a link — and the
+// decision of *which* artifact, which is the only thing `--emit` selects.
 //
-//   - DeclareAll runs before any body, so a body in the first unit calling
-//     something declared in the last resolves with no fixup pass;
-//   - the monomorphiser drains before the entry point is emitted, so the entry
-//     point can itself be the thing that forced an instantiation;
-//   - the verifier runs after that, so the shim is proved well-formed like any
-//     other function.
+// The one piece of real logic is the skip line: when the stdlib was already
+// compiled into an artifact this build will link against, its units need no
+// bodies emitted. They still get their inline-eligible ones, because an
+// optimised build inlines across that boundary — which is exactly the
+// distinction IrOptions draws between SkipUnitsBelow and
+// bDefineInlineEligibleBelow.
 
 #include "Core/LlvmBackendState.hpp"
+
+#include "Volt/BackendLlvmIr/LlvmAccess.hpp"
 
 #include "Volt/Core/Support/PhaseTimer.hpp"
 
@@ -21,13 +23,14 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/FileUtilities.h>
 
+#include <memory>
 #include <string>
 #include <system_error>
+#include <utility>
 
 void Volt::Backend::Llvm::LlvmBackend::Begin ( const BackendInput &Input )
 {
-    Impl->Build          = &Input;
-    Impl->Services.Build = &Input;
+    Impl->Build = &Input;
 
     if ( Input.Types == nullptr )
     {
@@ -35,80 +38,66 @@ void Volt::Backend::Llvm::LlvmBackend::Begin ( const BackendInput &Input )
         return;
     }
 
-    Impl->Layouts.emplace( *Input.Types );
+    Ir::IrOptions Gen;
+    Gen.SkipUnitsBelow = Impl->Options.bStdlibPrecompiled ? Input.StdlibUnitCount : 0U;
 
-    // One llvm::Module per build: the simplest correct thing. Per-unit modules
-    // plus ThinLTO is a later optimisation behind this same interface. The entry
-    // module is last in circuit link order, so it names the module.
-    const std::string_view Name = Input.Units.empty() ? std::string_view{ "volt" } : Input.Units.back().Module;
+    // The AOT build links the precompiled stdlib but still wants its
+    // inline-eligible bodies in the module, so -O2 can inline across the
+    // boundary. A JIT wants the skip without that exception.
+    Gen.bDefineInlineEligibleBelow = true;
 
-    std::string Error;
-    if ( not Impl->Ctx.InitTarget( Name, Error ) )
+    Gen.EntryFunction = Impl->Options.EntryFunction;
+    Gen.EntrySymbol   = Impl->Options.EntrySymbol;
+    Gen.bDebugInfo    = Impl->Options.bDebugInfo;
+
+    Gen.bDefineSlotAccessor    = Impl->Options.bDefineSlotAccessor;
+    Gen.bRetainMergeableBodies = Impl->Options.bRetainMergeableBodies;
+
+    // Verification stays in this module's own pipeline, where the failure is
+    // reported with the offending function named.
+    Gen.bVerify = false;
+
+    Impl->Gen.emplace( std::move( Gen ) );
+    Impl->Gen->Begin( Input );
+    if ( Impl->Gen->Failed() )
     {
-        static_cast<void>( Impl->Fail( std::move( Error ) ) );
         return;
     }
 
-    // Declare before defining anything: a body emitted in the first unit may call
-    // something declared in the last, and one pass over the store means that
-    // resolves immediately instead of needing a fixup pass.
-    DeclareAll( Impl->Services );
+    // Borrowed, not owned: the generator keeps the module and this tail works
+    // over it in place.
+    Impl->Services.Build   = &Input;
+    Impl->Services.Options = &Impl->Options;
+    Impl->Services.Diag    = &Impl->Diag;
+    Impl->Services.Mod     = &Ir::ModuleOf( *Impl->Gen );
+    Impl->Services.Machine = Ir::MachineOf( *Impl->Gen );
+
+    Impl->Pipeline = std::make_unique<TargetPipeline>( Impl->Services );
+    Impl->Linker   = std::make_unique<LinkerDriver>( Impl->Services );
 }
 
 Volt::Backend::EEmitStatus Volt::Backend::Llvm::LlvmBackend::EmitUnit ( const UnitView &Unit )
 {
-    if ( Impl->Failed() )
+    if ( Impl->Failed() or not Impl->Gen.has_value() )
     {
         return EEmitStatus::Error;
     }
-
-    if ( Impl->Build == nullptr or Impl->Build->Types == nullptr )
-    {
-        return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) +
-                           "' reached the backend with no build input or type store" );
-    }
-
-    if ( Unit.Ast == nullptr or Unit.Values == nullptr or Unit.Callees == nullptr or Unit.Scopes == nullptr )
-    {
-        return Impl->Fail( "llvm: unit '" + std::string( Unit.Path ) + "' reached the backend with no sema output" );
-    }
-
-    const bool bPrecompiledStdlibUnit = Impl->Options.bStdlibPrecompiled and Unit.Ordinal < Impl->Build->StdlibUnitCount;
-
-    {
-        const Volt::Core::PhaseScope Timing( "backend.emit" );
-        DefineAll( Impl->Services, Unit, /*bInlineEligibleOnly=*/bPrecompiledStdlibUnit );
-    }
-    return Impl->Failed() ? EEmitStatus::Error : EEmitStatus::Ok;
+    return Impl->Gen->EmitUnit( Unit );
 }
 
 Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
 {
     const auto MakeFailure = [this] ()
-    { return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Diag.Message() }; };
+    { return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message() }; };
 
-    if ( Impl->Failed() )
+    if ( Impl->Failed() or not Impl->Gen.has_value() )
     {
         return MakeFailure();
     }
 
-    // Every unit is defined by now, so every instantiation a concrete body could
-    // ever discover has been enqueued. A drained body can itself enqueue more — a
-    // generic method calling another generic method — so this drains to a
-    // fixpoint rather than once.
-    {
-        const Volt::Core::PhaseScope Timing( "backend.monomorphize" );
-        Impl->Mono->Drain();
-    }
-    if ( Impl->Failed() )
-    {
-        return MakeFailure();
-    }
-
-    // After the drain, so the entry point can itself be the thing that forced an
-    // instantiation, and before the verifier, which is what proves the shim is
-    // well formed like any other function.
-    if ( not EmitEntryPoint( Impl->Services ) )
+    // Drains the monomorphiser to a fixpoint and caps the module with its entry
+    // point. Past this the module is complete and never grows again.
+    if ( Impl->Gen->Finish() != EEmitStatus::Ok )
     {
         return MakeFailure();
     }
@@ -134,7 +123,7 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
         Impl->Pipeline->RunOptimizationPipeline();
     }
 
-    const std::string ModuleName = Impl->Ctx.Mod().getName().str();
+    const std::string ModuleName = Impl->Services.Mod->getName().str();
     const std::string BaseName   = ModuleName.empty() ? std::string( "volt" ) : ModuleName;
 
     if ( Impl->Options.Stage == EEmitStage::Ir )

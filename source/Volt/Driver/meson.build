@@ -28,6 +28,10 @@ if get_option('enable_llvm')
     driver_deps += [llvm_dep, backendllvm_dep]
     driver_args += ['-DVOLT_ENABLE_LLVM']
 endif
+if jit_enabled
+    driver_deps += [backendjit_dep]
+    driver_args += ['-DVOLT_ENABLE_JIT']
+endif
 
 driver_lib = library(
     'Driver',
@@ -44,6 +48,9 @@ driver_lib = library(
 driver_link_deps = [volt_middleend_dep, backendcore_dep]
 if get_option('enable_llvm')
     driver_link_deps += [backendllvm_dep]
+endif
+if jit_enabled
+    driver_link_deps += [backendjit_dep]
 endif
 
 driver_dep = declare_dependency(

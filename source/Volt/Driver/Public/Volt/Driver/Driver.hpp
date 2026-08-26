@@ -18,6 +18,8 @@
 #include <cstdint>
 #include <deque>
 #include <filesystem>
+#include <functional>
+#include <memory>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -173,6 +175,85 @@ namespace Driver
         std::string Message;
     };
 
+    // What `volt run` asks for. Deliberately not a BuildOptions: half of that
+    // struct is about naming an output file, and there is no output file.
+    struct RunOptions
+    {
+
+        std::string Target = "native";
+
+        // Passed through to the program as argv. argv[0] is supplied by the
+        // caller, like any other exec.
+        std::vector<std::string> ProgramArgs;
+
+        // Shared objects to resolve against before the process's own symbols.
+        std::vector<std::string> Dylibs;
+
+        std::uint8_t OptLevel = 0;
+        bool bVerbose         = false;
+
+        // Emit one module per unit rather than one for the build. The
+        // default: it is both faster to start and the shape reloading and the
+        // an interactive session need, so the ordinary run exercises the path
+        // they take. Clear
+        // it to emit a single module, which is what `--whole-module` is for.
+        bool bPerUnitModules = true;
+
+        // Emit calls through the hot-reload indirection. Costs a load per call,
+        // so it is off unless something means to reload — `--watch`.
+        bool bIndirectLinkage = false;
+
+        // Stay resident after the program returns, watch its sources, and on a
+        // change recompile the one file that moved, patch the running code's
+        // indirection slots to the new bodies, and run it again. Implies
+        // bIndirectLinkage: a call that was emitted as a direct relocation has
+        // no slot to repoint, and adding one afterwards would mean recompiling
+        // every caller — which is just a restart with extra steps.
+        bool bWatch = false;
+
+        // What --watch recompiles when a file changes: the same inputs the
+        // caller compiled this Driver from. A manifest when the program is a
+        // circuit, the file list otherwise; the Driver cannot recover either
+        // from what it already compiled, because both collapse into the same
+        // flat unit list.
+        std::string WatchManifest;
+        std::vector<std::string> WatchInputs;
+
+        // The cache knobs the first compilation ran with, so a recompilation
+        // inside the watch loop reuses the same warmed stdlib rather than
+        // rebuilding it on every keystroke.
+        FCacheOptions CacheOpts;
+
+        // Same meaning as on BuildOptions, and honoured for the same artifact:
+        // `volt run` loads the precompiled stdlib rather than JIT-compiling it.
+        bool bStdlibArtifactNoCache = false;
+        bool bStdlibArtifactFresh   = false;
+    };
+
+    // What one Driver::Run() produced.
+    struct RunResult
+    {
+
+        bool bOk = false;
+
+        // The program's exit code. Meaningful only when bOk.
+        std::int32_t Code = 0;
+
+        std::string Message;
+    };
+
+    class Driver;
+
+    // The precompiled native stdlib artifact for an already-compiled stdlib,
+    // built or reused. Shared by Build() and Run(): both want to stop
+    // recompiling a stdlib that has not changed, and the artifact is keyed on
+    // the stdlib's own content, so neither has to know about the other.
+    //
+    // Never a hard failure — nullopt simply means "compile the stdlib in this
+    // build after all", which is what both callers do without it.
+    [[nodiscard]] DRIVER_EXPORT std::optional<std::string> EnsureStdlibArtifact ( Driver &TheDriver,
+                                                                                  const BuildOptions &Options );
+
     // Front-end orchestrator: discovers the files of a build, parses and
     // runs the sema passes over each of them across a jthread pool, and
     // gathers every diagnostic into one thread-safe engine.
@@ -219,6 +300,19 @@ namespace Driver
         // header never mentions LLVM), it just has BuildResult::bOk == false
         // with an explanatory Message for every Target.
         [[nodiscard]] BuildResult Build ( const BuildOptions &Options );
+
+        // Run an already-compiled build in this process, through BackendJIT
+        // instead of writing an artifact — `volt run`. Same three-phase
+        // protocol as Build(), same IR from the same emission layer; only the
+        // tail differs, which is the whole reason BackendLlvmIr exists.
+        //
+        // The exit code the program returned is RunResult::Code, and it is
+        // meaningful only when bOk: a false bOk means the program never got to
+        // run, and Message says why.
+        //
+        // Implemented in DriverRun.cpp, guarded by VOLT_ENABLE_JIT internally,
+        // so this header mentions no backend type — exactly like Build().
+        [[nodiscard]] RunResult Run ( const RunOptions &Options );
 
         [[nodiscard]] const CircuitGraph &Graph () const
         {
@@ -302,6 +396,75 @@ namespace Driver
         // degrades to discovery order rather than dropping units on the floor.
         [[nodiscard]] std::vector<Backend::UnitView> MakeBackendViews () const;
 
+        // One unit's view, by discovery index. MakeBackendViews reorders into
+        // circuit link order, which costs a graph walk and answers a question
+        // an appended unit has not got: it declares no `@[Link]` edges. A
+        // caller that has just appended one and wants only that one asks here
+        // rather than rebuilding the whole vector each time.
+        [[nodiscard]] Backend::UnitView ViewOf ( std::size_t Index ) const;
+
+        // --- Incremental compilation ---------------------------------------
+        //
+        // Compiling one more unit into an already-compiled Driver, leaving
+        // everything before it untouched. What an interactive session needs,
+        // and what any tool that recompiles a growing input can use.
+
+        // What one AnalyzeUnit produced. `Ordinal` is the discovery index the
+        // whole middle-end keys on, and it is meaningful even when bOk is
+        // false — a unit that failed sema still occupies its slot.
+        struct UnitResult
+        {
+
+            bool bOk              = false;
+            std::uint32_t Ordinal = 0;
+            // Where in the diagnostic engine this line's own diagnostics
+            // start, so a caller can render exactly them and then drop them.
+            std::size_t DiagMark = 0;
+        };
+
+        // Register and parse one more unit, and nothing else. Returns its
+        // discovery index — the ordinal the whole middle-end keys on.
+        //
+        // Split from AnalyzeUnit rather than merged with it because the gap
+        // between the two is where an AST may still be rewritten: after the
+        // parse, before any name in it is resolved. That is the same window
+        // `ExpandTypeMacros` writes in inside the seam, and it belongs to
+        // whoever is driving the compilation.
+        [[nodiscard]] std::size_t AppendUnit ( std::string Label, std::string Text );
+
+        // Run the cross-unit seam and the sema passes over one already-parsed
+        // unit, with every other unit handed to the whole-program passes as a
+        // null AST.
+        //
+        // The cost is the point: line 530 of an incremental session costs what
+        // line 1 cost. That works because the three whole-program analyses are
+        // monotone over the null-AST convention the stdlib frontend cache
+        // already established — InferReturnOwnership skips a member whose flag
+        // is set, InferParameterEscape only sizes a slot that was never sized,
+        // and AnalyzeInlineCandidates only rewrites a verdict whose AST it was
+        // given.
+        //
+        // **Invariant this relies on**: an already-analysed unit is never
+        // re-analysed or re-emitted. Declaring a `def` grows
+        // TypeStore::Functions, which is a std::vector, so every `Member *` an
+        // earlier unit's CalleeMap holds dangles afterwards. Nothing reads
+        // those again — each unit is emitted the moment it compiles — and that
+        // is what makes the growth safe rather than lucky.
+        [[nodiscard]] UnitResult AnalyzeUnit ( std::size_t Index );
+
+        // The unit at `Index`, mutable, for the window between the two calls
+        // above.
+        [[nodiscard]] CompileUnit &UnitAt ( std::size_t Index )
+        {
+            return Units[Index];
+        }
+
+        // Render, and then forget, the diagnostics a single AnalyzeUnit produced.
+        // The engine outlives the session, so a caller that only renders would
+        // see line 3's error again on line 530 and HasErrors() would never
+        // clear.
+        void ConsumeLineDiagnostics ( std::size_t Mark, std::ostream &Out );
+
         // Mutable counterpart to Layouts(): a backend monomorphises generics
         // into this store's layout arena as call sites discover them
         // (BackendCore/BackendInput.hpp explains why `BackendInput::Types` is
@@ -343,6 +506,19 @@ namespace Driver
         // to consult or write its own cache — see WriteFrontendCache).
         CompileResult
         CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline = EPipeline::Full, std::size_t StdlibCount = 0 );
+
+        // The full pipeline over exactly one already-registered unit, with
+        // every other unit passed to the cross-unit passes as a null AST.
+        // Extracted from CompileRefs' serial seam rather than duplicated, so
+        // the two cannot drift on what "compiled" means.
+
+        // The cross-unit serial seam, over whichever units `bDone` does not
+        // already mark as finished. Fills OutAsts with the read-only per-unit
+        // view the whole-program passes take, null where bDone is true.
+        void RunSerialSeam ( const std::vector<bool> &bDone, std::vector<const Frontend::AstContext *> &OutAsts );
+
+        // The whole-program ownership/inlining fixpoints over that same view.
+        void RunOwnershipSeam ( const std::vector<const Frontend::AstContext *> &UnitAsts );
 
         // Lex + parse one already-registered unit. Safe to call from any
         // worker thread: only `Bag` and `Unit` are touched.

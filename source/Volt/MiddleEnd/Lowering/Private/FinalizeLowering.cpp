@@ -1,4 +1,5 @@
 #include "Volt/MiddleEnd/Lowering/LoweringPasses.hpp"
+#include <unordered_set>
 
 #include "Volt/Frontend/AST/AstContext.hpp"
 #include "Volt/Frontend/AST/Decl.hpp"
@@ -59,8 +60,26 @@ void Volt::MiddleEnd::Lowering::InsertFinalizeCalls ( TypeCheckerContext &Contex
         // them instrument what it produced exactly as they would hand-written
         // source — and its `__old` copy is refused candidacy by the ordinary
         // alias-init guard, with no rule of its own.
-        const bool bTopDrops       = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
-        const bool bTopCleanup     = Lifetime::RunScopeCleanup( Context, TopScope, TopBody );
+        const bool bTopDrops = Lifetime::RunDropOnReassign( Context, TopScope, TopBody );
+
+        // The unit scope's own releases go to teardown rather than into a
+        // cleanup region around the initialiser.
+        //
+        // A file is a module and its top-level locals are its globals: they
+        // have static storage and unit lifetime, so releasing one where the
+        // initialiser ends frees it while the program is still running —
+        // another unit's initialiser, or a `def` in this file called from one,
+        // then reads released memory. Everything else keeps its ordinary
+        // release: a local inside a top-level `while` is finalised per
+        // iteration, a temporary at the end of its full expression, and an
+        // early exit releases on the way out, all exactly as before.
+        Frontend::StmtList Teardown;
+        const bool bTopCleanup = Lifetime::RunScopeCleanup( Context, TopScope, TopBody, &Teardown );
+        for ( const Frontend::StmtId Id : Teardown )
+        {
+            Ast.TopTeardown.push_back( Id );
+        }
+
         const bool bTopTemporaries = Lifetime::RunTemporaries( Context, TopBody, /*bHasTailValue=*/false );
         if ( bTopDrops or bTopCleanup or bTopTemporaries )
         {

@@ -103,7 +103,35 @@ compile_options_dep = declare_dependency(
 export_template = files('export_template.hpp.inl')
 
 common_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Pch.hpp'
-llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 'BackendLLVM' / 'PchLLVM.hpp'
+llvm_pch_header = meson.project_source_root() / 'source' / 'Volt' / 'Backend' / 'PchLLVM.hpp'
+
+# ---------------------------------------------------------------------------
+
+llvm_dep = disabler()
+llvm_include_dirs = []
+llvm_rtti_args = []
+if get_option('enable_llvm')
+    llvm_dep = dependency(
+        'llvm',
+        method: 'config-tool',
+        static: false,
+        required: true,
+    )
+    llvm_include_dirs = include_directories(
+        llvm_dep.get_variable(cmake: 'LLVM_INCLUDE_DIRS', default_value: '').split(
+            ';',
+        ),
+        is_system: true,
+    )
+    llvm_rtti = llvm_dep.get_variable(cmake: 'LLVM_ENABLE_RTTI', default_value: 'ON')
+    llvm_rtti_args = llvm_rtti in ['OFF', '0', 'NO'] ? ['-fno-rtti'] : []
+endif
+
+jit_enabled = get_option('enable_jit')
+if jit_enabled and not get_option('enable_llvm')
+    warning('enable_jit=true requires enable_llvm=true; configuring without BackendJIT.')
+    jit_enabled = false
+endif
 
 # ---------------------------------------------------------------------------
 

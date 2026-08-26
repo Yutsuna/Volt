@@ -14,8 +14,11 @@
 
     #include <filesystem>
     #include <memory>
+    #include <unistd.h>
 #endif
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -52,8 +55,8 @@ namespace fs = std::filesystem;
 // the inner build itself failing all return nullopt — the caller's fallback
 // is simply not setting EmitOptions::bStdlibPrecompiled, i.e. an ordinary
 // full build.
-[[nodiscard]] std::optional<std::string> EnsureStdlibArtifact ( Volt::Driver::Driver &TheDriver,
-                                                                const Volt::Driver::BuildOptions &Options )
+[[nodiscard]] std::optional<std::string> EnsureStdlibArtifactImpl ( Volt::Driver::Driver &TheDriver,
+                                                                    const Volt::Driver::BuildOptions &Options )
 {
     if ( Options.bStdlibArtifactNoCache or TheDriver.StdlibUnitCount() == 0 )
     {
@@ -101,16 +104,47 @@ namespace fs = std::filesystem;
 
     const std::vector<Volt::Backend::UnitView> Views = Isolated->MakeBackendViews();
     const Volt::Backend::BackendInput BackendIn{ .Types = &Isolated->MutableLayouts(), .Units = Views };
-    if ( not Volt::Backend::Llvm::BuildStdlibArtifact( BackendIn, Options.OptLevel, Options.bLto, bShared, Artifact.string(),
-                                                       Meta.string() ) )
+
+    // Built beside the real name, then renamed into place. Several compilations
+    // can run at once — a parallel test suite is the ordinary case — and they
+    // all derive the same key, so they all decide to build the same file. A
+    // reader that opens it midway through a write sees a truncated object and
+    // fails in a way that has nothing to do with what it was compiling. rename
+    // within one directory is atomic, so a reader sees either no file or a
+    // finished one, and a redundant build is only wasted work.
+    const std::string Tag      = std::to_string( static_cast<long long>( ::getpid() ) );
+    const fs::path PendingArt  = NativeDir / ( Volt::Core::ToHex( NativeKey ) + "." + Tag + ".pending" );
+    const fs::path PendingMeta = NativeDir / ( Volt::Core::ToHex( NativeKey ) + "." + Tag + ".pending.meta" );
+
+    if ( not Volt::Backend::Llvm::BuildStdlibArtifact( BackendIn, Options.OptLevel, Options.bLto, bShared, PendingArt.string(),
+                                                       PendingMeta.string() ) )
     {
+        fs::remove( PendingArt, Ec );
+        fs::remove( PendingMeta, Ec );
         return std::nullopt;
     }
+
+    fs::rename( PendingArt, Artifact, Ec );
+    if ( Ec )
+    {
+        fs::remove( PendingArt, Ec );
+        fs::remove( PendingMeta, Ec );
+        return std::nullopt;
+    }
+    fs::rename( PendingMeta, Meta, Ec );
 
     return Artifact.string();
 }
 
 } // namespace
+
+// Shared with DriverRun.cpp: `volt run` wants exactly the same artifact, in its
+// shared form, for exactly the same reason — the stdlib is already compiled, so
+// neither path should compile it again.
+std::optional<std::string> Volt::Driver::EnsureStdlibArtifact ( Driver &TheDriver, const BuildOptions &Options )
+{
+    return EnsureStdlibArtifactImpl( TheDriver, Options );
+}
 
 #endif // VOLT_ENABLE_LLVM
 
@@ -136,15 +170,18 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
     EmitOpts.bLto        = Options.bLto;
     EmitOpts.EntrySymbol = Options.EntrySymbol;
 
-    if ( Options.Emit == "ir" )
+    std::string EmitLower = Options.Emit;
+    std::ranges::transform( EmitLower, EmitLower.begin(), [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+
+    if ( EmitLower == "ir" )
     {
         EmitOpts.Stage = Backend::Llvm::EEmitStage::Ir;
     }
-    else if ( Options.Emit == "obj" )
+    else if ( EmitLower == "obj" )
     {
         EmitOpts.Stage = Backend::Llvm::EEmitStage::Object;
     }
-    else if ( not Options.Emit.empty() )
+    else if ( not EmitLower.empty() )
     {
         return BuildResult{
             .bOk = false, .Artifact = {}, .Message = "Unsupported --emit '" + Options.Emit + "': expected 'ir' or 'obj'" };
@@ -163,7 +200,7 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
                                 .Message  = "Unsupported --stdlib-artifact '" + Options.StdlibArtifactKind +
                                            "': expected 'static' or 'shared'" };
         }
-        if ( const std::optional<std::string> Artifact = EnsureStdlibArtifact( *this, Options ) )
+        if ( const std::optional<std::string> Artifact = EnsureStdlibArtifactImpl( *this, Options ) )
         {
             EmitOpts.bStdlibPrecompiled = true;
             EmitOpts.ExtraLinkInputs.push_back( *Artifact );

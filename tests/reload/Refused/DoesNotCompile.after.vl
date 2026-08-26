@@ -1,0 +1,7 @@
+def value -> Int32
+  nope_this_does_not_exist()
+end
+
+def __volt_entry -> Int32
+  value()
+end

@@ -7,7 +7,10 @@ option('enable_testing', type : 'boolean', value : false,
        description : 'Enable the CTest-equivalent test suite (not yet migrated)')
 
 option('enable_llvm', type : 'boolean', value : true,
-       description : 'Build BackendLLVM and link it into Driver/Volt')
+       description : 'Build BackendLlvmIr + BackendLLVM and link them into Driver/Volt')
+
+option('enable_jit', type : 'boolean', value : true,
+       description : 'Build BackendJIT (LLVM ORC) and link it into Driver/Volt')
 
 option('enable_asan', type : 'boolean', value : false,
        description : 'AddressSanitizer, debug-like buildtypes only')

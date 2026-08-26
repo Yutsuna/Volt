@@ -249,6 +249,9 @@ namespace Frontend
         void ParseEnumBody ( DeclList &Out );
         [[nodiscard]] DeclId ParseMixin ();
         [[nodiscard]] DeclId ParseMethod ( bool bAbstract, bool bExternal );
+        // `external name : Type` — the data half of `external def`.
+        [[nodiscard]] DeclId ParseExternalVar ();
+
         [[nodiscard]] DeclId ParseInclude ();
         [[nodiscard]] DeclId ParseComponent ();
         [[nodiscard]] DeclId ParseCircuit ();

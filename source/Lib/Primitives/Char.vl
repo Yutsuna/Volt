@@ -3,6 +3,7 @@ struct Char
   include Comparable
   include Hashable
   include Arithmetic
+  include Numeric
 
   #----------------------------------------------------------------------------
 
@@ -113,7 +114,7 @@ struct Char
     when '\r' then "'\\r'"
     when '\\' then "'\\\\'"
     when '\'' then "'\\''"
-    else           to_string
+    else           "'" + to_string + "'"
     end
   end
 

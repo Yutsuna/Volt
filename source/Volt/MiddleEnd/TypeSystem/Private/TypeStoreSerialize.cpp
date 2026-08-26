@@ -28,6 +28,8 @@ namespace MiddleEnd
             Meta::Serialize( W, ByNodeKind );
             Meta::Serialize( W, Functions );
             Meta::Serialize( W, FunctionByName );
+            Meta::Serialize( W, Variables );
+            Meta::Serialize( W, VariableByName );
 
             const auto ModuleCount = static_cast<std::uint32_t>( Modules.size() );
             Meta::Serialize( W, ModuleCount );
@@ -75,6 +77,15 @@ namespace MiddleEnd
                 return false;
             }
             if ( not Meta::Deserialize( R, FunctionByName ) )
+            {
+                return false;
+            }
+
+            if ( not Meta::Deserialize( R, Variables ) )
+            {
+                return false;
+            }
+            if ( not Meta::Deserialize( R, VariableByName ) )
             {
                 return false;
             }

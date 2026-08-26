@@ -4,6 +4,7 @@ module IO
   class StandardStream
     include Reader
     include Writer
+    include Inspectable
 
     getter fd : Int32
 

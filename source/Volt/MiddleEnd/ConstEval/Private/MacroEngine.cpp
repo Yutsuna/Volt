@@ -107,9 +107,23 @@ public:
     Engine ( std::span<AstContext *const> InUnits,
              TypeSystem::TypeStore &InStore,
              const ::Volt::Core::SourceManager &InSources,
-             ::Volt::Core::DiagEngine::Bag &InDiags )
+             ::Volt::Core::DiagEngine::Bag &InDiags,
+             std::span<const AstContext *const> InAllUnits = {} )
         : Units( InUnits ), Store( InStore ), Sources( InSources ), Diags( InDiags )
     {
+        if ( not InAllUnits.empty() )
+        {
+            AllUnits = InAllUnits;
+        }
+        else
+        {
+            EffectiveAllUnits.reserve( Units.size() );
+            for ( AstContext *U : Units )
+            {
+                EffectiveAllUnits.push_back( U );
+            }
+            AllUnits = EffectiveAllUnits;
+        }
     }
 
     void Run ()
@@ -150,7 +164,7 @@ private:
         const bool bGeneric          = not Store.Type( Target ).Params.IsEmpty();
         const std::string TargetName = std::string( Store.Text( Store.Type( Target ).Name ) );
 
-        AstContext *TargetAst = UnitAt( Unit );
+        AstContext *TargetAst = MutableUnitAt( Unit );
         if ( TargetAst == nullptr or Store.IsMixin( Target ) )
         {
             // A mixin is never a target: `self` in a macro means the concrete
@@ -244,8 +258,8 @@ private:
                     const std::string &TargetName,
                     const MacroSite &Site )
     {
-        AstContext *SourceAst = UnitAt( Site.Unit );
-        AstContext *TargetAst = UnitAt( TargetUnit );
+        const AstContext *SourceAst = UnitAt( Site.Unit );
+        AstContext *TargetAst       = MutableUnitAt( TargetUnit );
         if ( SourceAst == nullptr or TargetAst == nullptr )
         {
             return;
@@ -265,7 +279,7 @@ private:
         MacroEnv Env{ .Source   = *SourceAst,
                       .Target   = *TargetAst,
                       .Store    = Store,
-                      .Units    = Units,
+                      .Units    = AllUnits,
                       .SelfType = Target,
                       .Site     = SiteOf( *SourceAst, Macro.Loc, Name ),
                       .Diags    = Diags,
@@ -322,7 +336,7 @@ private:
 
     void RunMacroBlocks ( std::uint32_t Unit )
     {
-        AstContext *Ast = UnitAt( Unit );
+        AstContext *Ast = MutableUnitAt( Unit );
         if ( Ast == nullptr )
         {
             return;
@@ -344,7 +358,7 @@ private:
             MacroEnv Env{ .Source   = *Ast,
                           .Target   = *Ast,
                           .Store    = Store,
-                          .Units    = Units,
+                          .Units    = AllUnits,
                           .SelfType = TypeSystem::NominalId{},
                           .Site     = SiteOf( *Ast, Node.Loc, {} ),
                           .Diags    = Diags,
@@ -375,6 +389,10 @@ private:
         for ( std::size_t Index = 0; Index < Ast.DeclCount(); ++Index )
         {
             const DeclId Id{ static_cast<DeclId::ValueType>( Index ) };
+            if ( std::holds_alternative<Mixin>( Ast.Decl( Id ) ) )
+            {
+                continue;
+            }
             const DeclList *BodyPtr = BodyOf( Ast, Id );
             if ( BodyPtr == nullptr )
             {
@@ -454,8 +472,17 @@ private:
         return Slash == std::string_view::npos ? std::string{} : std::string( Path.substr( 0, Slash ) );
     }
 
-    [[nodiscard]] AstContext *UnitAt ( std::uint32_t Unit ) const
+    [[nodiscard]] AstContext *MutableUnitAt ( std::uint32_t Unit ) const
     {
+        return Unit < Units.size() ? Units[Unit] : nullptr;
+    }
+
+    [[nodiscard]] const AstContext *UnitAt ( std::uint32_t Unit ) const
+    {
+        if ( not AllUnits.empty() and Unit < AllUnits.size() )
+        {
+            return AllUnits[Unit];
+        }
         return Unit < Units.size() ? Units[Unit] : nullptr;
     }
 
@@ -463,6 +490,8 @@ private:
     TypeSystem::TypeStore &Store;
     const ::Volt::Core::SourceManager &Sources;
     ::Volt::Core::DiagEngine::Bag &Diags;
+    std::vector<const AstContext *> EffectiveAllUnits;
+    std::span<const AstContext *const> AllUnits;
 };
 
 } // namespace
@@ -473,9 +502,10 @@ namespace Volt::MiddleEnd::ConstEval
 void ExpandTypeMacros ( std::span<Frontend::AstContext *const> Units,
                         TypeSystem::TypeStore &Store,
                         const ::Volt::Core::SourceManager &Sources,
-                        ::Volt::Core::DiagEngine::Bag &Diags )
+                        ::Volt::Core::DiagEngine::Bag &Diags,
+                        std::span<const Frontend::AstContext *const> AllUnits )
 {
-    Engine( Units, Store, Sources, Diags ).Run();
+    Engine( Units, Store, Sources, Diags, AllUnits ).Run();
 }
 
 } // namespace Volt::MiddleEnd::ConstEval

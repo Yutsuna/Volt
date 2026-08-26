@@ -11,10 +11,13 @@
 // flattened NominalId trees — the cross-unit currency — so `Array<Int32>`
 // instantiates once per build no matter how many units mention it.
 
+#include "BackendCore_export.hpp"
+#include "Volt/BackendCore/BackendInput.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <optional>
 #include <set>
 #include <utility>
@@ -90,6 +93,41 @@ namespace Backend
         std::deque<MonoRequest> Pending;
         std::set<std::vector<std::uint32_t>> Seen;
     };
+
+    // The two halves of draining that are the same for every target: the loop,
+    // and which member a request names. Both are pure scheduling and pure store
+    // reads — no emitted code, no target type — so they live here rather than
+    // once per backend. `Emit` is where a target's own instantiation goes.
+    namespace MonoQueue
+    {
+
+        // To a fixpoint, not once: a drained body can itself enqueue further
+        // requests (a generic method calling another generic method), and
+        // Enqueue dedupes on MonoRequest::Key, so the loop terminates exactly
+        // when no new instantiation was discovered. `ShouldStop` is polled
+        // between requests so a failed emission unwinds without the caller
+        // re-checking inside `Emit`.
+        //
+        // One indirect call per instantiation, never per node
+        // (core-interfaces.md).
+        BACKENDCORE_EXPORT void Drain ( Monomorphizer &Queue,
+                                        const std::function<bool()> &ShouldStop,
+                                        const std::function<void( const MonoRequest & )> &Emit );
+
+        // The member a request names, plus the UnitView that declares it (its
+        // Ast/Scopes are what a re-instantiated body is typed against). Null
+        // when the store declares no such member — a middle-end contract
+        // violation, reported by the caller.
+        //
+        // A MonoRequest names the *receiver*, not the declaring type, so the
+        // lookup goes through LookupMember's own order — own body first, then
+        // mixins, then the superclass. That is exactly what makes an inherited
+        // default (`Arithmetic#min` called on `Int32`) drainable: the request's
+        // Owner never declares the member itself.
+        [[nodiscard]] BACKENDCORE_EXPORT const MiddleEnd::TypeSystem::Member *
+        Lookup ( const BackendInput &Build, const MonoRequest &Request, const UnitView **OutUnit );
+
+    } // namespace MonoQueue
 
 } // namespace Backend
 

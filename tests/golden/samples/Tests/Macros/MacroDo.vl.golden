@@ -1,0 +1,64 @@
+Program 'samples/Tests/Macros/MacroDo.vl'
+├─ MacroBlock @4:7
+│  └─ body
+│     ├─ ExprStmt @5:3
+│     │  └─ expr
+│     │     └─ Assign '=' @5:10
+│     │        ├─ target
+│     │        │  └─ Identifier 'kernel' @5:3
+│     │        └─ value
+│     │           └─ Member 'trim' @5:19
+│     │              └─ object
+│     │                 └─ CommandLit @5:12
+│     │                    └─ parts
+│     │                       └─ StringLiteral 'uname' @5:12
+│     └─ ExprStmt @6:3
+│        └─ expr
+│           └─ Call @6:3
+│              ├─ callee
+│              │  └─ Identifier 'puts' @6:3
+│              └─ args
+│                 └─ Interp @6:8
+│                    └─ parts
+│                       ├─ StringLiteral 'compiling for ' @6:8
+│                       ├─ Identifier 'kernel' @6:25
+│                       ├─ StringLiteral ' from ' @6:8
+│                       └─ Identifier '__DIR__' @6:40
+└─ MacroBlock @9:7
+   └─ body
+      ├─ ExprStmt @10:3
+      │  └─ expr
+      │     └─ Assign '=' @10:9
+      │        ├─ target
+      │        │  └─ Identifier 'files' @10:3
+      │        └─ value
+      │           └─ Member 'lines' @10:32
+      │              └─ object
+      │                 └─ Member 'trim' @10:27
+      │                    └─ object
+      │                       └─ CommandLit @10:11
+      │                          └─ parts
+      │                             └─ StringLiteral 'echo a.vl b.vl' @10:11
+      └─ ExprStmt @11:3
+         └─ expr
+            └─ Call @11:3
+               ├─ callee
+               │  └─ Member 'each' @11:3
+               │     └─ object
+               │        └─ Identifier 'files' @11:15
+               └─ block_arg
+                  └─ Block @11:3
+                     ├─ params
+                     │  └─ Param 'file' @11:7
+                     └─ body
+                        └─ ExprStmt @12:5
+                           └─ expr
+                              └─ Call @12:5
+                                 ├─ callee
+                                 │  └─ Identifier 'puts' @12:5
+                                 └─ args
+                                    └─ Interp @12:10
+                                       └─ parts
+                                          ├─ StringLiteral 'seen ' @12:10
+                                          └─ Identifier 'file' @12:18
+--- exit 0 ---

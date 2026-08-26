@@ -82,6 +82,18 @@ namespace Backend
             // instead of a linked executable. What the archive-cache build
             // mode sets to produce `native/<NativeCacheKey>.so` (Phase 4).
             bool bSharedOutput = false;
+
+            // Emit a definition of the unwind-slot accessor beside this
+            // module's transport globals. Set when the artifact being produced
+            // is one a JIT will later load and skip over: without it, JIT-ed
+            // code and this artifact would each hold their own copy of the
+            // in-flight exception state (Volt/BackendCore/UnwindTransport.hpp).
+            bool bDefineSlotAccessor = false;
+
+            // Keep and export mergeable definitions instead of letting the
+            // linker discard the ones that got fully inlined. Set for an
+            // artifact a JIT will load and skip over.
+            bool bRetainMergeableBodies = false;
         };
 
         // The host triple Begin() would select — plain data, no LLVM type

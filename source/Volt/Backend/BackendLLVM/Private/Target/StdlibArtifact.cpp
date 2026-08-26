@@ -120,7 +120,14 @@ bool Volt::Backend::Llvm::BuildStdlibArtifact ( const BackendInput &Build,
 
     Opts.Stage         = bShared ? EEmitStage::Link : EEmitStage::Object;
     Opts.bSharedOutput = bShared;
-    Opts.OutputPath    = TempFile.str().str();
+
+    // Only the shared artifact: it is the one a JIT loads as a dylib and skips
+    // over, so it is the one that has to own the transport slots for both
+    // sides. The static archive is only ever linked into an AOT program, which
+    // addresses the globals directly and needs no accessor.
+    Opts.bDefineSlotAccessor    = bShared;
+    Opts.bRetainMergeableBodies = bShared;
+    Opts.OutputPath             = TempFile.str().str();
 
     LlvmBackend Impl;
     Impl.SetOptions( Opts );

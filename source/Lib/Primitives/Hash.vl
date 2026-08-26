@@ -118,4 +118,42 @@ struct Hash<K, V>
       i += 1
     end
   end
+
+  def to_string -> String
+    return "{}" if @size == 0
+
+    cap = @size * 32_u64 + 4_u64
+    sb = StringBuilder.new( cap )
+    sb.append_byte( 123_u8 )
+
+    first = true
+    each do | k, v |
+      if not first then sb.append( ", " ) else first = false end
+      sb.append( k.to_string )
+      sb.append( " => " )
+      sb.append( v.to_string )
+    end
+
+    sb.append_byte( 125_u8 )
+    sb.build
+  end
+
+  def inspect -> String
+    return "{}" if @size == 0
+
+    cap = @size * 32_u64 + 4_u64
+    sb = StringBuilder.new( cap )
+    sb.append_byte( 123_u8 )
+
+    first = true
+    each do | k, v |
+      if not first then sb.append( ", " ) else first = false end
+      sb.append( k.inspect )
+      sb.append( " => " )
+      sb.append( v.inspect )
+    end
+
+    sb.append_byte( 125_u8 )
+    sb.build
+  end
 end

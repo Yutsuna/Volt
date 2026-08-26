@@ -98,6 +98,7 @@ struct VOLT_MIDDLEEND_ANALYSIS_EXPORT TypeCheckerContext
     std::unordered_map<Symbol, SemaTypeId> Locals{};
     std::unordered_set<std::uint32_t> UnconstrainedLiterals{};
     std::unordered_map<Symbol, Frontend::ExprId> UnconstrainedVarInitializers{};
+    std::unordered_set<Symbol> UnconstrainedParams{};
 
     // Is `Init` an initialiser that has *no type of its own* — an
     // unconstrained literal, or something that never resolved?

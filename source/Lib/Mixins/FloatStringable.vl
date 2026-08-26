@@ -67,4 +67,8 @@ mixin FloatStringable
 
     negative ? "-" + result : result
   end
+
+  def inspect -> String
+    to_string
+  end
 end

@@ -1,0 +1,2 @@
+puts( 1 ) if true
+puts( 2 )

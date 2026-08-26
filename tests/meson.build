@@ -37,12 +37,6 @@ foreach sample_path : sample_files
     endif
 
     rel_sample = sample_path.replace(samples_root + '/', '')
-    # Root-relative, e.g. `samples/JSX/Foo.vlx` — never the absolute
-    # `sample_path`. `volt parse` echoes whatever `-i` gets, verbatim, in its
-    # `Program '...'` header, and that header is exactly what a golden file
-    # records: an absolute path would bake this machine's checkout location
-    # into a committed fixture. `workdir` below is what makes the relative
-    # path resolve the same way on any machine or in CI.
     root_rel_sample = 'samples' / rel_sample
     golden_path = golden_root / (rel_sample + '.golden')
     lowered_golden_path = golden_root / (rel_sample + '.lowered.golden')
@@ -180,3 +174,148 @@ foreach test_path : exec_test_files
         )
     endif
 endforeach
+
+if jit_enabled
+    foreach test_path : exec_test_files
+        if test_path == ''
+            continue
+        endif
+
+        expected_path = test_path + '.expected'
+        if fs.exists(expected_path)
+            rel_test = test_path.replace(samples_root + '/', '')
+            root_rel_test = 'samples' / rel_test
+            test(
+                'jit/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit',
+            )
+
+            test(
+                'jit-whole/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run --whole-module -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit-whole',
+            )
+            test(
+                'jit-indirect/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run --indirect -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit-indirect',
+            )
+        endif
+    endforeach
+
+    reload_root = meson.current_source_dir() / 'reload'
+    reload_sh = reload_root / 'reload-test.sh'
+
+    reload_cases = [
+        ['Ok/BodyChanged', 'exit 7'],
+        ['Ok/CalleeChanged', 'exit 10'],
+        ['Refused/SignatureChanged', 'changed shape'],
+        ['Refused/LayoutChanged', 'changed size, alignment or existence'],
+        ['Refused/DoesNotCompile', 'keeping the running code'],
+    ]
+
+    foreach reload_case : reload_cases
+        test(
+            'jit-reload/' + reload_case[0],
+            sh,
+            args: [
+                reload_sh,
+                volt_exe.full_path(),
+                reload_root / (reload_case[0] + '.before.vl'),
+                reload_root / (reload_case[0] + '.after.vl'),
+                reload_case[1],
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'jit-reload',
+            timeout: 60,
+        )
+    endforeach
+
+    repl_root = meson.current_source_dir() / 'repl'
+    repl_sh = repl_root / 'repl-test.sh'
+
+    repl_exact = [
+        'Eval/Arith',
+        'Eval/Persist',
+        'Eval/MultiLine',
+        'Eval/Redefine',
+        'Eval/StringPersist',
+        'Classify/EndInString',
+        'Classify/KeywordInComment',
+        'Classify/TrailingOperator',
+        'Classify/ModifierIf',
+        'Classify/NestedBlocks',
+    ]
+
+    foreach repl_case : repl_exact
+        test(
+            'repl/' + repl_case,
+            sh,
+            args: [
+                repl_sh,
+                volt_exe.full_path(),
+                repl_root / (repl_case + '.vl'),
+                'exact',
+                repl_root / (repl_case + '.expected'),
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'repl',
+            timeout: 120,
+        )
+    endforeach
+
+    repl_markers = [
+        ['Recover/SyntaxError', 'after'],
+    ]
+
+    foreach repl_case : repl_markers
+        test(
+            'repl/' + repl_case[0],
+            sh,
+            args: [
+                repl_sh,
+                volt_exe.full_path(),
+                repl_root / (repl_case[0] + '.vl'),
+                'contains',
+                repl_case[1],
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'repl',
+            timeout: 120,
+        )
+    endforeach
+endif

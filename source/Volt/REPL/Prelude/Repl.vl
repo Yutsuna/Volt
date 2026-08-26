@@ -1,0 +1,15 @@
+#{
+  @brief REPL prelude loaded on session startup.
+  @details Kept out of `source/Lib` to avoid polluting compiled binaries.
+           Single-expression inputs are wrapped in `__volt_repl_echo(...)`.
+#}
+
+#{
+  @brief Prints an evaluated REPL expression value.
+  @details Requires `value` to implement `.inspect`. The host appends
+           the type annotation and trailing newline after this runs.
+#}
+def __volt_repl_echo<T>( value : T ) -> Void
+  IO.stdout.print( "=> " )
+  IO.stdout.print( value.inspect )
+end

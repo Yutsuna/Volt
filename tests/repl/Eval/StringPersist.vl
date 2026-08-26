@@ -1,0 +1,3 @@
+s = "hello"
+puts( s )
+puts( s )

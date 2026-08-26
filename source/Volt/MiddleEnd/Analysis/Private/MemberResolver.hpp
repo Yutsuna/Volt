@@ -54,6 +54,11 @@ constexpr std::string_view ConstructorName = "initialize";
 // operations on it are supplied by the machine/backend rather than by a body?
 [[nodiscard]] bool IsMachineSuppliedOn ( const TypeCheckerContext &Context, TypeSystem::NominalId Base );
 
+// Does the abstract member on `Base` represent a machine conversion
+// (both receiver and result collapse to Primitive or Pointer)?
+[[nodiscard]] bool
+IsMachineConversionOn ( const TypeCheckerContext &Context, TypeSystem::NominalId Base, const TypeSystem::Member &Entry );
+
 // Calling a value directly — `f( x )` where `f` is not a method name but a
 // callable. The member invoked is the callable type's one abstract contract,
 // found by walking its members rather than by spelling `call` in C++.

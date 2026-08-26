@@ -120,7 +120,7 @@ PlaceholderTypeArgs ( const Volt::MiddleEnd::TypeSystem::TypeStore &Store, Volt:
     const auto *Name = std::get_if<Volt::Frontend::Identifier>( &Node );
     if ( Name != nullptr )
     {
-        return Context.UnconstrainedVarInitializers.contains( Name->Name );
+        return Context.UnconstrainedVarInitializers.contains( Name->Name ) or Context.UnconstrainedParams.contains( Name->Name );
     }
     // `-1` is a `Unary` over the still-unconstrained literal `1` (the parser
     // never folds a sign into a literal token): a comparison operand written
@@ -815,7 +815,8 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 // An operand only adopts the other's type when it has none of
                 // its own to lose (IsMalleable). The receiver is settled first,
                 // because it is what the operator resolves on.
-                if ( Rhs.IsValid() and not IsMalleable( Context, Expr.Rhs ) and IsMalleable( Context, Expr.Lhs ) )
+                if ( Rhs.IsValid() and ( not IsMalleable( Context, Expr.Rhs ) or not Lhs.IsValid() ) and
+                     IsMalleable( Context, Expr.Lhs ) )
                 {
                     Context.ConstrainExprType( Expr.Lhs, Rhs );
                 }
@@ -1162,7 +1163,7 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
             // node reaching here would be a bug the AstInvariant pass reports.
             [&] ( const Frontend::Lambda &Expr ) -> SemaTypeId
             {
-                const Volt::Core::SmallVec<SemaTypeId, 2> ParamTypes = BindClosureParams( Context, Expr.Params );
+                Volt::Core::SmallVec<SemaTypeId, 2> ParamTypes = BindClosureParams( Context, Expr.Params );
                 if ( Expr.ReturnType.IsValid() )
                 {
                     const SemaTypeId WrittenRet = InferExpr( Context, Expr.ReturnType );
@@ -1171,7 +1172,17 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                         Context.ConstrainExprType( Expr.Body, WrittenRet );
                     }
                 }
-                return ClosureType( Context, "Lambda", InferExpr( Context, Expr.Body ), ParamTypes );
+                const SemaTypeId BodyResult = InferExpr( Context, Expr.Body );
+                for ( std::size_t Idx = 0; Idx < Expr.Params.Size(); ++Idx )
+                {
+                    const Frontend::ParamId PId = Expr.Params[Idx];
+                    const auto &Param           = Context.Ctx.Ast.GetParam( PId );
+                    if ( auto It = Context.Locals.find( Param.Name ); It != Context.Locals.end() and It->second.IsValid() )
+                    {
+                        ParamTypes[Idx] = It->second;
+                    }
+                }
+                return ClosureType( Context, "Lambda", BodyResult, ParamTypes );
             },
             [&] ( const Frontend::Block &Expr ) -> SemaTypeId
             {

@@ -1,0 +1,7 @@
+def value -> Int32
+  1
+end
+
+def __volt_entry -> Int32
+  value()
+end

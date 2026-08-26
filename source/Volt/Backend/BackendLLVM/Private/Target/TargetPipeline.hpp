@@ -9,7 +9,7 @@
 // builder, the IR printer, the target's own object emitter); this class is the
 // seam that owns them together.
 
-#include "Core/EmitterServices.hpp"
+#include "Target/AotServices.hpp"
 
 #include <string_view>
 
@@ -27,7 +27,7 @@ namespace Backend
 
         public:
 
-            explicit TargetPipeline ( EmitterServices &InServices ) : Services( &InServices )
+            explicit TargetPipeline ( AotServices &InServices ) : Services( &InServices )
             {
             }
 
@@ -57,7 +57,7 @@ namespace Backend
 
         private:
 
-            EmitterServices *Services = nullptr;
+            AotServices *Services = nullptr;
         };
 
     } // namespace Llvm

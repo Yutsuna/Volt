@@ -1,0 +1,46 @@
+Program 'samples/Tests/RAII/ModuleGlobalLifetime/Source/Producer/Store.vl'
+├─ Method 'kept_is_intact' @17:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Bool' @17:23
+│  └─ body
+│     └─ ExprStmt @18:3
+│        └─ expr
+│           └─ Binary '==' @18:8
+│              ├─ lhs
+│              │  └─ Identifier 'kept' @18:3
+│              └─ rhs
+│                 └─ StringLiteral 'ab' @18:11
+├─ Method 'held_is_intact' @21:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Bool' @21:23
+│  └─ body
+│     └─ ExprStmt @22:3
+│        └─ expr
+│           └─ Binary '==' @22:8
+│              ├─ lhs
+│              │  └─ Identifier 'held' @22:3
+│              └─ rhs
+│                 └─ IntLiteral '42' @22:11
+├─ ExprStmt @14:1
+│  └─ expr
+│     └─ Assign '=' @14:6
+│        ├─ target
+│        │  └─ Identifier 'kept' @14:1
+│        └─ value
+│           └─ Binary '+' @14:12
+│              ├─ lhs
+│              │  └─ StringLiteral 'a' @14:8
+│              └─ rhs
+│                 └─ StringLiteral 'b' @14:14
+└─ ExprStmt @15:1
+   └─ expr
+      └─ Assign '=' @15:6
+         ├─ target
+         │  └─ Identifier 'held' @15:1
+         └─ value
+            └─ Binary '+' @15:11
+               ├─ lhs
+               │  └─ IntLiteral '41' @15:8
+               └─ rhs
+                  └─ IntLiteral '1' @15:13
+--- exit 0 ---

@@ -95,7 +95,10 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseDeclaration ()
         return ParseMethod( true, false );
     case TokenKind::KwExternal:
         Advance();
-        return ParseMethod( false, true );
+        // `external def ...` is a method with no body here; `external x : T`
+        // is a name for storage defined elsewhere. One keyword, two shapes,
+        // told apart by what follows it — the same way `abstract` is.
+        return Check( TokenKind::KwDef ) ? ParseMethod( false, true ) : ParseExternalVar();
     case TokenKind::KwInclude:
         return ParseInclude();
     case TokenKind::KwComponent:
@@ -630,6 +633,36 @@ Volt::Frontend::DeclId Volt::Frontend::Parser::ParseMacroBlock ()
 void Volt::Frontend::Parser::ParseMemberBlock ( DeclList &Out )
 {
     ParseDeclBlock( Out );
+}
+
+Volt::Frontend::DeclId Volt::Frontend::Parser::ParseExternalVar ()
+{
+    const std::uint32_t Begin = Here();
+
+    ExternalVar Node;
+    if ( Check( TokenKind::Identifier ) or Check( TokenKind::Constant ) )
+    {
+        Node.Name = InternText( Advance() );
+    }
+    else
+    {
+        ReportAt( RangeSince( Begin ), "expected a name after 'external'" );
+    }
+
+    Expect( TokenKind::Colon, "after an external variable's name" );
+    Node.DeclType = ParseType();
+
+    // Refused rather than ignored: an initialiser here would read as a
+    // definition, and the whole point of the declaration is that it defines
+    // nothing. Saying so is more useful than silently dropping it.
+    if ( Check( TokenKind::Assign ) )
+    {
+        ReportAt( RangeSince( Begin ), "an external variable declares storage that lives elsewhere and cannot initialise it" );
+        Advance();
+        static_cast<void>( ParseExpression() );
+    }
+
+    return MakeDecl( Node, RangeSince( Begin ) );
 }
 
 Volt::Frontend::DeclId Volt::Frontend::Parser::ParseInclude ()

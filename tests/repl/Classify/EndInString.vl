@@ -1,0 +1,4 @@
+def trap -> String
+  "this is not the end"
+end
+puts( trap() )

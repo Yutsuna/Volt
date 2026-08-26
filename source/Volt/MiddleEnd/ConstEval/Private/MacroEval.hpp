@@ -62,7 +62,7 @@ namespace MiddleEnd::ConstEval
         /// carry — a target type's field may be declared in a unit that is
         /// neither Source nor Target. A null entry is a cache-served stdlib
         /// unit, skipped exactly as the rest of the seam skips it.
-        std::span<Frontend::AstContext *const> Units;
+        std::span<const Frontend::AstContext *const> Units;
         /// The type `self` introspects. Invalid inside a `macro do`, where
         /// there is no target type and `self` is simply not a source.
         TypeSystem::NominalId SelfType;

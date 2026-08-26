@@ -69,4 +69,8 @@ module LibC
   @[External( "libc", "strlen" )]
   external def strlen( str : Pointer<Char> ) -> UInt64
 
+  #-time-----------------------------------------------------------------------
+  @[External( "libc", "clock" )]
+  external def clock -> Int64
+
 end

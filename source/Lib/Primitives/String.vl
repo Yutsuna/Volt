@@ -48,6 +48,10 @@ struct String
     self
   end
 
+  def inspect -> String
+    "\"" + self + "\""
+  end
+
   #----------------------------------------------------------------------------
 
   def each( &block : Char -> Void ) -> Void

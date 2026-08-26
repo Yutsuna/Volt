@@ -468,7 +468,7 @@ Program 'samples/Tests/Primitives/CharAndString.vl'
 │              │     └─ object
 │              │        └─ CharLiteral 'A' @61:10
 │              └─ rhs
-│                 └─ StringLiteral 'A' @61:25
+│                 └─ StringLiteral ''A'' @61:25
 ├─ ExprStmt @62:1
 │  └─ expr
 │     └─ Call @62:8
@@ -494,5 +494,5 @@ Program 'samples/Tests/Primitives/CharAndString.vl'
                │     └─ object
                │        └─ CharLiteral '\x7F' @63:10
                └─ rhs
-                  └─ StringLiteral '\x7F' @63:28
+                  └─ StringLiteral ''\x7F'' @63:28
 --- exit 0 ---

@@ -2,8 +2,7 @@
 
 #include "Target/TargetPipeline.hpp"
 
-#include "Core/DiagnosticSink.hpp"
-#include "Core/ModuleContext.hpp"
+#include "Volt/BackendCore/DiagnosticSink.hpp"
 
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Module.h>
@@ -27,14 +26,14 @@ bool Volt::Backend::Llvm::TargetPipeline::EmitObjectFile ( std::string_view Path
     }
 
     llvm::legacy::PassManager CodegenPasses;
-    if ( Services->Ctx->Machine().addPassesToEmitFile( CodegenPasses, Stream, nullptr, llvm::CodeGenFileType::ObjectFile ) )
+    if ( Services->Machine->addPassesToEmitFile( CodegenPasses, Stream, nullptr, llvm::CodeGenFileType::ObjectFile ) )
     {
-        static_cast<void>( Services->Diag->Fail( "llvm: target '" + Services->Ctx->Machine().getTargetTriple().str() +
+        static_cast<void>( Services->Diag->Fail( "llvm: target '" + Services->Machine->getTargetTriple().str() +
                                                  "' cannot emit an object file" ) );
         return false;
     }
 
-    CodegenPasses.run( Services->Ctx->Mod() );
+    CodegenPasses.run( *Services->Mod );
     Stream.flush();
     return not Stream.has_error();
 }

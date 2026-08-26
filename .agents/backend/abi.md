@@ -59,15 +59,14 @@ C++ (`rules/core-ast.md`: literals materialise from the layout of the type
 that claimed the node kind via `@[Literal]`).
 
 Allocation is a call to the stdlib's annotated allocator (`@[External]` /
-future `@[Intrinsic]`), so "heap" means the same thing native, VM and wasm —
+future `@[Intrinsic]`), so "heap" means the same thing AOT, JIT and wasm —
 a symbol the target links, not behaviour the compiler invents.
 
 ## Calling convention
 
 | Target | Convention |
 |---|---|
-| LLVM | C calling convention; `self` first, then declared params, then `ptr %env` for closures. Aggregates by pointer (byval later if profiling asks). |
-| VM | stack machine: args pushed left-to-right, `self` first; callee's frame `Base` points at `self`; return value replaces the frame. |
+| LLVM (AOT and JIT) | C calling convention; `self` first, then declared params, then `ptr %env` for closures. Aggregates by pointer (byval later if profiling asks). |
 | WASM | wasm params in the same order; aggregates as `i32` addresses into linear memory. |
 
 The *order* (`self`, params, env) is fixed here, once, for all three — it is
@@ -107,9 +106,9 @@ with each capture stored and every capturing use rewritten in place into
 ordinary `Deref`/`Call( Pointer<T>.from_address, [env-offset expr] )` nodes.
 A backend therefore never sees a capture as such — only the `Deref`/`Call`
 nodes it already knows how to emit — and needs no closure-specific logic of
-its own to reproduce this for VM or wasm. A closure **value** is uniformly
-the two-slot aggregate `{ code, env }` — function pointer / `FunctionTable`
-index / `call_indirect` table index respectively.
+its own to reproduce this on a second target. A closure **value** is uniformly
+the two-slot aggregate `{ code, env }` — a function pointer natively, a
+`call_indirect` table index on wasm.
 
 An env field holds the **address** of the captured binding, not a copy of its
 value: the frame gives every capture the same pointer-sized slot whatever its
@@ -132,9 +131,12 @@ The exception root is the one stdlib type annotated `@[ExceptionRoot]`
 An in-flight exception is a pointer to an instance of a type whose ancestry
 reaches that root; `rescue` clause matching compares dynamic `NominalId`
 against the clause's resolved nominal (the ancestry table is emitted per
-build as static data). Transport is per-target (`llvm.md` tiers, VM
-`Raise`/`EnterRescue`, wasm error slot) but the object and the matching rule
-are this section, shared.
+build as static data). Transport is per-target (`llvm.md` tiers, wasm error
+slot) but the object and the matching rule are this section, shared.
+
+The JIT reaches the same thread-local slots through an accessor call rather
+than a TLS relocation (`jit.md`); that changes the addressing mode, not the
+protocol, and the slot names stay the ones `UnwindTransport.hpp` declares.
 
 LLVM Tier 1 (implemented) reserves **no channel in any signature** for this:
 the in-flight exception is two thread-local globals (address + NominalId),

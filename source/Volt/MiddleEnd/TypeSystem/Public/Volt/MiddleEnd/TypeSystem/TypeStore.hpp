@@ -687,6 +687,71 @@ namespace MiddleEnd
                 return It != FunctionByName.end() ? &Functions[It->second] : nullptr;
             }
 
+            // --- Module variables ------------------------------------------------
+
+            // A name for storage declared at module level. Modelled as a
+            // `Member` for exactly the reason a free function is: the
+            // machinery built around `Member` — extern symbol and library,
+            // declaring unit and DeclId, a resolved type — is what this needs,
+            // and a variable is simply a member with no receiver and no body.
+            //
+            // Today the only way to get one is `external name : Type`, which
+            // declares storage some other unit or object file owns. An
+            // ordinary top-level `x = 5` is still a *statement*, bound through
+            // the ScopeTable, because it has an initialiser to run.
+            [[nodiscard]] Member *DeclareVariable ( std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+            {
+                const Symbol Key = Strings.Intern( Name );
+                if ( const auto It = VariableByName.find( Key ); It != VariableByName.end() )
+                {
+                    Member &Existing = Variables[It->second];
+                    Existing.Unit    = Unit;
+                    Existing.Decl    = Decl;
+                    return &Existing;
+                }
+
+                Member Fresh;
+                Fresh.Name              = Key;
+                Fresh.Kind              = EMemberKind::Field;
+                Fresh.Unit              = Unit;
+                Fresh.Decl              = Decl;
+                const std::size_t Index = Variables.size();
+                Variables.push_back( std::move( Fresh ) );
+                VariableByName.emplace( Key, Index );
+                return &Variables[Index];
+            }
+
+            [[nodiscard]] const Member *LookupVariable ( std::string_view Name ) const
+            {
+                const auto Known = Strings.Find( Name );
+                if ( not Known )
+                {
+                    return nullptr;
+                }
+                const auto It = VariableByName.find( *Known );
+                return It != VariableByName.end() ? &Variables[It->second] : nullptr;
+            }
+
+            // The variable declared by `Decl` inside `Unit`, mutable so the
+            // signature phase can fill in the type the declaration phase could
+            // not yet resolve — mirrors FunctionByDecl.
+            [[nodiscard]] Member *VariableByDecl ( std::uint32_t Unit, Frontend::DeclId Decl )
+            {
+                for ( Member &Entry : Variables )
+                {
+                    if ( Entry.Unit == Unit and Entry.Decl == Decl )
+                    {
+                        return &Entry;
+                    }
+                }
+                return nullptr;
+            }
+
+            [[nodiscard]] std::span<const Member> ModuleVariables () const
+            {
+                return Variables;
+            }
+
             // --- Modules -------------------------------------------------------
 
             // A `module` is a namespace, not a nominal type: its methods are bound
@@ -889,6 +954,8 @@ namespace MiddleEnd
                 ByNodeKind.clear();
                 Functions.clear();
                 FunctionByName.clear();
+                Variables.clear();
+                VariableByName.clear();
                 Modules.clear();
                 SigDedup.clear();
                 ClearUniverse();
@@ -952,6 +1019,8 @@ namespace MiddleEnd
             // Resolution (TypeCheckerContext.hpp) stays valid through every
             // (parallel, read-only) TypeChecker run.
             std::vector<Member> Functions;
+            std::vector<Member> Variables;
+            std::unordered_map<Symbol, std::size_t> VariableByName;
             std::unordered_map<Symbol, std::size_t> FunctionByName;
             std::unordered_set<Symbol> Modules;
             std::unordered_map<std::vector<std::uint32_t>, SigTypeId, U32KeyHash> SigDedup;

@@ -169,6 +169,22 @@ namespace Frontend
         std::vector<DeclId> TopDecls;
         std::vector<StmtId> TopStmts;
 
+        // What runs when this unit is torn down, after every unit has run.
+        //
+        // A file is a module and its top-level locals are its globals
+        // (rules/core-ast.md): they have static storage and unit lifetime, so
+        // releasing one at the end of the unit's own initialiser frees it while
+        // the program is still running — another unit's initialiser, or a `def`
+        // in this file called from one, then reads released memory.
+        //
+        // So the scope-exit release for a *directly* top-level binding is moved
+        // here by FinalizeLowering and emitted as `_V_fini_<Unit>`, which
+        // `_V_fini_all` calls in reverse unit order once the program is done.
+        // Everything nested — a local inside a top-level `while`, a temporary
+        // in a full expression — keeps its ordinary scope-exit release in
+        // TopStmts, because its lifetime really does end there.
+        std::vector<StmtId> TopTeardown;
+
         // --- Frontend cache (Issue #61) -----------------------------------
         //
         // File/Interner are not covered here: File is a per-run SourceManager

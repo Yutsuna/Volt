@@ -1,0 +1,17 @@
+class Box
+  a : Int32
+  b : Int64
+
+  def initialize( @a : Int32 )
+    @b = 0
+  end
+
+  def get -> Int32
+    @a
+  end
+end
+
+def __volt_entry -> Int32
+  b = Box.new( 5 )
+  b.get()
+end
