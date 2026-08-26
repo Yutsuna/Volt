@@ -43,7 +43,8 @@ namespace MiddleEnd::ConstEval
     VOLT_MIDDLEEND_CONSTEVAL_EXPORT void ExpandTypeMacros ( std::span<Frontend::AstContext *const> Units,
                                                             TypeSystem::TypeStore &Store,
                                                             const ::Volt::Core::SourceManager &Sources,
-                                                            ::Volt::Core::DiagEngine::Bag &Diags );
+                                                            ::Volt::Core::DiagEngine::Bag &Diags,
+                                                            std::span<const Frontend::AstContext *const> AllUnits = {} );
 
 } // namespace MiddleEnd::ConstEval
 
