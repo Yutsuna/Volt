@@ -74,7 +74,7 @@ namespace
     std::unordered_set<std::string> Out;
     for ( const Volt::Frontend::Token &Tok : Scanner.Tokenize() )
     {
-        if ( Tok.Kind == Volt::Frontend::TokenKind::Identifier )
+        if ( Tok.Kind == Volt::Frontend::TokenKind::Identifier or Tok.Kind == Volt::Frontend::TokenKind::Constant )
         {
             Out.emplace( Interner.Resolve( Tok.Lexeme ) );
         }
