@@ -1,0 +1,114 @@
+Program 'samples/Tests/Exceptions/MixinContractUnwind.vl'
+├─ Class 'RaisingStream' @1:1
+│  └─ body
+│     ├─ Include @2:3
+│     │  └─ target
+│     │     └─ TypeRef 'IO::Writer' @2:11
+│     ├─ Method 'write' @4:3
+│     │  ├─ params
+│     │  │  ├─ Param '_buffer' @4:14
+│     │  │  │  └─ decl_type
+│     │  │  │     └─ TypeRef 'Pointer' @4:24
+│     │  │  │        └─ generics
+│     │  │  │           └─ TypeRef 'Void' @4:32
+│     │  │  └─ Param '_count' @4:39
+│     │  │     └─ decl_type
+│     │  │        └─ TypeRef 'UInt64' @4:48
+│     │  ├─ return_type
+│     │  │  └─ TypeRef 'Int64' @4:60
+│     │  └─ body
+│     │     └─ ExprStmt @5:5
+│     │        └─ expr
+│     │           └─ RaiseExpr @5:5
+│     │              └─ exception
+│     │                 └─ Call @5:28
+│     │                    ├─ callee
+│     │                    │  └─ Member 'new' @5:24
+│     │                    │     └─ object
+│     │                    │        └─ Identifier 'ArgumentError' @5:11
+│     │                    └─ args
+│     │                       └─ StringLiteral 'refused' @5:30
+│     └─ Method 'initialize' @1:1
+├─ Method 'attempt' @10:1
+│  ├─ params
+│  │  └─ Param 'stream' @10:14
+│  │     └─ decl_type
+│  │        └─ TypeRef 'RaisingStream' @10:23
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @10:42
+│  └─ body
+│     ├─ ExprStmt @11:3
+│     │  └─ expr
+│     │     └─ Call @11:14
+│     │        ├─ callee
+│     │        │  └─ Member 'puts' @11:9
+│     │        │     └─ object
+│     │        │        └─ Identifier 'stream' @11:3
+│     │        └─ args
+│     │           └─ StringLiteral 'must never be written' @11:16
+│     └─ Return @12:3
+│        └─ value
+│           └─ IntLiteral '100' @12:10
+├─ Method 'main' @16:1
+│  ├─ return_type
+│  │  └─ TypeRef 'Int32' @16:13
+│  └─ body
+│     ├─ ExprStmt @17:3
+│     │  └─ expr
+│     │     └─ Assign '=' @17:11
+│     │        ├─ target
+│     │        │  └─ Identifier 'outcome' @17:3
+│     │        └─ value
+│     │           └─ IntLiteral '0' @17:13
+│     ├─ ExprStmt @19:3
+│     │  └─ expr
+│     │     └─ BeginExpr @19:3
+│     │        ├─ body
+│     │        │  └─ ExprStmt @20:5
+│     │        │     └─ expr
+│     │        │        └─ Assign '=' @20:13
+│     │        │           ├─ target
+│     │        │           │  └─ Identifier 'outcome' @20:5
+│     │        │           └─ value
+│     │        │              └─ Binary '+' @20:23
+│     │        │                 ├─ lhs
+│     │        │                 │  └─ Identifier 'outcome' @20:15
+│     │        │                 └─ rhs
+│     │        │                    └─ Call @20:32
+│     │        │                       ├─ callee
+│     │        │                       │  └─ Identifier 'attempt' @20:25
+│     │        │                       └─ args
+│     │        │                          └─ Call @20:51
+│     │        │                             └─ callee
+│     │        │                                └─ Member 'new' @20:47
+│     │        │                                   └─ object
+│     │        │                                      └─ Identifier 'RaisingStream' @20:34
+│     │        └─ rescue_clauses
+│     │           └─ RescueClause 'e' @21:10
+│     │              ├─ exception_type
+│     │              │  └─ TypeRef 'ArgumentError' @21:14
+│     │              └─ body
+│     │                 └─ ExprStmt @22:5
+│     │                    └─ expr
+│     │                       └─ Assign '=' @22:13
+│     │                          ├─ target
+│     │                          │  └─ Identifier 'outcome' @22:5
+│     │                          └─ value
+│     │                             └─ Binary '+' @22:23
+│     │                                ├─ lhs
+│     │                                │  └─ Identifier 'outcome' @22:15
+│     │                                └─ rhs
+│     │                                   └─ IntLiteral '1' @22:25
+│     └─ ExprStmt @25:3
+│        └─ expr
+│           └─ Identifier 'outcome' @25:3
+└─ ExprStmt @28:1
+   └─ expr
+      └─ Call @28:10
+         ├─ callee
+         │  └─ Member 'exit' @28:5
+         │     └─ object
+         │        └─ Identifier 'LibC' @28:1
+         └─ args
+            └─ Identifier 'main' @28:12
+--- exit 0 ---
