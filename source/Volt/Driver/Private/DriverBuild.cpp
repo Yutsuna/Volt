@@ -17,6 +17,8 @@
     #include <unistd.h>
 #endif
 
+#include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -168,15 +170,18 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
     EmitOpts.bLto        = Options.bLto;
     EmitOpts.EntrySymbol = Options.EntrySymbol;
 
-    if ( Options.Emit == "ir" )
+    std::string EmitLower = Options.Emit;
+    std::ranges::transform( EmitLower, EmitLower.begin(), [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+
+    if ( EmitLower == "ir" )
     {
         EmitOpts.Stage = Backend::Llvm::EEmitStage::Ir;
     }
-    else if ( Options.Emit == "obj" )
+    else if ( EmitLower == "obj" )
     {
         EmitOpts.Stage = Backend::Llvm::EEmitStage::Object;
     }
-    else if ( not Options.Emit.empty() )
+    else if ( not EmitLower.empty() )
     {
         return BuildResult{
             .bOk = false, .Artifact = {}, .Message = "Unsupported --emit '" + Options.Emit + "': expected 'ir' or 'obj'" };
