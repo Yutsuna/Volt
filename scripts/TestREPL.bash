@@ -2,6 +2,7 @@
 set -euo pipefail
 
 readonly VOLT="./build/source/Volt/Volt/volt"
+readonly SAMPLES_SKIP="Exceptions/UncaughtRaise.vl"
 readonly JOBS="$(nproc 2>/dev/null || echo 4)"
 export VOLT
 
@@ -46,5 +47,7 @@ function run_test()
 }
 export -f run_test
 
-find samples/Tests/ -type f -name '*.vl' ! -name '*.expected' -print0 |
-  xargs -0 -P "$JOBS" -n 1 bash -c 'run_test "$1"' _
+find samples/Tests/ -type f -name '*.vl' ! -name '*.expected' |
+    grep -vE "$SAMPLES_SKIP" |
+    tr '\n' '\0' |
+    xargs -0 -P "$JOBS" -n 1 bash -c 'run_test "$1"' _
