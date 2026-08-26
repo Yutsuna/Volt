@@ -1,0 +1,16 @@
+#{
+  @mixin Inspectable
+  @brief Generates an `inspect` method for the including type at compile time via macros.
+#}
+mixin Inspectable
+
+  macro def inspect -> String
+    s = "#<"
+    s += "#{self.name}"
+    for field in self.fields
+      s += " @#{field.name}=" + @#{field.name}.inspect
+    end
+    s + ">"
+  end
+
+end

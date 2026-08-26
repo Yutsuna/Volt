@@ -114,7 +114,7 @@ struct Char
     when '\r' then "'\\r'"
     when '\\' then "'\\\\'"
     when '\'' then "'\\''"
-    else           to_string
+    else           "'" + to_string + "'"
     end
   end
 

@@ -118,4 +118,21 @@ struct Array<T>
     sb.append_byte( 93_u8 )
     sb.build
   end
+
+  def inspect -> String
+    return "[]" if @size == 0
+
+    cap = @size * 16_u64 + 4_u64
+    sb = StringBuilder.new( cap )
+    sb.append_byte( 91_u8 )
+
+    first = true
+    each do | item |
+      if not first then sb.append( ", " ) else first = false end
+      sb.append( item.inspect )
+    end
+
+    sb.append_byte( 93_u8 )
+    sb.build
+  end
 end

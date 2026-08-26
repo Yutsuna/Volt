@@ -38,4 +38,8 @@ struct Pointer<T>
     "Pointer<T>@#{self.to_address().to_hex()}"
   end
 
+  def inspect -> String
+    to_string
+  end
+
 end

@@ -28,4 +28,8 @@ struct Bool
     self ? "true" : "false"
   end
 
+  def inspect -> String
+    to_string
+  end
+
 end

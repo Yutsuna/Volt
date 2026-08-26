@@ -14,4 +14,12 @@
 @[Primitive( "ptr", 64 ), Literal( NilLiteral )]
 struct Nil
   include Comparable
+
+  def to_string -> String
+    "nil"
+  end
+
+  def inspect -> String
+    "nil"
+  end
 end
