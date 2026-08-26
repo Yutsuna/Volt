@@ -18,8 +18,8 @@
 
 #include "Target/TargetPipeline.hpp"
 
-#include "Volt/BackendCore/CompilerSeams.hpp"
 #include "Volt/BackendCore/UnwindTransport.hpp"
+#include "Volt/Core/Support/CompilerSeams.hpp"
 
 #include <llvm/Analysis/CGSCCPassManager.h>
 #include <llvm/IR/GlobalValue.h>
@@ -104,7 +104,7 @@ namespace
         {
             return;
         }
-        if ( Store.Text( Entry.ExternLib ) == Volt::Backend::CompilerSeams::Library )
+        if ( Store.Text( Entry.ExternLib ) == Volt::Core::CompilerSeams::Library )
         {
             Exports.emplace( Store.Text( Entry.ExternSymbol ) );
         }

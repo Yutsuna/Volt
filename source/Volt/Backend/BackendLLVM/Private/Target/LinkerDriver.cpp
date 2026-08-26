@@ -2,8 +2,8 @@
 
 #include "Target/LinkerDriver.hpp"
 
-#include "Volt/BackendCore/CompilerSeams.hpp"
 #include "Volt/BackendCore/DiagnosticSink.hpp"
+#include "Volt/Core/Support/CompilerSeams.hpp"
 
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/ErrorOr.h>
@@ -83,7 +83,7 @@ namespace
 // that spells itself, e.g. "SDL2") passes through as `-lSDL2`.
 [[nodiscard]] std::string LibraryFlag ( const std::string &Library )
 {
-    if ( Library == Volt::Backend::CompilerSeams::Library )
+    if ( Library == Volt::Core::CompilerSeams::Library )
     {
         return std::string{};
     }
