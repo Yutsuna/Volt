@@ -300,7 +300,7 @@ struct Volt::Repl::Evaluator::State
         }
 
         const SemaType &Value = Store.Universe().Get( Id );
-        return Value.Base.IsValid() and Store.LookupMember( Value.Base, "to_string" ).Decl != nullptr;
+        return Value.Base.IsValid() and Store.LookupMember( Value.Base, "inspect" ).Decl != nullptr;
     }
 
     [[nodiscard]] std::string DescribeType ( MiddleEnd::TypeSystem::SemaTypeId Id ) const
