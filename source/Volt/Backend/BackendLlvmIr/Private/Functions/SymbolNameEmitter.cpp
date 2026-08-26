@@ -35,6 +35,15 @@ bool Volt::Backend::Llvm::EmitSymbolNames ( EmitterServices &Services )
 {
     llvm::LLVMContext &Context = Services.Ctx->Context();
 
+    // Under JIT execution (PerUnit modules or in-process JIT main), the host
+    // runtime in BackendCore exports `_V_symbol_name` dynamically. Emitting a
+    // static switch here would freeze the symbol table to startup units and
+    // shadow the dynamic host runtime function.
+    if ( PerUnitModules( Services ) or Services.Options->EntrySymbol == "__volt_jit_main" )
+    {
+        return true;
+    }
+
     // The name the stdlib's `@[External( "volt", "_V_symbol_name" )]` declares.
     // Absent means no stdlib declared it — a tooling build, or a build with
     // `--no-stdlib` — and there is then nothing that could call it.
