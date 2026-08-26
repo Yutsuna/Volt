@@ -16,6 +16,7 @@
 #include "Volt/Frontend/Lexer/Lexer.hpp"
 #include "Volt/Frontend/Parser/Parser.hpp"
 #include "Volt/MiddleEnd/Analysis/Raii/OwnershipInference.hpp"
+#include "Volt/MiddleEnd/Analysis/Unwind/UnwindInference.hpp"
 #include "Volt/MiddleEnd/ConstEval/MacroEngine.hpp"
 #include "Volt/MiddleEnd/Core/Pass.hpp"
 #include "Volt/MiddleEnd/Optimisations/InlineSummary.hpp"
@@ -236,10 +237,15 @@ namespace
 // the cache was built. A cache from an older compiler has the declarations
 // without the expansion, which is exactly the "content, not shape" case 06 and
 // 08 already made.
+// Bumped to "VOLTFE16" when `MiddleEnd::TypeSystem::Member` gained
+// `bCanUnwind`: a new serialised field on a reflected aggregate dump, so the
+// same byte-shift reasoning as 05, 07 and 10 applies. The bit is also *content*
+// a cache hit must carry — it is stamped at `RunUnwindSeam`, which a cache hit
+// skips for the stdlib prefix entirely.
 // Bumped to "VOLTFE15" when `Frontend::LocalDecl` gained `bAlreadyLive`: the
 // cached AST is a reflected aggregate dump, so a new field shifts every byte
 // after it — the same reasoning as 05, 07, 10 and 13.
-inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453135ULL; // "VOLTFE15"
+inline constexpr std::uint64_t FrontendCacheMagic = 0x564f4c54'46453136ULL; // "VOLTFE16"
 
 // `<hex Key>/frontend.cache`, under Volt::Driver::StdlibCacheDir(Key).
 [[nodiscard]] fs::path FrontendCacheFilePath ( std::uint64_t Key )
@@ -539,6 +545,37 @@ void Volt::Driver::Driver::RunOwnershipSeam ( const std::vector<const Frontend::
     MiddleEnd::Optimisations::AnalyzeInlineCandidates( UnitAsts, Types );
 }
 
+// The unwind fixpoint, and the one reason it is a seam of its own.
+//
+// Every other whole-program analysis above runs before `TypeChecker` and so has
+// no resolved callee to read — `Raii::InferParameterEscape` falls back to a
+// by-spelling name index for exactly that reason. This one asks each call site
+// what it actually resolved to, so it has to run after the typed wave has
+// filled every unit's `UnitCallees`.
+//
+// It still runs *before* `WriteFrontendCache`: the bit rides in the cached
+// store like every other `Member` field, and a stdlib prefix written without it
+// would come back saying every stdlib member may unwind — which is safe, and
+// would quietly cost the whole optimisation on every cache hit.
+//
+// The null-AST convention is the same as the seam above. A cache-hit stdlib
+// slot keeps the bit that arrived with the cache; nothing here can re-derive it
+// from an AST that was never parsed. `Callees` is built to match `UnitAsts`
+// slot for slot so a unit is either wholly in the analysis or wholly out of it.
+void Volt::Driver::Driver::RunUnwindSeam ( const std::vector<const Frontend::AstContext *> &UnitAsts )
+{
+    const Core::PhaseScope Timing( "seam.unwind" );
+
+    std::vector<const MiddleEnd::IR::UnitCallees *> UnitCallees;
+    UnitCallees.reserve( UnitAsts.size() );
+    for ( std::size_t Index = 0; Index < UnitAsts.size(); ++Index )
+    {
+        UnitCallees.push_back( UnitAsts[Index] == nullptr or Index >= Units.size() ? nullptr : &Units[Index].Callees );
+    }
+
+    MiddleEnd::Analysis::Unwind::InferUnwindFreedom( UnitAsts, UnitCallees, Types );
+}
+
 Volt::Driver::CompileResult
 Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipeline Pipeline, std::size_t StdlibCount )
 {
@@ -692,6 +729,11 @@ Volt::Driver::Driver::CompileRefs ( const std::vector<SourceRef> &Refs, EPipelin
             }
             ForEachUnitParallel( &Driver::RunSemaTypedOne, std::max( SemaBegin, StdlibCount ), Units.size() );
         }
+
+        // After the typed wave, because it reads what typing resolved; before
+        // the cache write, because the bit it stamps is part of what gets
+        // cached (RunUnwindSeam's own comment).
+        RunUnwindSeam( UnitAsts );
 
         if ( not bStdlibCacheHit and StdlibCount > 0 and not Diagnostics.HasErrors() and not ActiveCacheOptions.bNoCache )
         {

@@ -520,6 +520,13 @@ namespace Driver
         // The whole-program ownership/inlining fixpoints over that same view.
         void RunOwnershipSeam ( const std::vector<const Frontend::AstContext *> &UnitAsts );
 
+        // The one whole-program fixpoint that has to come *after* typing, over
+        // the same view plus each unit's resolutions: whether a call needs the
+        // post-call unwind check the transport otherwise demands everywhere
+        // (`Unwind::InferUnwindFreedom`). It reads `UnitCallees`, which is
+        // exactly why it cannot join the seam above.
+        void RunUnwindSeam ( const std::vector<const Frontend::AstContext *> &UnitAsts );
+
         // Lex + parse one already-registered unit. Safe to call from any
         // worker thread: only `Bag` and `Unit` are touched.
         void ParseOne ( CompileUnit &Unit, Core::DiagEngine::Bag &Bag );
