@@ -1,36 +1,13 @@
 #{
-  @brief The REPL's own prelude — loaded once when a session starts, before any
-         line is typed.
-  @details Deliberately not part of source/Lib. Everything in there is hashed
-           into `Driver::FrontendCacheKey` and linked into every program `volt
-           build` produces, and none of what a REPL needs belongs in a compiled
-           artifact. This unit is compiled after the stdlib and before line 1,
-           so a session line calls into it like any other resident unit.
-
-           It holds the value printer, and that has to be written in Volt rather
-           than in the C++ host: `to_string` is a stdlib spelling, and a
-           spelling in the compiler's own source is exactly what
-           rules/zero-hardcode.md forbids. The REPL rewrites a line that is a
-           single expression into a call to `__volt_repl_echo`, and everything
-           about how a value renders is decided here.
+  @brief REPL prelude loaded on session startup.
+  @details Kept out of `source/Lib` to avoid polluting compiled binaries.
+           Single-expression inputs are wrapped in `__volt_repl_echo(...)`.
 #}
 
 #{
-  @brief Render the value of a REPL line.
-  @details Unbounded `T`, deliberately, and for the same reason `IO.vl`'s own
-           `puts<T>` is unbounded: the requirement is `to_string`, a method
-           every printable type answers, not a mixin every printable type
-           includes — `Stringable` is the decimal algorithm and demands
-           arithmetic, so bounding on it would reject `String` itself.
-
-           A type with no `to_string` fails at the instantiation, and the
-           diagnostic names the missing method. That is the honest answer: Volt
-           has no universal `inspect`, so there is nothing truthful to print for
-           a value that cannot render itself.
-
-           No trailing newline and no type name. The host writes the type after
-           this returns — it is the only side that knows it — so the two halves
-           of `=> 3 : Int32` are written in the order they are read.
+  @brief Prints an evaluated REPL expression value.
+  @details Requires `value` to implement `.to_string`. The host appends
+           the type annotation and trailing newline after this runs.
 #}
 def __volt_repl_echo<T>( value : T ) -> Void
   IO.stdout.print( "=> " )
