@@ -27,7 +27,25 @@ struct InitStep
     bool bLast = false; // true -> no post-call check needed
 };
 
+// Whether `_V_init_<N>` / `_V_fini_<N>` exist for this unit at all.
+//
+// A unit initializer's body is the unit's top-level statements and nothing
+// else, so a unit with none has an empty function — and rather than emit one,
+// nothing emits it. Three places have to agree on that: the emitter that
+// decides whether to write the body, the synthesiser below that decides whether
+// to name it, and a JIT running one line's worth of top level by looking the
+// symbol up directly. Three spellings of one rule is how they drift into a
+// symbol that resolves nowhere, so the rule is stated once, here.
+[[nodiscard]] BACKENDCORE_EXPORT bool UnitHasInit ( const UnitView &Unit );
+[[nodiscard]] BACKENDCORE_EXPORT bool UnitHasFini ( const UnitView &Unit );
+
 // Build the flat sequence from the circuit's unit views.
+//
+// Only units that have something to run appear, the same rule the teardown
+// below states: `_V_init_<N>` is emitted for a unit with top-level statements
+// and for no other, so naming one that does not exist would leave `_V_init_all`
+// calling an undefined symbol. `bLast` therefore marks the last *surviving*
+// step, which is where the check between steps stops being needed.
 [[nodiscard]] BACKENDCORE_EXPORT std::vector<InitStep> SynthesizeInitAll ( std::span<const UnitView> Units );
 
 // The mirror, for `_V_fini_all`: every unit's teardown, in reverse.
