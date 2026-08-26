@@ -238,7 +238,36 @@ namespace MiddleEnd
             // test would necessarily catch. The fixpoint starts a body it can
             // see at `false` and only ever raises it, which is what makes a
             // recursive body that raises nothing come out `false`.
+            //
+            // Derived afresh in *every* build from the two summary fields
+            // below, never trusted from the cache: it is the one answer that
+            // depends on which types the build being compiled actually holds.
             bool bCanUnwind = true;
+            // The two halves of `bCanUnwind`'s summary, and the only part of it
+            // that survives the stdlib cache.
+            //
+            // The verdict alone cannot be cached, and the reason is the whole
+            // shape of this pair. A stdlib member reaching an `abstract def` —
+            // `IO::Writer#write_string` calling the `write` its mixin only
+            // declares — has an answer that depends on the *implementations*,
+            // and a later build can add one the build that wrote the cache
+            // never saw. A `Writer` whose `write` raises, called through a
+            // cached "cannot unwind", is a raise resumed past in silence.
+            //
+            // So what is cached is the part that cannot change: whether the
+            // member arms the transport *without* going through any contract
+            // (`bUnwindLocal`), and which contracts it reaches
+            // (`UnwindAbstractCalls`). Both are closed transitively over
+            // concrete callees before being written, so a consumer needs
+            // neither the declaring unit's AST nor its call graph — it re-runs
+            // only the last step, unioning each named contract over the
+            // implementations *its own* store holds.
+            //
+            // `bUnwindLocal` keeps the same safe default and the same
+            // arbitration as `bCanUnwind`: `true` unless a body proved
+            // otherwise.
+            bool bUnwindLocal = true;
+            ::Volt::Core::SmallVec<Symbol, 2> UnwindAbstractCalls;
         };
 
         // One type as the compiler knows it: a name, where it was declared, and
