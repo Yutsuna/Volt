@@ -490,7 +490,13 @@ void Volt::Driver::Driver::RunSerialSeam ( const std::vector<bool> &bDone, std::
     // a read-only store — while a macro-generated method has to become a
     // member of a type that may live in another unit entirely, before the
     // signature loop below can resolve it (MacroEngine.hpp).
-    MiddleEnd::ConstEval::ExpandTypeMacros( MutableUnitAsts, Types, Sources, SeamBag );
+    std::vector<const Frontend::AstContext *> AllUnitAsts;
+    AllUnitAsts.reserve( Units.size() );
+    for ( const CompileUnit &U : Units )
+    {
+        AllUnitAsts.push_back( &U.Ast );
+    }
+    MiddleEnd::ConstEval::ExpandTypeMacros( MutableUnitAsts, Types, Sources, SeamBag, AllUnitAsts );
 
     // Still serial, still the same seam, but a second pass: a signature
     // may name a type declared in a file that comes later, so every name
