@@ -169,8 +169,8 @@ section is for.
 `JitOptions::bLazyCompilation` swaps `LLJIT` for `LLLazyJIT`, whose
 `CompileOnDemandLayer` replaces each function in an added module with a lazy
 re-export stub and compiles the body the first time that stub is **called**.
-The partition policy is LLVM's shipped `IRPartitionLayer::compileRequested`:
-one function per partition.
+The partition policy is Volt's own, `PartitionWithCallees`, and choosing it is
+what makes the feature worth having — see below.
 
 The two indirections stack and do not interfere. `@volt.fn.<sym>` is Volt's,
 and serves reloading; the stub is ORC's, and serves laziness. They compose
@@ -179,22 +179,42 @@ implementation dylib's link order, so the slot's initialiser `&Fn` resolves to
 the *stub* rather than to a body — the slot stays a slot, and nothing is
 compiled to fill it in.
 
-**It is a bet, not a win.** Measured on 100 defined functions, varying how many
-of them the program actually calls (best of 7, interleaved):
+**The partition policy is the whole design.** LLVM ships two and neither works
+here. `compileWholeModule` is eager with extra steps. `compileRequested` — one
+function per partition — is the obvious reading of "lazy" and it turns the
+feature into a gamble: each partition clones the module skeleton, so compiling
+*n* functions one at a time costs more than compiling them together. Measured on
+100 defined functions, varying how many the program calls (best of 7,
+interleaved, `scripts/jit_lazy_bench.bash crossover`):
 
-| called | eager | lazy | |
+| called | eager | `compileRequested` | `PartitionWithCallees` |
 |---|---|---|---|
-| 0 % | 298 ms | 82 ms | −72 % |
-| 25 % | 399 ms | 253 ms | −37 % |
-| 50 % | 361 ms | 330 ms | −9 % |
-| 100 % | 392 ms | 660 ms | **+68 %** |
+| 0 % | 246 ms | 82 ms (−72 %) | 72 ms (**−70 %**) |
+| 25 % | 253 ms | 253 ms (−37 %) | 120 ms (**−52 %**) |
+| 50 % | 257 ms | 330 ms (−9 %) | 166 ms (**−35 %**) |
+| 100 % | 263 ms | 660 ms (**+68 %**) | 266 ms (**+1 %**) |
 
-The crossover sits near 60–70 % called. Below it the saving is large and grows
-without bound — a never-called function costs 2.19 ms eagerly and 0.16 ms
-lazily, the residue being IR emission, which laziness does not touch. Above it
-the loss is real: `compileRequested` clones the module skeleton once per
-partition, so compiling *n* functions one at a time costs more than compiling
-them together. `volt run` takes the bet by default; `--no-lazy` declines it.
+`PartitionWithCallees` takes the requested function plus every function this
+module defines that its code *names*, transitively. The winning case is
+untouched — a module nothing reaches is still never compiled, a function nothing
+names is still never compiled — while the losing case flattens to noise, because
+a reached module is compiled as one call tree instead of *n* separate partitions.
+
+The line it draws is "named by an instruction". A direct callee qualifies; so
+does the body half of a closure pair, whose address is taken by a store in the
+block that goes on to call it. A function named only by a **global initialiser**
+does not — that is a vtable, and which entry a `dyn Trait` reaches is precisely
+what is unknown until it is reached. Those keep their stubs, so dynamic dispatch
+pays only for the methods it actually dispatches to.
+
+A never-called function costs 2.19 ms eagerly and 0.16 ms lazily; the residue is
+IR emission, which laziness does not touch. On 400 defined and one called, that
+is 799 ms against 114 ms (**−85 %**).
+
+What remains is closure-heavy code whose closures are reached through
+monomorphisations in `volt.shared`: a partition cannot cross a module, so those
+fragment. `samples/Bench/Benchmarks.vl` is the worst case in the tree at +18 %.
+`volt run` is lazy by default; `--no-lazy` is the way out.
 
 Three things want the eager answer and get it unconditionally:
 
