@@ -860,6 +860,11 @@ namespace MiddleEnd
                 return Known.has_value() and Modules.contains( *Known );
             }
 
+            [[nodiscard]] const std::unordered_set<Symbol> &ModuleSymbols () const
+            {
+                return Modules;
+            }
+
             // --- Signature types ----------------------------------------------
 
             // Structurally interned, exactly like an expression type in the
@@ -950,6 +955,37 @@ namespace MiddleEnd
                 }
                 const auto Found = LookupNodeKind( NodeKind );
                 return Found.has_value() and *Found == Id;
+            }
+
+            [[nodiscard]] std::optional<NominalId> LookupPrimitive ( std::string_view Spelling, bool bIsChar = false ) const
+            {
+                const auto Known = Strings.Find( Spelling );
+                if ( not Known )
+                {
+                    return std::nullopt;
+                }
+                std::optional<NominalId> Fallback;
+                for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
+                {
+                    const NominalId Id{ static_cast<std::uint32_t>( Index ) };
+                    const NominalType &Type = Types.Get( Id );
+                    if ( Type.Layout.IsValid() )
+                    {
+                        if ( const auto *Prim = std::get_if<Primitive>( &Layouts.Get( Type.Layout ) ) )
+                        {
+                            if ( Prim->Spelling == *Known )
+                            {
+                                const bool bClaimsChar = IsNodeKind( "CharLiteral", Id );
+                                if ( bIsChar == bClaimsChar )
+                                {
+                                    return Id;
+                                }
+                                Fallback = Id;
+                            }
+                        }
+                    }
+                }
+                return Fallback;
             }
 
             // --- Layouts -----------------------------------------------------

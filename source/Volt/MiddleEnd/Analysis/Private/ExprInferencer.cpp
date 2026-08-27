@@ -914,6 +914,17 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 }
                 return Context.MakeType( *Base, {} );
             },
+            [&] ( const Frontend::TypeOfExpr &Expr ) -> SemaTypeId
+            {
+                const SemaTypeId ValType = InferExpr( Context, Expr.Value );
+                Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ValType );
+                const auto Base = Context.Ctx.Types.LookupNodeKind( "TypeOfExpr" );
+                if ( not Base )
+                {
+                    return SemaTypeId{};
+                }
+                return Context.MakeType( *Base, {} );
+            },
             [&] ( const Frontend::FuncAddr & ) -> SemaTypeId
             {
                 // Inert like SizeOf/GenericInst: Target names an

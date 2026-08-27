@@ -452,3 +452,84 @@ void Volt::MiddleEnd::Lowering::LowerStringLits ( TypeCheckerContext &Context )
         LowerStringLit( Context, Id, ValueSym, Context.Ctx.Values.ExprType( Id ) );
     }
 }
+
+void Volt::MiddleEnd::Lowering::LowerTypeOfExpr ( TypeCheckerContext &Context,
+                                                  Frontend::ExprId Id,
+                                                  SemaTypeId InferredType )
+{
+    const auto TypeBase = Context.Ctx.Types.LookupNodeKind( "TypeOfExpr" );
+    if ( not TypeBase )
+    {
+        return;
+    }
+
+    Frontend::AstContext &Ast = Context.Ctx.Ast;
+    const SemaTypeId TypeNominalType = Context.MakeType( *TypeBase, {} );
+
+    const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( *TypeBase ).Name );
+    const Frontend::Symbol NameSym  = Ast.Strings().Intern( NameText );
+
+    const Frontend::ExprId ObjectId = Ast.Add( Frontend::ExprNode{ Frontend::Identifier{ .Loc = {}, .Name = NameSym } } );
+    Context.Ctx.Values.SetExprType( ObjectId, TypeNominalType );
+    Context.NakedTypeExprs.insert( ObjectId.Value );
+
+    const Frontend::ExprId NewMemberId =
+        Ast.Add( Frontend::ExprNode{ Frontend::Member{ .Loc = {}, .Object = ObjectId, .Name = Ast.Strings().Intern( "new" ) } } );
+
+    std::string TypeDesc;
+    if ( InferredType.IsValid() and Context.Ctx.Values.Has( InferredType ) )
+    {
+        TypeDesc = Context.Ctx.Types.Universe().Describe( Context.Ctx.Types, InferredType );
+    }
+    else
+    {
+        TypeDesc = "<unknown>";
+    }
+
+    const Frontend::Symbol DescSym = Ast.Strings().Intern( TypeDesc );
+    const Frontend::ExprId StringLitId = Ast.Add( Frontend::ExprNode{ Frontend::StringLiteral{ .Loc = {}, .Value = DescSym } } );
+
+    Frontend::ExprList Args;
+    Args.PushBack( StringLitId );
+
+    Frontend::SymbolList ArgNames;
+    ArgNames.PushBack( Volt::Core::Symbol{} );
+
+    const Frontend::ExprId CtorCallId = Ast.Add( Frontend::ExprNode{
+        Frontend::Call{ .Loc = {}, .Callee = NewMemberId, .Args = Args, .ArgNames = ArgNames, .BlockArg = {} } } );
+
+    InferExpr( Context, CtorCallId );
+
+    if ( const auto Entry = Context.CalleeResolution.find( CtorCallId.Value ); Entry != Context.CalleeResolution.end() )
+    {
+        Context.CalleeResolution[Id.Value] = Entry->second;
+    }
+    if ( const SemaTypeId CallTypeRes = Context.Ctx.Values.ExprType( CtorCallId ); CallTypeRes.IsValid() )
+    {
+        Context.Ctx.Values.SetExprType( Id, CallTypeRes );
+    }
+
+    Ast.Expr( Id ) = Ast.Expr( CtorCallId );
+    Context.OwnedExprSites.insert( Id.Value );
+}
+
+void Volt::MiddleEnd::Lowering::LowerTypeOfExprs ( TypeCheckerContext &Context )
+{
+    const std::size_t OriginalCount = Context.Ctx.Ast.ExprCount();
+    for ( std::size_t Index = 0; Index < OriginalCount; ++Index )
+    {
+        const Frontend::ExprId Id{ static_cast<Frontend::ExprId::ValueType>( Index ) };
+
+        if ( Id.Value < Context.Metadata.size() and Context.Metadata[Id.Value] )
+        {
+            continue;
+        }
+        if ( not std::holds_alternative<Frontend::TypeOfExpr>( Context.Ctx.Ast.Expr( Id ) ) )
+        {
+            continue;
+        }
+
+        const SemaTypeId InferredType = Context.Ctx.Values.SiteType( BindingSite{ Id } );
+        LowerTypeOfExpr( Context, Id, InferredType );
+    }
+}
