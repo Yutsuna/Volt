@@ -29,6 +29,30 @@ namespace Backend
 
         using GenerationId = std::uint32_t;
 
+        // When a function's machine code is produced.
+        //
+        // ORC materialises a whole *module* the first time anything in it is
+        // looked up, and resolution is transitive — one reachable function
+        // drags its module in, and every symbol that module references drags
+        // theirs. `_V_init_all` alone reaches every unit that has top-level
+        // statements, so Eager compiles essentially the whole program before
+        // its first instruction runs.
+        //
+        // Lazy interposes ORC's CompileOnDemandLayer: a module's functions
+        // become lazy re-export stubs, and a body is compiled the first time
+        // it is *called*. Measured on a 400-function program whose entry point
+        // reaches one of them, that is 773 ms of codegen down to the 28 ms the
+        // program actually needs.
+        //
+        // Not a free win everywhere, which is why it is a choice and not the
+        // rule: it costs a stub and a call-through per function, and a lazy
+        // batch cannot be removed (see DropGeneration).
+        enum class ECompilePolicy : std::uint8_t
+        {
+            Eager,
+            Lazy,
+        };
+
         class JitCompiler
         {
 
@@ -42,7 +66,17 @@ namespace Backend
 
             // Builds the LLJIT. False with OutError set on failure — an ORC
             // Error is consumed here and never allowed to escape as one.
-            [[nodiscard]] bool Init ( unsigned CompileThreads, std::string &OutError );
+            //
+            // `Wanted` is a request, not a guarantee: Lazy needs
+            // target-specific trampolines, and an architecture LLVM has none
+            // for falls back to Eager rather than refusing to run. Ask
+            // `Policy()` for what was actually built.
+            [[nodiscard]] bool Init ( unsigned CompileThreads, ECompilePolicy Wanted, std::string &OutError );
+
+            // What Init settled on. Differs from what was asked for only when
+            // the fallback above fired, and a caller that reports timings wants
+            // to say which of the two it measured.
+            [[nodiscard]] ECompilePolicy Policy () const;
 
             // Both come from LLJIT, not from the host: the module has to be
             // typed for the machine that will actually run it.
@@ -58,6 +92,12 @@ namespace Backend
             // replacement lands beside the original rather than on top of it,
             // and which of the two anyone reaches is decided by the
             // indirection slot, not by the symbol table.
+            //
+            // Always Eager, whatever the session policy. A replacement is one
+            // unit's worth of code — there is next to nothing in it to defer —
+            // and the two callers that open one need what Lazy cannot give:
+            // `Reload` needs every new body's *own* address to store into a
+            // slot, and `:bench` needs the generation back (DropGeneration).
             [[nodiscard]] bool OpenReplacement ( GenerationId &OutGen, std::string &OutError );
 
             // Adds a whole emission at once: the modules, and the context
@@ -68,10 +108,22 @@ namespace Backend
             [[nodiscard]] bool AddModules ( GenerationId Gen, Ir::OwnedModules Modules, std::string &OutError );
 
             // Unmaps a generation's code. Forbidden while any frame may still
-            // be inside it.
+            // be inside it, and refused outright for a lazy generation:
+            // LLLazyJIT::addLazyIRModule takes a JITDylib and no
+            // ResourceTracker, so a lazy batch lands on the dylib's default
+            // tracker and removing *that* would take the dylib's other
+            // contents with it. Only OpenReplacement generations are ever
+            // dropped and those are never lazy, so this is a guard rather than
+            // a limitation anyone meets.
             [[nodiscard]] bool DropGeneration ( GenerationId Gen, std::string &OutError );
 
             // Forces materialisation and yields the address.
+            //
+            // Under Lazy that address is the function's *stub*, not its body:
+            // the body is compiled when the stub is first called. Calling it
+            // is transparent; *reading the bytes there* is not, and Disassemble
+            // below would decode a jump rather than a function. That is why
+            // `:asm` is safe today — the REPL, its only caller, runs Eager.
             [[nodiscard]] bool Lookup ( std::string_view Symbol, std::uintptr_t &OutAddr, std::string &OutError );
 
             // The same, resolved from inside one generation's own dylib, so a

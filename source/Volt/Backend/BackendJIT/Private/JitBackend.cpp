@@ -291,7 +291,8 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     }
 
     std::string Error;
-    if ( not Impl->Compiler.Init( Impl->Options.CompileThreads, Error ) )
+    const ECompilePolicy Wanted = Impl->Options.bLazyCompilation ? ECompilePolicy::Lazy : ECompilePolicy::Eager;
+    if ( not Impl->Compiler.Init( Impl->Options.CompileThreads, Wanted, Error ) )
     {
         static_cast<void>( Impl->Fail( std::move( Error ) ) );
         return;

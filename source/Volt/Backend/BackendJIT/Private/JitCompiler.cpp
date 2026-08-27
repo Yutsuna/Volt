@@ -10,6 +10,7 @@
 #include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TargetSelect.h>
@@ -89,6 +90,24 @@ void DumpIfAsked ( const llvm::Module &Mod )
     }
 }
 
+// Where a lazy call-through lands when the body it was supposed to compile
+// could not be compiled.
+//
+// LLLazyJIT defaults this to address 0, which turns a compile failure into a
+// jump to a null pointer — a SIGSEGV with the trampoline's frame on the stack
+// and nothing to read. It is reached *from JIT-ed code*, in the middle of the
+// user's program, with that call's arguments still in registers, so there is
+// nothing sensible to return: the only honest thing left is to say what
+// happened and stop.
+//
+// bVerify is what keeps this unreachable in practice — a malformed module is
+// refused at emission, where there is a diagnostic to give.
+[[noreturn]] void LazyCompileFailed ()
+{
+    llvm::errs() << "jit: a function could not be compiled when it was first called; the program cannot continue\n";
+    std::abort();
+}
+
 // A module holding only declarations resolves nothing and materialises
 // nothing, so adding it to a dylib costs a symbol-table scan and buys an entry
 // nobody can ever look up.
@@ -117,11 +136,31 @@ struct Volt::Backend::Jit::JitCompiler::Impl
 {
 
     std::unique_ptr<llvm::orc::LLJIT> Jit;
-    std::map<GenerationId, llvm::orc::ResourceTrackerSP> Trackers;
 
-    // Only for a generation that owns one; a plain generation is a tracker
-    // over the main dylib and is absent here.
-    std::map<GenerationId, llvm::orc::JITDylib *> Dylibs;
+    // The same object as Jit when the session is lazy, null when it is not.
+    // LLLazyJIT *is* an LLJIT and everything below goes through the base;
+    // this exists solely for addLazyIRModule, which the base does not have.
+    llvm::orc::LLLazyJIT *Lazy = nullptr;
+
+    ECompilePolicy CompilePolicy = ECompilePolicy::Eager;
+
+    // One batch, added together and removed together.
+    struct Generation
+    {
+
+        // Null for a generation living in the main dylib — the common case,
+        // and what OpenGeneration produces. Non-null only for a replacement,
+        // which needs a symbol table of its own.
+        llvm::orc::JITDylib *Dylib = nullptr;
+
+        // Null for a lazy batch, which has no tracker to be given: the modules
+        // go to the dylib's default tracker (JitCompiler.hpp, DropGeneration).
+        llvm::orc::ResourceTrackerSP Tracker;
+
+        bool bLazy = false;
+    };
+
+    std::map<GenerationId, Generation> Generations;
     GenerationId NextGeneration = 1;
 
     // The one context every module of this session was typed in. Held here
@@ -143,9 +182,37 @@ Volt::Backend::Jit::JitCompiler::JitCompiler () : P( std::make_unique<Impl>() )
 
 Volt::Backend::Jit::JitCompiler::~JitCompiler () = default;
 
-bool Volt::Backend::Jit::JitCompiler::Init ( unsigned CompileThreads, std::string &OutError )
+bool Volt::Backend::Jit::JitCompiler::Init ( const unsigned CompileThreads, const ECompilePolicy Wanted, std::string &OutError )
 {
     InitialiseNativeTarget();
+
+    if ( Wanted == ECompilePolicy::Lazy )
+    {
+        llvm::orc::LLLazyJITBuilder Builder;
+        Builder.setNumCompileThreads( CompileThreads );
+        Builder.setLazyCompileFailureAddr( llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
+
+        // Left at its default, IRPartitionLayer::compileRequested: one
+        // function per partition, which is the whole point. compileWholeModule
+        // is the other shipped policy and it is what Eager already does more
+        // cheaply, without stubs.
+
+        if ( llvm::Expected<std::unique_ptr<llvm::orc::LLLazyJIT>> Built = Builder.create() )
+        {
+            P->Lazy          = Built->get();
+            P->Jit           = std::move( *Built );
+            P->CompilePolicy = ECompilePolicy::Lazy;
+            return true;
+        }
+        else
+        {
+            // Lazy needs trampolines LLVM only has for some architectures, and
+            // a machine without them still deserves to run the program. The
+            // Error is consumed rather than reported: falling back is not a
+            // failure, and Policy() is how a caller learns it happened.
+            llvm::consumeError( Built.takeError() );
+        }
+    }
 
     llvm::orc::LLJITBuilder Builder;
     Builder.setNumCompileThreads( CompileThreads );
@@ -157,8 +224,14 @@ bool Volt::Backend::Jit::JitCompiler::Init ( unsigned CompileThreads, std::strin
         return false;
     }
 
-    P->Jit = std::move( *Built );
+    P->Jit           = std::move( *Built );
+    P->CompilePolicy = ECompilePolicy::Eager;
     return true;
+}
+
+Volt::Backend::Jit::ECompilePolicy Volt::Backend::Jit::JitCompiler::Policy () const
+{
+    return P->CompilePolicy;
 }
 
 std::string Volt::Backend::Jit::JitCompiler::TargetTriple () const
@@ -174,7 +247,16 @@ std::string Volt::Backend::Jit::JitCompiler::DataLayoutString () const
 Volt::Backend::Jit::GenerationId Volt::Backend::Jit::JitCompiler::OpenGeneration ()
 {
     const GenerationId Id = P->NextGeneration++;
-    P->Trackers[Id]       = P->Jit->getMainJITDylib().createResourceTracker();
+
+    Impl::Generation &Gen = P->Generations[Id];
+    Gen.bLazy             = P->CompilePolicy == ECompilePolicy::Lazy;
+
+    // A lazy batch is handed to a dylib, not to a tracker, so making one here
+    // would be an object that only ever answers a question nobody may ask.
+    if ( not Gen.bLazy )
+    {
+        Gen.Tracker = P->Jit->getMainJITDylib().createResourceTracker();
+    }
     return Id;
 }
 
@@ -198,16 +280,23 @@ bool Volt::Backend::Jit::JitCompiler::OpenReplacement ( GenerationId &OutGen, st
     // to subsequent lines in the session.
     P->Jit->getMainJITDylib().addToLinkOrder( *Made );
 
-    P->Dylibs[Id]   = &*Made;
-    P->Trackers[Id] = Made->createResourceTracker();
-    OutGen          = Id;
+    // Eager unconditionally — the header says why. Note that this is a
+    // property of the generation and not of the session: a lazy `volt run`
+    // that later reloads gets a lazy boot generation and eager replacements,
+    // which is the intended mix rather than an inconsistency.
+    Impl::Generation &Gen = P->Generations[Id];
+    Gen.Dylib             = &*Made;
+    Gen.Tracker           = Made->createResourceTracker();
+    Gen.bLazy             = false;
+
+    OutGen = Id;
     return true;
 }
 
 bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedModules Modules, std::string &OutError )
 {
-    const auto Found = P->Trackers.find( Gen );
-    if ( Found == P->Trackers.end() )
+    const auto Found = P->Generations.find( Gen );
+    if ( Found == P->Generations.end() )
     {
         OutError = "jit: no such generation";
         return false;
@@ -257,7 +346,17 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
             llvm::raw_string_ostream Text( P->LastIrText );
             Mod->print( Text, nullptr );
         }
-        if ( llvm::Error Err = P->Jit->addIRModule( Found->second, llvm::orc::ThreadSafeModule( std::move( Mod ), P->Ctx ) ) )
+        llvm::orc::ThreadSafeModule Safe( std::move( Mod ), P->Ctx );
+
+        // The one line the whole policy comes down to. Lazy goes to the dylib
+        // because addLazyIRModule has no ResourceTracker overload — which is
+        // exactly what makes a lazy generation undroppable.
+        llvm::Error Err =
+            Found->second.bLazy
+                ? P->Lazy->addLazyIRModule( Found->second.Dylib == nullptr ? P->Jit->getMainJITDylib() : *Found->second.Dylib,
+                                            std::move( Safe ) )
+                : P->Jit->addIRModule( Found->second.Tracker, std::move( Safe ) );
+        if ( Err )
         {
             OutError = "jit: could not add the module '" + Name + "': " + Consume( std::move( Err ) );
             return false;
@@ -268,18 +367,23 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
 
 bool Volt::Backend::Jit::JitCompiler::DropGeneration ( GenerationId Gen, std::string &OutError )
 {
-    const auto Found = P->Trackers.find( Gen );
-    if ( Found == P->Trackers.end() )
+    const auto Found = P->Generations.find( Gen );
+    if ( Found == P->Generations.end() )
     {
         OutError = "jit: no such generation";
         return false;
     }
-    if ( llvm::Error Err = Found->second->remove() )
+    if ( Found->second.Tracker == nullptr )
+    {
+        OutError = "jit: a lazily compiled generation cannot be removed";
+        return false;
+    }
+    if ( llvm::Error Err = Found->second.Tracker->remove() )
     {
         OutError = "jit: could not remove a generation: " + Consume( std::move( Err ) );
         return false;
     }
-    P->Trackers.erase( Found );
+    P->Generations.erase( Found );
     return true;
 }
 
@@ -288,13 +392,13 @@ bool Volt::Backend::Jit::JitCompiler::LookupIn ( GenerationId Gen,
                                                  std::uintptr_t &OutAddr,
                                                  std::string &OutError )
 {
-    const auto Found = P->Dylibs.find( Gen );
-    if ( Found == P->Dylibs.end() )
+    const auto Found = P->Generations.find( Gen );
+    if ( Found == P->Generations.end() or Found->second.Dylib == nullptr )
     {
         return Lookup( Symbol, OutAddr, OutError );
     }
 
-    llvm::Expected<llvm::orc::ExecutorAddr> Addr = P->Jit->lookup( *Found->second, Symbol );
+    llvm::Expected<llvm::orc::ExecutorAddr> Addr = P->Jit->lookup( *Found->second.Dylib, Symbol );
     if ( not Addr )
     {
         OutError = "jit: '" + std::string( Symbol ) + "' did not resolve: " + Consume( Addr.takeError() );
@@ -350,7 +454,7 @@ bool Volt::Backend::Jit::JitCompiler::AddProcessSymbols ( std::string &OutError 
 
 std::size_t Volt::Backend::Jit::JitCompiler::LiveGenerations () const
 {
-    return P->Trackers.size();
+    return P->Generations.size();
 }
 
 void Volt::Backend::Jit::JitCompiler::RecordIr ( const bool bEnable )
