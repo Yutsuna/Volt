@@ -111,6 +111,11 @@ namespace Repl
             // The rest of the most recent history line that begins with what
             // has been typed. Fish's ghost text, and the same rule: the newest
             // match wins, and a line that is already complete suggests nothing.
+            //
+            // Always one line. A `def ... end` is remembered as a single entry
+            // with newlines in it, and what is drawn here goes *inside* the
+            // line being edited — so only the remainder of the entry's first
+            // line can be offered, and often that is nothing.
             [[nodiscard]] static std::string GhostText ( std::string_view Line, std::span<const std::string> History );
 
             // The candidate list as a document — one row each, name then

@@ -285,10 +285,20 @@ std::string Volt::Repl::Complete::Completer::GhostText ( const std::string_view 
     for ( std::size_t Index = History.size(); Index > 0; --Index )
     {
         const std::string &Past = History[Index - 1];
-        if ( Past.size() > Line.size() and Past.starts_with( Line ) )
+        if ( Past.size() <= Line.size() or not Past.starts_with( Line ) )
         {
-            return Past.substr( Line.size() );
+            continue;
         }
+
+        // One line, never more. History remembers a `def ... end` as one entry
+        // with real newlines in it, and a suggestion is drawn *inside* the
+        // line being typed — so handing back the rest of a multi-line
+        // statement would write newlines into the middle of a prompt and take
+        // the cursor with them. The remainder of the first line is the only
+        // part of it that can be shown, and an empty remainder is no
+        // suggestion at all.
+        const std::string_view Rest = std::string_view( Past ).substr( Line.size() );
+        return std::string( Rest.substr( 0, Rest.find( '\n' ) ) );
     }
     return {};
 }
