@@ -129,8 +129,13 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
     // questions about the session rather than a feature of the front end, so a
     // script can ask them — and the tests that pin their answers run here,
     // where there is no colour to strip out of a golden file.
-    const Repl::Doc::Palette Plain = Repl::Doc::MonochromePalette();
-    Repl::Query::Engine Queries( Session, Plain );
+    // A palette this path never actually paints with: everything below writes
+    // `Doc::PlainText`, which drops every colour on the floor. That is what
+    // makes the pipe safe by construction rather than by discipline — a
+    // `:theme dark` in a script switches this value and still cannot put an
+    // escape sequence into a file.
+    Repl::Doc::Palette Plain = Repl::Doc::MonochromePalette();
+    Repl::Query::Engine Queries( Session, Plain, "mono" );
     std::vector<std::string> Past;
     bool bLeaving = false;
 
@@ -183,7 +188,10 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
         // noise. `:type` is where a type is asked for on purpose.
         if ( not Outcome.ResultBinding.empty() )
         {
-            std::cout << "=> ";
+            // Echo writes the arrow and the value together, from inside the
+            // JIT, straight to the descriptor. Flushing first is what keeps
+            // this stream's earlier output ahead of it: this one is buffered
+            // and that one is not.
             std::cout.flush();
             if ( Session.Echo( Outcome.ResultBinding ) )
             {
@@ -192,7 +200,7 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
             }
             else
             {
-                std::cout << "#<" << Outcome.ResultType << "> : " << Outcome.ResultType << '\n';
+                std::cout << "=> #<" << Outcome.ResultType << "> : " << Outcome.ResultType << '\n';
             }
         }
         else if ( not Outcome.ResultType.empty() )
