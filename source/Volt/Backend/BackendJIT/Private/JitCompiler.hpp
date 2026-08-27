@@ -12,6 +12,7 @@
 
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -84,6 +85,30 @@ namespace Backend
             // ... and against the process itself: libc, and the compiler's own
             // __volt_unwind_slots when no stdlib provides it.
             [[nodiscard]] bool AddProcessSymbols ( std::string &OutError );
+
+            // --- Inspection ---------------------------------------------------
+
+            // How many generations are still mapped. A REPL shows this so that
+            // a leaked ephemeral generation is a number that moved rather than
+            // memory nobody notices.
+            [[nodiscard]] std::size_t LiveGenerations () const;
+
+            // Keep the text of every module that goes by, so `:ir` can be
+            // answered without re-emitting. Off by default: it costs a full IR
+            // render per module, which a one-shot `volt run` would pay for
+            // nothing.
+            void RecordIr ( bool bEnable );
+
+            [[nodiscard]] std::string LastIr () const;
+
+            // Machine code at `Address` as assembly text, decoding until a
+            // return instruction or `MaxBytes`, whichever comes first.
+            //
+            // The one place in this project that reaches for LLVM's MC layer.
+            // It is here rather than beside the emitter because the bytes it
+            // reads are the ones ORC actually mapped — the disassembly of what
+            // is running, not of what was compiled.
+            [[nodiscard]] std::string Disassemble ( std::uintptr_t Address, std::size_t MaxBytes, std::string &OutError ) const;
 
         private:
 

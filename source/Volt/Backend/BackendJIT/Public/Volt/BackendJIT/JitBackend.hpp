@@ -16,6 +16,7 @@
 
 #include "Volt/BackendCore/ExecutableBackend.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <span>
@@ -113,6 +114,15 @@ namespace Backend
             [[nodiscard]] ReloadResult Reload ( const BackendInput &Build, const UnitView &Unit ) override;
             [[nodiscard]] RunResult EvalUnit ( const BackendInput &Build, const UnitView &Unit ) override;
             [[nodiscard]] std::uintptr_t LookupSymbol ( std::string_view Mangled ) override;
+
+            [[nodiscard]] bool
+            ProbeUnit ( const BackendInput &Build, const UnitView &Unit, std::string *OutIr, std::string &OutError ) override;
+            [[nodiscard]] std::string LastUnitIr () const override;
+            void RecordIr ( bool bEnable ) override;
+            [[nodiscard]] std::string Disassemble ( std::uintptr_t Address, std::size_t MaxBytes ) override;
+            [[nodiscard]] BenchResult
+            BenchUnit ( const BackendInput &Build, const UnitView &Unit, std::size_t Iterations ) override;
+            [[nodiscard]] std::size_t LiveGenerations () const override;
 
         private:
 
