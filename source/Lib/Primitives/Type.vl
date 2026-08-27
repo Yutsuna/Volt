@@ -1,0 +1,29 @@
+#{
+  @struct Type
+  @brief The runtime representation of a compile-time type, returned by `typeof`.
+#}
+@[Literal( TypeOfExpr )]
+struct Type
+  include Comparable
+
+  name : String
+
+  def initialize( @name : String )
+  end
+
+  def name -> String
+    @name
+  end
+
+  def <=>( other : Type ) -> Int32
+    @name <=> other.name
+  end
+
+  def to_string -> String
+    @name
+  end
+
+  def inspect -> String
+    @name
+  end
+end
