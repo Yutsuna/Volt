@@ -102,6 +102,13 @@ template <typename Fn> [[nodiscard]] std::string CaptureStdout ( Fn &&Body )
     return Text.substr( First, Text.find_last_not_of( Blank ) + 1 - First );
 }
 
+// `$VOLT_REPL_THEME`, or "auto" when it says nothing.
+[[nodiscard]] std::string ReadThemeName ()
+{
+    const char *Wanted = std::getenv( "VOLT_REPL_THEME" );
+    return Wanted != nullptr and *Wanted != '\0' ? std::string( Wanted ) : std::string( "auto" );
+}
+
 void LoadHistory ( History &Past, const std::string &Path )
 {
     if ( Path.empty() )
@@ -201,14 +208,34 @@ std::int32_t Volt::Repl::Tui::Run ( Evaluator &Session, const SessionOptions &Op
     const RawMode Raw;
 
     const bool bColor = Options.bColor and TerminalWantsColor();
-    const Doc::Palette Theme =
-        bColor ? ( TerminalLooksDark() ? Doc::DefaultDarkPalette() : Doc::DefaultLightPalette() ) : Doc::MonochromePalette();
+    const bool bDark  = TerminalLooksDark();
+
+    // Three ways to end up with a theme, in the order they win: the terminal
+    // saying it cannot do colour at all, an explicit `$VOLT_REPL_THEME`, and
+    // what the terminal's own background looks like. `:theme` moves it
+    // afterwards, which is why this is a value and not a constant.
+    std::string ThemeName = bColor ? ReadThemeName() : std::string( "mono" );
+    Doc::Palette Theme    = Doc::PaletteByName( ThemeName, bDark ).value_or( Doc::MonochromePalette() );
+    if ( bColor and not Doc::PaletteByName( ThemeName, bDark ) )
+    {
+        // A name nobody ships is a typo in an environment variable, and
+        // silently ignoring it would leave the user staring at the wrong
+        // colours with no idea why.
+        Doc::Line Complaint;
+        Complaint.Add( "repl: no theme called '" + ThemeName + "'; using auto",
+                       Doc::RoleColor( Doc::DefaultDarkPalette(), Doc::EPaletteRole::Error ) );
+        Write( Ansi::Render( Complaint, bColor ) + "\n" );
+
+        ThemeName = "auto";
+        Theme     = Doc::PaletteByName( ThemeName, bDark ).value();
+    }
 
     History Past;
     LoadHistory( Past, Options.HistoryPath );
 
     Complete::Completer Completer( Session );
-    Query::Engine Queries( Session, Theme );
+    Query::Engine Queries( Session, Theme, ThemeName );
+    Queries.SetDark( bDark );
     LineEditor Editor( Past, Completer, Theme, bColor );
 
     {
@@ -245,7 +272,7 @@ std::int32_t Volt::Repl::Tui::Run ( Evaluator &Session, const SessionOptions &Op
                 // A value with no `inspect` — named, since there is nothing
                 // truthful to show of it.
                 Doc::Line Row;
-                Row.Add( "=> ", Doc::RoleColor( Theme, Doc::EPaletteRole::ResultArrow ) );
+                Row.Add( std::string( EchoPrefix ), Doc::RoleColor( Theme, Doc::EPaletteRole::ResultArrow ) );
                 Row.Add( "#<" + Outcome.ResultType + ">", Doc::RoleColor( Theme, Doc::EPaletteRole::InspectBrackets ) );
                 Row.Add( " : " + Outcome.ResultType, Doc::RoleColor( Theme, Doc::EPaletteRole::ResultType ) );
                 Write( Ansi::Render( Row, bColor ) + "\n" );
@@ -257,16 +284,24 @@ std::int32_t Volt::Repl::Tui::Run ( Evaluator &Session, const SessionOptions &Op
         const std::string Value = CaptureStdout( [&] () { bEchoed = Session.Echo( Outcome.ResultBinding ); } );
 
         Doc::Line Row;
-        Row.Add( "=> ", Doc::RoleColor( Theme, Doc::EPaletteRole::ResultArrow ) );
+        Row.Add( std::string( EchoPrefix ), Doc::RoleColor( Theme, Doc::EPaletteRole::ResultArrow ) );
 
         if ( bEchoed )
         {
-            // The rendered value, through the same lexer the input goes
-            // through: a number in a result reads as a number, a string as a
-            // string. `.inspect` produces Volt-shaped text by construction —
-            // that is what makes re-tokenizing it meaningful rather than a
-            // guess.
-            for ( const Doc::Span &Piece : Syntax::HighlightVoltLine( Value, Theme ).Spans )
+            // The prelude wrote the arrow and the value in one go; only the
+            // value is re-tokenized, so the arrow keeps a colour of its own
+            // rather than lexing as the `=>` operator it looks like.
+            std::string_view Rendered = Value;
+            if ( Rendered.starts_with( EchoPrefix ) )
+            {
+                Rendered.remove_prefix( EchoPrefix.size() );
+            }
+
+            // Through the same lexer the input goes through: a number in a
+            // result reads as a number, a string as a string. `.inspect`
+            // produces Volt-shaped text by construction — that is what makes
+            // re-tokenizing it meaningful rather than a guess.
+            for ( const Doc::Span &Piece : Syntax::HighlightVoltLine( Rendered, Theme ).Spans )
             {
                 Row.Spans.push_back( Piece );
             }
@@ -335,7 +370,9 @@ std::int32_t Volt::Repl::Tui::Run ( Evaluator &Session, const SessionOptions &Op
             continue;
         }
 
-        Past.Add( Trim( Statement ).empty() ? std::string{} : std::string( Trim( Statement ) ) );
+        // Remembered without its trailing newline, and without the blank
+        // lines History drops on its own.
+        Past.Add( std::string( Trim( Statement ) ) );
         Evaluate( Statement );
         Statement.clear();
     }

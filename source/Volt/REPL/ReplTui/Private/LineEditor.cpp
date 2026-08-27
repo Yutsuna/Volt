@@ -29,6 +29,23 @@ using namespace Volt::Repl;
            C == '!';
 }
 
+// The first line of `Text`, and the reason this exists.
+//
+// Everything the editor holds — the buffer, the ghost, whatever came back from
+// the history — is drawn as *one row*, and Redraw's cursor arithmetic is a
+// division by the terminal width. A newline reaching that arithmetic does not
+// produce a wrong column; it produces a cursor on a row the editor does not
+// know exists, and every redraw after it compounds the error.
+//
+// History is where they come from: a `def ... end` is remembered as one entry
+// with real newlines in it. Three paths read one back — the up-arrow walk, the
+// reverse search, and the ghost text — so the truncation is written once here
+// rather than three times correctly and a fourth time not.
+[[nodiscard]] std::string FirstLine ( const std::string_view Text )
+{
+    return std::string( Text.substr( 0, Text.find( '\n' ) ) );
+}
+
 // How many rows a run of `Columns`-wide terminal holds `Width` columns in, and
 // which row a given column falls on. Written once because the redraw needs
 // both and getting them out of step is what makes a cursor land in the wrong
@@ -265,15 +282,10 @@ void Volt::Repl::Tui::LineEditor::WalkHistory ( const int Direction )
         ++HistoryAt;
     }
 
-    Buffer = HistoryAt >= Past.Size() ? Stashed : std::string( Past.At( HistoryAt ) );
-
-    // A statement spanning several lines is remembered whole; walking back
-    // into one puts its first line up and leaves the rest for the user to
-    // retype, because an editor of one physical line cannot show more.
-    if ( const std::size_t Break = Buffer.find( '\n' ); Break != std::string::npos )
-    {
-        Buffer.resize( Break );
-    }
+    // A statement spanning several lines is remembered whole; walking back into
+    // one puts its first line up and leaves the rest for the user to retype,
+    // because an editor of one physical line cannot show more.
+    Buffer = HistoryAt >= Past.Size() ? Stashed : FirstLine( Past.At( HistoryAt ) );
     Cursor = Buffer.size();
     Ghost.clear();
 }
@@ -368,11 +380,7 @@ bool Volt::Repl::Tui::LineEditor::ReverseSearch ()
         if ( const std::optional<std::size_t> Hit = Past.SearchBackwards( Needle, From ) )
         {
             From  = *Hit;
-            Found = std::string( Past.At( *Hit ) );
-            if ( const std::size_t Break = Found.find( '\n' ); Break != std::string::npos )
-            {
-                Found.resize( Break );
-            }
+            Found = FirstLine( Past.At( *Hit ) );
         }
     }
 }
@@ -402,18 +410,33 @@ Volt::Repl::Tui::ReadResult Volt::Repl::Tui::LineEditor::Read ( const std::strin
             if ( not Buffer.empty() )
             {
                 // ^D with something typed deletes forward, the way it does in
-                // every readline there is; only an empty line ends the session.
+                // every readline there is; only an empty line means anything
+                // else.
                 DeleteForward();
                 break;
+            }
+            // On an empty *continuation* line it abandons the statement rather
+            // than the session — the same thing ^D does to an unfinished
+            // command in a shell. A user three lines into a `def` who cannot
+            // remember what comes next should not have to end the session to
+            // get out of it.
+            if ( bContinuation )
+            {
+                Write( "^D\n" );
+                CursorRow = 0;
+                return ReadResult{ .Status = EReadStatus::Interrupted, .Text = {} };
             }
             Write( "\n" );
             return ReadResult{ .Status = EReadStatus::EndOfInput, .Text = {} };
 
         case EKey::Interrupt:
+            // Abandons what has been typed, and the statement it was part of.
+            // The session goes on: that difference between a line and a
+            // session is the whole point of a REPL.
             CloseCompletion();
             Write( "^C\n" );
             CursorRow = 0;
-            return ReadResult{ .Status = bContinuation ? EReadStatus::Interrupted : EReadStatus::Interrupted, .Text = {} };
+            return ReadResult{ .Status = EReadStatus::Interrupted, .Text = {} };
 
         case EKey::Enter:
             if ( bCompleting )
@@ -560,7 +583,9 @@ Volt::Repl::Tui::ReadResult Volt::Repl::Tui::LineEditor::Read ( const std::strin
         // a line the buffer no longer starts.
         if ( not bCompleting )
         {
-            Ghost = Complete::Completer::GhostText( Buffer, Past.All() );
+            // Truncated again on the way in. GhostText promises one line, and
+            // this is the place that cannot survive it breaking that promise.
+            Ghost = FirstLine( Complete::Completer::GhostText( Buffer, Past.All() ) );
         }
         Redraw();
     }

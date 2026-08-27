@@ -63,9 +63,9 @@ namespace Repl
 
             // Read one line, drawing it as it is typed.
             //
-            // `bContinuation` says the statement is unfinished, which changes
-            // two things: the prompt, and whether ^C abandons a statement or
-            // an empty prompt.
+            // `bContinuation` says the statement is unfinished, which is what
+            // makes ^D on an empty line abandon that statement rather than end
+            // the session.
             [[nodiscard]] ReadResult Read ( std::string_view Prompt, bool bContinuation );
 
         private:
