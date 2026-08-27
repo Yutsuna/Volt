@@ -239,6 +239,32 @@ Volt::MiddleEnd::Analysis::Resolution Volt::MiddleEnd::Analysis::LookupFreeFunct
     return Out;
 }
 
+Volt::MiddleEnd::Analysis::Resolution Volt::MiddleEnd::Analysis::LookupModuleFunction ( TypeCheckerContext &Context,
+                                                                                         std::string_view Module,
+                                                                                         std::string_view Name )
+{
+    const Member *Found = Context.Ctx.Types.LookupFunction( Module, Name );
+    if ( Found == nullptr )
+    {
+        return Resolution{};
+    }
+
+    Resolution Out{ .Decl       = Found,
+                    .Owner      = NominalId{},
+                    .Result     = SemaTypeId{},
+                    .Params     = {},
+                    .BlockParam = SemaTypeId{},
+                    .Bindings   = {},
+                    .Receiver   = SemaTypeId{} };
+    for ( std::uint32_t Slot = 0; Slot < Found->OwnGenerics; ++Slot )
+    {
+        Out.Bindings.PushBack( SemaTypeId{} );
+    }
+
+    Reinstantiate( Context, Out );
+    return Out;
+}
+
 void Volt::MiddleEnd::Analysis::Reinstantiate ( TypeCheckerContext &Context, Resolution &Found )
 {
     // An indirect callee's signature came from its receiver's type arguments,
