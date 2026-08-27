@@ -193,6 +193,10 @@ bool Volt::Backend::Jit::JitCompiler::OpenReplacement ( GenerationId &OutGen, st
     // the replacement's own calls should reach, and everything else — the
     // stdlib, the other units, the process — resolves exactly as before.
     Made->addToLinkOrder( P->Jit->getMainJITDylib() );
+    // Also add the replacement dylib to the main dylib's link order so any
+    // fresh globals declared on a line that redefines a function are visible
+    // to subsequent lines in the session.
+    P->Jit->getMainJITDylib().addToLinkOrder( *Made );
 
     P->Dylibs[Id]   = &*Made;
     P->Trackers[Id] = Made->createResourceTracker();
