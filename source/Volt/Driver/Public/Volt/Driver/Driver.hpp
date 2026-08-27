@@ -351,6 +351,46 @@ namespace Driver
             return Types;
         }
 
+        // The text of a registered file, for a consumer that has a
+        // `SourceRange` and wants the source it came out of.
+        //
+        // Read-only and by range on purpose: the SourceManager itself stays
+        // private because it is *written* during compilation and handing out a
+        // reference would invite a caller to register a file behind the
+        // Driver's back. A REPL's `:src` and `:doc` want one substring of one
+        // already-compiled file, which is exactly this and nothing more.
+        [[nodiscard]] std::string_view SourceText ( Core::SourceRange Range ) const
+        {
+            if ( not Sources.IsValidFile( Range.File ) )
+            {
+                return {};
+            }
+
+            const std::string_view Text = Sources.TextOf( Range.File );
+            if ( Range.Begin > Text.size() or Range.End > Text.size() or Range.End < Range.Begin )
+            {
+                return {};
+            }
+            return Text.substr( Range.Begin, Range.End - Range.Begin );
+        }
+
+        // The whole file a range points into — what `:doc` walks backwards
+        // through to find the block comment above a declaration.
+        [[nodiscard]] std::string_view SourceFile ( Core::FileId File ) const
+        {
+            return Sources.IsValidFile( File ) ? Sources.TextOf( File ) : std::string_view{};
+        }
+
+        [[nodiscard]] Core::LineColumn SourcePosition ( Core::SourceRange Range ) const
+        {
+            return Sources.IsValidFile( Range.File ) ? Sources.Resolve( Range.File, Range.Begin ) : Core::LineColumn{};
+        }
+
+        [[nodiscard]] std::string_view SourcePath ( Core::FileId File ) const
+        {
+            return Sources.IsValidFile( File ) ? Sources.PathOf( File ) : std::string_view{};
+        }
+
         [[nodiscard]] bool HasErrors () const
         {
             return Diagnostics.HasErrors();
