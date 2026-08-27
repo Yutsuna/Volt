@@ -140,21 +140,117 @@ Program 'samples/Tests/Traits/TypeOf.vl'
 │              │        └─ IntLiteral '0' @16:18
 │              └─ rhs
 │                 └─ IntLiteral '41' @16:24
-└─ ExprStmt @18:1
+├─ ExprStmt @18:1
+│  └─ expr
+│     └─ Call @18:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @18:1
+│        └─ args
+│           └─ Binary '==' @18:36
+│              ├─ lhs
+│              │  └─ SizeOf @18:10
+│              │     └─ type
+│              │        └─ TypeOfType @18:18
+│              │           └─ value
+│              │              └─ Identifier 'count' @18:26
+│              └─ rhs
+│                 └─ SizeOf @18:39
+│                    └─ type
+│                       └─ TypeRef 'Int32' @18:47
+├─ ExprStmt @21:1
+│  └─ expr
+│     └─ Assign '=' @21:7
+│        ├─ target
+│        │  └─ Identifier 't_int' @21:1
+│        └─ value
+│           └─ TypeOfExpr @21:9
+│              └─ value
+│                 └─ Identifier 'count' @21:16
+├─ ExprStmt @22:1
+│  └─ expr
+│     └─ Assign '=' @22:7
+│        ├─ target
+│        │  └─ Identifier 't_str' @22:1
+│        └─ value
+│           └─ TypeOfExpr @22:9
+│              └─ value
+│                 └─ Identifier 'label' @22:16
+├─ ExprStmt @23:1
+│  └─ expr
+│     └─ Call @23:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @23:1
+│        └─ args
+│           └─ Binary '==' @23:21
+│              ├─ lhs
+│              │  └─ Member 'name' @23:15
+│              │     └─ object
+│              │        └─ Identifier 't_int' @23:10
+│              └─ rhs
+│                 └─ StringLiteral 'Int32' @23:24
+├─ ExprStmt @24:1
+│  └─ expr
+│     └─ Call @24:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @24:1
+│        └─ args
+│           └─ Binary '==' @24:21
+│              ├─ lhs
+│              │  └─ Member 'name' @24:15
+│              │     └─ object
+│              │        └─ Identifier 't_str' @24:10
+│              └─ rhs
+│                 └─ StringLiteral 'String' @24:24
+├─ ExprStmt @25:1
+│  └─ expr
+│     └─ Call @25:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @25:1
+│        └─ args
+│           └─ Binary '==' @25:26
+│              ├─ lhs
+│              │  └─ Member 'to_string' @25:15
+│              │     └─ object
+│              │        └─ Identifier 't_int' @25:10
+│              └─ rhs
+│                 └─ StringLiteral 'Int32' @25:29
+├─ ExprStmt @26:1
+│  └─ expr
+│     └─ Call @26:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @26:1
+│        └─ args
+│           └─ Binary '==' @26:16
+│              ├─ lhs
+│              │  └─ Identifier 't_int' @26:10
+│              └─ rhs
+│                 └─ TypeOfExpr @26:19
+│                    └─ value
+│                       └─ Identifier 'mirrored' @26:27
+├─ ExprStmt @27:1
+│  └─ expr
+│     └─ Call @27:8
+│        ├─ callee
+│        │  └─ Identifier 'assert!' @27:1
+│        └─ args
+│           └─ Binary '!=' @27:16
+│              ├─ lhs
+│              │  └─ Identifier 't_int' @27:10
+│              └─ rhs
+│                 └─ Identifier 't_str' @27:19
+└─ ExprStmt @28:1
    └─ expr
-      └─ Call @18:8
+      └─ Call @28:8
          ├─ callee
-         │  └─ Identifier 'assert!' @18:1
+         │  └─ Identifier 'assert!' @28:1
          └─ args
-            └─ Binary '==' @18:36
+            └─ Binary '==' @28:31
                ├─ lhs
-               │  └─ SizeOf @18:10
-               │     └─ type
-               │        └─ TypeOfType @18:18
+               │  └─ Member 'name' @28:25
+               │     └─ object
+               │        └─ TypeOfExpr @28:10
                │           └─ value
-               │              └─ Identifier 'count' @18:26
+               │              └─ Identifier 't_int' @28:18
                └─ rhs
-                  └─ SizeOf @18:39
-                     └─ type
-                        └─ TypeRef 'Int32' @18:47
+                  └─ StringLiteral 'Type' @28:34
 --- exit 0 ---

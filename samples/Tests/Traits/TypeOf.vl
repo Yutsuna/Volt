@@ -16,3 +16,14 @@ assert!( numbers.size == 2 )
 assert!( numbers[0] == 41 )
 
 assert!( sizeof( typeof( count ) ) == sizeof( Int32 ) )
+
+# Expression-position typeof
+t_int = typeof count
+t_str = typeof label
+assert!( t_int.name == "Int32" )
+assert!( t_str.name == "String" )
+assert!( t_int.to_string == "Int32" )
+assert!( t_int == typeof( mirrored ) )
+assert!( t_int != t_str )
+assert!( typeof( t_int ).name == "Type" )
+
