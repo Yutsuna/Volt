@@ -112,6 +112,15 @@ namespace MiddleEnd
                 return false;
             }
 
+            for ( Member &Func : Functions )
+            {
+                Func.bFromStdlib = true;
+            }
+            for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
+            {
+                Types.Get( NominalId{ static_cast<NominalId::ValueType>( Index ) } ).bFromStdlib = true;
+            }
+
             RebuildSigIndex();
             return true;
         }

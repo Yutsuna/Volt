@@ -170,6 +170,7 @@ namespace MiddleEnd
             std::uint32_t OwnGenerics = 0;
             std::uint32_t MinParams   = 0;
             bool bSelf                = false; // `def self.malloc`
+            bool bFromStdlib          = false; // declared in stdlib, cannot be redefined by user
             // `private` / `protected` as written on the declaration, `None`
             // when the source wrote nothing — which reads as public.
             //
@@ -337,6 +338,7 @@ namespace MiddleEnd
             // question the RAII sweeps ask about a type.
             bool bTrivialFinalize = true;
             bool bMixin           = false;
+            bool bFromStdlib      = false; // declared in stdlib, cannot be redefined by user
 
             // Per generic parameter, the AST field names feeding it when a node
             // kind is lowered to this type. Empty = the default convention (the
@@ -411,6 +413,21 @@ namespace MiddleEnd
 
             // --- Types -------------------------------------------------------
 
+            void SetStdlibUnitCount ( std::uint32_t Count )
+            {
+                StdlibUnits = Count;
+            }
+
+            [[nodiscard]] std::uint32_t StdlibUnitCount () const
+            {
+                return StdlibUnits;
+            }
+
+            [[nodiscard]] bool IsStdlibUnit ( std::uint32_t Unit ) const
+            {
+                return Unit < StdlibUnits;
+            }
+
             // Declare (or re-declare) a named type. Re-declaring a name returns
             // the existing handle and refreshes its origin, so the last stdlib
             // definition wins without invalidating handles already handed out.
@@ -422,6 +439,10 @@ namespace MiddleEnd
                     NominalType &Existing = Types.Get( It->second );
                     Existing.Unit         = Unit;
                     Existing.Decl         = Decl;
+                    if ( Unit < StdlibUnits )
+                    {
+                        Existing.bFromStdlib = true;
+                    }
                     Existing.Members.clear();
                     Existing.Includes.Clear();
                     return It->second;
@@ -431,6 +452,7 @@ namespace MiddleEnd
                 Fresh.Name         = Key;
                 Fresh.Unit         = Unit;
                 Fresh.Decl         = Decl;
+                Fresh.bFromStdlib  = ( Unit < StdlibUnits );
                 const NominalId Id = Types.Add( std::move( Fresh ) );
                 ByName.emplace( Key, Id );
                 return Id;
@@ -716,6 +738,10 @@ namespace MiddleEnd
                     Member &Existing = Functions[It->second];
                     Existing.Unit    = Unit;
                     Existing.Decl    = Decl;
+                    if ( Unit < StdlibUnits )
+                    {
+                        Existing.bFromStdlib = true;
+                    }
                     return &Existing;
                 }
 
@@ -725,6 +751,7 @@ namespace MiddleEnd
                 Fresh.Kind              = EMemberKind::Method;
                 Fresh.Unit              = Unit;
                 Fresh.Decl              = Decl;
+                Fresh.bFromStdlib       = ( Unit < StdlibUnits );
                 const std::size_t Index = Functions.size();
                 Functions.push_back( std::move( Fresh ) );
                 FunctionByName.emplace( Key, Index );
@@ -1133,6 +1160,52 @@ namespace MiddleEnd
                 return std::nullopt;
             }
 
+            struct SnapshotMark
+            {
+                std::size_t TypeCount     = 0;
+                std::size_t SigCount      = 0;
+                std::size_t LayoutCount   = 0;
+                std::size_t FunctionCount = 0;
+                std::size_t VariableCount = 0;
+            };
+
+            [[nodiscard]] SnapshotMark Mark () const
+            {
+                return SnapshotMark{
+                    .TypeCount     = Types.Size(),
+                    .SigCount      = Sigs.Size(),
+                    .LayoutCount   = Layouts.Size(),
+                    .FunctionCount = Functions.size(),
+                    .VariableCount = Variables.size(),
+                };
+            }
+
+            void Rollback ( const SnapshotMark &Snapshot )
+            {
+                while ( Functions.size() > Snapshot.FunctionCount )
+                {
+                    const Member &F  = Functions.back();
+                    const Symbol Key = QualifiedFunctionKey( F.Module.IsValid() ? Strings.Resolve( F.Module ) : std::string_view{},
+                                                             Strings.Resolve( F.Name ) );
+                    FunctionByName.erase( Key );
+                    Functions.pop_back();
+                }
+                while ( Variables.size() > Snapshot.VariableCount )
+                {
+                    const Member &V = Variables.back();
+                    VariableByName.erase( V.Name );
+                    Variables.pop_back();
+                }
+                for ( std::size_t Index = Snapshot.TypeCount; Index < Types.Size(); ++Index )
+                {
+                    const NominalType &T = Types.Get( NominalId{ static_cast<std::uint32_t>( Index ) } );
+                    ByName.erase( T.Name );
+                }
+                Types.TruncateTo( Snapshot.TypeCount );
+                Sigs.TruncateTo( Snapshot.SigCount );
+                Layouts.TruncateTo( Snapshot.LayoutCount );
+            }
+
             ::Volt::Core::StringInterner Strings;
             ::Volt::Core::Arena<NominalType, NominalId> Types;
             ::Volt::Core::Arena<SigType, SigTypeId> Sigs;
@@ -1151,7 +1224,8 @@ namespace MiddleEnd
             std::unordered_set<Symbol> Modules;
             std::unordered_map<std::vector<std::uint32_t>, SigTypeId, U32KeyHash> SigDedup;
             std::unique_ptr<TypeUniverse> UniverseStorage;
-            std::uint64_t Gen = 0;
+            std::uint32_t StdlibUnits = 0;
+            std::uint64_t Gen         = 0;
         };
 
     } // namespace TypeSystem

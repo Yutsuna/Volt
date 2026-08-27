@@ -68,6 +68,24 @@ namespace MiddleEnd::Resolver
             return Decls.size();
         }
 
+        [[nodiscard]] std::size_t Mark () const
+        {
+            return Decls.size();
+        }
+
+        void Rollback ( std::size_t InMark )
+        {
+            while ( Decls.size() > InMark )
+            {
+                ByName.erase( Decls.back().QualifiedName );
+                Decls.pop_back();
+            }
+            for ( const ExportedDecl &Decl : Decls )
+            {
+                ByName.insert_or_assign( std::string_view{ Decl.QualifiedName }, &Decl );
+            }
+        }
+
         // --- Frontend cache (Issue #61) -----------------------------------
         //
         // ByName is not serialised: it is a std::string_view index into
