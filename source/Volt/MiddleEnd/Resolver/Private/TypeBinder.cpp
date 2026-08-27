@@ -198,8 +198,18 @@ namespace MiddleEnd::Resolver
             }
         }
 
+        // Every free `def`, with the module path it is written inside.
+        //
+        // The path is carried down rather than dropped: a module *scopes* its
+        // functions, the way one does in Crystal and Ruby, so `A.g` and a
+        // top-level `g` are two different functions and the walk is the only
+        // place that still knows which is which. Nested modules join with a
+        // dot — `A.B.g` — which is also the spelling a call site writes.
         template <typename DeclContainer, typename Fn>
-        void ForEachFreeFunction ( const Frontend::AstContext &Ast, const DeclContainer &Decls, Fn &&Visit )
+        void ForEachFreeFunction ( const Frontend::AstContext &Ast,
+                                   const DeclContainer &Decls,
+                                   Fn &&Visit,
+                                   const std::string &Module = {} )
         {
             std::vector<PendingAnnotation> Pending;
 
@@ -220,8 +230,13 @@ namespace MiddleEnd::Resolver
 
                 std::visit(
                     Meta::Overloaded{
-                        [&] ( const Frontend::Module &Nested ) { ForEachFreeFunction( Ast, Nested.Body, Visit ); },
-                        [&] ( const Frontend::Method &Entry ) { Visit( Id, Entry, Pending ); },
+                        [&] ( const Frontend::Module &Nested )
+                        {
+                            const std::string Inner = Module.empty() ? std::string( Ast.Text( Nested.Name ) )
+                                                                     : Module + "." + std::string( Ast.Text( Nested.Name ) );
+                            ForEachFreeFunction( Ast, Nested.Body, Visit, Inner );
+                        },
+                        [&] ( const Frontend::Method &Entry ) { Visit( Id, Entry, Pending, Module ); },
                         [] ( const auto & ) {},
                     },
                     Node );
@@ -890,10 +905,12 @@ namespace MiddleEnd::Resolver
 
             // A top-level `def`: same identity-first shape as BindType, minus
             // a layout — a function has no memory representation of its own.
-            void
-            BindFunction ( Frontend::DeclId Id, const Frontend::Method &Entry, const std::vector<PendingAnnotation> &Pending )
+            void BindFunction ( Frontend::DeclId Id,
+                                const Frontend::Method &Entry,
+                                const std::vector<PendingAnnotation> &Pending,
+                                const std::string &Module )
             {
-                Member *Slot = Store.DeclareFunction( Ast.Text( Entry.Name ), Unit, Id );
+                Member *Slot = Store.DeclareFunction( Module, Ast.Text( Entry.Name ), Unit, Id );
                 ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), *Slot );
                 ++Bound;
             }
@@ -1378,7 +1395,8 @@ namespace MiddleEnd::Resolver
                          { Bind.BindType( Decl, Pending ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,
                              [&] ( Frontend::DeclId Id, const Frontend::Method &Entry,
-                                   const std::vector<PendingAnnotation> &Pending ) { Bind.BindFunction( Id, Entry, Pending ); } );
+                                   const std::vector<PendingAnnotation> &Pending, const std::string &Module )
+                             { Bind.BindFunction( Id, Entry, Pending, Module ); } );
         ForEachExternalVar( Ast, Ast.TopDecls,
                             [&] ( Frontend::DeclId Id, const Frontend::ExternalVar &Entry,
                                   const std::vector<PendingAnnotation> &Pending ) { Bind.BindVariable( Id, Entry, Pending ); } );
@@ -1398,8 +1416,8 @@ namespace MiddleEnd::Resolver
         ForEachTypeDecl( Ast, Ast.TopDecls,
                          [&] ( const TypeDecl &Decl, const std::vector<PendingAnnotation> & ) { Step.Resolve( Decl ); } );
         ForEachFreeFunction( Ast, Ast.TopDecls,
-                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry, const std::vector<PendingAnnotation> & )
-                             { Step.ResolveFunction( Id, Entry ); } );
+                             [&] ( Frontend::DeclId Id, const Frontend::Method &Entry, const std::vector<PendingAnnotation> &,
+                                   const std::string & ) { Step.ResolveFunction( Id, Entry ); } );
         return Step.Resolved;
     }
 

@@ -119,6 +119,18 @@ namespace MiddleEnd
         {
 
             Symbol Name; // interned in the store
+            // The module this member is declared in, or invalid for the top
+            // level. Free functions only: a member of a *type* is scoped by
+            // that type, and a type declared inside a module is reached
+            // through the module's own name.
+            //
+            // A module scopes, the way one does in Crystal and Ruby and the
+            // way a namespace does in C++. It was not always so: module
+            // methods were hoisted into one flat table keyed on the bare name,
+            // which meant a top-level call reached into a module it never
+            // named, and two modules declaring the same function silently
+            // overwrote one another — `A.g()` ran `B`'s body.
+            Symbol Module;
             EMemberKind Kind             = EMemberKind::Field;
             EInlineVerdict InlineVerdict = EInlineVerdict::Never;
             std::uint32_t Unit           = 0;            // ordinal of the declaring unit
@@ -683,9 +695,22 @@ namespace MiddleEnd
             // call-checking machinery built for methods (Resolution,
             // CheckCallArgs, Reinstantiate) applies unchanged: a free function is
             // simply a method with no receiver.
-            [[nodiscard]] Member *DeclareFunction ( std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+            // The key a free function is found by: its module and its name.
+            //
+            // Interned as one string — `"A.g"`, or `"g"` at the top level — so
+            // the table stays a single hash on a Symbol. Redeclaring the same
+            // qualified name is still an overwrite, because that is how a REPL
+            // replaces a function at the prompt; what it no longer does is
+            // collide two *different* functions that merely share a spelling.
+            [[nodiscard]] Symbol QualifiedFunctionKey ( std::string_view Module, std::string_view Name )
             {
-                const Symbol Key = Strings.Intern( Name );
+                return Strings.Intern( Module.empty() ? std::string( Name ) : std::string( Module ) + "." + std::string( Name ) );
+            }
+
+            [[nodiscard]] Member *
+            DeclareFunction ( std::string_view Module, std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+            {
+                const Symbol Key = QualifiedFunctionKey( Module, Name );
                 if ( const auto It = FunctionByName.find( Key ); It != FunctionByName.end() )
                 {
                     Member &Existing = Functions[It->second];
@@ -695,7 +720,8 @@ namespace MiddleEnd
                 }
 
                 Member Fresh;
-                Fresh.Name              = Key;
+                Fresh.Name              = Strings.Intern( Name );
+                Fresh.Module            = Module.empty() ? Symbol{} : Strings.Intern( Module );
                 Fresh.Kind              = EMemberKind::Method;
                 Fresh.Unit              = Unit;
                 Fresh.Decl              = Decl;
@@ -729,15 +755,25 @@ namespace MiddleEnd
                 return Functions;
             }
 
-            [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
+            // The function `Module` declares under `Name`. An empty `Module`
+            // means the top level, and it means *only* the top level: a bare
+            // call does not reach into a module it never named.
+            [[nodiscard]] const Member *LookupFunction ( std::string_view Module, std::string_view Name ) const
             {
-                const auto Known = Strings.Find( Name );
+                const std::string Qualified = Module.empty() ? std::string( Name ) : std::string( Module ) + "." + std::string( Name );
+
+                const auto Known = Strings.Find( Qualified );
                 if ( not Known )
                 {
                     return nullptr;
                 }
                 const auto It = FunctionByName.find( *Known );
                 return It != FunctionByName.end() ? &Functions[It->second] : nullptr;
+            }
+
+            [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
+            {
+                return LookupFunction( std::string_view{}, Name );
             }
 
             // --- Module variables ------------------------------------------------
