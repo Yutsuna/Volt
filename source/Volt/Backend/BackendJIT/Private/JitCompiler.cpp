@@ -9,14 +9,18 @@
 
 #include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
+#include <llvm/ExecutionEngine/Orc/IRPartitionLayer.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <llvm/IR/Constants.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/InstIterator.h>
+#include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Format.h>
@@ -38,8 +42,10 @@
 
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace
 {
@@ -106,6 +112,98 @@ void DumpIfAsked ( const llvm::Module &Mod )
 {
     llvm::errs() << "jit: a function could not be compiled when it was first called; the program cannot continue\n";
     std::abort();
+}
+
+// What one lazy compile compiles: the function that was asked for, plus every
+// function this module defines that its code *names*, transitively.
+//
+// LLVM ships two policies and neither is right here. `compileWholeModule` is
+// eager with extra steps. `compileRequested` — one function per partition — is
+// the obvious reading of "lazy", and it is what made laziness a bet rather than
+// a win: each partition clones the module skeleton, so compiling n functions one
+// at a time costs O(n^2)-ish, and a program that ends up calling everything it
+// defines measured *68% slower* than eager.
+//
+// Taking the callees closes that gap without giving up the thing worth having.
+// A module nothing reaches is still never compiled, and a function nothing
+// calls is still never compiled — that is where all the winning happens, and it
+// is untouched. What changes is only the shape of the work once a module *is*
+// reached: one partition holding a call tree instead of n partitions holding a
+// function each.
+//
+// Reached from an *instruction*, which is the line this draws. A function named
+// by code that runs is one the caller is about to use: the callee of a direct
+// call, and equally the body half of a closure pair, whose address is taken by
+// a store in the very block that goes on to call it. A function named only by a
+// *global initialiser* is not — that is a vtable, and which of its entries a
+// `dyn Trait` will reach is exactly what nobody knows until it is reached. Those
+// keep their stubs and stay lazy, which is what makes dynamic dispatch pay only
+// for the methods it actually dispatches to.
+void CollectReferenced ( const llvm::Value *From, std::vector<const llvm::Function *> &Out )
+{
+    if ( const auto *Fn = llvm::dyn_cast<llvm::Function>( From ); Fn != nullptr )
+    {
+        Out.push_back( Fn );
+        return;
+    }
+
+    // A function pointer folded into a constant — an aggregate built inline for
+    // a closure pair, an expression around it — is still named by this
+    // instruction, so it is still evidence.
+    if ( const auto *Expr = llvm::dyn_cast<llvm::Constant>( From ); Expr != nullptr )
+    {
+        for ( const llvm::Use &Operand : Expr->operands() )
+        {
+            CollectReferenced( Operand.get(), Out );
+        }
+    }
+}
+
+// What one lazy compile compiles, gathered transitively.
+std::optional<llvm::orc::IRPartitionLayer::GlobalValueSet>
+PartitionWithCallees ( llvm::orc::IRPartitionLayer::GlobalValueSet Requested )
+{
+    llvm::orc::IRPartitionLayer::GlobalValueSet Partition = std::move( Requested );
+
+    std::vector<const llvm::Function *> Pending;
+    for ( const llvm::GlobalValue *Value : Partition )
+    {
+        if ( const auto *Fn = llvm::dyn_cast<llvm::Function>( Value ); Fn != nullptr and not Fn->isDeclaration() )
+        {
+            Pending.push_back( Fn );
+        }
+    }
+
+    std::vector<const llvm::Function *> Named;
+    while ( not Pending.empty() )
+    {
+        const llvm::Function *Fn = Pending.back();
+        Pending.pop_back();
+
+        for ( const llvm::Instruction &Inst : llvm::instructions( *Fn ) )
+        {
+            Named.clear();
+            for ( const llvm::Use &Operand : Inst.operands() )
+            {
+                CollectReferenced( Operand.get(), Named );
+            }
+
+            for ( const llvm::Function *Referenced : Named )
+            {
+                // A declaration resolves through the dylib like any other
+                // undefined symbol; there is no body here to put in a partition.
+                if ( Referenced->isDeclaration() )
+                {
+                    continue;
+                }
+                if ( Partition.insert( Referenced ).second )
+                {
+                    Pending.push_back( Referenced );
+                }
+            }
+        }
+    }
+    return Partition;
 }
 
 // A module holding only declarations resolves nothing and materialises
@@ -192,14 +290,10 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const unsigned CompileThreads, cons
         Builder.setNumCompileThreads( CompileThreads );
         Builder.setLazyCompileFailureAddr( llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
 
-        // Left at its default, IRPartitionLayer::compileRequested: one
-        // function per partition, which is the whole point. compileWholeModule
-        // is the other shipped policy and it is what Eager already does more
-        // cheaply, without stubs.
-
         if ( llvm::Expected<std::unique_ptr<llvm::orc::LLLazyJIT>> Built = Builder.create() )
         {
-            P->Lazy          = Built->get();
+            P->Lazy = Built->get();
+            P->Lazy->setPartitionFunction( PartitionWithCallees );
             P->Jit           = std::move( *Built );
             P->CompilePolicy = ECompilePolicy::Lazy;
             return true;
