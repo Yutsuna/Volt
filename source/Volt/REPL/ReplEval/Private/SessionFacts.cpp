@@ -91,7 +91,8 @@ Volt::Repl::Evaluator::State::Scratch Volt::Repl::Evaluator::State::Analyze ( co
 
     const std::unordered_set<std::string> Mentioned = IdentifiersIn( Source );
 
-    Out.Index = TheDriver.AppendUnit( Label, Source );
+    const Driver::Driver::AppendedUnit Appended = TheDriver.AppendUnit( Label, Source );
+    Out.Index                                   = Appended.Index;
     ++Lines;
 
     {
@@ -103,7 +104,7 @@ Volt::Repl::Evaluator::State::Scratch Volt::Repl::Evaluator::State::Analyze ( co
         NameForeignStorage( Ast, Mentioned );
     }
 
-    const Driver::Driver::UnitResult Unit = TheDriver.AnalyzeUnit( Out.Index );
+    const Driver::Driver::UnitResult Unit = TheDriver.AnalyzeUnit( Out.Index, Appended.DiagMark );
     {
         std::ostringstream Report;
         TheDriver.ConsumeLineDiagnostics( Unit.DiagMark, Report );
