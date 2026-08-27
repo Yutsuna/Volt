@@ -16,6 +16,8 @@
 #include "ReplDoc_export.hpp"
 
 #include <cstdint>
+#include <optional>
+#include <span>
 #include <string_view>
 
 namespace Volt
@@ -205,6 +207,23 @@ namespace Repl
         // (ReplTui simply never emits one), while a terminal that answers only
         // sixteen colours still wants bold and faint to mean what they mean.
         [[nodiscard]] REPLDOC_EXPORT Palette MonochromePalette ();
+
+        // --- Choosing one --------------------------------------------------
+        //
+        // A theme is a value, so picking one is a lookup rather than a rebuild.
+        // Both knobs the REPL offers — `$VOLT_REPL_THEME` and `:theme` — end
+        // here, and so does the automatic choice: "auto" is a name like any
+        // other, answered by whatever the caller passes as `bDark`.
+
+        // Every name `PaletteByName` accepts, in the order `:theme` lists them.
+        [[nodiscard]] REPLDOC_EXPORT std::span<const std::string_view> PaletteNames ();
+
+        // The theme a name asks for, or nothing when nobody ships that name.
+        //
+        // `bDark` answers "auto", and is what the terminal was found to be. A
+        // caller with no terminal to ask — a pipe, a test — passes anything:
+        // it never reaches the palette, because a pipe asks for "mono".
+        [[nodiscard]] REPLDOC_EXPORT std::optional<Palette> PaletteByName ( std::string_view Name, bool bDark );
 
     } // namespace Doc
 

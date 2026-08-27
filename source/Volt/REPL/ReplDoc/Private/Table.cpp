@@ -34,9 +34,29 @@ struct Glyphs
 {
     if ( Border == EBorder::Ascii )
     {
-        return Glyphs{ "-", "|", "+", "+", "+", "+", "+", "+", "+", "+", "+" };
+        return Glyphs{ .Horizontal  = "-",
+                       .Vertical    = "|",
+                       .TopLeft     = "+",
+                       .TopMid      = "+",
+                       .TopRight    = "+",
+                       .MidLeft     = "+",
+                       .MidMid      = "+",
+                       .MidRight    = "+",
+                       .BottomLeft  = "+",
+                       .BottomMid   = "+",
+                       .BottomRight = "+" };
     }
-    return Glyphs{ "─", "│", "┌", "┬", "┐", "├", "┼", "┤", "└", "┴", "┘" };
+    return Glyphs{ .Horizontal  = "─",
+                   .Vertical    = "│",
+                   .TopLeft     = "┌",
+                   .TopMid      = "┬",
+                   .TopRight    = "┐",
+                   .MidLeft     = "├",
+                   .MidMid      = "┼",
+                   .MidRight    = "┤",
+                   .BottomLeft  = "└",
+                   .BottomMid   = "┴",
+                   .BottomRight = "┘" };
 }
 
 [[nodiscard]] std::string Repeat ( const std::string_view Unit, const std::size_t Times )
@@ -152,7 +172,7 @@ Volt::Repl::Doc::Render ( const Table &Grid, const Palette &Theme, const EBorder
         // the width, and the narrow ones stay readable.
         while ( Total > Budget )
         {
-            const auto Widest = std::max_element( Width.begin(), Width.end() );
+            const auto Widest = std::ranges::max_element( Width );
             if ( Widest == Width.end() or *Widest <= 4 )
             {
                 break;
@@ -191,8 +211,12 @@ Volt::Repl::Doc::Render ( const Table &Grid, const Palette &Theme, const EBorder
             const Cell *Entry     = CellAt( Cells, Index );
             const EAlign Align    = Index < Grid.Alignment.size() ? Grid.Alignment[Index] : EAlign::Left;
             const std::string Txt = Entry == nullptr ? std::string{} : Fit( Entry->Text, Width[Index] );
-            const EPaletteRole Role =
-                Entry == nullptr ? Fallback : ( Entry->Role == EPaletteRole::Default ? Fallback : Entry->Role );
+
+            // A cell that names no role of its own takes the row's, which is
+            // what lets a header be a header without every one of its cells
+            // saying so.
+            const bool bOwnRole     = Entry != nullptr and Entry->Role != EPaletteRole::Default;
+            const EPaletteRole Role = bOwnRole ? Entry->Role : Fallback;
 
             Row.Add( " " + Pad( Txt, Width[Index], Align ) + " ", RoleColor( Theme, Role ) );
             if ( bDrawFrame )
