@@ -1,0 +1,6 @@
+:type 1 + 2
+:type "hello"
+:type true
+x = [ 1, 2, 3 ]
+:type x
+:type nope

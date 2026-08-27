@@ -1,0 +1,7 @@
+no variables yet
+┌───────┬────────┐
+│ Name  │ Type   │
+├───────┼────────┤
+│ count │ Int32  │
+│ name  │ String │
+└───────┴────────┘

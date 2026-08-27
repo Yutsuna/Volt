@@ -1,0 +1,41 @@
+--- table: as wide as it wants ---
+┌──────────────────────────────┬──────┬────────┐
+│ Field                        │ Type │ Offset │
+├──────────────────────────────┼──────┼────────┤
+│ data                         │ ptr  │      0 │
+│ size                         │ i64  │      8 │
+│ owns_a_very_long_buffer_name │ i1   │     16 │
+└──────────────────────────────┴──────┴────────┘
+--- table: squeezed into 34 columns ---
+┌────────────────┬──────┬────────┐
+│ Field          │ Type │ Offset │
+├────────────────┼──────┼────────┤
+│ data           │ ptr  │      0 │
+│ size           │ i64  │      8 │
+│ owns_a_very... │ i1   │     16 │
+└────────────────┴──────┴────────┘
+--- table: ascii ---
++------------------------------+------+--------+
+| Field                        | Type | Offset |
++------------------------------+------+--------+
+| data                         | ptr  |      0 |
+| size                         | i64  |      8 |
+| owns_a_very_long_buffer_name | i1   |     16 |
++------------------------------+------+--------+
+--- wrap: 20 columns ---
+|the quick brown fox
+|jumps over the lazy
+|dog and keeps going
+--- pane: 40 columns ---
+┌── doc: Array.map ────────────────────┐
+│ Returns a new array with the         │
+│ results of running the block once    │
+│ for every element.                   │
+└──────────────────────────────────────┘
+--- split: 120, 99 and 80 columns ---
+120 -> split=yes left=72 right=48
+99 -> split=no left=99 right=0
+80 -> split=no left=80 right=0
+--- side by side ---
+|volt> 1 + 1                                                 | panel |                               
+|=> 2 : Int32                                                                                        

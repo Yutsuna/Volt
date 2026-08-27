@@ -1,0 +1,16 @@
+┌──────────┬─────────────┬───────────────────────────────────────────────────┐
+│ Command  │ Argument    │ Does                                              │
+├──────────┼─────────────┼───────────────────────────────────────────────────┤
+│ :help    │             │ This table                                        │
+│ :type    │ <expr>      │ The type of an expression, without evaluating it  │
+│ :layout  │ <type|expr> │ Size, alignment and fields in memory              │
+│ :ir      │ [expr]      │ The LLVM IR of the last line, or of an expression │
+│ :asm     │ <name>      │ The machine code a function materialised as       │
+│ :src     │ <name>      │ The source a declaration was written as           │
+│ :doc     │ <name>      │ The block comment above a declaration             │
+│ :bench   │ [n] <expr>  │ Run an expression n times and time it             │
+│ :history │             │ Every line this session has evaluated             │
+│ :vars    │             │ Every variable declared at this prompt            │
+│ :reset   │             │ Throw the session away and start a fresh one      │
+│ :exit    │             │ Leave (so does ^D)                                │
+└──────────┴─────────────┴───────────────────────────────────────────────────┘
