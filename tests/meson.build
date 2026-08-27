@@ -267,6 +267,10 @@ if jit_enabled
     repl_sh = repl_root / 'repl-test.sh'
 
     repl_exact = [
+        'Query/Type',
+        'Query/Layout',
+        'Query/Help',
+        'Query/Vars',
         'Eval/Arith',
         'Eval/Persist',
         'Eval/MultiLine',
@@ -297,8 +301,102 @@ if jit_enabled
         )
     endforeach
 
+    repl_goldens_exe = executable(
+        'repl-goldens',
+        files('repl/Goldens/ReplGoldens.cpp'),
+        cpp_pch: common_pch_header,
+        dependencies: [
+            compile_options_dep,
+            repldoc_dep,
+            replsyntax_dep,
+            replcore_dep,
+            replquery_dep,
+            replcomplete_dep,
+        ],
+        build_by_default: false,
+        install: false,
+    )
+
+    repl_golden_root = meson.current_source_dir() / 'repl' / 'Goldens'
+
+    repl_golden_sections = [
+        ['syntax', 30],
+        ['doc', 30],
+        ['core', 30],
+        ['parse', 30],
+        ['complete', 120],
+    ]
+
+    foreach section : repl_golden_sections
+        test(
+            'repl/Goldens/' + section[0],
+            sh,
+            args: [
+                '-c',
+                '"$1" "$2" | diff -u "$3" -',
+                'sh',
+                repl_goldens_exe.full_path(),
+                section[0],
+                repl_golden_root / (section[0] + '.golden'),
+            ],
+            depends: repl_goldens_exe,
+            workdir: meson.project_source_root(),
+            suite: 'repl',
+            timeout: section[1],
+        )
+    endforeach
+
+    alias_target(
+        'repl-goldens-update',
+        custom_target(
+            'repl_goldens_update',
+            output: 'repl-goldens.stamp',
+            build_always_stale: true,
+            command: [
+                bash,
+                files('repl/Goldens/update.bash'),
+                repl_goldens_exe.full_path(),
+                repl_golden_root,
+                '@OUTPUT@',
+            ],
+            depends: repl_goldens_exe,
+        ),
+    )
+
+    test(
+        'repl/Purity',
+        sh,
+        args: [
+            meson.current_source_dir() / 'repl' / 'purity-test.sh',
+            meson.project_source_root() / 'source' / 'Volt' / 'REPL',
+        ],
+        workdir: meson.project_source_root(),
+        suite: 'repl',
+        timeout: 30,
+    )
+
+    test(
+        'repl/Generations',
+        sh,
+        args: [
+            meson.current_source_dir() / 'repl' / 'generations-test.sh',
+            volt_exe.full_path(),
+        ],
+        depends: volt_exe,
+        workdir: meson.project_source_root(),
+        suite: 'repl',
+        timeout: 300,
+    )
+
     repl_markers = [
         ['Recover/SyntaxError', 'after'],
+    ]
+
+    repl_markers += [
+        ['Query/Ir', 'define void @_V_init_'],
+        ['Query/Asm', 'ret'],
+        ['Query/Bench', 'Runs'],
+        ['Query/Reset', 'session restarted'],
     ]
 
     foreach repl_case : repl_markers
@@ -316,6 +414,30 @@ if jit_enabled
             workdir: meson.project_source_root(),
             suite: 'repl',
             timeout: 120,
+        )
+    endforeach
+
+    repl_source_cases = [
+        ['Query/Src', 'struct String'],
+        ['Query/Doc', '@brief'],
+    ]
+
+    foreach repl_case : repl_source_cases
+        test(
+            'repl/' + repl_case[0],
+            sh,
+            args: [
+                repl_sh,
+                volt_exe.full_path(),
+                repl_root / (repl_case[0] + '.vl'),
+                'contains',
+                repl_case[1],
+                '--no-stdlib-cache',
+            ],
+            depends: volt_exe,
+            workdir: meson.project_source_root(),
+            suite: 'repl',
+            timeout: 300,
         )
     endforeach
 endif
