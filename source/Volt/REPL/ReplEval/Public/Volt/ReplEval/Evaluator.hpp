@@ -39,6 +39,19 @@ namespace Repl
         bool bVerbose  = false;
     };
 
+    // The text the REPL prelude writes before the value itself.
+    //
+    // `__volt_repl_echo` (source/Volt/REPL/Prelude/Repl.vl) prints the arrow
+    // and then `value.inspect`, both straight to descriptor 1 and both from
+    // inside the JIT — which is what keeps the two halves in the order they
+    // are read, on a descriptor no C++ stream is buffering.
+    //
+    // Named here because a terminal front end has to tell one half from the
+    // other in order to colour them differently, and the alternative — the
+    // host printing the arrow itself — puts a flush between two writers on one
+    // descriptor and makes their order a matter of discipline.
+    inline constexpr std::string_view EchoPrefix = "=> ";
+
     // What one fed line produced. Deliberately not a bool: a line that does not
     // compile, a line that compiles but raises, and a line that runs cleanly
     // are three outcomes a front end renders three different ways.
