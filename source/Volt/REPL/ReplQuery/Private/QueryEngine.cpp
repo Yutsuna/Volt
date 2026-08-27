@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -24,7 +25,7 @@ namespace
 
 using namespace Volt::Repl;
 
-constexpr std::array<Query::Builtin, 12> Table = {
+constexpr std::array<Query::Builtin, 13> Table = {
     Query::Builtin{ Query::EBuiltin::Help, "help", "", "This table", false },
     Query::Builtin{ Query::EBuiltin::Type, "type", "<expr>", "The type of an expression, without evaluating it", false },
     Query::Builtin{ Query::EBuiltin::Layout, "layout", "<type|expr>", "Size, alignment and fields in memory", false },
@@ -35,6 +36,7 @@ constexpr std::array<Query::Builtin, 12> Table = {
     Query::Builtin{ Query::EBuiltin::Bench, "bench", "[n] <expr>", "Run an expression n times and time it", false },
     Query::Builtin{ Query::EBuiltin::History, "history", "", "Every line this session has evaluated", true },
     Query::Builtin{ Query::EBuiltin::Vars, "vars", "", "Every variable declared at this prompt", false },
+    Query::Builtin{ Query::EBuiltin::Theme, "theme", "[name]", "Show or switch the colour theme", false },
     Query::Builtin{ Query::EBuiltin::Reset, "reset", "", "Throw the session away and start a fresh one", false },
     Query::Builtin{ Query::EBuiltin::Exit, "exit", "", "Leave (so does ^D)", false },
 };
@@ -208,6 +210,8 @@ Volt::Repl::Query::Result Volt::Repl::Query::Engine::Run ( const Command &What, 
         return this->History( History );
     case EBuiltin::Vars:
         return Vars();
+    case EBuiltin::Theme:
+        return Theme_( What.Argument );
     case EBuiltin::Reset:
         return Reset();
     case EBuiltin::Exit:
@@ -548,6 +552,46 @@ Volt::Repl::Query::Result Volt::Repl::Query::Engine::Vars () const
     {
         Grid.Rows.push_back(
             { Doc::Cell{ Var.Name, Doc::EPaletteRole::Identifier }, Doc::Cell{ Var.Type, Doc::EPaletteRole::TypeName } } );
+    }
+
+    Result Out;
+    Out.bOk  = true;
+    Out.Body = Doc::Render( Grid, Theme, Doc::EBorder::Unicode, Columns );
+    return Out;
+}
+
+Volt::Repl::Query::Result Volt::Repl::Query::Engine::Theme_ ( const std::string_view Name )
+{
+    const std::string_view Wanted = Trim( Name );
+
+    if ( not Wanted.empty() )
+    {
+        const std::optional<Doc::Palette> Chosen = Doc::PaletteByName( Wanted, bDark );
+        if ( not Chosen )
+        {
+            std::string Known;
+            for ( const std::string_view Each : Doc::PaletteNames() )
+            {
+                Known += Known.empty() ? "" : ", ";
+                Known += Each;
+            }
+            return Failure( "repl: no theme called '" + std::string( Wanted ) + "' — try " + Known );
+        }
+
+        // Assigned through the reference every drawer holds, so the next
+        // redraw is already in the new colours.
+        Theme     = *Chosen;
+        ThemeName = std::string( Wanted );
+    }
+
+    Doc::Table Grid;
+    Grid.Headers = { Doc::Cell{ "Theme" }, Doc::Cell{ "" } };
+    for ( const std::string_view Each : Doc::PaletteNames() )
+    {
+        const bool bCurrent = Each == ThemeName;
+        Grid.Rows.push_back(
+            { Doc::Cell{ std::string( Each ), bCurrent ? Doc::EPaletteRole::Keyword : Doc::EPaletteRole::Default },
+              Doc::Cell{ bCurrent ? "current" : "", Doc::EPaletteRole::ResultType } } );
     }
 
     Result Out;

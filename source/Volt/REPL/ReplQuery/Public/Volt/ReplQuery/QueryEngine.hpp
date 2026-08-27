@@ -23,6 +23,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace Volt
@@ -51,6 +52,7 @@ namespace Repl
             Bench,
             History,
             Vars,
+            Theme,
             Reset,
             Exit,
         };
@@ -118,8 +120,20 @@ namespace Repl
 
         public:
 
-            Engine ( Evaluator &InSession, const Doc::Palette &InTheme ) : Session( InSession ), Theme( InTheme )
+            // The palette is held by reference and *not* by const reference,
+            // because `:theme` changes it. Everything that draws — the line
+            // editor, the panes, this engine — reads the same one, so the
+            // switch takes effect on the next redraw with nothing to notify.
+            Engine ( Evaluator &InSession, Doc::Palette &InTheme, std::string InThemeName = "auto" )
+                : Session( InSession ), Theme( InTheme ), ThemeName( std::move( InThemeName ) )
             {
+            }
+
+            // What the terminal was found to be, which is the only thing the
+            // name "auto" needs in order to mean something.
+            void SetDark ( const bool bInDark )
+            {
+                bDark = bInDark;
             }
 
             // How many iterations `:bench` runs when the line does not say.
@@ -159,12 +173,15 @@ namespace Repl
             [[nodiscard]] Result Bench ( std::string_view Argument ) const;
             [[nodiscard]] Result History ( std::span<const std::string> Lines ) const;
             [[nodiscard]] Result Vars () const;
+            [[nodiscard]] Result Theme_ ( std::string_view Name );
             [[nodiscard]] Result Reset () const;
 
             [[nodiscard]] Result Failure ( std::string Message ) const;
 
             Evaluator &Session;
-            const Doc::Palette &Theme;
+            Doc::Palette &Theme;
+            std::string ThemeName;
+            bool bDark          = true;
             std::size_t Columns = 0;
         };
 
