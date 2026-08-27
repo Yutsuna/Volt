@@ -23,6 +23,7 @@
 #include "Volt/BackendCore/TargetBackend.hpp"
 #include "Volt/BackendJIT/JitBackend.hpp"
 #include "Volt/Core/Diagnostics/DiagEngine.hpp"
+#include "Volt/Core/Meta/Overloaded.hpp"
 #include "Volt/Core/Support/StringInterner.hpp"
 #include "Volt/Driver/Driver.hpp"
 #include "Volt/Frontend/AST/AstQuery.hpp"
@@ -61,6 +62,49 @@ namespace
 #else
     return "source/Volt/REPL/Prelude/Repl.vl";
 #endif
+}
+
+[[nodiscard]] bool CheckStdlibRedefinition ( const Volt::Frontend::AstContext &Ast,
+                                             const Volt::MiddleEnd::TypeSystem::TypeStore &Types,
+                                             std::string &OutError )
+{
+    for ( const Volt::Frontend::DeclId Id : Ast.TopDecls )
+    {
+        const bool bOk = std::visit(
+            Volt::Meta::Overloaded{
+                [&] ( const Volt::Frontend::Method &Method )
+                {
+                    const std::string_view Name = Ast.Text( Method.Name );
+                    if ( const auto *Existing = Types.LookupFunction( Name ); Existing != nullptr and Existing->bFromStdlib )
+                    {
+                        OutError = "cannot redefine standard library function '" + std::string( Name ) + "'";
+                        return false;
+                    }
+                    return true;
+                },
+                [&] ( const auto &Decl )
+                {
+                    if constexpr ( requires { Decl.Name; } )
+                    {
+                        const std::string_view Name = Ast.Text( Decl.Name );
+                        if ( const auto Existing = Types.LookupType( Name );
+                             Existing.has_value() and Types.Type( *Existing ).bFromStdlib )
+                        {
+                            OutError = "cannot redefine standard library type '" + std::string( Name ) + "'";
+                            return false;
+                        }
+                    }
+                    return true;
+                },
+            },
+            Ast.Decl( Id ) );
+
+        if ( not bOk )
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 } // namespace
@@ -209,6 +253,16 @@ Volt::Repl::EvalOutcome Volt::Repl::Evaluator::State::Feed ( const std::string_v
     std::string Bound;
     {
         Frontend::AstContext &Ast = TheDriver.UnitAt( Index ).Ast;
+
+        std::string RedefineError;
+        if ( not CheckStdlibRedefinition( Ast, TheDriver.Layouts(), RedefineError ) )
+        {
+            EvalOutcome Outcome;
+            Outcome.Status      = EEvalStatus::DidNotCompile;
+            Outcome.Diagnostics = "repl: " + RedefineError + "\n";
+            return Outcome;
+        }
+
         if ( bMayEcho )
         {
             Bound = BindResult( Ast, Serial );
