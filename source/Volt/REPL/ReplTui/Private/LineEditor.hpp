@@ -66,7 +66,7 @@ namespace Repl
             // `bContinuation` says the statement is unfinished, which is what
             // makes ^D on an empty line abandon that statement rather than end
             // the session.
-            [[nodiscard]] ReadResult Read ( std::string_view Prompt, bool bContinuation );
+            [[nodiscard]] ReadResult Read ( std::string_view Prompt, bool bContinuation, std::size_t InitialIndent = 0 );
 
         private:
 

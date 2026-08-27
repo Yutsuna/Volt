@@ -119,6 +119,21 @@ void Volt::Repl::Tui::LineEditor::Insert ( const std::string_view Text )
 {
     Buffer.insert( Cursor, Text );
     Cursor += Text.size();
+
+    if ( Cursor == Buffer.size() )
+    {
+        const std::string_view View = Buffer;
+        const auto FirstNonSpace    = View.find_first_not_of( ' ' );
+        if ( FirstNonSpace != std::string_view::npos and FirstNonSpace >= 2 )
+        {
+            const std::string_view Word = View.substr( FirstNonSpace );
+            if ( Word == "end" or Word == "else" or Word == "elsif" or Word == "ensure" or Word == "when" )
+            {
+                Buffer.erase( 0, 2 );
+                Cursor -= 2;
+            }
+        }
+    }
 }
 
 void Volt::Repl::Tui::LineEditor::Backspace ()
@@ -387,11 +402,16 @@ bool Volt::Repl::Tui::LineEditor::ReverseSearch ()
 
 // --- The loop -----------------------------------------------------------------------
 
-Volt::Repl::Tui::ReadResult Volt::Repl::Tui::LineEditor::Read ( const std::string_view InPrompt, const bool bContinuation )
+Volt::Repl::Tui::ReadResult
+Volt::Repl::Tui::LineEditor::Read ( const std::string_view InPrompt, const bool bContinuation, const std::size_t InitialIndent )
 {
     Prompt = std::string( InPrompt );
     Buffer.clear();
-    Cursor    = 0;
+    if ( bContinuation and InitialIndent > 0 )
+    {
+        Buffer.assign( InitialIndent * 2, ' ' );
+    }
+    Cursor    = Buffer.size();
     CursorRow = 0;
     HistoryAt = Past.Size();
     Stashed.clear();

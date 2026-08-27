@@ -319,7 +319,8 @@ std::int32_t Volt::Repl::Tui::Run ( Evaluator &Session, const SessionOptions &Op
     std::string Statement;
     while ( true )
     {
-        const ReadResult Line = Editor.Read( Statement.empty() ? PromptText : ContinueText, not Statement.empty() );
+        const std::size_t Depth = Statement.empty() ? 0 : Repl::BlockDepth( Statement );
+        const ReadResult Line   = Editor.Read( Statement.empty() ? PromptText : ContinueText, not Statement.empty(), Depth );
 
         if ( Line.Status == EReadStatus::EndOfInput )
         {
