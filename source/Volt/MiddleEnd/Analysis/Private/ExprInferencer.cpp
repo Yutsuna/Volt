@@ -785,7 +785,8 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                         Context.NakedTypeExprs.insert( Id.Value );
                         return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                     }
-                    const Resolution Found = LookupFreeFunction( Context, Context.Ctx.Ast.Text( Expr.Name ) );
+                    const Resolution Found =
+                        LookupModuleFunction( Context, Context.Ctx.Ast.Text( Name->Name ), Context.Ctx.Ast.Text( Expr.Name ) );
                     if ( Found.Decl != nullptr )
                     {
                         Context.CalleeResolution[Id.Value] = Found;
