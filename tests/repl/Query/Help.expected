@@ -11,6 +11,7 @@
 │ :bench   │ [n] <expr>  │ Run an expression n times and time it             │
 │ :history │             │ Every line this session has evaluated             │
 │ :vars    │             │ Every variable declared at this prompt            │
+│ :theme   │ [name]      │ Show or switch the colour theme                   │
 │ :reset   │             │ Throw the session away and start a fresh one      │
 │ :exit    │             │ Leave (so does ^D)                                │
 └──────────┴─────────────┴───────────────────────────────────────────────────┘

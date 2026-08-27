@@ -199,10 +199,19 @@ void CoreSection ()
 
     Section( "ghost text" );
     {
-        const std::vector<std::string> Past = { "puts( 1 )", "put_away", "puts( 2 )" };
-        std::cout << "'put'  -> '" << Complete::Completer::GhostText( "put", Past ) << "'\n";
-        std::cout << "'puts' -> '" << Complete::Completer::GhostText( "puts", Past ) << "'\n";
-        std::cout << "'zzz'  -> '" << Complete::Completer::GhostText( "zzz", Past ) << "'\n";
+        // The last entry is a whole multi-line statement, which is how history
+        // remembers a `def ... end`. A suggestion is drawn inside the line
+        // being typed, so nothing past the first newline may come back — a
+        // newline here reaches the editor's cursor arithmetic and puts the
+        // cursor on a row it does not know exists.
+        const std::vector<std::string> Past = { "puts( 1 )", "put_away", "puts( 2 )", "def f\n  10\nend" };
+
+        for ( const std::string_view Typed : { "put", "puts", "zzz", "de", "def f" } )
+        {
+            const std::string Ghost = Complete::Completer::GhostText( Typed, Past );
+            std::cout << "'" << Typed << "' -> '" << Ghost << "'"
+                      << ( Ghost.find( '\n' ) == std::string::npos ? "" : "  <-- NEWLINE" ) << '\n';
+        }
     }
 }
 

@@ -17,5 +17,6 @@
 :bench
 :history [panel]
 :vars
+:theme
 :reset
 :exit

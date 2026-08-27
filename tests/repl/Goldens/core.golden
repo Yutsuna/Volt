@@ -14,6 +14,8 @@ size 3
 search 'x =' -> x = 2
 search 'nope' -> (none)
 --- ghost text ---
-'put'  -> 's( 2 )'
+'put' -> 's( 2 )'
 'puts' -> '( 2 )'
-'zzz'  -> ''
+'zzz' -> ''
+'de' -> 'f f'
+'def f' -> ''
