@@ -20,13 +20,21 @@ namespace CLI
      *        Start an interactive session: read a line, compile it into a
      *        Driver that stays alive, and evaluate it through BackendJIT.
      *        Like every other command here, it never includes a Backend*
-     *        header — Driver::ReplSession is the one place a target resolves
-     *        to a concrete backend.
+     *        header — Repl::Evaluator is the one place a target resolves to a
+     *        concrete backend.
      *
-     *        With standard input on a terminal the session is interactive.
-     *        Piped, it reads the whole script and evaluates it line by line
-     *        with no prompt and no colour, which is the shape the test suite
-     *        drives.
+     *        Two front ends, chosen by what standard input is. On a terminal
+     *        the session is handed to Repl::Tui: raw mode, live syntax
+     *        colouring, semantic completion, history and a side panel for
+     *        `:src` / `:doc` / `:ir` / `:asm`. Piped — or under `-e` — it
+     *        reads the script and evaluates it line by line with no prompt
+     *        and not one escape sequence anywhere, which is the shape the
+     *        test suite drives.
+     *
+     *        The `:` builtins answer on both paths. They are questions about
+     *        the session rather than a feature of the terminal, so a script
+     *        can ask them, and the tests that pin their answers run where
+     *        there is no colour to strip out of a golden file.
      * @options
      *        -O LEVEL                         Optimization level (0|1|2|3, default 0)
      *        -e EXPR, --eval EXPR             Evaluate one line and exit
