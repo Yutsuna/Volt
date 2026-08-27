@@ -760,7 +760,8 @@ namespace MiddleEnd
             // call does not reach into a module it never named.
             [[nodiscard]] const Member *LookupFunction ( std::string_view Module, std::string_view Name ) const
             {
-                const std::string Qualified = Module.empty() ? std::string( Name ) : std::string( Module ) + "." + std::string( Name );
+                const std::string Qualified =
+                    Module.empty() ? std::string( Name ) : std::string( Module ) + "." + std::string( Name );
 
                 const auto Known = Strings.Find( Qualified );
                 if ( not Known )

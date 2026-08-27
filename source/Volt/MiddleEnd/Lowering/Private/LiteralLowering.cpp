@@ -453,9 +453,7 @@ void Volt::MiddleEnd::Lowering::LowerStringLits ( TypeCheckerContext &Context )
     }
 }
 
-void Volt::MiddleEnd::Lowering::LowerTypeOfExpr ( TypeCheckerContext &Context,
-                                                  Frontend::ExprId Id,
-                                                  SemaTypeId InferredType )
+void Volt::MiddleEnd::Lowering::LowerTypeOfExpr ( TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId InferredType )
 {
     const auto TypeBase = Context.Ctx.Types.LookupNodeKind( "TypeOfExpr" );
     if ( not TypeBase )
@@ -463,7 +461,7 @@ void Volt::MiddleEnd::Lowering::LowerTypeOfExpr ( TypeCheckerContext &Context,
         return;
     }
 
-    Frontend::AstContext &Ast = Context.Ctx.Ast;
+    Frontend::AstContext &Ast        = Context.Ctx.Ast;
     const SemaTypeId TypeNominalType = Context.MakeType( *TypeBase, {} );
 
     const std::string_view NameText = Context.Ctx.Types.Text( Context.Ctx.Types.Type( *TypeBase ).Name );
@@ -486,7 +484,7 @@ void Volt::MiddleEnd::Lowering::LowerTypeOfExpr ( TypeCheckerContext &Context,
         TypeDesc = "<unknown>";
     }
 
-    const Frontend::Symbol DescSym = Ast.Strings().Intern( TypeDesc );
+    const Frontend::Symbol DescSym     = Ast.Strings().Intern( TypeDesc );
     const Frontend::ExprId StringLitId = Ast.Add( Frontend::ExprNode{ Frontend::StringLiteral{ .Loc = {}, .Value = DescSym } } );
 
     Frontend::ExprList Args;

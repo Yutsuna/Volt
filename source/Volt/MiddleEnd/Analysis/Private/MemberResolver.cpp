@@ -239,9 +239,8 @@ Volt::MiddleEnd::Analysis::Resolution Volt::MiddleEnd::Analysis::LookupFreeFunct
     return Out;
 }
 
-Volt::MiddleEnd::Analysis::Resolution Volt::MiddleEnd::Analysis::LookupModuleFunction ( TypeCheckerContext &Context,
-                                                                                         std::string_view Module,
-                                                                                         std::string_view Name )
+Volt::MiddleEnd::Analysis::Resolution
+Volt::MiddleEnd::Analysis::LookupModuleFunction ( TypeCheckerContext &Context, std::string_view Module, std::string_view Name )
 {
     const Member *Found = Context.Ctx.Types.LookupFunction( Module, Name );
     if ( Found == nullptr )

@@ -99,8 +99,7 @@ LowerStringLit ( TypeCheckerContext &Context, Frontend::ExprId Id, Frontend::Sym
 
 VOLT_MIDDLEEND_LOWERING_EXPORT void LowerStringLits ( TypeCheckerContext &Context );
 
-VOLT_MIDDLEEND_LOWERING_EXPORT void
-LowerTypeOfExpr ( TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId InferredType );
+VOLT_MIDDLEEND_LOWERING_EXPORT void LowerTypeOfExpr ( TypeCheckerContext &Context, Frontend::ExprId Id, SemaTypeId InferredType );
 
 VOLT_MIDDLEEND_LOWERING_EXPORT void LowerTypeOfExprs ( TypeCheckerContext &Context );
 
