@@ -1097,6 +1097,52 @@ namespace MiddleEnd
             // TypeStore inherits that and has no assignment operator either.
             // Needed by the frontend-cache recovery path: a failed
             // DeserializeCache may leave the store partway through a replay.
+            struct SnapshotMark
+            {
+                std::size_t TypeCount     = 0;
+                std::size_t SigCount      = 0;
+                std::size_t LayoutCount   = 0;
+                std::size_t FunctionCount = 0;
+                std::size_t VariableCount = 0;
+            };
+
+            [[nodiscard]] SnapshotMark Mark () const
+            {
+                return SnapshotMark{
+                    .TypeCount     = Types.Size(),
+                    .SigCount      = Sigs.Size(),
+                    .LayoutCount   = Layouts.Size(),
+                    .FunctionCount = Functions.size(),
+                    .VariableCount = Variables.size(),
+                };
+            }
+
+            void Rollback ( const SnapshotMark &Snapshot )
+            {
+                while ( Functions.size() > Snapshot.FunctionCount )
+                {
+                    const Member &F  = Functions.back();
+                    const Symbol Key = QualifiedFunctionKey(
+                        F.Module.IsValid() ? Strings.Resolve( F.Module ) : std::string_view{}, Strings.Resolve( F.Name ) );
+                    FunctionByName.erase( Key );
+                    Functions.pop_back();
+                }
+                while ( Variables.size() > Snapshot.VariableCount )
+                {
+                    const Member &V = Variables.back();
+                    VariableByName.erase( V.Name );
+                    Variables.pop_back();
+                }
+                for ( std::size_t Index = Snapshot.TypeCount; Index < Types.Size(); ++Index )
+                {
+                    const NominalType &T = Types.Get( NominalId{ static_cast<std::uint32_t>( Index ) } );
+                    ByName.erase( T.Name );
+                }
+                Types.TruncateTo( Snapshot.TypeCount );
+                Sigs.TruncateTo( Snapshot.SigCount );
+                Layouts.TruncateTo( Snapshot.LayoutCount );
+            }
+
             void Clear ()
             {
                 Strings.Clear();
@@ -1158,52 +1204,6 @@ namespace MiddleEnd
                     return It->second;
                 }
                 return std::nullopt;
-            }
-
-            struct SnapshotMark
-            {
-                std::size_t TypeCount     = 0;
-                std::size_t SigCount      = 0;
-                std::size_t LayoutCount   = 0;
-                std::size_t FunctionCount = 0;
-                std::size_t VariableCount = 0;
-            };
-
-            [[nodiscard]] SnapshotMark Mark () const
-            {
-                return SnapshotMark{
-                    .TypeCount     = Types.Size(),
-                    .SigCount      = Sigs.Size(),
-                    .LayoutCount   = Layouts.Size(),
-                    .FunctionCount = Functions.size(),
-                    .VariableCount = Variables.size(),
-                };
-            }
-
-            void Rollback ( const SnapshotMark &Snapshot )
-            {
-                while ( Functions.size() > Snapshot.FunctionCount )
-                {
-                    const Member &F  = Functions.back();
-                    const Symbol Key = QualifiedFunctionKey( F.Module.IsValid() ? Strings.Resolve( F.Module ) : std::string_view{},
-                                                             Strings.Resolve( F.Name ) );
-                    FunctionByName.erase( Key );
-                    Functions.pop_back();
-                }
-                while ( Variables.size() > Snapshot.VariableCount )
-                {
-                    const Member &V = Variables.back();
-                    VariableByName.erase( V.Name );
-                    Variables.pop_back();
-                }
-                for ( std::size_t Index = Snapshot.TypeCount; Index < Types.Size(); ++Index )
-                {
-                    const NominalType &T = Types.Get( NominalId{ static_cast<std::uint32_t>( Index ) } );
-                    ByName.erase( T.Name );
-                }
-                Types.TruncateTo( Snapshot.TypeCount );
-                Sigs.TruncateTo( Snapshot.SigCount );
-                Layouts.TruncateTo( Snapshot.LayoutCount );
             }
 
             ::Volt::Core::StringInterner Strings;

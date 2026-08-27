@@ -825,8 +825,7 @@ namespace MiddleEnd::Resolver
                 {
                     if ( Store.Type( *ExistingId ).bFromStdlib and not Store.IsStdlibUnit( Unit ) )
                     {
-                        Report( Volt::Core::ESeverity::Error,
-                                Frontend::LocOf( Ast.Decl( Decl.Id ) ),
+                        Report( Volt::Core::ESeverity::Error, Frontend::LocOf( Ast.Decl( Decl.Id ) ),
                                 "cannot redefine standard library type '" + std::string( Decl.Name ) + "'" );
                         return;
                     }
@@ -924,8 +923,7 @@ namespace MiddleEnd::Resolver
                 {
                     if ( Existing->bFromStdlib and not Store.IsStdlibUnit( Unit ) )
                     {
-                        Report( Volt::Core::ESeverity::Error,
-                                Frontend::LocOf( Ast.Decl( Id ) ),
+                        Report( Volt::Core::ESeverity::Error, Frontend::LocOf( Ast.Decl( Id ) ),
                                 "cannot redefine standard library function '" + std::string( Ast.Text( Entry.Name ) ) + "'" );
                         return;
                     }
