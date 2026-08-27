@@ -203,6 +203,17 @@ namespace Driver
         // so it is off unless something means to reload — `--watch`.
         bool bIndirectLinkage = false;
 
+        // Compile a function the first time it is called instead of when its
+        // module is first reached. On by default, and the single largest thing
+        // `volt run` does for its own startup: materialisation is ~90% of a
+        // run's wall clock, and on a program that defines far more than it
+        // calls almost all of that is codegen for code that never executes.
+        //
+        // `--no-lazy` turns it off — for a program that really does call
+        // everything it defines, where the stubs are overhead against no
+        // saving, and for comparing the two.
+        bool bLazyCompilation = true;
+
         // Stay resident after the program returns, watch its sources, and on a
         // change recompile the one file that moved, patch the running code's
         // indirection slots to the new bodies, and run it again. Implies
