@@ -84,6 +84,7 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
     JitOpts.OptLevel         = Options.OptLevel;
     JitOpts.bPerUnitModules  = Options.bPerUnitModules;
     JitOpts.bIndirectLinkage = Options.bIndirectLinkage;
+    JitOpts.bLazyCompilation = Options.bLazyCompilation;
 
     // The stdlib, compiled once into a shared object and loaded rather than
     // JIT-compiled on every run. This is the single biggest thing `volt run`
