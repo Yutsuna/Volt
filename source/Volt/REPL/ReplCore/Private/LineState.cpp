@@ -238,3 +238,70 @@ bool Volt::Repl::ContinuesPrevious ( const std::string_view Line )
     }
     return false;
 }
+
+std::size_t Volt::Repl::BlockDepth ( const std::string_view Accumulated )
+{
+    Volt::Core::StringInterner Interner;
+    Volt::Core::DiagEngine::Bag Bag = Volt::Core::DiagEngine::MakeBag();
+
+    Volt::Frontend::Lexer Scanner( Volt::Core::FileId{}, Accumulated, Interner, Bag );
+    const std::vector<Volt::Frontend::Token> Tokens = Scanner.Tokenize();
+
+    std::ptrdiff_t Blocks   = 0;
+    std::ptrdiff_t Brackets = 0;
+    bool bAtStatementHead   = true;
+    TokenKind Last          = TokenKind::Newline;
+
+    for ( const Volt::Frontend::Token &Tok : Tokens )
+    {
+        switch ( Tok.Kind )
+        {
+        case TokenKind::Eof:
+            continue;
+
+        case TokenKind::Newline:
+        case TokenKind::Semicolon:
+            bAtStatementHead = true;
+            continue;
+
+        case TokenKind::LParen:
+        case TokenKind::LBracket:
+        case TokenKind::LBrace:
+            ++Brackets;
+            break;
+
+        case TokenKind::RParen:
+        case TokenKind::RBracket:
+        case TokenKind::RBrace:
+            if ( Brackets > 0 )
+            {
+                --Brackets;
+            }
+            break;
+
+        case TokenKind::KwEnd:
+            if ( Blocks > 0 )
+            {
+                --Blocks;
+            }
+            break;
+
+        case TokenKind::Error:
+            break;
+
+        default:
+            if ( AlwaysOpens( Tok.Kind ) or
+                 ( ( bAtStatementHead or WantsARightHandSide( Last ) ) and OpensAtExprHead( Tok.Kind ) ) )
+            {
+                ++Blocks;
+            }
+            break;
+        }
+
+        Last             = Tok.Kind;
+        bAtStatementHead = false;
+    }
+
+    const std::ptrdiff_t Total = Blocks + Brackets;
+    return Total > 0 ? static_cast<std::size_t>( Total ) : 0;
+}
