@@ -200,7 +200,8 @@ Volt::Repl::EvalOutcome Volt::Repl::Evaluator::State::Feed ( const std::string_v
 
     const std::unordered_set<std::string> Mentioned = IdentifiersIn( Line );
 
-    const std::size_t Index = TheDriver.AppendUnit( Label, std::string( Line ) );
+    const Driver::Driver::AppendedUnit Appended = TheDriver.AppendUnit( Label, std::string( Line ) );
+    const std::size_t Index                     = Appended.Index;
     ++Lines;
 
     // The window between parse and analysis, and the only thing this module
@@ -215,7 +216,7 @@ Volt::Repl::EvalOutcome Volt::Repl::Evaluator::State::Feed ( const std::string_v
         NameForeignStorage( Ast, Mentioned );
     }
 
-    const Driver::Driver::UnitResult Unit = TheDriver.AnalyzeUnit( Index );
+    const Driver::Driver::UnitResult Unit = TheDriver.AnalyzeUnit( Index, Appended.DiagMark );
 
     EvalOutcome Outcome;
     {
@@ -234,7 +235,12 @@ Volt::Repl::EvalOutcome Volt::Repl::Evaluator::State::Feed ( const std::string_v
         // wrote costs a second analysis and no second side effect. The line
         // keeps its number: the first attempt is a unit nobody will hear about,
         // and its diagnostics describe a line nobody typed.
-        if ( not Bound.empty() )
+        //
+        // Only when it parsed. The rewrite happens *after* the parse, so a
+        // line that did not parse will not parse any differently the second
+        // time — retrying it would cost a unit and report the same two syntax
+        // errors under a different ordinal.
+        if ( Appended.bParsed and not Bound.empty() )
         {
             Lines = Serial;
             return Feed( Line, /*bMayEcho=*/false );
