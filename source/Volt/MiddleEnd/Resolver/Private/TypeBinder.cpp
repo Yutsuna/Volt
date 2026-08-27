@@ -821,15 +821,6 @@ namespace MiddleEnd::Resolver
             // Bind one declaration that carries `Pending` annotations.
             void BindType ( const TypeDecl &Decl, const std::vector<PendingAnnotation> &Pending )
             {
-                if ( const auto ExistingId = Store.LookupType( Decl.Name ) )
-                {
-                    if ( Store.Type( *ExistingId ).bFromStdlib and not Store.IsStdlibUnit( Unit ) )
-                    {
-                        Report( Volt::Core::ESeverity::Error, Frontend::LocOf( Ast.Decl( Decl.Id ) ),
-                                "cannot redefine standard library type '" + std::string( Decl.Name ) + "'" );
-                        return;
-                    }
-                }
                 // The type exists as an identity first; its layout is an
                 // attribute that may stay unresolved (generics, aggregates
                 // whose fields are not bound yet). Type checking never needs it.
@@ -919,15 +910,6 @@ namespace MiddleEnd::Resolver
                                 const std::vector<PendingAnnotation> &Pending,
                                 const std::string &Module )
             {
-                if ( const Member *Existing = Store.LookupFunction( Module, Ast.Text( Entry.Name ) ) )
-                {
-                    if ( Existing->bFromStdlib and not Store.IsStdlibUnit( Unit ) )
-                    {
-                        Report( Volt::Core::ESeverity::Error, Frontend::LocOf( Ast.Decl( Id ) ),
-                                "cannot redefine standard library function '" + std::string( Ast.Text( Entry.Name ) ) + "'" );
-                        return;
-                    }
-                }
                 Member *Slot = Store.DeclareFunction( Module, Ast.Text( Entry.Name ), Unit, Id );
                 ReadExternal( Ast, Store, Pending, Ast.Text( Entry.Name ), *Slot );
                 ++Bound;
