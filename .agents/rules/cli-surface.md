@@ -34,6 +34,7 @@ Usage: volt run [options] [input_file] [-- ...]
     -i INPUT, --input INPUT          File input source program
     -s, --stdin                      Read input from stdin
     -w, --watch                      Recompile and hot-reload on file change
+    --no-lazy                        Compile every function up front, not on its first call
     -h, --help                       Show help
 
 Usage: volt repl [options] [file]

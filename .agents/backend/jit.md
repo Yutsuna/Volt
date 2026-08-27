@@ -155,6 +155,66 @@ Monomorphisation crosses modules unchanged: the queue is build-wide and
 deduplicates on `Key()`, so an instantiation is emitted into the module of
 whichever unit asked first, and every other module sees a declaration.
 
+**Splitting into modules is not what makes a run lazy.** It is tempting to read
+`PerUnit` as "the code a run never reaches costs nothing", and that is wrong.
+ORC materialises a whole module the first time anything in it is looked up, and
+resolution is transitive: a resolved relocation drags in the callee's entire
+module, and `_V_init_all` names every unit that has top-level statements. Under
+`PerUnit` a plain run therefore compiles essentially everything it can reach,
+which is essentially everything. Deferring a single *function* is what the next
+section is for.
+
+## Lazy compilation — one function at a time
+
+`JitOptions::bLazyCompilation` swaps `LLJIT` for `LLLazyJIT`, whose
+`CompileOnDemandLayer` replaces each function in an added module with a lazy
+re-export stub and compiles the body the first time that stub is **called**.
+The partition policy is LLVM's shipped `IRPartitionLayer::compileRequested`:
+one function per partition.
+
+The two indirections stack and do not interfere. `@volt.fn.<sym>` is Volt's,
+and serves reloading; the stub is ORC's, and serves laziness. They compose
+because `CompileOnDemandLayer` puts the target dylib at the front of the
+implementation dylib's link order, so the slot's initialiser `&Fn` resolves to
+the *stub* rather than to a body — the slot stays a slot, and nothing is
+compiled to fill it in.
+
+**It is a bet, not a win.** Measured on 100 defined functions, varying how many
+of them the program actually calls (best of 7, interleaved):
+
+| called | eager | lazy | |
+|---|---|---|---|
+| 0 % | 298 ms | 82 ms | −72 % |
+| 25 % | 399 ms | 253 ms | −37 % |
+| 50 % | 361 ms | 330 ms | −9 % |
+| 100 % | 392 ms | 660 ms | **+68 %** |
+
+The crossover sits near 60–70 % called. Below it the saving is large and grows
+without bound — a never-called function costs 2.19 ms eagerly and 0.16 ms
+lazily, the residue being IR emission, which laziness does not touch. Above it
+the loss is real: `compileRequested` clones the module skeleton once per
+partition, so compiling *n* functions one at a time costs more than compiling
+them together. `volt run` takes the bet by default; `--no-lazy` declines it.
+
+Three things want the eager answer and get it unconditionally:
+
+- **`:asm`** disassembles the bytes at a symbol's address, and under Lazy that
+  address is a stub — a jump, not a function.
+- **`:bench`** drops its generation afterwards, and a lazy batch has no
+  `ResourceTracker` to drop: `LLLazyJIT::addLazyIRModule` takes a `JITDylib`
+  and nothing else.
+- **`Reload`** stores a *body's* address into a slot.
+
+The first two are the REPL, which runs eager end to end. The third is why
+`OpenReplacement` is eager whatever the session policy — a lazy `volt run` that
+reloads gets a lazy boot generation and eager replacements, which is the
+intended mix.
+
+A lazy compile that fails lands on `LazyCompileFailed`, reached from JIT-ed
+code in the middle of the user's program; it reports and aborts. LLVM's default
+for that address is 0, which would be a bare SIGSEGV. `bVerify` is what keeps
+it unreachable in practice.
+
 ## Hot reload — the indirection table is the seam
 
 This is `vm.md`'s `FunctionTable`, transposed. Under `ELinkage::Indirect`, a
