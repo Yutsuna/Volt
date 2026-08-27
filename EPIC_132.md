@@ -119,8 +119,8 @@ Design points worth keeping:
   lazy boot generation and eager replacements — intended, not an inconsistency.
 - `setLazyCompileFailureAddr` points at `LazyCompileFailed`, which reports and aborts.
   LLVM's default is address 0 — a jump to null from inside JIT-ed code.
-- Partition policy left at LLVM's default `IRPartitionLayer::compileRequested`
-  (one function per partition). See §6 for why that is the thing to revisit first.
+- Partition policy is Volt's own `PartitionWithCallees`, not LLVM's `compileRequested`.
+  See §6 — that choice is what makes lazy a win rather than a gamble.
 
 The REPL is untouched and stays Eager (`Evaluator.cpp` never sets `bLazyCompilation`),
 which is what keeps `:asm`, `:bench` and `repl/Generations` correct.
@@ -159,44 +159,70 @@ wall clock 952 ms → 134 ms.
 
 ### The crossover — this is the number that matters
 
-100 functions defined, varying how many are actually called (best of 7, interleaved):
+100 functions defined, varying how many are actually called (best of 7, interleaved).
+There is no crossover any more; §6 removed it. Both policies shown because the shape of
+the first one is the reason the second exists:
 
-| called | eager | lazy | |
+| called | eager | `compileRequested` | `PartitionWithCallees` (current) |
 |---|---|---|---|
-| 0 % | 298 ms | 82 ms | −72 % |
-| 25 % | 399 ms | 253 ms | −37 % |
-| 50 % | 361 ms | 330 ms | −9 % |
-| 100 % | 392 ms | 660 ms | **+68 %** |
+| 0 % | 246 ms | −72 % | **−70 %** |
+| 25 % | 253 ms | −37 % | **−52 %** |
+| 50 % | 257 ms | −9 % | **−35 %** |
+| 100 % | 263 ms | **+68 %** | **+1 %** |
 
-**Crossover near 60–70 % called.** Above it, `compileRequested` clones the module
-skeleton once per partition, so compiling *n* functions one at a time costs more than
-compiling them together. Real instance: `samples/Bench/Benchmarks.vl` is **+117 ms
-(+33 %)** under lazy.
+The dead-weight sweep, one function called and N defined (`sweep`): 65/112/244/799 ms
+eager at N = 0/25/100/400, against 61/63/72/114 ms lazy — **−85 %** at N=400.
+
+The one place still worse than eager is `samples/Bench/Benchmarks.vl` at **+18 %**, whose
+closures are reached through monomorphisations in `volt.shared`; a partition cannot cross
+a module, so those fragment.
 
 Indirect linkage (`--indirect`, what `--watch` turns on) costs ~2–4 % at runtime —
 noise. Stacking ORC stubs on Volt slots is affordable.
 
 ---
 
-## 5. Open decision — the default
+## 5. Decisions taken
 
-`RunOptions::bLazyCompilation` is currently **`true`** (lazy by default, `--no-lazy` to
-decline). The reasoning: a program that imports modules and uses a slice of them is the
-common case and sits far below the crossover, which is where the large wins are.
+**Lazy is on by default** (`RunOptions::bLazyCompilation = true`, `--no-lazy` declines).
+Decided by the user, conditional on fixing the regression first — which §6 did.
 
-**The user was asked and has not yet answered.** The alternative is default off with an
-opt-in `--lazy`. The +68 % worst case is bad enough that this should not stay silent.
-If you pick up this work, get that answer before committing.
+**The harness lives in `scripts/jit_lazy_bench.bash`**, beside `bench.py` and
+`valgrind_check.py`: a manual diagnostic, not a CI test, because the numbers move with
+the machine and there is no threshold worth going red on.
 
 ---
 
-## 6. Recommended next step for #122
+## 6. The partition policy — the fix that made lazy unconditional
 
-Rather than accept the bad case, remove it: `IRPartitionLayer::setPartitionFunction`
-accepts a custom policy. Partitioning by "the requested function **plus its intra-module
-callees**" would compile in useful chunks — far less skeleton cloning, still lazy at
-entry granularity — and should flatten the 100 %-called regression. It is bounded work
-and the harness in §9 measures it directly.
+The first cut left `IRPartitionLayer::compileRequested` in place (one function per
+partition) and measured **+68 % at 100 % called**: each partition clones the module
+skeleton, so compiling *n* functions one at a time costs more than compiling them once.
+
+`PartitionWithCallees` in `JitCompiler.cpp` replaces it — the requested function plus
+every function this module defines that its code *names*, transitively. Results
+(`scripts/jit_lazy_bench.bash crossover`):
+
+| called | eager | `compileRequested` | `PartitionWithCallees` |
+|---|---|---|---|
+| 0 % | 246 ms | −72 % | **−70 %** |
+| 25 % | 253 ms | −37 % | **−52 %** |
+| 50 % | 257 ms | −9 % | **−35 %** |
+| 100 % | 263 ms | **+68 %** | **+1 %** |
+
+The line it draws is "named by an **instruction**". A direct callee qualifies, and so
+does the body half of a closure pair (its address is taken by a store in the block that
+calls it). A function named only by a **global initialiser** does not — that is a vtable,
+and which entry a `dyn Trait` reaches is unknown until it is reached, so those keep their
+stubs. That distinction is deliberate and is what keeps dynamic dispatch lazy; do not
+"simplify" it into walking all references.
+
+An earlier cut restricted this to direct calls only and left `Benchmarks.vl` at +30 %;
+widening to instruction operands brought it to +18 %.
+
+**Residual known cost**: closures reached through monomorphisations in `volt.shared`
+fragment, because a partition cannot cross a module. `samples/Bench/Benchmarks.vl` is the
+worst case in the tree at **+18 %**. Everything else is neutral or better.
 
 Also worth noting for whoever revisits priorities: **#121 is a much smaller lever than
 its issue text suggests.** Warm frontend (`parse` + `sema.*` + `seam.*`) is **5.4 ms**;
@@ -232,87 +258,20 @@ than tiering itself.
 
 ## 9. Reproduction harness
 
-**These scripts lived in a session-scratchpad that is now gone. They are inlined here on
-purpose.** Where to persist them is still open — `tests/jit/` (M5's stated deliverable is
-a startup measurement, so it arguably belongs in the suite) or `scripts/`. The user was
-asked and has not answered.
+`scripts/jit_lazy_bench.bash` — a manual diagnostic, not a CI test (the numbers move
+with the machine, so there is no threshold worth going red on).
 
-```bash
-# gen.sh <n_unused> <out.vl> — N never-called functions plus one that runs.
-N=$1; OUT=$2
-: > "$OUT"
-for i in $(seq 1 "$N"); do
-  cat >> "$OUT" <<VOLT
-def dead_$i( a : Int32, b : Int32 ) -> Int32
-  t = 0
-  k = a
-  while k < b
-    t += ( k * 3 ) % 7
-    t -= ( k / 2 ) % 5
-    k += 1
-  end
-  t
-end
-VOLT
-done
-cat >> "$OUT" <<'VOLT'
-def live( a : Int32 ) -> Int32
-  a + 1
-end
-
-res = live( 41 )
-assert!( res == 42 )
-VOLT
+```
+scripts/jit_lazy_bench.bash sweep      [reps]   # startup vs functions never called
+scripts/jit_lazy_bench.bash crossover  [reps]   # the bet: 100 defined, K called
+scripts/jit_lazy_bench.bash samples             # eager and lazy agree everywhere
+scripts/jit_lazy_bench.bash files a.vl b.vl     # compare two modes on named programs
 ```
 
-```bash
-# gen2.sh <total> <called> <out.vl> — N defined, K of them called. The crossover sweep.
-N=$1; K=$2; OUT=$3
-: > "$OUT"
-for i in $(seq 1 "$N"); do
-  cat >> "$OUT" <<VOLT
-def fn_$i( a : Int32, b : Int32 ) -> Int32
-  t = 0
-  k = a
-  while k < b
-    t += ( k * 3 ) % 7
-    t -= ( k / 2 ) % 5
-    k += 1
-  end
-  t
-end
-VOLT
-done
-echo "acc = 0" >> "$OUT"
-for i in $(seq 1 "$K"); do echo "acc += fn_$i( 0, 4 )" >> "$OUT"; done
-echo 'assert!( acc >= 0 )' >> "$OUT"
-```
-
-```bash
-# Interleaved wall-clock comparison. Alternating the modes is not optional — see §10.
-for f in "$@"; do
-  BE=999999; BL=999999
-  for r in $(seq 1 9); do
-    A=$(date +%s%N); ./build/source/Volt/Volt/volt run --no-lazy -i $f >/dev/null 2>&1; B=$(date +%s%N)
-    e=$(( (B-A)/1000000 )); [ $e -lt $BE ] && BE=$e
-    A=$(date +%s%N); ./build/source/Volt/Volt/volt run           -i $f >/dev/null 2>&1; B=$(date +%s%N)
-    l=$(( (B-A)/1000000 )); [ $l -lt $BL ] && BL=$l
-  done
-  printf "%-34s eager=%-6s lazy=%-6s delta=%s ms\n" "$(basename $f)" "${BE}ms" "${BL}ms" "$(( BL - BE ))"
-done
-```
-
-Differential correctness check (eager vs lazy over every executable sample):
-
-```bash
-for f in $(find samples/Tests samples/Bench -name "*.vl" | sort); do
-  A=$(timeout 60 ./build/source/Volt/Volt/volt run --no-lazy -i "$f" 2>&1); RA=$?
-  B=$(timeout 60 ./build/source/Volt/Volt/volt run           -i "$f" 2>&1); RB=$?
-  [ "$A" = "$B" ] && [ "$RA" = "$RB" ] || echo "DIVERGENT: $f (rc $RA vs $RB)"
-done
-```
-
----
+`VOLT=` overrides the binary path. Two things about its method are load-bearing and
+documented in the script's own header: the modes are alternated **inside** one loop
+(measuring in two passes produced a confident and completely wrong result), and it uses
+wall clock rather than `volt run -v` (§10).
 
 ## 10. Traps that cost time
 
