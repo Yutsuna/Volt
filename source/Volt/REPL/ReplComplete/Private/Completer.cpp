@@ -196,11 +196,13 @@ Volt::Repl::Complete::Completion Volt::Repl::Complete::Completer::At ( const std
             return Out;
         }
 
-        // A capitalised receiver may be a *type* rather than a value, and a
-        // type cannot be typed as an expression. Asking the store directly is
-        // what makes `String.` work.
+        // A capitalised receiver may be a *type* or a *module* rather than a value, and a
+        // type/module cannot be typed as an expression. Asking the store directly is
+        // what makes `String.` and `LibC.` work.
         const std::vector<Evaluator::MemberFact> Members =
-            Session.KnowsType( Receiver ) ? Session.MembersOfType( Receiver ) : Session.MembersOf( Receiver );
+            Session.KnowsType( Receiver )     ? Session.MembersOfType( Receiver )
+            : Session.KnowsModule( Receiver ) ? Session.MembersOfModule( Receiver )
+                                              : Session.MembersOf( Receiver );
 
         for ( const Evaluator::MemberFact &Member : Members )
         {
