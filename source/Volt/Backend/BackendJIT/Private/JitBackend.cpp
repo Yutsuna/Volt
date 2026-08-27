@@ -29,8 +29,14 @@
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
 #include "Volt/Core/Support/PhaseTimer.hpp"
 
+#include <llvm/IR/Function.h>
+#include <llvm/Support/raw_ostream.h>
+
 #include <algorithm>
+#include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -689,4 +695,202 @@ std::uintptr_t Volt::Backend::Jit::JitBackend::LookupSymbol ( std::string_view M
         return 0;
     }
     return Address;
+}
+
+bool Volt::Backend::Jit::JitBackend::ProbeUnit ( const BackendInput &Build,
+                                                 const UnitView &Unit,
+                                                 std::string *OutIr,
+                                                 std::string &OutError )
+{
+    if ( not Impl->bMaterialised )
+    {
+        OutError = "jit: the session was never materialised, so there is nothing to probe against";
+        return false;
+    }
+
+    // The same generator EvalUnit builds, with the same options, so that what
+    // this reports is what evaluating the line would actually produce.
+    Ir::IrGenerator Line( Impl->OneUnitOptions( Unit.Ordinal, /*bReplacing=*/false ) );
+    Line.Begin( Build );
+    if ( Line.EmitUnit( Unit ) != EEmitStatus::Ok or Line.Finish() != EEmitStatus::Ok )
+    {
+        OutError = "jit: this line did not emit: " + std::string( Line.Error() );
+        return false;
+    }
+
+    if ( OutIr != nullptr )
+    {
+        // TakeModules moves the context out with them, which is exactly what is
+        // wanted: the modules and the LLVMContext that types them die together
+        // at the end of this scope, and nothing was ever added to a dylib.
+        const Ir::OwnedModules Emitted = Ir::TakeModules( Line );
+
+        // Only the modules that define a body. Under per-unit granularity most
+        // of an emission is declaration — every unit whose code is already
+        // resident — and printing those would bury the one module the question
+        // was about.
+        const auto DefinesABody = [] ( const llvm::Module &Mod )
+        {
+            for ( const llvm::Function &Fn : Mod )
+            {
+                if ( not Fn.isDeclaration() )
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        llvm::raw_string_ostream Text( *OutIr );
+        for ( const std::unique_ptr<llvm::Module> &Mod : Emitted.Modules )
+        {
+            if ( Mod != nullptr and DefinesABody( *Mod ) )
+            {
+                Mod->print( Text, nullptr );
+            }
+        }
+    }
+
+    // No OpenGeneration, no OpenReplacement, no AddModules. The generator goes
+    // out of scope here, abandoned, and the destruction order inside it is what
+    // makes that safe (IrGeneratorState.hpp). That is the whole contract of a
+    // probe: a question about a line costs the compilation and nothing else.
+    return true;
+}
+
+std::string Volt::Backend::Jit::JitBackend::LastUnitIr () const
+{
+    return Impl->Compiler.LastIr();
+}
+
+void Volt::Backend::Jit::JitBackend::RecordIr ( const bool bEnable )
+{
+    Impl->Compiler.RecordIr( bEnable );
+}
+
+std::string Volt::Backend::Jit::JitBackend::Disassemble ( const std::uintptr_t Address, const std::size_t MaxBytes )
+{
+    std::string Ignored;
+    return Impl->Compiler.Disassemble( Address, MaxBytes, Ignored );
+}
+
+std::size_t Volt::Backend::Jit::JitBackend::LiveGenerations () const
+{
+    return Impl->Compiler.LiveGenerations();
+}
+
+Volt::Backend::IJitBackend::BenchResult
+Volt::Backend::Jit::JitBackend::BenchUnit ( const BackendInput &Build, const UnitView &Unit, const std::size_t Iterations )
+{
+    const auto Failed = [] ( std::string Why )
+    { return BenchResult{ .bOk = false, .Message = std::move( Why ), .Iterations = 0, .TotalNanos = 0, .BestNanos = 0 }; };
+
+    if ( not Impl->bMaterialised )
+    {
+        return Failed( "jit: the session was never materialised, so there is nothing to run against" );
+    }
+    if ( Iterations == 0 )
+    {
+        return Failed( "jit: a benchmark of zero iterations measures nothing" );
+    }
+    if ( not UnitHasInit( Unit ) )
+    {
+        return Failed( "jit: this unit has no top-level statements to run" );
+    }
+
+    Ir::IrGenerator Line( Impl->OneUnitOptions( Unit.Ordinal, /*bReplacing=*/false ) );
+    Line.Begin( Build );
+    if ( Line.EmitUnit( Unit ) != EEmitStatus::Ok or Line.Finish() != EEmitStatus::Ok )
+    {
+        return Failed( "jit: this line did not emit: " + std::string( Line.Error() ) );
+    }
+    if ( Line.UnwindStorageSize() > Impl->BootUnwindStorage )
+    {
+        return Failed( "repl: this line can raise a value wider than the session's unwind buffer" );
+    }
+
+    // A dylib of its own, always — not because the unit redefines anything,
+    // but because this generation is going away, and a generation that shares
+    // the main dylib takes its symbol table entries with it when it goes.
+    GenerationId Gen = 0;
+    std::string Error;
+    if ( not Impl->Compiler.OpenReplacement( Gen, Error ) )
+    {
+        return Failed( std::move( Error ) );
+    }
+
+    // Everything below is on the path to DropGeneration, including every early
+    // return: a benchmark that fails halfway must not leave a generation behind,
+    // which is the one property `:bench` is asked to prove.
+    const auto Drop = [&] ()
+    {
+        std::string Ignored;
+        ( void )Impl->Compiler.DropGeneration( Gen, Ignored );
+    };
+
+    if ( not Impl->Compiler.AddModules( Gen, Ir::TakeModules( Line ), Error ) )
+    {
+        Drop();
+        return Failed( std::move( Error ) );
+    }
+
+    // Nothing is recorded in Defined or Slotted. Those sets say what the
+    // session *has*, and after the drop below it will have none of this — a
+    // later line that reaches the same monomorphisation has to emit it again,
+    // and would fail to resolve it if this claimed otherwise.
+
+    const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
+
+    std::uintptr_t Address = 0;
+    if ( not Impl->Compiler.LookupIn( Gen, InitSymbol, Address, Error ) )
+    {
+        Drop();
+        return Failed( std::move( Error ) );
+    }
+
+    using InitFn       = void ( * )();
+    const InitFn Body  = reinterpret_cast<InitFn>( Address ); // NOLINT(performance-no-int-to-ptr)
+    std::uint32_t *Tag = Impl->ExceptionTag();
+
+    BenchResult Out;
+    Out.bOk        = true;
+    Out.Iterations = Iterations;
+    Out.BestNanos  = std::numeric_limits<std::uint64_t>::max();
+
+    // One untimed call first. It pays for the lazy materialisation ORC does on
+    // first lookup, which would otherwise land entirely in iteration one and
+    // make every other number look like an improvement.
+    if ( Tag != nullptr )
+    {
+        *Tag = UnwindTransport::NoExceptionTag;
+    }
+    Body();
+    if ( Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
+    {
+        *Tag = UnwindTransport::NoExceptionTag;
+        Drop();
+        return Failed( "repl: the benchmarked expression raised and never rescued" );
+    }
+
+    for ( std::size_t Round = 0; Round < Iterations; ++Round )
+    {
+        const std::chrono::steady_clock::time_point Started = std::chrono::steady_clock::now();
+        Body();
+        const std::chrono::steady_clock::time_point Ended = std::chrono::steady_clock::now();
+
+        if ( Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
+        {
+            *Tag = UnwindTransport::NoExceptionTag;
+            Drop();
+            return Failed( "repl: the benchmarked expression raised and never rescued" );
+        }
+
+        const auto Elapsed =
+            static_cast<std::uint64_t>( std::chrono::duration_cast<std::chrono::nanoseconds>( Ended - Started ).count() );
+        Out.TotalNanos += Elapsed;
+        Out.BestNanos = std::min( Out.BestNanos, Elapsed );
+    }
+
+    Drop();
+    return Out;
 }

@@ -72,6 +72,7 @@ void Volt::MiddleEnd::Analysis::TypeChecker ( Core::PassContext &Context )
     // are bound before being checked"), so rewriting inline the moment either
     // path first settles a type bakes in whichever ran first. See
     // LiteralLowering.hpp.
+    Lowering::LowerTypeOfExprs( State );
     Lowering::LowerArrayLits( State );
     Lowering::LowerHashLits( State );
     Lowering::LowerStringLits( State );

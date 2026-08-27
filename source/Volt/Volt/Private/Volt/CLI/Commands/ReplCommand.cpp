@@ -5,6 +5,11 @@
 #include "Volt/Core/Log/Logger.hpp"
 #include "Volt/ReplCore/LineState.hpp"
 #include "Volt/ReplEval/Evaluator.hpp"
+#include "Volt/ReplQuery/QueryEngine.hpp"
+#include "Volt/ReplTui/Terminal.hpp"
+
+#include "Volt/ReplDoc/Document.hpp"
+#include "Volt/ReplDoc/Palette.hpp"
 
 #include <cstdio>
 #include <iostream>
@@ -102,11 +107,67 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
 
     const bool bInteractive = StandardInputIsATerminal() and EvalLines.empty();
 
+    // A terminal gets the terminal front end: raw mode, colour, completion, a
+    // side panel. Everything else — a pipe, a redirect, `-e` — takes the plain
+    // path below, which writes no escape sequence anywhere and is the path the
+    // test suite drives.
+    if ( bInteractive and Repl::Tui::IsInteractiveTerminal() )
+    {
+        Core::FLogger::Flush();
+
+        Repl::Tui::SessionOptions TuiOpts;
+        TuiOpts.bColor      = true;
+        TuiOpts.HistoryPath = Repl::Tui::DefaultHistoryPath();
+        return Repl::Tui::Run( Session, TuiOpts );
+    }
+
     // One place that turns a finished statement into output, so `-e`, a piped
     // script and a live prompt cannot disagree on what a result looks like.
     std::int32_t Status = ExitSuccess;
+
+    // The builtins, without a terminal. `:type`, `:layout` and the rest are
+    // questions about the session rather than a feature of the front end, so a
+    // script can ask them — and the tests that pin their answers run here,
+    // where there is no colour to strip out of a golden file.
+    // A palette this path never actually paints with: everything below writes
+    // `Doc::PlainText`, which drops every colour on the floor. That is what
+    // makes the pipe safe by construction rather than by discipline — a
+    // `:theme dark` in a script switches this value and still cannot put an
+    // escape sequence into a file.
+    Repl::Doc::Palette Plain = Repl::Doc::MonochromePalette();
+    Repl::Query::Engine Queries( Session, Plain, "mono" );
+    std::vector<std::string> Past;
+    bool bLeaving = false;
+
+    // True when the line was a builtin and has been answered.
+    const auto Builtin = [&] ( const std::string &Statement )
+    {
+        const Repl::Query::Command What = Repl::Query::Parse( Statement );
+        if ( What.Kind == Repl::Query::EBuiltin::None )
+        {
+            return false;
+        }
+
+        const Repl::Query::Result Answer = Queries.Run( What, Past );
+        bLeaving                         = Answer.bExit;
+        std::cout << Repl::Doc::PlainText( Answer.Body );
+        std::cout.flush();
+
+        if ( not Answer.bOk and not Answer.bExit )
+        {
+            Status = ExitFailure;
+        }
+        return true;
+    };
+
     const auto Evaluate = [&] ( const std::string &Statement )
     {
+        Past.push_back( Statement );
+        if ( Builtin( Statement ) )
+        {
+            return;
+        }
+
         const Repl::EvalOutcome Outcome = Session.Feed( Statement );
 
         std::cout << Outcome.Diagnostics;
@@ -115,19 +176,32 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
             std::cout << Outcome.Message << '\n';
         }
 
-        // The value half of `=> 3 : Int32` was written by the evaluated code
-        // itself, straight to the descriptor, before Feed returned. Flushing
-        // first is what keeps the two halves in the order they are read: this
-        // stream is buffered and that one is not.
-        // Only when the value actually rendered. A line whose result has no
-        // `to_string` says nothing at all rather than announcing a type with no
-        // value beside it — `puts( x )` is a side effect the user came for, and
-        // a trailing `=> <StandardStream>` is noise. `:type` is where a type is
-        // asked for on purpose.
-        if ( Outcome.bRendered )
+        // The value half of `=> 3 : Int32` is written by Volt code, straight
+        // to the descriptor, when Echo runs it. Flushing around it is what
+        // keeps the three pieces in the order they are read: this stream is
+        // buffered and that one is not.
+        //
+        // Only when the line bound something that can render itself. A line
+        // whose result has no `inspect` says nothing at all rather than
+        // announcing a type with no value beside it — `puts( x )` is a side
+        // effect the user came for, and a trailing `=> <StandardStream>` is
+        // noise. `:type` is where a type is asked for on purpose.
+        if ( not Outcome.ResultBinding.empty() )
         {
+            // Echo writes the arrow and the value together, from inside the
+            // JIT, straight to the descriptor. Flushing first is what keeps
+            // this stream's earlier output ahead of it: this one is buffered
+            // and that one is not.
             std::cout.flush();
-            std::cout << " : " << Outcome.ResultType << '\n';
+            if ( Session.Echo( Outcome.ResultBinding ) )
+            {
+                std::cout.flush();
+                std::cout << " : " << Outcome.ResultType << '\n';
+            }
+            else
+            {
+                std::cout << "=> #<" << Outcome.ResultType << "> : " << Outcome.ResultType << '\n';
+            }
         }
         else if ( not Outcome.ResultType.empty() )
         {
@@ -230,6 +304,11 @@ std::int32_t Volt::CLI::FReplCommand::Execute ( std::span<const std::string_view
 
         Evaluate( Statement );
         Statement.clear();
+
+        if ( bLeaving )
+        {
+            break;
+        }
     }
 
     // Whatever was left when input ended is a statement the user meant to

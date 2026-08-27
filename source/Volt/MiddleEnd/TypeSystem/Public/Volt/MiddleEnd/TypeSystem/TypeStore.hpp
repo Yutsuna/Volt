@@ -119,6 +119,18 @@ namespace MiddleEnd
         {
 
             Symbol Name; // interned in the store
+            // The module this member is declared in, or invalid for the top
+            // level. Free functions only: a member of a *type* is scoped by
+            // that type, and a type declared inside a module is reached
+            // through the module's own name.
+            //
+            // A module scopes, the way one does in Crystal and Ruby and the
+            // way a namespace does in C++. It was not always so: module
+            // methods were hoisted into one flat table keyed on the bare name,
+            // which meant a top-level call reached into a module it never
+            // named, and two modules declaring the same function silently
+            // overwrote one another — `A.g()` ran `B`'s body.
+            Symbol Module;
             EMemberKind Kind             = EMemberKind::Field;
             EInlineVerdict InlineVerdict = EInlineVerdict::Never;
             std::uint32_t Unit           = 0;            // ordinal of the declaring unit
@@ -158,6 +170,7 @@ namespace MiddleEnd
             std::uint32_t OwnGenerics = 0;
             std::uint32_t MinParams   = 0;
             bool bSelf                = false; // `def self.malloc`
+            bool bFromStdlib          = false; // declared in stdlib, cannot be redefined by user
             // `private` / `protected` as written on the declaration, `None`
             // when the source wrote nothing — which reads as public.
             //
@@ -325,6 +338,7 @@ namespace MiddleEnd
             // question the RAII sweeps ask about a type.
             bool bTrivialFinalize = true;
             bool bMixin           = false;
+            bool bFromStdlib      = false; // declared in stdlib, cannot be redefined by user
 
             // Per generic parameter, the AST field names feeding it when a node
             // kind is lowered to this type. Empty = the default convention (the
@@ -399,6 +413,21 @@ namespace MiddleEnd
 
             // --- Types -------------------------------------------------------
 
+            void SetStdlibUnitCount ( std::uint32_t Count )
+            {
+                StdlibUnits = Count;
+            }
+
+            [[nodiscard]] std::uint32_t StdlibUnitCount () const
+            {
+                return StdlibUnits;
+            }
+
+            [[nodiscard]] bool IsStdlibUnit ( std::uint32_t Unit ) const
+            {
+                return Unit < StdlibUnits;
+            }
+
             // Declare (or re-declare) a named type. Re-declaring a name returns
             // the existing handle and refreshes its origin, so the last stdlib
             // definition wins without invalidating handles already handed out.
@@ -410,6 +439,10 @@ namespace MiddleEnd
                     NominalType &Existing = Types.Get( It->second );
                     Existing.Unit         = Unit;
                     Existing.Decl         = Decl;
+                    if ( Unit < StdlibUnits )
+                    {
+                        Existing.bFromStdlib = true;
+                    }
                     Existing.Members.clear();
                     Existing.Includes.Clear();
                     return It->second;
@@ -419,6 +452,7 @@ namespace MiddleEnd
                 Fresh.Name         = Key;
                 Fresh.Unit         = Unit;
                 Fresh.Decl         = Decl;
+                Fresh.bFromStdlib  = ( Unit < StdlibUnits );
                 const NominalId Id = Types.Add( std::move( Fresh ) );
                 ByName.emplace( Key, Id );
                 return Id;
@@ -683,22 +717,41 @@ namespace MiddleEnd
             // call-checking machinery built for methods (Resolution,
             // CheckCallArgs, Reinstantiate) applies unchanged: a free function is
             // simply a method with no receiver.
-            [[nodiscard]] Member *DeclareFunction ( std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+            // The key a free function is found by: its module and its name.
+            //
+            // Interned as one string — `"A.g"`, or `"g"` at the top level — so
+            // the table stays a single hash on a Symbol. Redeclaring the same
+            // qualified name is still an overwrite, because that is how a REPL
+            // replaces a function at the prompt; what it no longer does is
+            // collide two *different* functions that merely share a spelling.
+            [[nodiscard]] Symbol QualifiedFunctionKey ( std::string_view Module, std::string_view Name )
             {
-                const Symbol Key = Strings.Intern( Name );
+                return Strings.Intern( Module.empty() ? std::string( Name ) : std::string( Module ) + "." + std::string( Name ) );
+            }
+
+            [[nodiscard]] Member *
+            DeclareFunction ( std::string_view Module, std::string_view Name, std::uint32_t Unit, Frontend::DeclId Decl )
+            {
+                const Symbol Key = QualifiedFunctionKey( Module, Name );
                 if ( const auto It = FunctionByName.find( Key ); It != FunctionByName.end() )
                 {
                     Member &Existing = Functions[It->second];
                     Existing.Unit    = Unit;
                     Existing.Decl    = Decl;
+                    if ( Unit < StdlibUnits )
+                    {
+                        Existing.bFromStdlib = true;
+                    }
                     return &Existing;
                 }
 
                 Member Fresh;
-                Fresh.Name              = Key;
+                Fresh.Name              = Strings.Intern( Name );
+                Fresh.Module            = Module.empty() ? Symbol{} : Strings.Intern( Module );
                 Fresh.Kind              = EMemberKind::Method;
                 Fresh.Unit              = Unit;
                 Fresh.Decl              = Decl;
+                Fresh.bFromStdlib       = ( Unit < StdlibUnits );
                 const std::size_t Index = Functions.size();
                 Functions.push_back( std::move( Fresh ) );
                 FunctionByName.emplace( Key, Index );
@@ -729,15 +782,26 @@ namespace MiddleEnd
                 return Functions;
             }
 
-            [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
+            // The function `Module` declares under `Name`. An empty `Module`
+            // means the top level, and it means *only* the top level: a bare
+            // call does not reach into a module it never named.
+            [[nodiscard]] const Member *LookupFunction ( std::string_view Module, std::string_view Name ) const
             {
-                const auto Known = Strings.Find( Name );
+                const std::string Qualified =
+                    Module.empty() ? std::string( Name ) : std::string( Module ) + "." + std::string( Name );
+
+                const auto Known = Strings.Find( Qualified );
                 if ( not Known )
                 {
                     return nullptr;
                 }
                 const auto It = FunctionByName.find( *Known );
                 return It != FunctionByName.end() ? &Functions[It->second] : nullptr;
+            }
+
+            [[nodiscard]] const Member *LookupFunction ( std::string_view Name ) const
+            {
+                return LookupFunction( std::string_view{}, Name );
             }
 
             // --- Module variables ------------------------------------------------
@@ -822,6 +886,11 @@ namespace MiddleEnd
             {
                 const auto Known = Strings.Find( Name );
                 return Known.has_value() and Modules.contains( *Known );
+            }
+
+            [[nodiscard]] const std::unordered_set<Symbol> &ModuleSymbols () const
+            {
+                return Modules;
             }
 
             // --- Signature types ----------------------------------------------
@@ -916,6 +985,37 @@ namespace MiddleEnd
                 return Found.has_value() and *Found == Id;
             }
 
+            [[nodiscard]] std::optional<NominalId> LookupPrimitive ( std::string_view Spelling, bool bIsChar = false ) const
+            {
+                const auto Known = Strings.Find( Spelling );
+                if ( not Known )
+                {
+                    return std::nullopt;
+                }
+                std::optional<NominalId> Fallback;
+                for ( std::size_t Index = 0; Index < Types.Size(); ++Index )
+                {
+                    const NominalId Id{ static_cast<std::uint32_t>( Index ) };
+                    const NominalType &Type = Types.Get( Id );
+                    if ( Type.Layout.IsValid() )
+                    {
+                        if ( const auto *Prim = std::get_if<Primitive>( &Layouts.Get( Type.Layout ) ) )
+                        {
+                            if ( Prim->Spelling == *Known )
+                            {
+                                const bool bClaimsChar = IsNodeKind( "CharLiteral", Id );
+                                if ( bIsChar == bClaimsChar )
+                                {
+                                    return Id;
+                                }
+                                Fallback = Id;
+                            }
+                        }
+                    }
+                }
+                return Fallback;
+            }
+
             // --- Layouts -----------------------------------------------------
 
             [[nodiscard]] LayoutId AddPrimitive ( Symbol Spelling, std::uint32_t Bits )
@@ -997,6 +1097,52 @@ namespace MiddleEnd
             // TypeStore inherits that and has no assignment operator either.
             // Needed by the frontend-cache recovery path: a failed
             // DeserializeCache may leave the store partway through a replay.
+            struct SnapshotMark
+            {
+                std::size_t TypeCount     = 0;
+                std::size_t SigCount      = 0;
+                std::size_t LayoutCount   = 0;
+                std::size_t FunctionCount = 0;
+                std::size_t VariableCount = 0;
+            };
+
+            [[nodiscard]] SnapshotMark Mark () const
+            {
+                return SnapshotMark{
+                    .TypeCount     = Types.Size(),
+                    .SigCount      = Sigs.Size(),
+                    .LayoutCount   = Layouts.Size(),
+                    .FunctionCount = Functions.size(),
+                    .VariableCount = Variables.size(),
+                };
+            }
+
+            void Rollback ( const SnapshotMark &Snapshot )
+            {
+                while ( Functions.size() > Snapshot.FunctionCount )
+                {
+                    const Member &F  = Functions.back();
+                    const Symbol Key = QualifiedFunctionKey(
+                        F.Module.IsValid() ? Strings.Resolve( F.Module ) : std::string_view{}, Strings.Resolve( F.Name ) );
+                    FunctionByName.erase( Key );
+                    Functions.pop_back();
+                }
+                while ( Variables.size() > Snapshot.VariableCount )
+                {
+                    const Member &V = Variables.back();
+                    VariableByName.erase( V.Name );
+                    Variables.pop_back();
+                }
+                for ( std::size_t Index = Snapshot.TypeCount; Index < Types.Size(); ++Index )
+                {
+                    const NominalType &T = Types.Get( NominalId{ static_cast<std::uint32_t>( Index ) } );
+                    ByName.erase( T.Name );
+                }
+                Types.TruncateTo( Snapshot.TypeCount );
+                Sigs.TruncateTo( Snapshot.SigCount );
+                Layouts.TruncateTo( Snapshot.LayoutCount );
+            }
+
             void Clear ()
             {
                 Strings.Clear();
@@ -1078,7 +1224,8 @@ namespace MiddleEnd
             std::unordered_set<Symbol> Modules;
             std::unordered_map<std::vector<std::uint32_t>, SigTypeId, U32KeyHash> SigDedup;
             std::unique_ptr<TypeUniverse> UniverseStorage;
-            std::uint64_t Gen = 0;
+            std::uint32_t StdlibUnits = 0;
+            std::uint64_t Gen         = 0;
         };
 
     } // namespace TypeSystem

@@ -18,7 +18,20 @@
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/Module.h>
 #include <llvm/Support/FileSystem.h>
+#include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
+
+#include <llvm/MC/MCAsmInfo.h>
+#include <llvm/MC/MCContext.h>
+#include <llvm/MC/MCDisassembler/MCDisassembler.h>
+#include <llvm/MC/MCInst.h>
+#include <llvm/MC/MCInstPrinter.h>
+#include <llvm/MC/MCInstrInfo.h>
+#include <llvm/MC/MCRegisterInfo.h>
+#include <llvm/MC/MCSubtargetInfo.h>
+#include <llvm/MC/MCTargetOptions.h>
+#include <llvm/MC/TargetRegistry.h>
+#include <llvm/TargetParser/Triple.h>
 
 #include <cstdlib>
 
@@ -41,6 +54,11 @@ void InitialiseNativeTarget ()
                         llvm::InitializeNativeTarget();
                         llvm::InitializeNativeTargetAsmPrinter();
                         llvm::InitializeNativeTargetAsmParser();
+                        // The REPL's `:asm` reads back the bytes ORC mapped;
+                        // without this the target registry has a printer and
+                        // no decoder, and lookupTarget succeeds only to fail
+                        // one call later.
+                        ( void )llvm::InitializeNativeTargetDisassembler();
                     } );
 }
 
@@ -111,6 +129,12 @@ struct Volt::Backend::Jit::JitCompiler::Impl
     // generation — a reload, a REPL line — has to be opened in the same one.
     llvm::orc::ThreadSafeContext Ctx;
     bool bContextAdopted = false;
+
+    // The text of the last batch of modules added, kept only while a consumer
+    // has asked for it. A REPL's `:ir` is that consumer, and it is the only
+    // one — a `volt run` would render every module it compiles for nothing.
+    bool bRecordIr = false;
+    std::string LastIrText;
 };
 
 Volt::Backend::Jit::JitCompiler::JitCompiler () : P( std::make_unique<Impl>() )
@@ -169,6 +193,10 @@ bool Volt::Backend::Jit::JitCompiler::OpenReplacement ( GenerationId &OutGen, st
     // the replacement's own calls should reach, and everything else — the
     // stdlib, the other units, the process — resolves exactly as before.
     Made->addToLinkOrder( P->Jit->getMainJITDylib() );
+    // Also add the replacement dylib to the main dylib's link order so any
+    // fresh globals declared on a line that redefines a function are visible
+    // to subsequent lines in the session.
+    P->Jit->getMainJITDylib().addToLinkOrder( *Made );
 
     P->Dylibs[Id]   = &*Made;
     P->Trackers[Id] = Made->createResourceTracker();
@@ -188,6 +216,16 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
     {
         OutError = "jit: the emission produced no module";
         return false;
+    }
+
+    // One batch is one unit's emission, so the record holds the *last* unit
+    // rather than everything since recording was turned on. A caller that
+    // wants a unit kept out of it — the REPL's own echo line, which is not a
+    // line anybody typed — turns recording off around it, and this leaves what
+    // is already held alone.
+    if ( P->bRecordIr )
+    {
+        P->LastIrText.clear();
     }
 
     // The context is adopted once and kept: every module of this session shares
@@ -214,6 +252,11 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
 
         const std::string Name( Mod->getName() );
         DumpIfAsked( *Mod );
+        if ( P->bRecordIr )
+        {
+            llvm::raw_string_ostream Text( P->LastIrText );
+            Mod->print( Text, nullptr );
+        }
         if ( llvm::Error Err = P->Jit->addIRModule( Found->second, llvm::orc::ThreadSafeModule( std::move( Mod ), P->Ctx ) ) )
         {
             OutError = "jit: could not add the module '" + Name + "': " + Consume( std::move( Err ) );
@@ -303,4 +346,120 @@ bool Volt::Backend::Jit::JitCompiler::AddProcessSymbols ( std::string &OutError 
 
     P->Jit->getMainJITDylib().addGenerator( std::move( *Gen ) );
     return true;
+}
+
+std::size_t Volt::Backend::Jit::JitCompiler::LiveGenerations () const
+{
+    return P->Trackers.size();
+}
+
+void Volt::Backend::Jit::JitCompiler::RecordIr ( const bool bEnable )
+{
+    // Deliberately does not clear: turning recording off is how a caller
+    // *excludes* a unit from the record, and clearing would throw away the
+    // very thing it was protecting.
+    P->bRecordIr = bEnable;
+}
+
+std::string Volt::Backend::Jit::JitCompiler::LastIr () const
+{
+    return P->LastIrText;
+}
+
+std::string Volt::Backend::Jit::JitCompiler::Disassemble ( const std::uintptr_t Address,
+                                                           const std::size_t MaxBytes,
+                                                           std::string &OutError ) const
+{
+    if ( P->Jit == nullptr or Address == 0 or MaxBytes == 0 )
+    {
+        OutError = "jit: nothing to disassemble";
+        return {};
+    }
+
+    InitialiseNativeTarget();
+
+    const llvm::Triple TheTriple = P->Jit->getTargetTriple();
+
+    std::string Why;
+    const llvm::Target *Machine = llvm::TargetRegistry::lookupTarget( TheTriple, Why );
+    if ( Machine == nullptr )
+    {
+        OutError = "jit: no disassembler for '" + TheTriple.str() + "': " + Why;
+        return {};
+    }
+
+    // Every one of these owns a piece of the target description, and the
+    // context below borrows three of them — so they are declared here, in
+    // destruction order, and outlive it.
+    const std::unique_ptr<llvm::MCRegisterInfo> Registers( Machine->createMCRegInfo( TheTriple ) );
+    if ( Registers == nullptr )
+    {
+        OutError = "jit: the target has no register description";
+        return {};
+    }
+
+    const llvm::MCTargetOptions Options;
+    const std::unique_ptr<llvm::MCAsmInfo> AsmInfo( Machine->createMCAsmInfo( *Registers, TheTriple, Options ) );
+    const std::unique_ptr<llvm::MCSubtargetInfo> Subtarget( Machine->createMCSubtargetInfo( TheTriple, "", "" ) );
+    const std::unique_ptr<llvm::MCInstrInfo> Instructions( Machine->createMCInstrInfo() );
+    if ( AsmInfo == nullptr or Subtarget == nullptr or Instructions == nullptr )
+    {
+        OutError = "jit: the target description is incomplete";
+        return {};
+    }
+
+    llvm::MCContext Context( TheTriple, AsmInfo.get(), Registers.get(), Subtarget.get() );
+    const std::unique_ptr<llvm::MCDisassembler> Decoder( Machine->createMCDisassembler( *Subtarget, Context ) );
+    const std::unique_ptr<llvm::MCInstPrinter> Printer(
+        Machine->createMCInstPrinter( TheTriple, AsmInfo->getAssemblerDialect(), *AsmInfo, *Instructions, *Registers ) );
+    if ( Decoder == nullptr or Printer == nullptr )
+    {
+        OutError = "jit: this build of LLVM has no decoder for '" + TheTriple.str() + "'";
+        return {};
+    }
+
+    // The bytes ORC mapped, read as bytes. There is no other way to see them:
+    // JIT-linked code is never written to a file, so what a debugger would
+    // read from an object is only available here, in memory, at this address.
+    const llvm::ArrayRef<std::uint8_t> Code(
+        reinterpret_cast<const std::uint8_t *>( Address ), // NOLINT(performance-no-int-to-ptr)
+        MaxBytes );
+
+    std::string Out;
+    llvm::raw_string_ostream Text( Out );
+
+    std::uint64_t Offset = 0;
+    while ( Offset < MaxBytes )
+    {
+        llvm::MCInst Instruction;
+        std::uint64_t Size = 0;
+
+        const llvm::MCDisassembler::DecodeStatus Status =
+            Decoder->getInstruction( Instruction, Size, Code.slice( Offset ), Address + Offset, llvm::nulls() );
+        if ( Status != llvm::MCDisassembler::Success or Size == 0 )
+        {
+            break;
+        }
+
+        Text << llvm::format_hex( Address + Offset, 18 ) << "  ";
+        Printer->printInst( &Instruction, Address + Offset, "", *Subtarget, Text );
+        Text << '\n';
+
+        Offset += Size;
+
+        // A function ends at its return, and reading past one would decode
+        // whatever the linker happened to place next as if it belonged here.
+        // Padding between functions is not always a valid instruction, so the
+        // decode failure above catches the rest.
+        if ( Instructions->get( Instruction.getOpcode() ).isReturn() )
+        {
+            break;
+        }
+    }
+
+    if ( Out.empty() )
+    {
+        OutError = "jit: nothing decoded at that address";
+    }
+    return Out;
 }

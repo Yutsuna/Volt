@@ -50,6 +50,8 @@ bool Volt::Frontend::Parser::CanStartCommandArgument () const
     case TokenKind::KwNil:
     case TokenKind::KwSelf:
     case TokenKind::KwSuper:
+    case TokenKind::KwSizeOf:
+    case TokenKind::KwTypeOf:
         return true;
     default:
         return false;
@@ -373,6 +375,23 @@ Volt::Frontend::ExprId Volt::Frontend::Parser::ParsePrimary ()
         Advance();
         Node.Type = ParseType();
         return MakeExpr( Node, RangeSince( Begin ) );
+    }
+
+    case TokenKind::KwTypeOf:
+    {
+        Advance();
+        TypeOfExpr Node;
+        if ( Check( TokenKind::LParen ) )
+        {
+            Advance();
+            Node.Value = ParseExpr( 0 );
+            Expect( TokenKind::RParen, "to close 'typeof'" );
+        }
+        else
+        {
+            Node.Value = ParseExpr( 65 );
+        }
+        return ParsePostfix( MakeExpr( Node, RangeSince( Begin ) ) );
     }
 
     case TokenKind::KwSuper:

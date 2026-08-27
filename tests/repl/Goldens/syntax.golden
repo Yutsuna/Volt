@@ -1,0 +1,22 @@
+--- volt: a complete line ---
+[Keyword def][Default  ][FunctionName twice][Punctuation (][Default  ][Identifier n][Default  ][Punctuation :][Default  ][TypeName Int32][Default  ][Punctuation )][Default  ][Operator ->][Default  ][TypeName Int32]
+[Default   ][Identifier n][Default  ][Operator *][Default  ][Number 2][Default  ][Comment # doubled]
+[Keyword end]
+--- volt: literals ---
+[Identifier x][Default  ][Operator =][Default  ][Punctuation [][Default  ][Number 1][Punctuation ,][Default  ][Number 2.5][Punctuation ,][Default  ][StringLiteral "hi"][Punctuation ,][Default  ][Symbol :sym][Punctuation ,][Default  ][BoolNil true][Punctuation ,][Default  ][BoolNil nil][Default  ][Punctuation ]]
+--- volt: unfinished ---
+[Keyword def][Default  ][FunctionName broken][Punctuation (][Default  ][Identifier n][Default  ][Punctuation :]
+--- volt: unterminated string ---
+[FunctionName puts][Punctuation (][Default  ][StringLiteral "never closed]
+--- volt: doc block being typed ---
+[Comment #{ @brief half a block]
+--- ir ---
+[IrOpcode define][Default  ][IrType void][Default  ][IrGlobal @_V_init_3][Punctuation (][Punctuation )][Default  ][Punctuation {]
+[IrGlobal entry][Punctuation :]
+[Default   ][IrRegister %0][Default  ][Punctuation =][Default  ][IrOpcode add][Default  ][IrType i32][Default  ][IrRegister %n][Punctuation ,][Default  ][Number 1][Default  ][Comment ; a comment]
+[Default   ][IrOpcode ret][Default  ][IrType void]
+[Punctuation }]
+--- asm ---
+[AsmImmediate 0x00007f00][Default   ][AsmMnemonic leal][Default  ][Punctuation (][AsmRegister %rdi][Punctuation ,][AsmRegister %rdi][Punctuation )][Punctuation ,][Default  ][AsmRegister %eax]
+[Default   ][AsmMnemonic movl][Default  ][AsmImmediate $42][Punctuation ,][Default  ][Punctuation -][AsmImmediate 4][Punctuation (][AsmRegister %rsp][Punctuation )]
+[Default   ][AsmMnemonic retq]

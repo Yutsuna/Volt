@@ -112,8 +112,18 @@ template <typename NodeType>
     else
     {
         const std::string_view Kind = Meta::TypeName<NodeType>();
-        if ( Kind == "IntLiteral" or Kind == "FloatLiteral" )
+        if constexpr ( std::is_same_v<NodeType, Frontend::IntLiteral> or std::is_same_v<NodeType, Frontend::FloatLiteral> )
         {
+            const std::string_view Raw = Context.Ctx.Ast.Text( Node.Raw );
+            const auto Underscore      = Raw.rfind( '_' );
+            if ( Underscore != std::string_view::npos and Underscore + 1 < Raw.size() )
+            {
+                const std::string_view Suffix = Raw.substr( Underscore + 1 );
+                if ( const auto SuffixedBase = Context.Ctx.Types.LookupPrimitive( Suffix ) )
+                {
+                    return Context.MakeType( *SuffixedBase, {} );
+                }
+            }
             Context.UnconstrainedLiterals.insert( Id.Value );
         }
         const auto Base = Context.Ctx.Types.LookupNodeKind( Kind );

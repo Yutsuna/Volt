@@ -1,0 +1,7 @@
+Int32
+String
+Bool
+Array<Int32>
+<repl:6>:1:1: error: Identifier in value position was never given a type
+    nope
+    ^~~~

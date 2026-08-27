@@ -58,6 +58,9 @@ namespace Repl
     // it. Blank lines and comment-only lines answer false.
     [[nodiscard]] REPLCORE_EXPORT bool ContinuesPrevious ( std::string_view Line );
 
+    /// Return the nesting level of open blocks and brackets in Accumulated (>= 0).
+    [[nodiscard]] REPLCORE_EXPORT std::size_t BlockDepth ( std::string_view Accumulated );
+
 } // namespace Repl
 
 } // namespace Volt

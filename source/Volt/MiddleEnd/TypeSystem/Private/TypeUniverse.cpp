@@ -40,13 +40,13 @@ DescribeAt ( const TypeUniverse &Universe, const TypeStore &Store, SemaTypeId Id
 {
     if ( not Universe.Has( Id ) or Depth > 16 )
     {
-        return Depth == 0 ? "<unresolved>" : "_";
+        return "Void";
     }
 
     const SemaType &Value = Universe.Get( Id );
     if ( not Value.Base.IsValid() or Value.Base.Value >= Store.TypeCount() )
     {
-        return Depth == 0 ? "<unresolved>" : "_";
+        return "Void";
     }
 
     std::string Out{ Store.Text( Store.Type( Value.Base ).Name ) };

@@ -1,0 +1,5 @@
+<repl:2>:1:7: error: expected an expression
+    puts( , )
+          ^
+10
+=> #<StandardStream @fd=1> : StandardStream

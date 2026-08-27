@@ -1,0 +1,21 @@
+--- classify ---
+done 1 + 1/
+more def f/
+done def f/  1/end/
+more [ 1, 2,/
+more x = 1 +/
+more "unterminated/
+done x = 1 if y/
+--- history ---
+size 3
+  x = 1
+  puts( x )
+  x = 2
+search 'x =' -> x = 2
+search 'nope' -> (none)
+--- ghost text ---
+'put' -> 's( 2 )'
+'puts' -> '( 2 )'
+'zzz' -> ''
+'de' -> 'f f'
+'def f' -> ''

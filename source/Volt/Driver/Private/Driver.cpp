@@ -440,6 +440,8 @@ void Volt::Driver::Driver::RunSerialSeam ( const std::vector<bool> &bDone, std::
 {
     Core::PhaseScope InterfaceTiming( "seam.interface" );
 
+    Types.SetStdlibUnitCount( static_cast<std::uint32_t>( StdlibUnitCountValue ) );
+
     Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
     for ( std::size_t Index = 0; Index < Units.size(); ++Index )
     {
@@ -1156,28 +1158,39 @@ void Volt::Driver::Driver::DumpUnits ( std::ostream &Out, const Frontend::FAstDu
 
 // --- Incremental compilation (`volt repl`) ---------------------------------
 
-std::size_t Volt::Driver::Driver::AppendUnit ( std::string Label, std::string Text )
+Volt::Driver::Driver::AppendedUnit Volt::Driver::Driver::AppendUnit ( std::string Label, std::string Text )
 {
+    AppendedUnit Out;
+
+    // Before the parse, not after: everything this call reports has to fall on
+    // the caller's side of the mark, or a line that does not parse looks like
+    // a line with nothing wrong with it.
+    Out.DiagMark = Diagnostics.Mark();
+
     const Core::FileId File = Sources.AddFile( std::move( Label ), std::move( Text ) );
 
     // One module name for every appended unit, so a `def` in one and a call in
     // the next share a namespace rather than each getting one of their own.
-    const std::size_t Index = Units.size();
+    Out.Index = Units.size();
     Units.emplace_back( File, std::string( Sources.PathOf( File ) ), "Main", /*bInComponent=*/false );
     Units.back().Types.BindUniverse( Types.Universe() );
 
     Core::DiagEngine::Bag Bag = Core::DiagEngine::MakeBag();
-    ParseOne( Units[Index], Bag );
+    ParseOne( Units[Out.Index], Bag );
     Diagnostics.Merge( std::move( Bag ) );
 
-    return Index;
+    Out.bParsed = not Diagnostics.HasErrorsSince( Out.DiagMark );
+    return Out;
 }
 
-Volt::Driver::Driver::UnitResult Volt::Driver::Driver::AnalyzeUnit ( const std::size_t Index )
+Volt::Driver::Driver::UnitResult Volt::Driver::Driver::AnalyzeUnit ( const std::size_t Index, const std::size_t DiagMark )
 {
     UnitResult Result;
     Result.Ordinal  = static_cast<std::uint32_t>( Index );
-    Result.DiagMark = Diagnostics.Mark();
+    Result.DiagMark = DiagMark;
+
+    const auto TypeMark     = Types.Mark();
+    const auto RegistryMark = Registry.Mark();
 
     DriverUnitAsts.clear();
     DriverUnitAsts.reserve( Units.size() );
@@ -1203,10 +1216,16 @@ Volt::Driver::Driver::UnitResult Volt::Driver::Driver::AnalyzeUnit ( const std::
     RunSemaTypedOne( Units[Index], TypedBag );
     Diagnostics.Merge( std::move( TypedBag ) );
 
-    // Only this unit's diagnostics decide whether it compiled. The engine still
-    // holds every earlier one's, and asking HasErrors() here would make one bad
-    // unit poison everything after it.
+    // Only this unit's diagnostics decide whether it compiled — its parse
+    // included, which is what the caller's mark buys. The engine still holds
+    // every earlier unit's, and asking HasErrors() here would make one bad unit
+    // poison everything after it.
     Result.bOk = not Diagnostics.HasErrorsSince( Result.DiagMark );
+    if ( not Result.bOk )
+    {
+        Types.Rollback( TypeMark );
+        Registry.Rollback( RegistryMark );
+    }
     return Result;
 }
 

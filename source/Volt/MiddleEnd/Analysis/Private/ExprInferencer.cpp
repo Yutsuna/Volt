@@ -785,7 +785,8 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                         Context.NakedTypeExprs.insert( Id.Value );
                         return Context.MakeType( *Named, PlaceholderTypeArgs( Context.Ctx.Types, *Named ) );
                     }
-                    const Resolution Found = LookupFreeFunction( Context, Context.Ctx.Ast.Text( Expr.Name ) );
+                    const Resolution Found =
+                        LookupModuleFunction( Context, Context.Ctx.Ast.Text( Name->Name ), Context.Ctx.Ast.Text( Expr.Name ) );
                     if ( Found.Decl != nullptr )
                     {
                         Context.CalleeResolution[Id.Value] = Found;
@@ -907,6 +908,17 @@ Volt::MiddleEnd::TypeSystem::SemaTypeId Volt::MiddleEnd::Analysis::ComputeExpr (
                 Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ResolveTypeExpr( Context.Ctx.Ast, Context.Ctx.Types,
                                                                                     Context.Generics(), Sink, Expr.Type ) );
                 const auto Base = Context.Ctx.Types.LookupNodeKind( "BoolLiteral" );
+                if ( not Base )
+                {
+                    return SemaTypeId{};
+                }
+                return Context.MakeType( *Base, {} );
+            },
+            [&] ( const Frontend::TypeOfExpr &Expr ) -> SemaTypeId
+            {
+                const SemaTypeId ValType = InferExpr( Context, Expr.Value );
+                Context.Ctx.Values.SetSiteType( BindingSite{ Id }, ValType );
+                const auto Base = Context.Ctx.Types.LookupNodeKind( "TypeOfExpr" );
                 if ( not Base )
                 {
                     return SemaTypeId{};

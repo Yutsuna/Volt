@@ -1,0 +1,25 @@
+--- builtins after ':' ---
+':' prefix ''
+  help
+  type
+  layout
+  ir
+  asm
+  src
+  doc
+  bench
+  history
+  vars
+  theme
+  reset
+  exit
+':d' prefix 'doc'
+  doc
+--- a method's signature: 'greeting.sta' ---
+  starts_with?  starts_with?( String ) -> Bool
+--- members after 'greeting.si' ---
+  size  UInt64
+--- bare identifier 'gree' ---
+  greeting  String
+--- no receiver ---
+  candidates 0

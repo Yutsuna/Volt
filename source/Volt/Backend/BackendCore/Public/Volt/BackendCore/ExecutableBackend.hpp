@@ -22,6 +22,7 @@
 #include "Volt/BackendCore/BackendInput.hpp"
 #include "Volt/BackendCore/TargetBackend.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -106,6 +107,66 @@ namespace Backend
         // The address a mangled symbol materialised at, for tests and
         // debugging. Zero when it does not resolve.
         [[nodiscard]] virtual std::uintptr_t LookupSymbol ( std::string_view Mangled ) = 0;
+
+        // --- Inspection ----------------------------------------------------
+        //
+        // What a REPL's `:type`, `:ir`, `:asm` and `:bench` are built out of.
+        // They are verbs on this seam rather than on a concrete JIT for the
+        // same reason Run and EvalUnit are: no toolchain type appears in any
+        // of their signatures, so a consumer can ask for the disassembly of a
+        // function without an LLVM header entering its translation unit.
+
+        // Emit one more unit exactly as EvalUnit would — same options, same
+        // generator, same verification — and then throw the emission away.
+        //
+        // No dylib is opened, no module reaches ORC, nothing runs, and the
+        // generator dies with the call. That is what makes it safe to ask a
+        // question about a line the user never asked to evaluate: `:type` and
+        // an abandoned completion both take this path, and neither can leave a
+        // generation behind because neither ever opens one.
+        //
+        // With OutIr non-null, the emitted modules are rendered into it before
+        // they are dropped.
+        [[nodiscard]] virtual bool
+        ProbeUnit ( const BackendInput &Build, const UnitView &Unit, std::string *OutIr, std::string &OutError ) = 0;
+
+        // The intermediate representation of the last unit this backend added,
+        // or empty when recording was never turned on. Costs a render per
+        // emission, so it is off unless RecordIr says otherwise.
+        [[nodiscard]] virtual std::string LastUnitIr () const = 0;
+
+        virtual void RecordIr ( bool bEnable ) = 0;
+
+        // Machine code at `Address`, as text, stopping at the first return or
+        // after `MaxBytes`, whichever comes first. Empty when the target has no
+        // disassembler built in.
+        [[nodiscard]] virtual std::string Disassemble ( std::uintptr_t Address, std::size_t MaxBytes ) = 0;
+
+        struct BenchResult
+        {
+
+            bool bOk = false;
+            std::string Message;
+            std::size_t Iterations   = 0;
+            std::uint64_t TotalNanos = 0;
+            std::uint64_t BestNanos  = 0;
+        };
+
+        // Emit one unit, run its initialiser `Iterations` times under a
+        // monotonic clock, and drop the generation it ran in.
+        //
+        // The generation is opened as a *replacement* — a dylib of its own —
+        // and removed the moment the last iteration returns, so a hundred
+        // benchmarks leave the session exactly as wide as they found it. The
+        // timing loop is here rather than in a caller because this is the only
+        // place that can drop what it opened.
+        [[nodiscard]] virtual BenchResult
+        BenchUnit ( const BackendInput &Build, const UnitView &Unit, std::size_t Iterations ) = 0;
+
+        // How many generations are still resident. The observable half of the
+        // rule above: it does not move across a `:type`, and it comes back to
+        // where it started across a `:bench`.
+        [[nodiscard]] virtual std::size_t LiveGenerations () const = 0;
     };
 
 } // namespace Backend

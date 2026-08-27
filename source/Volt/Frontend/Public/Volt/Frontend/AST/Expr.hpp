@@ -243,6 +243,14 @@ namespace Frontend
         TypeId Type;
     };
 
+    // `typeof( expr )` / `typeof expr` in expression position — returns the Type of the expression as a runtime value.
+    struct TypeOfExpr
+    {
+
+        Core::SourceRange Loc;
+        ExprId Value;
+    };
+
     // The address of a resolved Method, as a value — never written by the
     // parser; only a lowering pass (ClosureLifting) synthesizes this, to name
     // a function it has just lifted without going through ordinary member/

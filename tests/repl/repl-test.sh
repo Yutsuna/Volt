@@ -6,8 +6,11 @@ VOLT="$1"
 SCRIPT="$2"
 MODE="$3"
 ARG="$4"
+# Whatever else the case needs on the command line — `--no-stdlib-cache` for
+# the two that read the stdlib's own source.
+shift 4
 
-OUT="$( "$VOLT" repl < "$SCRIPT" 2>&1 )"
+OUT="$( "$VOLT" repl "$@" < "$SCRIPT" 2>&1 )"
 
 case "$MODE" in
 exact)

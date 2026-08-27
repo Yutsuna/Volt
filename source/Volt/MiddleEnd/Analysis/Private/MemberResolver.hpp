@@ -33,6 +33,11 @@ constexpr std::string_view ConstructorName = "initialize";
 // a free function as a receiver-less Member.
 [[nodiscard]] Resolution LookupFreeFunction ( TypeCheckerContext &Context, std::string_view Name );
 
+// A qualified call — `LibC.malloc( size )` — the call site names both the
+// module and the function. Same shape as `LookupFreeFunction`, but the
+// lookup uses the module-qualified key that `DeclareFunction` stores.
+[[nodiscard]] Resolution LookupModuleFunction ( TypeCheckerContext &Context, std::string_view Module, std::string_view Name );
+
 // Whether `Receiver` is *the* callable type — the one the stdlib declares
 // with `@[Literal( FuncType )]`. That claim is the only fact needed: a
 // written signature, a lambda and a block all denote one thing, so one type

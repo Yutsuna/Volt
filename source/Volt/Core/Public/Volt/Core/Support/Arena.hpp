@@ -83,6 +83,14 @@ namespace Core
             Storage.reserve( Capacity );
         }
 
+        void TruncateTo ( std::size_t Mark )
+        {
+            if ( Mark < Storage.size() )
+            {
+                Storage.resize( Mark );
+            }
+        }
+
         // NOLINTNEXTLINE(readability-identifier-naming)
         [[nodiscard]] auto begin ()
         {

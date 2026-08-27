@@ -351,6 +351,46 @@ namespace Driver
             return Types;
         }
 
+        // The text of a registered file, for a consumer that has a
+        // `SourceRange` and wants the source it came out of.
+        //
+        // Read-only and by range on purpose: the SourceManager itself stays
+        // private because it is *written* during compilation and handing out a
+        // reference would invite a caller to register a file behind the
+        // Driver's back. A REPL's `:src` and `:doc` want one substring of one
+        // already-compiled file, which is exactly this and nothing more.
+        [[nodiscard]] std::string_view SourceText ( Core::SourceRange Range ) const
+        {
+            if ( not Sources.IsValidFile( Range.File ) )
+            {
+                return {};
+            }
+
+            const std::string_view Text = Sources.TextOf( Range.File );
+            if ( Range.Begin > Text.size() or Range.End > Text.size() or Range.End < Range.Begin )
+            {
+                return {};
+            }
+            return Text.substr( Range.Begin, Range.End - Range.Begin );
+        }
+
+        // The whole file a range points into — what `:doc` walks backwards
+        // through to find the block comment above a declaration.
+        [[nodiscard]] std::string_view SourceFile ( Core::FileId File ) const
+        {
+            return Sources.IsValidFile( File ) ? Sources.TextOf( File ) : std::string_view{};
+        }
+
+        [[nodiscard]] Core::LineColumn SourcePosition ( Core::SourceRange Range ) const
+        {
+            return Sources.IsValidFile( Range.File ) ? Sources.Resolve( Range.File, Range.Begin ) : Core::LineColumn{};
+        }
+
+        [[nodiscard]] std::string_view SourcePath ( Core::FileId File ) const
+        {
+            return Sources.IsValidFile( File ) ? Sources.PathOf( File ) : std::string_view{};
+        }
+
         [[nodiscard]] bool HasErrors () const
         {
             return Diagnostics.HasErrors();
@@ -422,15 +462,44 @@ namespace Driver
             std::size_t DiagMark = 0;
         };
 
-        // Register and parse one more unit, and nothing else. Returns its
-        // discovery index — the ordinal the whole middle-end keys on.
+        // What one AppendUnit produced.
+        struct AppendedUnit
+        {
+
+            // The discovery index — the ordinal the whole middle-end keys on.
+            std::size_t Index = 0;
+
+            // Where in the diagnostic engine this line's diagnostics start,
+            // taken *before* the parse.
+            //
+            // It has to be handed to AnalyzeUnit rather than taken there,
+            // because the parse happens here and its diagnostics are already
+            // in the engine by the time analysis begins. A mark taken at the
+            // start of analysis would sit *after* them — and then a line that
+            // does not parse reports no errors, passes as compiled, and is
+            // emitted. That is not hypothetical: it is what `puts( typeof a )`
+            // did, silently printing `nil` in a REPL while the same file
+            // reported two syntax errors under `volt run`.
+            std::size_t DiagMark = 0;
+
+            // Did it parse at all?
+            //
+            // A caller that retries a failed line with a different AST
+            // rewrite — the REPL, when its bare-expression binding turns out
+            // to have been the wrong guess — needs to know not to bother: a
+            // parse failure recurs identically however the AST is rewritten
+            // afterwards, because the rewrite happens after the parse.
+            bool bParsed = false;
+        };
+
+        // Register and parse one more unit, and nothing else.
         //
         // Split from AnalyzeUnit rather than merged with it because the gap
         // between the two is where an AST may still be rewritten: after the
         // parse, before any name in it is resolved. That is the same window
         // `ExpandTypeMacros` writes in inside the seam, and it belongs to
         // whoever is driving the compilation.
-        [[nodiscard]] std::size_t AppendUnit ( std::string Label, std::string Text );
+        [[nodiscard]] AppendedUnit AppendUnit ( std::string Label, std::string Text );
 
         // Run the cross-unit seam and the sema passes over one already-parsed
         // unit, with every other unit handed to the whole-program passes as a
@@ -450,7 +519,9 @@ namespace Driver
         // earlier unit's CalleeMap holds dangles afterwards. Nothing reads
         // those again — each unit is emitted the moment it compiles — and that
         // is what makes the growth safe rather than lucky.
-        [[nodiscard]] UnitResult AnalyzeUnit ( std::size_t Index );
+        // `DiagMark` is the one AppendUnit took, so that this unit's verdict
+        // covers its parse as well as its analysis.
+        [[nodiscard]] UnitResult AnalyzeUnit ( std::size_t Index, std::size_t DiagMark );
 
         // The unit at `Index`, mutable, for the window between the two calls
         // above.

@@ -1,0 +1,22 @@
+--- parse ---
+':type x' -> :type | x
+':layout Int32' -> :layout | Int32
+':bench 50 f()' -> :bench | 50 f()
+':help' -> :help | 
+':pending' -> (not a builtin)
+'x = 1' -> (not a builtin)
+':' -> (not a builtin)
+--- builtin table ---
+:help
+:type
+:layout
+:ir [panel]
+:asm [panel]
+:src [panel]
+:doc [panel]
+:bench
+:history [panel]
+:vars
+:theme
+:reset
+:exit
