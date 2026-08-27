@@ -55,6 +55,10 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FRunCommand::GetOptions ()
             [this] ( std::string_view ) { this->bIndirectCalls = true; }
         },
         {
+            "", "--no-lazy", "", "Compile every function up front instead of on its first call",
+            [this] ( std::string_view ) { this->bNoLazy = true; }
+        },
+        {
             "-w", "--watch", "", "Stay resident: on a source change, reload the file that moved and run again",
             [this] ( std::string_view ) { this->bWatch = true; }
         },
@@ -169,6 +173,7 @@ std::int32_t Volt::CLI::FRunCommand::Execute ( std::span<const std::string_view>
     RunOpts.bVerbose               = bVerbose;
     RunOpts.bPerUnitModules        = not bWholeModule;
     RunOpts.bIndirectLinkage       = bIndirectCalls or bWatch;
+    RunOpts.bLazyCompilation       = not bNoLazy;
     RunOpts.bWatch                 = bWatch;
     RunOpts.WatchManifest          = WatchManifest;
     RunOpts.WatchInputs            = { Input };
