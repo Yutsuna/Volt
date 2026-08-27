@@ -440,6 +440,8 @@ void Volt::Driver::Driver::RunSerialSeam ( const std::vector<bool> &bDone, std::
 {
     Core::PhaseScope InterfaceTiming( "seam.interface" );
 
+    Types.SetStdlibUnitCount( static_cast<std::uint32_t>( StdlibUnitCountValue ) );
+
     Core::DiagEngine::Bag SeamBag = Core::DiagEngine::MakeBag();
     for ( std::size_t Index = 0; Index < Units.size(); ++Index )
     {
@@ -1187,6 +1189,9 @@ Volt::Driver::Driver::UnitResult Volt::Driver::Driver::AnalyzeUnit ( const std::
     Result.Ordinal  = static_cast<std::uint32_t>( Index );
     Result.DiagMark = DiagMark;
 
+    const auto TypeMark     = Types.Mark();
+    const auto RegistryMark = Registry.Mark();
+
     DriverUnitAsts.clear();
     DriverUnitAsts.reserve( Units.size() );
     for ( std::size_t Slot = 0; Slot < Units.size(); ++Slot )
@@ -1216,6 +1221,11 @@ Volt::Driver::Driver::UnitResult Volt::Driver::Driver::AnalyzeUnit ( const std::
     // every earlier unit's, and asking HasErrors() here would make one bad unit
     // poison everything after it.
     Result.bOk = not Diagnostics.HasErrorsSince( Result.DiagMark );
+    if ( not Result.bOk )
+    {
+        Types.Rollback( TypeMark );
+        Registry.Rollback( RegistryMark );
+    }
     return Result;
 }
 
