@@ -267,6 +267,7 @@ if jit_enabled
     repl_sh = repl_root / 'repl-test.sh'
 
     repl_exact = [
+        'Recover/ParseError',
         'Query/Type',
         'Query/Layout',
         'Query/Help',

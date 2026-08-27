@@ -1,0 +1,11 @@
+<repl:2>:1:7: error: expected an expression
+    puts( typeof a )
+          ^~~~~~
+<repl:2>:1:14: error: expected ')' to close call arguments, found 'a'
+    puts( typeof a )
+                 ^
+<repl:2>:1:16: error: expected an expression
+    puts( typeof a )
+                   ^
+10
+=> #<StandardStream @fd=1> : StandardStream
