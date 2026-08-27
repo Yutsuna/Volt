@@ -851,6 +851,26 @@ std::vector<Volt::Repl::Evaluator::MemberFact> Volt::Repl::Evaluator::MembersOfT
     return Out;
 }
 
+std::vector<Volt::Repl::Evaluator::MemberFact> Volt::Repl::Evaluator::MembersOfModule ( const std::string_view ModuleName ) const
+{
+    const MiddleEnd::TypeSystem::TypeStore &Store = Impl->TheDriver.Layouts();
+    std::vector<MemberFact> Out;
+
+    const std::string TrimmedMod = std::string( Trim( ModuleName ) );
+    for ( const MiddleEnd::TypeSystem::Member &Entry : Store.FreeFunctions() )
+    {
+        if ( Entry.Module.IsValid() and Store.Text( Entry.Module ) == TrimmedMod )
+        {
+            const std::string Name( Store.Text( Entry.Name ) );
+            if ( not Name.starts_with( "__volt_" ) )
+            {
+                Out.push_back( Impl->FactOf( Entry, MiddleEnd::TypeSystem::NominalId{}, MiddleEnd::TypeSystem::NominalId{} ) );
+            }
+        }
+    }
+    return Out;
+}
+
 std::vector<std::string> Volt::Repl::Evaluator::FunctionNames () const
 {
     const MiddleEnd::TypeSystem::TypeStore &Store = Impl->TheDriver.Layouts();
@@ -858,6 +878,12 @@ std::vector<std::string> Volt::Repl::Evaluator::FunctionNames () const
     std::vector<std::string> Out;
     for ( const MiddleEnd::TypeSystem::Member &Entry : Store.FreeFunctions() )
     {
+        // If Entry is scoped inside a module (e.g. LibC.malloc, A.g), do NOT include it as a bare function name!
+        if ( Entry.Module.IsValid() and not Store.Text( Entry.Module ).empty() )
+        {
+            continue;
+        }
+
         std::string Name( Store.Text( Entry.Name ) );
         if ( not Name.starts_with( "__volt_" ) )
         {
@@ -874,11 +900,19 @@ std::vector<std::string> Volt::Repl::Evaluator::TypeNames () const
     const MiddleEnd::TypeSystem::TypeStore &Store = Impl->TheDriver.Layouts();
 
     std::vector<std::string> Out;
-    Out.reserve( Store.TypeCount() );
+    Out.reserve( Store.TypeCount() + Store.ModuleSymbols().size() );
     for ( std::size_t Index = 0; Index < Store.TypeCount(); ++Index )
     {
         Out.emplace_back(
             Store.Text( Store.Type( MiddleEnd::TypeSystem::NominalId{ static_cast<std::uint32_t>( Index ) } ).Name ) );
+    }
+    for ( const MiddleEnd::TypeSystem::Symbol Mod : Store.ModuleSymbols() )
+    {
+        std::string ModName( Store.Text( Mod ) );
+        if ( not ModName.empty() and not ModName.starts_with( "__volt_" ) )
+        {
+            Out.push_back( std::move( ModName ) );
+        }
     }
     std::sort( Out.begin(), Out.end() );
     Out.erase( std::unique( Out.begin(), Out.end() ), Out.end() );
@@ -888,6 +922,11 @@ std::vector<std::string> Volt::Repl::Evaluator::TypeNames () const
 bool Volt::Repl::Evaluator::KnowsType ( const std::string_view Name ) const
 {
     return Impl->TheDriver.Layouts().LookupType( Name ).has_value();
+}
+
+bool Volt::Repl::Evaluator::KnowsModule ( const std::string_view Name ) const
+{
+    return Impl->TheDriver.Layouts().IsModule( Trim( Name ) );
 }
 
 bool Volt::Repl::Evaluator::KnowsFunction ( const std::string_view Name ) const

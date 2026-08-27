@@ -264,12 +264,16 @@ namespace Repl
         // that has a type name rather than a value.
         [[nodiscard]] std::vector<MemberFact> MembersOfType ( std::string_view TypeName ) const;
 
+        // Every member a *named module* declares (e.g. LibC, A).
+        [[nodiscard]] std::vector<MemberFact> MembersOfModule ( std::string_view ModuleName ) const;
+
         [[nodiscard]] std::vector<std::string> FunctionNames () const;
         [[nodiscard]] std::vector<std::string> TypeNames () const;
 
         // Is this spelling a type the session knows? What a highlighter asks
         // before repainting an identifier.
         [[nodiscard]] bool KnowsType ( std::string_view Name ) const;
+        [[nodiscard]] bool KnowsModule ( std::string_view Name ) const;
         [[nodiscard]] bool KnowsFunction ( std::string_view Name ) const;
 
     private:

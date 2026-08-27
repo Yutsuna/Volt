@@ -98,15 +98,24 @@ struct Volt::Repl::Evaluator::State
         const TypeStore &Store       = TheDriver.Layouts();
         const TypeUniverse &Universe = Store.Universe();
 
-        if ( Depth > 16 or not Universe.Has( Id ) )
+        if ( Depth > 16 )
         {
             return Frontend::TypeId{};
+        }
+
+        if ( not Universe.Has( Id ) )
+        {
+            Frontend::TypeRef Ref;
+            Ref.Path.PushBack( Ast.Strings().Intern( "Void" ) );
+            return Ast.Add( Frontend::TypeNode{ std::move( Ref ) } );
         }
 
         const SemaType &Value = Universe.Get( Id );
         if ( not Value.Base.IsValid() or Value.Base.Value >= Store.TypeCount() )
         {
-            return Frontend::TypeId{};
+            Frontend::TypeRef Ref;
+            Ref.Path.PushBack( Ast.Strings().Intern( "Void" ) );
+            return Ast.Add( Frontend::TypeNode{ std::move( Ref ) } );
         }
 
         Frontend::TypeRef Ref;
