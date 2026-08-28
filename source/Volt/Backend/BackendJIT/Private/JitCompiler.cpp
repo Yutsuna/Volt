@@ -27,10 +27,12 @@
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <llvm/IR/CFG.h>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Metadata.h>
@@ -41,6 +43,7 @@
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 
 #include <llvm/MC/MCAsmInfo.h>
 #include <llvm/MC/MCContext.h>
@@ -172,21 +175,7 @@ constexpr const char *TierFlag = "volt.jit.tier";
 // (BackendLLVM/Private/Target/Optimizer.cpp).
 void RunPipeline ( llvm::Module &Mod, const llvm::OptimizationLevel Level )
 {
-    llvm::LoopAnalysisManager LAM;
-    llvm::FunctionAnalysisManager FAM;
-    llvm::CGSCCAnalysisManager CGAM;
-    llvm::ModuleAnalysisManager MAM;
-
-    llvm::PassBuilder PB;
-    PB.registerModuleAnalyses( MAM );
-    PB.registerCGSCCAnalyses( CGAM );
-    PB.registerFunctionAnalyses( FAM );
-    PB.registerLoopAnalyses( LAM );
-    PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
-
-    llvm::ModulePassManager MPM = Level == llvm::OptimizationLevel::O0 ? PB.buildO0DefaultPipeline( Level )
-                                                                      : PB.buildPerModuleDefaultPipeline( Level );
-    MPM.run( Mod, MAM );
+    Volt::Backend::Ir::RunOptimizationPipeline( Mod, Level );
 }
 
 // What level this module asked for, if it asked at all. Only a promoted
@@ -327,6 +316,60 @@ PartitionWithCallees ( llvm::orc::IRPartitionLayer::GlobalValueSet Requested )
 }
 
 #pragma GCC diagnostic pop
+
+// Call count threshold before a candidate function is promoted to -O2.
+// 100 avoids prematurely recompiling functions during brief startup loops while
+// swiftly promoting real hot paths (e.g. 300k iterations).
+constexpr std::uint64_t TierThreshold = 100;
+
+// Custom profiler for ReOptimizeLayer. Instruments only candidate functions.
+// If a partition holds only trivial/straight-line functions, it is left un-instrumented
+// and compiles at base O0 without any profiling penalty.
+llvm::Error ProfileIfCandidate ( llvm::orc::ReOptimizeLayer &,
+                                 llvm::orc::ReOptimizeLayer::ReOptMaterializationUnitID MUID,
+                                 unsigned CurVersion,
+                                 llvm::orc::ThreadSafeModule &Tsm )
+{
+    return Tsm.withModuleDo(
+        [&] ( llvm::Module &Mod ) -> llvm::Error
+        {
+            std::vector<llvm::Function *> Candidates;
+            for ( llvm::Function &Fn : Mod )
+            {
+                if ( Volt::Backend::Ir::IsCandidateForOptimization( Fn ) )
+                {
+                    Candidates.push_back( &Fn );
+                }
+            }
+
+            if ( Candidates.empty() )
+            {
+                return llvm::Error::success();
+            }
+
+            llvm::Type *I64Ty = llvm::Type::getInt64Ty( Mod.getContext() );
+            auto *Counter     = new llvm::GlobalVariable( Mod, I64Ty, false, llvm::GlobalValue::InternalLinkage,
+                                                          llvm::Constant::getNullValue( I64Ty ), "__orc_reopt_counter" );
+
+            llvm::Value *Threshold = llvm::ConstantInt::get( I64Ty, TierThreshold, true );
+
+            for ( llvm::Function *Fn : Candidates )
+            {
+                llvm::BasicBlock &Entry = Fn->getEntryBlock();
+                llvm::Instruction *IP   = &*Entry.getFirstInsertionPt();
+                llvm::IRBuilder<> IRB( IP );
+
+                llvm::Value *Cnt   = IRB.CreateLoad( I64Ty, Counter );
+                llvm::Value *Cmp   = IRB.CreateICmpEQ( Cnt, Threshold );
+                llvm::Value *Added = IRB.CreateAdd( Cnt, llvm::ConstantInt::get( I64Ty, 1 ) );
+                IRB.CreateStore( Added, Counter );
+
+                llvm::Instruction *SplitTerminator = llvm::SplitBlockAndInsertIfThen( Cmp, IP, false );
+                llvm::orc::ReOptimizeLayer::createReoptimizeCall( Mod, *SplitTerminator, MUID, CurVersion );
+            }
+            return llvm::Error::success();
+        } );
+}
 
 // A module holding only declarations resolves nothing and materialises
 // nothing, so adding it to a dylib costs a symbol-table scan and buys an entry
@@ -489,8 +532,7 @@ bool Volt::Backend::Jit::JitCompiler::BuildLazyStack ( const std::uint8_t Tier )
     // consumed rather than reported: falling back is not a failure, and
     // Policy() is how a caller learns it happened.
     llvm::Expected<std::unique_ptr<llvm::orc::LazyCallThroughManager>> CallThroughs =
-        llvm::orc::createLocalLazyCallThroughManager( Machine, Session,
-                                                      llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
+        llvm::orc::createLocalLazyCallThroughManager( Machine, Session, llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
     if ( not CallThroughs )
     {
         llvm::consumeError( CallThroughs.takeError() );
@@ -534,8 +576,8 @@ bool Volt::Backend::Jit::JitCompiler::InstallTiering ( const std::uint8_t Tier )
     // touches is a declaration resolved back to the module it was split from.
     // So every partition is eligible, and the unit of promotion becomes the
     // call tree rather than the unit, which is the granularity worth having.
-    auto *Objects                        = llvm::dyn_cast<llvm::orc::ObjectLinkingLayer>( &P->Jit->getObjLinkingLayer() );
-    llvm::orc::JITDylib *const Platform  = P->Jit->getPlatformJITDylib().get();
+    auto *Objects                       = llvm::dyn_cast<llvm::orc::ObjectLinkingLayer>( &P->Jit->getObjLinkingLayer() );
+    llvm::orc::JITDylib *const Platform = P->Jit->getPlatformJITDylib().get();
     if ( Objects == nullptr or Platform == nullptr )
     {
         return false;
@@ -578,10 +620,11 @@ bool Volt::Backend::Jit::JitCompiler::InstallTiering ( const std::uint8_t Tier )
         [Tier] ( llvm::orc::ReOptimizeLayer &, llvm::orc::ReOptimizeLayer::ReOptMaterializationUnitID, unsigned,
                  llvm::orc::ResourceTrackerSP, llvm::orc::ThreadSafeModule &Tsm ) -> llvm::Error
         {
-            Tsm.withModuleDo( [Tier] ( llvm::Module &Mod )
-                              { Mod.setModuleFlag( llvm::Module::Override, TierFlag, Tier ); } );
+            Tsm.withModuleDo( [Tier] ( llvm::Module &Mod ) { Mod.setModuleFlag( llvm::Module::Override, TierFlag, Tier ); } );
             return llvm::Error::success();
         } );
+
+    ReOpt->setAddProfilerFunc( ProfileIfCandidate );
 
     P->Redirects = std::move( *Redirects );
     P->ReOpt     = std::move( ReOpt );
@@ -786,11 +829,10 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
         // across an implementation dylib of its own, so removing the tracker
         // this generation holds would leave half of it behind — which is
         // exactly what makes a lazy generation undroppable.
-        llvm::Error Err =
-            Found->second.bLazy
-                ? P->OnDemand->add( Found->second.Dylib == nullptr ? P->Jit->getMainJITDylib() : *Found->second.Dylib,
-                                    std::move( Safe ) )
-                : P->Jit->addIRModule( Found->second.Tracker, std::move( Safe ) );
+        llvm::Error Err = Found->second.bLazy ? P->OnDemand->add( Found->second.Dylib == nullptr ? P->Jit->getMainJITDylib()
+                                                                                                 : *Found->second.Dylib,
+                                                                  std::move( Safe ) )
+                                              : P->Jit->addIRModule( Found->second.Tracker, std::move( Safe ) );
         if ( Err )
         {
             OutError = "jit: could not add the module '" + Name + "': " + Consume( std::move( Err ) );
