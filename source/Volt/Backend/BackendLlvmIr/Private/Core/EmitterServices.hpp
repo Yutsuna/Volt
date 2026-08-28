@@ -159,6 +159,16 @@ namespace Backend
             return Services.Options != nullptr and Services.Options->Granularity == Ir::EModuleGranularity::PerUnit;
         }
 
+        // Calls reach their callee through `@volt.fn.<sym>` rather than by
+        // relocation. Named here beside PerUnitModules because it has stopped
+        // being one emitter's private question: it is the single announcement
+        // that this build will be reloaded, and everything that has to stay
+        // movable afterwards — a call site, a vtable's pointers — reads it.
+        [[nodiscard]] inline bool IndirectLinkage ( const EmitterServices &Services )
+        {
+            return Services.Options != nullptr and Services.Options->Linkage == Ir::ELinkage::Indirect;
+        }
+
     } // namespace Llvm
 
 } // namespace Backend

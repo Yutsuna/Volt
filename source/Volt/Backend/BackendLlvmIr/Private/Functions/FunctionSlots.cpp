@@ -16,11 +16,7 @@ namespace
 {
 
 using Volt::Backend::Llvm::EmitterServices;
-
-bool IndirectLinkage ( const EmitterServices &Services )
-{
-    return Services.Options != nullptr and Services.Options->Linkage == Volt::Backend::Ir::ELinkage::Indirect;
-}
+using Volt::Backend::Llvm::IndirectLinkage;
 
 // Find-or-create, without deciding whether this module defines the body: both
 // SlotFor and DefineLocalSlots want the same object, and which of them reaches

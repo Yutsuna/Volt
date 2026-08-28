@@ -351,6 +351,11 @@ std::vector<std::string> Volt::Backend::Ir::IrGenerator::DefinedSymbols () const
     return Impl->AllDefined;
 }
 
+std::vector<Volt::Backend::Ir::IrGenerator::VTableEntry> Volt::Backend::Ir::IrGenerator::VTableEntries () const
+{
+    return Impl->VTables == nullptr ? std::vector<VTableEntry>{} : Impl->VTables->Entries();
+}
+
 std::vector<Volt::Backend::Ir::IrGenerator::UnitShape> Volt::Backend::Ir::IrGenerator::LastUnitShapes () const
 {
     return Impl->LastShapes;
