@@ -241,6 +241,7 @@ if jit_enabled
         ['Ok/BodyChanged', 'exit 7'],
         ['Ok/CalleeChanged', 'exit 10'],
         ['Ok/DynamicCalleeChanged', 'exit 7'],
+        ['Ok/LiveReload', 'exit 9'],
         ['Refused/SignatureChanged', 'changed shape'],
         ['Refused/LayoutChanged', 'changed size, alignment or existence'],
         ['Refused/DoesNotCompile', 'keeping the running code'],
