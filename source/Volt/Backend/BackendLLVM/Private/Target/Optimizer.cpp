@@ -125,22 +125,7 @@ namespace
 
 void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
 {
-    llvm::LoopAnalysisManager LAM;
-    llvm::FunctionAnalysisManager FAM;
-    llvm::CGSCCAnalysisManager CGAM;
-    llvm::ModuleAnalysisManager MAM;
-
-    llvm::PassBuilder PB( Services->Machine );
-
-    PB.registerModuleAnalyses( MAM );
-    PB.registerCGSCCAnalyses( CGAM );
-    PB.registerFunctionAnalyses( FAM );
-    PB.registerLoopAnalyses( LAM );
-    PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
-
     const llvm::OptimizationLevel Level = OptimizationLevelOf( Services->Options->OptLevel, Services->Options->bLto );
-
-    llvm::ModulePassManager MPM;
 
     // An entry symbol is what makes this module a program rather than a library:
     // a library build (the precompiled stdlib artifact, either kind) clears it
@@ -151,6 +136,20 @@ void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
 
     if ( bWholeProgram )
     {
+        llvm::LoopAnalysisManager LAM;
+        llvm::FunctionAnalysisManager FAM;
+        llvm::CGSCCAnalysisManager CGAM;
+        llvm::ModuleAnalysisManager MAM;
+
+        llvm::PassBuilder PB( Services->Machine );
+        PB.registerModuleAnalyses( MAM );
+        PB.registerCGSCCAnalyses( CGAM );
+        PB.registerFunctionAnalyses( FAM );
+        PB.registerLoopAnalyses( LAM );
+        PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
+
+        llvm::ModulePassManager MPM;
+
         // Before the pipeline, not after: internal linkage is an input to
         // inlining, argument promotion and constant propagation, so a body that
         // survives the cut is optimised knowing every one of its call sites.
@@ -161,9 +160,8 @@ void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
         // pipelines but not the O0 one, and at -O0 the dead bodies are exactly
         // the ones there is no point handing to the object emitter.
         MPM.addPass( llvm::GlobalDCEPass() );
+        MPM.run( *Services->Mod, MAM );
     }
 
-    MPM.addPass( Level == llvm::OptimizationLevel::O0 ? PB.buildO0DefaultPipeline( Level )
-                                                      : PB.buildPerModuleDefaultPipeline( Level ) );
-    MPM.run( *Services->Mod, MAM );
+    Volt::Backend::Ir::RunOptimizationPipeline( *Services->Mod, Level, Services->Machine );
 }
