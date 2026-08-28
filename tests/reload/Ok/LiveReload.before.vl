@@ -1,0 +1,11 @@
+def tick -> Int32
+  1
+end
+
+def __volt_entry -> Int32
+  turns = 0
+  while tick() == 1
+    turns += 1
+  end
+  tick()
+end
