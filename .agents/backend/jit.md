@@ -283,6 +283,41 @@ change *for a function with live frames*; the JIT cannot inspect the stack, so
 it refuses any signature change. Never wrong, sometimes conservative. The
 fallback is a full restart, which this target makes cheap.
 
+### The vtable is the caller a slot does not reach
+
+A `dyn Trait` call does not load `@volt.fn.<sym>`. It loads the address out of
+`@_VTable_<Concrete>_<Trait>`, and that array *holds* the address — nothing
+stands between the two to repoint. Patching the slots therefore moved every
+direct call and left every dynamic dispatch running the old body.
+
+Three changes fix it, all confined to `ELinkage::Indirect`:
+
+- The array is emitted **writable** (`VTableRegistry`). Constant is what a
+  vtable is, and giving that up costs an AOT build its read-only placement and
+  its devirtualisation — so the AOT build does not give it up. Indirect
+  linkage is the announcement that this program will be reloaded, and it is the
+  only thing that flips the bit.
+- There is **one array per (concrete, trait) pair in the whole session**. A
+  later emission — a replacement unit, a REPL line — asks
+  `IrOptions::IsAlreadyDefined` and, when the answer is yes, declares the array
+  instead of building a second one. A second copy would be a second answer to
+  the same dispatch, and only one of the two would ever be patched.
+- `IrGenerator::VTableEntries()` reports every `(array, index, symbol)` the
+  emission named, and `JitBackend::PatchVTables` writes the new address into
+  each entry whose symbol the reload moved. Same single aligned store as step 4
+  above, same guarantee.
+
+Two failures cannot be repaired by writing into the array, so they are refused
+alongside the signature and layout checks:
+
+| the new unit | why no store helps |
+| --- | --- |
+| upcasts to a trait nothing had upcast to | there is no array; the running program was compiled without one |
+| moves a method's position in its trait | the slot index is a constant in every dispatch already compiled |
+
+Both are the same one-sided doctrine as the other refusals: sometimes
+needlessly strict, never wrong.
+
 ## REPL
 
 One `LLJIT`, one growing set of generations. Each line is an incremental
