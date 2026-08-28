@@ -8,25 +8,36 @@
 #include "JitCompiler.hpp"
 
 #include "Volt/BackendLlvmIr/OptimizationLevel.hpp"
+#include "Volt/Core/Support/PhaseTimer.hpp"
 
+#include <llvm/ExecutionEngine/Orc/CompileOnDemandLayer.h>
 #include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/IRPartitionLayer.h>
 #include <llvm/ExecutionEngine/Orc/IRTransformLayer.h>
+#include <llvm/ExecutionEngine/Orc/IndirectionUtils.h>
+#include <llvm/ExecutionEngine/Orc/JITLinkRedirectableSymbolManager.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/LazyReexports.h>
+#include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/Orc/ReOptimizeLayer.h>
+#include <llvm/ExecutionEngine/Orc/RedirectionManager.h>
 #include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TargetSelect.h>
 
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Instructions.h>
+#include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
 #include <llvm/Passes/PassBuilder.h>
+#include <llvm/Support/Casting.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
@@ -43,6 +54,10 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/TargetParser/Triple.h>
 
+#include <unistd.h>
+
+#include <atomic>
+#include <cstdio>
 #include <cstdlib>
 
 #include <map>
@@ -141,12 +156,58 @@ void PinPromisedSymbols ( llvm::Module &Mod )
     }
 }
 
+// The name a re-optimised module carries its level under.
+//
+// A module flag rather than a second transform function, because the answer has
+// to travel *with* the module: ReOptimizeLayer hands a promoted partition back
+// down to the very layer the first version went through, and nothing else about
+// it tells the two apart.
+constexpr const char *TierFlag = "volt.jit.tier";
+
+// PassBuilder's default pipeline for `Level`, over one module.
+//
+// The O0 pipeline is not "no pipeline": it is the minimal semantically-required
+// set, principally mem2reg, and this emitter never builds SSA itself. The
+// ahead-of-time tail says the same thing from the other side
+// (BackendLLVM/Private/Target/Optimizer.cpp).
+void RunPipeline ( llvm::Module &Mod, const llvm::OptimizationLevel Level )
+{
+    llvm::LoopAnalysisManager LAM;
+    llvm::FunctionAnalysisManager FAM;
+    llvm::CGSCCAnalysisManager CGAM;
+    llvm::ModuleAnalysisManager MAM;
+
+    llvm::PassBuilder PB;
+    PB.registerModuleAnalyses( MAM );
+    PB.registerCGSCCAnalyses( CGAM );
+    PB.registerFunctionAnalyses( FAM );
+    PB.registerLoopAnalyses( LAM );
+    PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
+
+    llvm::ModulePassManager MPM = Level == llvm::OptimizationLevel::O0 ? PB.buildO0DefaultPipeline( Level )
+                                                                      : PB.buildPerModuleDefaultPipeline( Level );
+    MPM.run( Mod, MAM );
+}
+
+// What level this module asked for, if it asked at all. Only a promoted
+// partition ever does.
+std::optional<llvm::OptimizationLevel> TierOf ( const llvm::Module &Mod )
+{
+    const auto *Asked = llvm::mdconst::extract_or_null<llvm::ConstantInt>( Mod.getModuleFlag( TierFlag ) );
+    if ( Asked == nullptr )
+    {
+        return std::nullopt;
+    }
+    return Volt::Backend::Ir::OptimizationLevelOf( static_cast<std::uint8_t>( Asked->getZExtValue() ) );
+}
+
 // Where a lazy call-through lands when the body it was supposed to compile
 // could not be compiled.
 //
-// LLLazyJIT defaults this to address 0, which turns a compile failure into a
-// jump to a null pointer — a SIGSEGV with the trampoline's frame on the stack
-// and nothing to read. It is reached *from JIT-ed code*, in the middle of the
+// The call-through manager takes this address at construction, and the one
+// thing it must not be is the default: a zero there turns a compile failure
+// into a jump to a null pointer — a SIGSEGV with the trampoline's frame on the
+// stack and nothing to read. It is reached *from JIT-ed code*, in the middle of the
 // user's program, with that call's arguments still in registers, so there is
 // nothing sensible to return: the only honest thing left is to say what
 // happened and stop.
@@ -296,12 +357,40 @@ struct Volt::Backend::Jit::JitCompiler::Impl
 
     std::unique_ptr<llvm::orc::LLJIT> Jit;
 
-    // The same object as Jit when the session is lazy, null when it is not.
-    // LLLazyJIT *is* an LLJIT and everything below goes through the base;
-    // this exists solely for addLazyIRModule, which the base does not have.
-    llvm::orc::LLLazyJIT *Lazy = nullptr;
+    // Everything below is declared *after* Jit so that it is destroyed
+    // *before* it, and the order among them is dependency order read
+    // backwards. That is not a preference: ~LLJIT ends the ExecutionSession,
+    // and a ResourceTracker still held by one of these afterwards would run its
+    // destructor against a session that no longer exists — which does not
+    // crash, it hangs, on a mutex in freed memory.
+    //
+    // It is also the order LLVM itself uses. LLLazyJIT holds the same lazy
+    // stack as members of a class deriving from LLJIT, so its own members go
+    // first and the base's session-ending destructor goes last.
+
+    // ReOptimizeLayer's MangleAndInterner keeps a *reference* to the DataLayout
+    // it is handed, so it cannot be handed LLJIT's: that one dies last.
+    llvm::DataLayout Layout;
+
+    // Jump stubs a symbol can be repointed through, which is what makes a
+    // second version of a function reachable by callers compiled against the
+    // first. JITLink's implementation, because LLJIT links with JITLink.
+    std::unique_ptr<llvm::orc::RedirectableSymbolManager> Redirects;
+
+    // The three objects LLLazyJIT would have owned, plus the one it has no room
+    // for. The three are null together: either this session has a lazy stack or
+    // it does not.
+    std::unique_ptr<llvm::orc::LazyCallThroughManager> CallThroughs;
+    std::unique_ptr<llvm::orc::ReOptimizeLayer> ReOpt;
+    std::unique_ptr<llvm::orc::IRPartitionLayer> Partitions;
+    std::unique_ptr<llvm::orc::CompileOnDemandLayer> OnDemand;
 
     ECompilePolicy CompilePolicy = ECompilePolicy::Eager;
+
+    // Whether ReOpt is in the stack. Not `ReOpt != nullptr` at the call sites
+    // that ask, because what they mean is "will hot code be built twice", and
+    // that is a policy answer rather than a pointer.
+    bool bTiered = false;
 
     // One batch, added together and removed together.
     struct Generation
@@ -345,8 +434,6 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const SessionOptions &Wanted, std::
 {
     InitialiseNativeTarget();
 
-    const llvm::OptimizationLevel Level = Ir::OptimizationLevelOf( Wanted.OptLevel );
-
     // The TargetMachine's own CodeGenOptLevel is deliberately left alone, and
     // that is worth stating because it looks like an omission.
     //
@@ -362,31 +449,6 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const SessionOptions &Wanted, std::
     // 167 ms. `-O` is one promise across both tails, so if the back-end level
     // is ever to follow it, both tails have to move together — this is not the
     // file that gets to decide it alone.
-    if ( Wanted.Policy == ECompilePolicy::Lazy )
-    {
-        llvm::orc::LLLazyJITBuilder Builder;
-        Builder.setNumCompileThreads( Wanted.CompileThreads );
-        Builder.setLazyCompileFailureAddr( llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
-
-        if ( llvm::Expected<std::unique_ptr<llvm::orc::LLLazyJIT>> Built = Builder.create() )
-        {
-            P->Lazy = Built->get();
-            P->Lazy->setPartitionFunction( PartitionWithCallees );
-            P->Jit           = std::move( *Built );
-            P->CompilePolicy = ECompilePolicy::Lazy;
-            InstallPipeline( Level );
-            return true;
-        }
-        else
-        {
-            // Lazy needs trampolines LLVM only has for some architectures, and
-            // a machine without them still deserves to run the program. The
-            // Error is consumed rather than reported: falling back is not a
-            // failure, and Policy() is how a caller learns it happened.
-            llvm::consumeError( Built.takeError() );
-        }
-    }
-
     llvm::orc::LLJITBuilder Builder;
     Builder.setNumCompileThreads( Wanted.CompileThreads );
 
@@ -397,9 +459,133 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const SessionOptions &Wanted, std::
         return false;
     }
 
-    P->Jit           = std::move( *Built );
-    P->CompilePolicy = ECompilePolicy::Eager;
-    InstallPipeline( Level );
+    P->Jit    = std::move( *Built );
+    P->Layout = P->Jit->getDataLayout();
+
+    // One LLJIT either way. The lazy stack is four objects added on top of it
+    // rather than a different JIT class, which is what lets the tiering layer
+    // sit in the middle of them.
+    const bool bLazy = Wanted.Policy == ECompilePolicy::Lazy and BuildLazyStack( Wanted.OptLevel );
+    P->CompilePolicy = bLazy ? ECompilePolicy::Lazy : ECompilePolicy::Eager;
+
+    // What the base pipeline runs at, which is not always what `-O` said.
+    //
+    // A tiered session compiles *everything* at O0 and promotes what turns out
+    // hot, so `-O2` names the level a second compile will reach rather than the
+    // level of the first. Everything else — every eager session, and a lazy one
+    // that could not build the tiering layer — takes `-O` at face value, which
+    // is what 8a made it mean.
+    InstallPipeline( Ir::OptimizationLevelOf( P->bTiered ? std::uint8_t{ 0 } : Wanted.OptLevel ) );
+    return true;
+}
+
+bool Volt::Backend::Jit::JitCompiler::BuildLazyStack ( const std::uint8_t Tier )
+{
+    llvm::orc::ExecutionSession &Session = P->Jit->getExecutionSession();
+    const llvm::Triple &Machine          = P->Jit->getTargetTriple();
+
+    // Lazy needs trampolines LLVM only has for some architectures, and a
+    // machine without them still deserves to run the program. The Error is
+    // consumed rather than reported: falling back is not a failure, and
+    // Policy() is how a caller learns it happened.
+    llvm::Expected<std::unique_ptr<llvm::orc::LazyCallThroughManager>> CallThroughs =
+        llvm::orc::createLocalLazyCallThroughManager( Machine, Session,
+                                                      llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
+    if ( not CallThroughs )
+    {
+        llvm::consumeError( CallThroughs.takeError() );
+        return false;
+    }
+
+    // getIRTransformLayer, not the init-helper layer above it, because that one
+    // is protected and LLJIT hands out no way to reach it. What it would have
+    // added is the platform's module transform, which for the generic LLVM IR
+    // platform rewrites llvm.global_ctors and llvm.global_dtors into init
+    // functions — and Volt emits neither: initialisation is `_V_init_all`, a
+    // function the entry point calls like any other.
+    llvm::orc::IRLayer &Below = Tier > 0 and InstallTiering( Tier )
+                                    ? static_cast<llvm::orc::IRLayer &>( *P->ReOpt )
+                                    : static_cast<llvm::orc::IRLayer &>( P->Jit->getIRTransformLayer() );
+
+    P->CallThroughs = std::move( *CallThroughs );
+    P->Partitions   = std::make_unique<llvm::orc::IRPartitionLayer>( Session, Below );
+    P->Partitions->setPartitionFunction( PartitionWithCallees );
+    P->OnDemand = std::make_unique<llvm::orc::CompileOnDemandLayer>(
+        Session, *P->Partitions, *P->CallThroughs, llvm::orc::createLocalIndirectStubsManagerBuilder( Machine ) );
+    return true;
+}
+
+bool Volt::Backend::Jit::JitCompiler::InstallTiering ( const std::uint8_t Tier )
+{
+    // Below the partitioning, and that placement is the whole reason this
+    // works at all.
+    //
+    // ReOptimizeLayer replaces every symbol it takes over with a jump stub it
+    // can later repoint, and a stub is only a thing a *function* can have — so
+    // it declines, silently and by design, any module whose interface holds a
+    // data symbol. A Volt module always does: a unit with a top-level variable
+    // exports it, and the type tables are external constants. Placed above the
+    // partitioning it would therefore take over the stdlib units and skip the
+    // one the user's hot loop is in, which is worse than not tiering at all.
+    //
+    // A partition is the other shape. IRPartitionLayer promotes the module's
+    // internal symbols and hands down a submodule holding one call tree, whose
+    // interface is the functions in it and nothing else — every global it
+    // touches is a declaration resolved back to the module it was split from.
+    // So every partition is eligible, and the unit of promotion becomes the
+    // call tree rather than the unit, which is the granularity worth having.
+    auto *Objects                        = llvm::dyn_cast<llvm::orc::ObjectLinkingLayer>( &P->Jit->getObjLinkingLayer() );
+    llvm::orc::JITDylib *const Platform  = P->Jit->getPlatformJITDylib().get();
+    if ( Objects == nullptr or Platform == nullptr )
+    {
+        return false;
+    }
+
+    llvm::Expected<std::unique_ptr<llvm::orc::RedirectableSymbolManager>> Redirects =
+        llvm::orc::JITLinkRedirectableSymbolManager::Create( *Objects );
+    if ( not Redirects )
+    {
+        llvm::consumeError( Redirects.takeError() );
+        return false;
+    }
+
+    auto ReOpt = std::make_unique<llvm::orc::ReOptimizeLayer>( P->Jit->getExecutionSession(), P->Layout,
+                                                               P->Jit->getIRTransformLayer(), **Redirects );
+
+    // The dispatch a promoted function calls out through. "Lite" because it is
+    // the in-process stand-in for the ORC runtime, which this JIT does not load
+    // — it defines __orc_rt_jit_dispatch as an absolute symbol pointing back
+    // into this process rather than into a runtime library.
+    if ( llvm::Error Err = ReOpt->addOrcRTLiteSupport( *Platform, P->Layout ) )
+    {
+        llvm::consumeError( std::move( Err ) );
+        return false;
+    }
+    if ( llvm::Error Err = ReOpt->registerRuntimeFunctions( *Platform ) )
+    {
+        llvm::consumeError( std::move( Err ) );
+        return false;
+    }
+
+    // All this has to do is say what level the second build wants; the
+    // pipeline that reads it is the one InstallPipeline already put in the
+    // layer below (TierOf).
+    //
+    // The module it is handed is the partition as it was *before* profiling —
+    // ReOptimizeLayer keeps a pristine clone for exactly this — so the counter
+    // and the dispatch call are not in the code that replaces them.
+    ReOpt->setReoptimizeFunc(
+        [Tier] ( llvm::orc::ReOptimizeLayer &, llvm::orc::ReOptimizeLayer::ReOptMaterializationUnitID, unsigned,
+                 llvm::orc::ResourceTrackerSP, llvm::orc::ThreadSafeModule &Tsm ) -> llvm::Error
+        {
+            Tsm.withModuleDo( [Tier] ( llvm::Module &Mod )
+                              { Mod.setModuleFlag( llvm::Module::Override, TierFlag, Tier ); } );
+            return llvm::Error::success();
+        } );
+
+    P->Redirects = std::move( *Redirects );
+    P->ReOpt     = std::move( ReOpt );
+    P->bTiered   = true;
     return true;
 }
 
@@ -434,22 +620,22 @@ void Volt::Backend::Jit::JitCompiler::InstallPipeline ( const llvm::Optimization
                 {
                     PinPromisedSymbols( Mod );
 
-                    llvm::LoopAnalysisManager LAM;
-                    llvm::FunctionAnalysisManager FAM;
-                    llvm::CGSCCAnalysisManager CGAM;
-                    llvm::ModuleAnalysisManager MAM;
-
-                    llvm::PassBuilder PB;
-                    PB.registerModuleAnalyses( MAM );
-                    PB.registerCGSCCAnalyses( CGAM );
-                    PB.registerFunctionAnalyses( FAM );
-                    PB.registerLoopAnalyses( LAM );
-                    PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
-
-                    llvm::ModulePassManager MPM = Level == llvm::OptimizationLevel::O0
-                                                      ? PB.buildO0DefaultPipeline( Level )
-                                                      : PB.buildPerModuleDefaultPipeline( Level );
-                    MPM.run( Mod, MAM );
+                    // Timed, and timed under two names, because under Lazy this
+                    // is where the compiling happens: it runs inside the
+                    // program's own execution, long after backend.jit.add and
+                    // backend.jit.materialize have closed on ~0.2 ms of
+                    // bookkeeping. A promoted module is separated out because
+                    // the whole question tiering asks is what the second build
+                    // costs against what the first one saved.
+                    //
+                    // The pass pipeline only, not the instruction selection
+                    // below it — a transform has no way to bracket the layer it
+                    // hands the module on to. At -O2 the pipeline is the larger
+                    // half, and at O0 neither half is much.
+                    const std::optional<llvm::OptimizationLevel> Promoted = TierOf( Mod );
+                    const Volt::Core::PhaseScope Timing( Promoted.has_value() ? "backend.jit.reoptimize"
+                                                                              : "backend.jit.optimize" );
+                    RunPipeline( Mod, Promoted.value_or( Level ) );
                 } );
             return Tsm;
         } );
@@ -458,6 +644,11 @@ void Volt::Backend::Jit::JitCompiler::InstallPipeline ( const llvm::Optimization
 Volt::Backend::Jit::ECompilePolicy Volt::Backend::Jit::JitCompiler::Policy () const
 {
     return P->CompilePolicy;
+}
+
+bool Volt::Backend::Jit::JitCompiler::Tiering () const
+{
+    return P->bTiered;
 }
 
 std::string Volt::Backend::Jit::JitCompiler::TargetTriple () const
@@ -572,15 +763,33 @@ bool Volt::Backend::Jit::JitCompiler::AddModules ( GenerationId Gen, Ir::OwnedMo
             llvm::raw_string_ostream Text( P->LastIrText );
             Mod->print( Text, nullptr );
         }
+
+        // What LLJIT::addIRModule does on the way past, and the lazy path no
+        // longer goes past it. A module typed for a machine other than the one
+        // that will run it is a miscompile rather than a link error, so this is
+        // checked rather than assumed — the emitter asks DataLayoutString() for
+        // exactly this string, which makes it a check that never fires.
+        if ( Mod->getDataLayout().isDefault() )
+        {
+            Mod->setDataLayout( P->Layout );
+        }
+        else if ( Mod->getDataLayout() != P->Layout )
+        {
+            OutError = "jit: the module '" + Name + "' was typed for a different machine than the one running it";
+            return false;
+        }
+
         llvm::orc::ThreadSafeModule Safe( std::move( Mod ), P->Ctx );
 
         // The one line the whole policy comes down to. Lazy goes to the dylib
-        // because addLazyIRModule has no ResourceTracker overload — which is
+        // rather than to a tracker: the on-demand layer splits the module
+        // across an implementation dylib of its own, so removing the tracker
+        // this generation holds would leave half of it behind — which is
         // exactly what makes a lazy generation undroppable.
         llvm::Error Err =
             Found->second.bLazy
-                ? P->Lazy->addLazyIRModule( Found->second.Dylib == nullptr ? P->Jit->getMainJITDylib() : *Found->second.Dylib,
-                                            std::move( Safe ) )
+                ? P->OnDemand->add( Found->second.Dylib == nullptr ? P->Jit->getMainJITDylib() : *Found->second.Dylib,
+                                    std::move( Safe ) )
                 : P->Jit->addIRModule( Found->second.Tracker, std::move( Safe ) );
         if ( Err )
         {

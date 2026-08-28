@@ -11,13 +11,11 @@
 // only ever opens one; hot reload and the REPL are what the concept is for.
 
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
-#include "Volt/BackendLlvmIr/OptimizationLevel.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
-#include <string_view>
 
 namespace Volt
 {
@@ -67,10 +65,23 @@ namespace Backend
             ECompilePolicy Policy = ECompilePolicy::Eager;
 
             // What `-O<n>` asked for, meaning the same thing it means to
-            // `volt build` (Ir::OptimizationLevelOf). Two separate things
-            // follow from it, and both are off by default in LLJIT: the
-            // TargetMachine's codegen level, and whether any IR pass runs at
-            // all before instruction selection.
+            // `volt build` (Ir::OptimizationLevelOf).
+            //
+            // *When* it is paid for depends on Policy, and the two readings are
+            // the same promise about the code that ends up mattering:
+            //
+            //   Eager  — every module is optimised at this level as it is
+            //            compiled, which is the only thing a session that
+            //            compiles everything up front can do.
+            //   Lazy   — nothing is. Every partition is built at O0, and only
+            //            one that turns out to be called often is built again
+            //            at this level (JitCompiler.cpp, InstallTiering). A
+            //            program that runs one function 300k times gets it
+            //            optimised; a program that touches 150 functions once
+            //            each never pays for optimising any of them.
+            //
+            // 0 means neither: there is no second level to promote anything to,
+            // so a lazy session leaves the re-optimisation layer out entirely.
             std::uint8_t OptLevel = 0;
         };
 
@@ -98,6 +109,15 @@ namespace Backend
             // the fallback above fired, and a caller that reports timings wants
             // to say which of the two it measured.
             [[nodiscard]] ECompilePolicy Policy () const;
+
+            // Whether hot code will be built a second time at `OptLevel`.
+            //
+            // False for the same three reasons Policy() can differ from what
+            // was asked for — no `-O`, no lazy stack, or no redirectable
+            // symbols on this target — and for the same reason it is worth
+            // asking: a run that reports its own timings is otherwise unable to
+            // say which of the two shapes produced them.
+            [[nodiscard]] bool Tiering () const;
 
             // Both come from LLJIT, not from the host: the module has to be
             // typed for the machine that will actually run it.
@@ -188,7 +208,34 @@ namespace Backend
             // Point LLJIT's IR transform layer — the identity until now — at
             // PassBuilder's pipeline for `Level`. Called by Init once the JIT
             // exists, whichever of the two it ended up building.
+            //
+            // `Level` is the floor rather than the rule: a module that carries
+            // a tier flag overrides it, which is how a re-optimised partition
+            // comes back through this same layer and gets a different pipeline.
             void InstallPipeline ( llvm::OptimizationLevel Level );
+
+            // Assemble the lazy stack over the LLJIT Init just built: the
+            // call-through manager, the partition layer, and the on-demand
+            // layer that lazy modules are added to.
+            //
+            // These are the three objects LLLazyJIT would have owned. They are
+            // built here instead because tiering has to go *between* two of
+            // them — a re-optimisation layer below the partitioning sees one
+            // call tree at a time, all of it code, which is the only shape it
+            // accepts (JitCompiler.cpp, InstallTiering) — and LLLazyJIT hands
+            // out no seam to put it in.
+            //
+            // False when this target has no lazy trampolines, which is Init's
+            // cue to fall back to Eager.
+            [[nodiscard]] bool BuildLazyStack ( std::uint8_t Tier );
+
+            // Put ORC's ReOptimizeLayer under the partition layer, so that a
+            // partition called often enough is compiled again at `Tier`.
+            //
+            // False when the target cannot support it, which leaves the lazy
+            // stack exactly as it was: tiering is an addition to that stack,
+            // never a precondition for it.
+            [[nodiscard]] bool InstallTiering ( std::uint8_t Tier );
 
             struct Impl;
             std::unique_ptr<Impl> P;

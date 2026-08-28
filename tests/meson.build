@@ -231,6 +231,28 @@ if jit_enabled
                 workdir: meson.project_source_root(),
                 suite: 'jit-indirect',
             )
+
+            # `-O2` under the default lazy policy is the tiered shape: every
+            # partition is built at O0, and one called often enough is built
+            # again at O2 while the program that called it waits. Every sample
+            # has to end the same way it does untiered — a promoted function
+            # replacing itself mid-run is the one thing here that could quietly
+            # change an answer rather than fail loudly.
+            test(
+                'jit-tiered/' + rel_test,
+                sh,
+                args: [
+                    '-c',
+                    '"$1" run -O2 -i "$2" >/dev/null 2>&1; CODE=$?; EXP="$(grep "^exit=" "$3" | cut -d= -f2)"; [ "$CODE" -eq "$EXP" ]',
+                    'sh',
+                    volt_exe.full_path(),
+                    root_rel_test,
+                    expected_path,
+                ],
+                depends: volt_exe,
+                workdir: meson.project_source_root(),
+                suite: 'jit-tiered',
+            )
         endif
     endforeach
 
