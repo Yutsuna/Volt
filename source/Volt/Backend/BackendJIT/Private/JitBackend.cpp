@@ -363,8 +363,10 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     }
 
     std::string Error;
-    const ECompilePolicy Wanted = Impl->Options.bLazyCompilation ? ECompilePolicy::Lazy : ECompilePolicy::Eager;
-    if ( not Impl->Compiler.Init( Impl->Options.CompileThreads, Wanted, Error ) )
+    const SessionOptions Wanted{ .CompileThreads = Impl->Options.CompileThreads,
+                                 .Policy         = Impl->Options.bLazyCompilation ? ECompilePolicy::Lazy : ECompilePolicy::Eager,
+                                 .OptLevel       = Impl->Options.OptLevel };
+    if ( not Impl->Compiler.Init( Wanted, Error ) )
     {
         static_cast<void>( Impl->Fail( std::move( Error ) ) );
         return;
