@@ -33,7 +33,9 @@ Usage: volt circuit [options]
 Usage: volt run [options] [input_file] [-- ...]
     -i INPUT, --input INPUT          File input source program
     -s, --stdin                      Read input from stdin
-    -w, --watch                      Recompile and hot-reload on file change
+    -w, --watch                      Recompile and hot-reload on file change; the
+                                     program runs on its own thread, so one that
+                                     never returns is reloaded in place
     --no-lazy                        Compile every function up front, not on its first call
     -h, --help                       Show help
 
@@ -90,8 +92,10 @@ Usage: volt build-stdlib [options]
   Driver pipeline (one `CompileUnit` per input, REPL = incremental units), then
   `BackendJIT` through the `IJitBackend` seam (`backend/jit.md`). Neither takes
   `--target`: the backend for these two is not user-selectable. `run --watch`
-  adds hot reload; both are unavailable in a build configured without LLVM or
-  without the JIT, and say so rather than failing obscurely.
+  adds hot reload, and runs the program on a thread of its own so a program that
+  never returns can still be reloaded into; both are unavailable in a build
+  configured without LLVM or without the JIT, and say so rather than failing
+  obscurely.
 - `circuit` → `Driver::CompileCircuit` / Project.vl scaffolding.
 - `build` → the full Driver pipeline, then a code generator selected by
   `--target` through the `IBackend` seam (`BACKEND.md`): `native` →
