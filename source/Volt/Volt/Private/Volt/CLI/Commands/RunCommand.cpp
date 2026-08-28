@@ -59,7 +59,8 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FRunCommand::GetOptions ()
             [this] ( std::string_view ) { this->bNoLazy = true; }
         },
         {
-            "-w", "--watch", "", "Stay resident: on a source change, reload the file that moved and run again",
+            "-w", "--watch", "",
+            "Stay resident: on a source change, reload the file that moved into the running program, or run again if it finished",
             [this] ( std::string_view ) { this->bWatch = true; }
         },
         {
