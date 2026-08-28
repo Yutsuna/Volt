@@ -1,6 +1,6 @@
 # Epic #132 — Faster Backend JIT — handoff
 
-State as of 2026-08-27. Branch `Epic/132-backendjit-faster-backend-jit`.
+State as of 2026-08-28. Branch `Epic/132-backendjit-faster-backend-jit`.
 
 This file exists so the next agent does not re-derive what has already been measured
 or re-litigate what has already been decided. Read it before touching `BackendJIT`.
@@ -9,14 +9,14 @@ or re-litigate what has already been decided. Read it before touching `BackendJI
 
 ## 1. The epic
 
-`gh issue view 132`. Four sub-issues, none closed:
+`gh issue view 132`. Four sub-issues, none closed on GitHub:
 
 | # | Title | State |
 |---|---|---|
-| **#122** | Perf(Volt): Lazy JIT Tiering | **Step 1 done, committed.** See §3–§5. |
+| **#122** | Perf(Volt): Lazy JIT Tiering | **Steps 1, 2a and 2b done** (2a–2b uncommitted). §3–§5, §8. |
 | #121 | Perf(Volt): Heap Snapshot (mmap the stdlib AST + type table) | Not started. **Deprioritise — see §6.** |
-| #125 | Feat(BackendJIT): live process hot-reloading in a dedicated thread | Not started. Crosses #122, see §7. |
-| #126 | Fix(BackendJIT): update or reject vtable dispatch during hot reload | Not started. See §7. |
+| #125 | Feat(BackendJIT): live process hot-reloading in a dedicated thread | **Done, commited.** See §7. |
+| #126 | Fix(BackendJIT): update or reject vtable dispatch during hot reload | **Done, commited.** See §7. |
 
 #122 corresponds to milestone **M5** in `.agents/PLAN_BACKEND_JIT.md` §8, whose stated
 deliverable is "mesure de démarrage sur un gros circuit". That measurement now exists (§4).
@@ -25,7 +25,7 @@ deliverable is "mesure de démarrage sur un gros circuit". That measurement now 
 
 - **Step 0 — measure.** Done. §4.
 - **Step 1 — laziness** (`LLLazyJIT` / `CompileOnDemandLayer`). Done. §3, §5.
-- **Step 2 — tiering** (`ReOptimizeLayer`, re-JIT hot functions at O2). **Not started.** §8.
+- **Step 2 — tiering** (`ReOptimizeLayer`, re-JIT hot functions at O2). **Done, uncommitted.** §8.
 
 ---
 
@@ -77,10 +77,10 @@ personality-less (`UnwindTransport.hpp`); there is no `CreateInvoke`/landingpad 
 in the backend. The classic LLLazyJIT hazard — an exception crossing a call-through
 trampoline — does not exist here.
 
-**h) `JitOptions::OptLevel` is declared and never read** (`JitBackend.hpp`). The JIT runs
-at O0 unconditionally; only the stdlib artifact reads that field (`DriverRun.cpp:104`).
-Relevant to Step 2: before re-JITting hot functions at O2, the JIT must be able to
-compile at O2 at all. That is a small independent task.
+**h) `JitOptions::OptLevel` is declared and never read** — *was* true; fixed in §8a. The
+JIT ran no IR pass at all, at any `-O`. It now runs PassBuilder's pipeline through LLJIT's
+IR transform layer. §8b uses it: re-JITting a hot function at O2 re-runs this pipeline at
+a higher level, which is what `TierOf` + `RunPipeline` do.
 
 **i) LLVM 22.1.8 has everything needed**, nothing deprecated: `LLLazyJIT` /
 `LLLazyJITBuilder` (`LLJIT.h:269,564`), `IRPartitionLayer`, `CompileOnDemandLayer`,
@@ -234,25 +234,200 @@ Two orders of magnitude apart.
 
 ## 7. Interaction with #125 and #126
 
-**#125 (run the program in its own thread).** `LocalLazyCallThroughManager` performs a
-**blocking lookup on the calling thread**. With `CompileThreads = 0` that is synchronous
-and safe today, because only one thread is ever inside the `ExecutionSession`. #125 puts
-the program on its own thread while the watch loop compiles — two threads in the session
-at once. **Do #125 with this in mind, or before further lazy work.**
+**#125 (run the program in its own thread). Done.**
 
-**#126 (vtables under hot reload).** Under lazy, vtable entries emitted as constant
-function pointers receive the *stub* address, which is stable. That neither fixes #126
-(a stub from an old generation still reaches the old body) nor worsens it. The
-short-term `EReloadStatus::Refused` path proposed in the issue is unaffected.
+`volt run --watch` now starts the program on a `ProgramThread` (DriverRun.cpp) and polls
+immediately instead of waiting for it to return. Before this, a program that never
+returned — a server, an event loop, the only two programs a hot reload is *for* — never
+reached the watch loop at all, so "reload" could only ever mean "run the whole thing
+again".
+
+Which of the two happens is now decided by the program: still running → nothing restarts
+it, the patched slots take effect at its next call; already returned → started again,
+exactly as before. **Liveness is sampled twice, before the emission and after the patch,
+and either yes counts.** That is not defensive coding, it is the bug I actually hit: the
+first cut sampled once, after the patch, and reported "running again" for a program that
+had exited *because of* the patch — a loop whose condition had just become false leaves
+before the store returns. Do not collapse the two samples back into one.
+
+The `PatchSlots` / `PatchVTables` stores are now `std::atomic_ref` relaxed rather than
+bare stores. The machine did the right thing already; the point is that a bare store to
+memory another thread reads is a data race by the letter of the standard, and this is
+the one window in the whole mechanism.
+
+Test: `jit-reload/Ok/LiveReload`. Its `.after.vl` never returns *when started from
+scratch*, so `exit 9` can only be reached by an execution already inside the old loop.
+A regression that restarts instead of patching spins forever and the test times out.
+
+Two things checked and left alone:
+
+- `LocalLazyCallThroughManager` performs a **blocking lookup on the calling thread**, and
+  there are now two threads in the `ExecutionSession`. ORC supports this
+  (`InPlaceTaskDispatcher` runs the task on whichever thread asked), and the full suite is
+  green with lazy on by default, which is the combination `--watch` uses. Nothing was
+  changed for it. If a deadlock ever shows up here, this is the first place to look.
+- `State::Transport` caches the calling thread's unwind slot table. Sound only because
+  the one caller of `ExceptionTag` is `EvalUnit` — a REPL, single-threaded. `Run` never
+  touches it, which is why the program thread is safe. Whoever gives *EvalUnit* a thread
+  has to resolve the accessor per call instead. A comment says so at the declaration.
+
+**#126 (vtables under hot reload). Done — the long-term fix, not the rejection.**
+
+The bug, reproduced before touching anything: `d.area` on a `Dynamic<Shape>` kept
+returning the old value after a reload that `PatchSlots` reported as successful. A
+`dyn Trait` call reads its callee out of `@_VTable_<Concrete>_<Trait>`, and that array
+*holds* the address — there is no `@volt.fn.<sym>` between the two to repoint.
+
+Fixed by making the array patchable instead, all of it gated on `ELinkage::Indirect` so
+an AOT build keeps `internal constant` and its devirtualisation (verified on
+`samples/Tests/OOP/DynamicDispatch.vl` with `volt build --emit ir`):
+
+1. `VTableRegistry` emits the array writable under indirect linkage, and *declares*
+   rather than defines it when `IrOptions::IsAlreadyDefined` says the session already
+   has one. That last part is what guarantees a single array per (concrete, trait) pair
+   across the whole session — a replacement unit or a REPL line would otherwise build a
+   second copy, and only one of the two would ever be patched. It also closes a latent
+   REPL bug of the same shape.
+2. `IrGenerator::VTableEntries()` reports every `(array, index, symbol)` named.
+   `JitBackend::State::VTables` records the build-wide list at `Finalize`,
+   `PatchVTables` writes into each entry whose symbol the reload moved. Same single
+   aligned store as `PatchSlots`.
+3. Two new refusals, in the same one-sided style as the signature and layout ones: a
+   unit that upcasts to a trait nothing had upcast to (there is no array), and a unit
+   that moves a method's position in its trait (the slot index is a constant in every
+   dispatch already compiled).
+
+Tests: `jit-reload/Ok/DynamicCalleeChanged`, `jit-reload/Refused/TraitAdded`,
+`jit-reload/Refused/VTableReordered`. The first one fails on `main`.
+
+Interaction with lazy: none that matters. `PatchVTables` looks the array up through
+`Compiler.Lookup`, which materialises it exactly as `PatchSlots` already does for a
+slot.
+
+Files: `VTableRegistry.{hpp,cpp}`, `EmitterServices.hpp` (`IndirectLinkage` moved out of
+`FunctionSlots.cpp` — two files ask now), `IrGenerator.hpp` (`VTableEntry`,
+`VTableEntries`, `IsAlreadyDefined`'s contract widened), `IrGenerator.cpp`,
+`JitBackend.cpp`, `.agents/backend/jit.md`, `tests/meson.build`, `tests/reload/`.
 
 ---
 
-## 8. Step 2 — tiering (not started)
+## 8. Step 2 — the pipeline (done) and tiering (done)
 
-`ReOptimizeLayer.h` exists in LLVM 22.1.8 with `reoptimizeIfCallFrequent` as its default
-profiler. Prerequisite: fact (h) above — make `JitOptions::OptLevel` actually do
-something first. That is small, independent, and probably worth more in the short term
-than tiering itself.
+### 8a. `-O` now does something. Done, uncommitted.
+
+Fact (h) was the prerequisite and it is discharged. `JitCompiler::InstallPipeline` points
+LLJIT's IR transform layer — the identity until now — at PassBuilder, at the level
+`Ir::OptimizationLevelOf` reports. That function is new, and it lives in `BackendLlvmIr`
+rather than in either tail because `volt build -O2` and `volt run -O2` are one promise;
+`BackendLLVM/Private/Target/Optimizer.cpp` now delegates the mapping to it and keeps only
+the LTO override, which is the one thing an ahead-of-time build has and a JIT does not.
+
+Measured with the modes **alternated inside one loop**, two binaries side by side:
+
+| | flag ignored | `-O0` | `-O3` |
+|---|---|---|---|
+| run-bound (300k Collatz) | 130 ms | 132 ms | **84 ms** |
+| compile-bound (150 fns, all called) | 366 ms | 347 ms | 789 ms |
+
+`-O0` is a wash on both axes. It stays on because it costs nothing and makes the two
+tails emit the same IR. `-O1`+ buys ~35 % faster code for ~2× compile time.
+
+**Do not trust the sequential version of this measurement.** Run one after the other, the
+same benchmark reported 167 ms / 137 ms / 84 ms and told a story about mem2reg that
+alternating flatly contradicts (§10, first two bullets — I walked into it again).
+
+Two things cost real time and are now written down in `.agents/backend/jit.md`:
+
+- **A transform layer may not delete what ORC promised.** ORC reads the module's symbol
+  table when the module is *added*; the transform runs after. Volt's mergeable bodies are
+  `linkonce_odr` — discardable *and* externally reachable — so the O0 pipeline's
+  AlwaysInliner inlined them and dropped the out-of-line copies, failing materialisation
+  with `Missing definitions in module ...`. All 87 `jit-whole` tests went red at once;
+  `jit` and `jit-indirect` stayed green because PerUnit gives those bodies external
+  linkage. `PinPromisedSymbols` raises `linkonce` to `weak` first, the same fix
+  `IrOptions::bRetainMergeableBodies` makes at emission.
+- **`CodeGenOptLevel` is deliberately not set from `-O`.** The AOT tail calls
+  `createTargetMachine` with no level, so `volt build -O0` gets LLVM's `Default` too.
+  Setting it JIT-side only made `volt run -O0` mean nothing-optimised: 364 ms against 130.
+  Reverted. If it is ever to follow `-O`, both tails move together.
+
+### 8b. Tiering. Done, uncommitted.
+
+`LLLazyJIT` is replaced by a plain `LLJIT` with a manual lazy stack built on top
+(`BuildLazyStack`), because the tiering layer has to go *between* two of the three objects
+`LLLazyJIT` would have owned, and `LLLazyJIT` hands out no seam to put it in.
+
+The stack, bottom to top:
+
+```
+CompileOnDemandLayer       — splits into partitions, stubs
+IRPartitionLayer           — one call tree per partition (PartitionWithCallees)
+ReOptimizeLayer            — profiles, re-submits hot partitions with TierFlag
+IRTransformLayer           — reads TierFlag → RunOptimizationPipeline(O0 or O2)
+ObjectLinkingLayer         — instruction selection, linking
+```
+
+**Shared Architecture across Backends (`BackendLlvmIr`).**
+Rather than hardcoding optimization logic in `BackendJIT` or duplicating it across `BackendLLVM` and `BackendJIT`, the core optimization and analysis primitives live in `BackendLlvmIr` (`OptimizationLevel.hpp` / `OptimizationLevel.cpp`):
+- `Volt::Backend::Ir::RunOptimizationPipeline( Mod, Level, Machine )` — central PassBuilder pipeline runner shared by both AOT (`BackendLLVM/Private/Target/Optimizer.cpp`) and JIT (`BackendJIT/Private/JitCompiler.cpp`).
+- `Volt::Backend::Ir::HasLoop( Fn )` and `Volt::Backend::Ir::IsCandidateForOptimization( Fn )` — shared CFG and instruction-complexity analysis helpers.
+
+**Smart Profiler & Tiering Heuristics (`ProfileIfCandidate`).**
+Instead of LLVM's default `reoptimizeIfCallFrequent` which blindly instruments every straight-line function (adding counter stores and block splits to 150 trivial functions in `cold.vl`), `JitCompiler` uses a custom profiler function:
+1. Functions without loops and under 30 instructions are filtered out and compiled in O0 with **0 profiling overhead**.
+2. Candidates with loops/complex bodies use a threshold of 100 calls (`TierThreshold = 100`) before triggering promotion to -O2.
+
+**Placement is the whole decision.** `ReOptimizeLayer` replaces every symbol it takes over
+with a jump stub it can later repoint, and a stub is only a thing a *function* can have —
+so it declines, silently and by design, any module whose interface holds a data symbol. A
+Volt module always does (type tables, globals). Above the partitioning it would therefore
+take over the stdlib units and skip the one the user's hot loop is in, which is worse than
+not tiering at all. Below it, every partition is pure code — every global it touches is a
+declaration resolved back to the module it was split from — so every partition is eligible,
+and the unit of promotion becomes the call tree rather than the unit.
+
+`InstallTiering` (`JitCompiler.cpp`) assembles it:
+
+1. `JITLinkRedirectableSymbolManager::Create` — the jump stubs a symbol can be repointed
+   through, JITLink's implementation because LLJIT links with JITLink.
+2. `ReOptimizeLayer` constructed over `IRTransformLayer`, with `addOrcRTLiteSupport` and
+   `registerRuntimeFunctions` on the platform dylib — the in-process stand-in for the ORC
+   runtime, defining `__orc_rt_jit_dispatch` as an absolute symbol.
+3. `setReoptimizeFunc` sets the tier flag (`volt.jit.tier`) on the module so that the
+   transform layer's `TierOf` reads it and runs the pipeline at the promoted level
+   instead of at O0.
+4. `setAddProfilerFunc` registers `ProfileIfCandidate`.
+
+**The base pipeline runs at O0 when tiering is active.** `Init` passes
+`OptimizationLevelOf( bTiered ? 0 : Wanted.OptLevel )` to `InstallPipeline`. A partition
+that never crosses the threshold never pays for optimisation. A partition that does is
+re-submitted with the tier flag set, re-enters `InstallPipeline`'s transform, hits `TierOf`,
+and gets `RunOptimizationPipeline` at the level `-O` named.
+
+**`Tiering()` query** reports whether the tiering layer is in the stack. False for the same
+three reasons `Policy()` can differ from what was asked for — no `-O`, no lazy stack, or no
+redirectable symbols on this target.
+
+**Tests: `jit-tiered/` suite** (98 tests). Every sample run with `volt run -O2` (lazy +
+tiering) must produce the same exit code as without. A promoted function replacing itself
+mid-run is the one thing that could quietly change an answer.
+
+**Timing split.** `InstallPipeline`'s transform now times under two names:
+`backend.jit.optimize` for the first build, `backend.jit.reoptimize` for a promoted
+partition (`TierOf` returns a value). Under Lazy both fire inside the program's own
+execution, long after `backend.jit.add` and `backend.jit.materialize` have closed.
+
+Files changed:
+
+```
+source/Volt/Backend/BackendLlvmIr/Public/.../OptimizationLevel.hpp   RunOptimizationPipeline, HasLoop, IsCandidateForOptimization
+source/Volt/Backend/BackendLlvmIr/Private/OptimizationLevel.cpp     implementations shared by both backends
+source/Volt/Backend/BackendLLVM/Private/Target/Optimizer.cpp        delegates default pipeline to BackendLlvmIr
+source/Volt/Backend/BackendJIT/Private/JitCompiler.hpp              BuildLazyStack, InstallTiering, Tiering(), SessionOptions doc
+source/Volt/Backend/BackendJIT/Private/JitCompiler.cpp              manual lazy stack, ReOptimizeLayer, ProfileIfCandidate,
+                                                                      TierFlag/TierOf, PhaseScope timing, data layout validation
+tests/meson.build                                                   jit-tiered/ suite (98 tests)
+```
 
 ---
 
@@ -285,8 +460,25 @@ wall clock rather than `volt run -v` (§10).
   libstdc++ red-black-tree internals, and missing members on `LLLazyJITBuilder` that
   exist. Every one of those is spurious — the real `-Werror` build accepts the code.
   Ignore the IDE diagnostics for `BackendJIT`; trust `ninja -C build`.
+- **A green `ninja -C build` does not mean the code compiles.** `build` is Debug (`-Og`);
+  `build-release` is `-O3`, and `-Werror` there catches what inlining reveals.
+  `PartitionWithCallees` (§6) passed Debug and the full suite, then failed Release with
+  `-Wnull-dereference` fired from *inside* LLVM's headers: at -O3 GCC inlines
+  `ilist_iterator_w_bits::operator++` far enough to see the intrusive list's sentinel
+  `Next == nullptr` and calls walking a basic block a null dereference. It is a false
+  positive, the sentinel is what `end()` compares against, and **no spelling of the loop
+  avoids it** — block-by-block instead of `llvm::instructions()` moves the message, not
+  the cause. Fixed with a `#pragma GCC diagnostic` scoped to that one function;
+  `-Wnull-dereference` is deliberately on project-wide (`meson/meson.build`) and is worth
+  keeping everywhere else. **Build Release before calling anything in this epic done.**
+- **A new `.cpp` needs `meson setup --reconfigure <builddir>`, per build directory.**
+  Every module's source list is a `run_command(find ...)` evaluated at *configure* time
+  (see any `meson.build`), so ninja never notices a file that did not exist when the
+  directory was configured. The symptom is not a missing file — it is `mold: error:
+  undefined symbol` at link, which reads like a missing export macro and is not.
 - **Never run two builds at once** (`.agents/rules/build-performance.md`, stated in
-  capitals). `ninja -C build` for Debug, `ninja -C build-asan` for ASAN.
-- **`format` is `clang-format -i -style=file`** over `source/Volt/**`, run once at the end
-  of a phase. `tidy` only at the end of the epic.
+  capitals). `ninja -C build` for Debug, `ninja -C build-release` for Release,
+  `ninja -C build-asan` for ASAN.
+- **Format with `ninja -C build format`**, the build's own target — not `clang-format`
+  invoked by hand. Once at the end of a phase. `tidy` never (it cannot run: `-freflection`).
 - Do not commit or push without being asked.
