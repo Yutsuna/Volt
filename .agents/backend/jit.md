@@ -265,10 +265,37 @@ Reload of an edited file:
 4. For each symbol the unit defines, look up the materialised address and store
    it into that symbol's `@volt.fn.*` slot.
 
-Step 4's store is the only race, and it is a single aligned pointer write: a
-concurrent thread reads either the old address or the new one, never a mixture.
-That is the same guarantee `vm.md` phrased as "the patch window is between two
-instructions".
+Step 4's store is the only race, and it is a single aligned pointer write
+(`std::atomic_ref`, relaxed — the emitted `load ptr @volt.fn.<sym>` is an
+ordinary load with no acquire to pair with): a concurrent thread reads either
+the old address or the new one, never a mixture. That is the same guarantee
+`vm.md` phrased as "the patch window is between two instructions".
+
+### The program runs on its own thread
+
+"A concurrent thread" is not hypothetical. `volt run --watch` starts the program
+on a thread of its own (`ProgramThread`, DriverRun.cpp) and begins polling
+immediately, without waiting for it to return.
+
+That is what makes a hot reload mean anything for the two programs it is
+actually for. With the program on the watch thread, the loop was only reached
+*after* the program returned — a server or an event loop never reached it at
+all, and the only thing "reload" could mean was "run the whole program again".
+
+Which of the two happens is decided by the program, not by an option:
+
+| at reload time | what happens |
+| --- | --- |
+| still running | nothing restarts it; the slots it calls through now point at the new bodies, so the change lands at its next call and everything it holds in memory survives |
+| already returned | started again, exactly as before #125 — for a script that is the only sensible reading of "reload" |
+
+Liveness is sampled twice, before the emission and after the patch, and either
+yes counts. Neither moment alone is right: a program can end during the second a
+replacement takes to compile, and a program can end *because of* the patch — a
+loop whose condition just became false exits before the store returns.
+`jit-reload/Ok/LiveReload` is exactly that program, and its `.after.vl` never
+returns when started from scratch, so the test can only pass by patching a
+live one.
 
 **The old generation is never removed.** `ResourceTracker::remove()` unmaps
 executable memory, and a live frame executing there would take a SIGSEGV.
