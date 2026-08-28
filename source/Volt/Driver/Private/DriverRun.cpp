@@ -18,11 +18,13 @@
     #include "Volt/Core/Log/Logger.hpp"
 
     #include <algorithm>
+    #include <atomic>
     #include <chrono>
     #include <cstdint>
     #include <filesystem>
     #include <iostream>
     #include <map>
+    #include <span>
     #include <thread>
     #include <utility>
     #include <vector>
@@ -60,6 +62,92 @@ Stamp StampOf ( const std::string &Path )
     const std::filesystem::file_time_type Written = std::filesystem::last_write_time( Path, Ec );
     return Ec ? Stamp{} : Stamp{ .Written = Written, .Size = Size };
 }
+
+// The program, on a thread of its own.
+//
+// Not an optimisation: it is what makes a *live* reload mean anything. With the
+// program on this thread, `volt run --watch` could only poll once the program
+// had returned, so a server or an event loop — the two programs a hot reload is
+// actually for — never reached the watch loop at all. The one that finishes
+// keeps behaving exactly as it did: it is reaped, and the next accepted reload
+// starts it again.
+//
+// Nothing here is shared with the watch loop except the two atomics. The
+// backend is: the watch loop compiles into it and patches slots while this
+// thread executes the code those slots reach, which is the one interleaving the
+// whole indirection was built for (jit.md, "Hot reload").
+class ProgramThread
+{
+
+public:
+
+    ProgramThread ( const ProgramThread & )           = delete;
+    ProgramThread &operator=( const ProgramThread & ) = delete;
+    ProgramThread ( ProgramThread && )                = delete;
+    ProgramThread &operator=( ProgramThread && )      = delete;
+
+    ProgramThread () = default;
+
+    ~ProgramThread ()
+    {
+        // A program that never returns is never joinable, and this is reached
+        // only when the watch loop is torn down — at which point the process is
+        // going away with it.
+        if ( Worker.joinable() )
+        {
+            Worker.detach();
+        }
+    }
+
+    void Start ( Volt::Backend::Jit::JitBackend &Jit, std::span<const std::string_view> Args )
+    {
+        if ( Worker.joinable() )
+        {
+            Worker.join();
+        }
+        bEnded.store( false, std::memory_order_relaxed );
+        bStarted = true;
+        Worker   = std::thread(
+            [this, &Jit, Args] ()
+            {
+                Result = Jit.Run( Args );
+                bEnded.store( true, std::memory_order_release );
+            } );
+    }
+
+    // Started, and has not returned. What decides whether an accepted reload
+    // lands in a live program or starts a new one.
+    [[nodiscard]] bool Running () const
+    {
+        return bStarted and not bEnded.load( std::memory_order_acquire );
+    }
+
+    // The result of a run that has just ended, once. Returns nothing while the
+    // program is still going, and nothing again for a run already reported —
+    // the watch loop asks every poll and wants to say "exit N" one time.
+    [[nodiscard]] std::optional<Volt::Backend::RunResult> Reap ()
+    {
+        if ( not bStarted or not bEnded.load( std::memory_order_acquire ) )
+        {
+            return std::nullopt;
+        }
+        Worker.join();
+        bStarted = false;
+        return Result;
+    }
+
+private:
+
+    std::thread Worker;
+
+    // Written by the worker as its last act, read by the watch loop every
+    // poll. Release/acquire rather than relaxed because Result is published
+    // through it.
+    std::atomic<bool> bEnded{ false };
+
+    bool bStarted = false;
+    Volt::Backend::RunResult Result;
+};
 
 } // namespace
 #endif
@@ -142,9 +230,9 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
         Args.emplace_back( Arg );
     }
 
-    Backend::RunResult Ran = JitImpl.Run( Args );
-    if ( not Options.bWatch or not Ran.bOk )
+    if ( not Options.bWatch )
     {
+        const Backend::RunResult Ran = JitImpl.Run( Args );
         return RunResult{ .bOk = Ran.bOk, .Code = Ran.Code, .Message = Ran.Message };
     }
 
@@ -153,8 +241,26 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
     // This Driver stays alive for the whole loop: it owns the type store the
     // running code was laid out against, and every reload is judged against
     // that, not against the previous reload.
-    Core::FLogger::Info( "exit " + std::to_string( Ran.Code ) + " — watching for changes (Ctrl-C to stop)", "watch" );
+    //
+    // The program goes on its own thread and the loop starts watching straight
+    // away, without waiting for it. A program that returns in a millisecond is
+    // reaped on the first poll and reads exactly as it always did; a program
+    // that does not return is the reason any of this exists.
+    ProgramThread Program;
+    Program.Start( JitImpl, Args );
+
+    Core::FLogger::Info( "watching for changes (Ctrl-C to stop)", "watch" );
     Core::FLogger::Flush();
+
+    const auto ReportIfEnded = [&Program] ()
+    {
+        if ( const std::optional<Backend::RunResult> Ended = Program.Reap() )
+        {
+            Core::FLogger::Info( Ended->bOk ? "exit " + std::to_string( Ended->Code ) : "run failed: " + Ended->Message,
+                                 "watch" );
+            Core::FLogger::Flush();
+        }
+    };
 
     std::map<std::string, Stamp> Seen;
     for ( std::size_t Index = StdlibUnitCount(); Index < UnitCount(); ++Index )
@@ -165,6 +271,7 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
     while ( true )
     {
         std::this_thread::sleep_for( std::chrono::milliseconds( PollInterval ) );
+        ReportIfEnded();
 
         std::string Changed;
         for ( auto &[Path, Was] : Seen )
@@ -215,6 +322,15 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
             continue;
         }
 
+        // Asked *before* the emission, and asked again after the patch, because
+        // neither moment alone is the right one. A program can end during the
+        // second the replacement takes to compile, and a program can end
+        // *because of* the patch — a loop whose condition just became false is
+        // the smallest example, and it exits before the store returns. Either
+        // answer being yes means the reload was aimed at a live process, which
+        // is the only question the restart below turns on.
+        const bool bWasLive = Program.Running();
+
         const Backend::ReloadResult Reloaded = JitImpl.Reload( FreshIn, *Found );
         if ( Reloaded.Status != Backend::EReloadStatus::Ok )
         {
@@ -225,16 +341,30 @@ Volt::Driver::RunResult Volt::Driver::Driver::Run ( const RunOptions &Options )
             continue;
         }
 
-        Core::FLogger::Info( "reloaded " + std::to_string( Reloaded.PatchedSymbols ) + " symbol(s) — running again", "watch" );
-        Core::FLogger::Flush();
+        const std::string Patched = "reloaded " + std::to_string( Reloaded.PatchedSymbols ) + " symbol(s) — ";
 
-        // The whole program again, entry point included: every call the new
-        // bodies are reached by goes through a slot that now points at them, so
-        // a second run executes the change without anything else being
-        // recompiled.
-        Ran = JitImpl.Run( Args );
-        Core::FLogger::Info( Ran.bOk ? "exit " + std::to_string( Ran.Code ) : "run failed: " + Ran.Message, "watch" );
+        // The two halves of a hot reload, and which one happens is decided by
+        // the program rather than by an option.
+        //
+        // Still running: nothing restarts it. The slots it calls through now
+        // point at the new bodies, so the change takes effect at the next call
+        // — the next request a server serves, the next turn of an event loop —
+        // and everything the program had built up in memory survives it.
+        //
+        // Already returned: the same slots, but nobody is reading them, so the
+        // program is started again to execute the change. That is what `volt
+        // run --watch` has always done, and for a script it remains the only
+        // sensible reading of "reload".
+        if ( bWasLive or Program.Running() )
+        {
+            Core::FLogger::Info( Patched + "the running program picks them up at its next call", "watch" );
+            Core::FLogger::Flush();
+            continue;
+        }
+
+        Core::FLogger::Info( Patched + "running again", "watch" );
         Core::FLogger::Flush();
+        Program.Start( JitImpl, Args );
     }
 #endif
 }
