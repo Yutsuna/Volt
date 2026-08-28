@@ -7,9 +7,12 @@
 
 #include "JitCompiler.hpp"
 
+#include "Volt/BackendLlvmIr/OptimizationLevel.hpp"
+
 #include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/IRPartitionLayer.h>
+#include <llvm/ExecutionEngine/Orc/IRTransformLayer.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/Shared/ExecutorAddress.h>
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
@@ -22,6 +25,8 @@
 #include <llvm/IR/InstIterator.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/PassManager.h>
+#include <llvm/Passes/PassBuilder.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
@@ -93,6 +98,46 @@ void DumpIfAsked ( const llvm::Module &Mod )
     if ( not Ec )
     {
         Mod.print( Out, nullptr );
+    }
+}
+
+// Keep every definition the module already promised.
+//
+// ORC reads a module's symbol table when it *adds* the module and promises
+// exactly that set; a transform layer runs afterwards, and materialisation
+// fails outright — "Missing definitions in module ..." — if a promised symbol
+// is not defined by the time the object comes out. So an optimisation pipeline
+// running here is not free to delete what a pipeline running over a translation
+// unit would happily delete.
+//
+// One linkage is discardable and reachable from outside at the same time, and
+// it is the one Volt uses for mergeable bodies: linkonce(_odr). The O0
+// pipeline's AlwaysInliner inlines such a body at every call site inside the
+// module and then drops the out-of-line copy, having left no reference to it —
+// correct for a translation unit, fatal here. Raising it to weak is exactly
+// what IrOptions::bRetainMergeableBodies does at emission, for exactly this
+// reason, one layer earlier.
+//
+// Internal and private definitions are deliberately left alone: ORC never
+// promised those, so deleting one is the pipeline doing its job.
+void PinPromisedSymbols ( llvm::Module &Mod )
+{
+    const auto Pin = [] ( llvm::GlobalValue &Value )
+    {
+        if ( Value.isDeclaration() or not Value.hasLinkOnceLinkage() )
+        {
+            return;
+        }
+        Value.setLinkage( Value.hasLinkOnceODRLinkage() ? llvm::GlobalValue::WeakODRLinkage : llvm::GlobalValue::WeakAnyLinkage );
+    };
+
+    for ( llvm::Function &Fn : Mod )
+    {
+        Pin( Fn );
+    }
+    for ( llvm::GlobalVariable &Global : Mod.globals() )
+    {
+        Pin( Global );
     }
 }
 
@@ -296,14 +341,31 @@ Volt::Backend::Jit::JitCompiler::JitCompiler () : P( std::make_unique<Impl>() )
 
 Volt::Backend::Jit::JitCompiler::~JitCompiler () = default;
 
-bool Volt::Backend::Jit::JitCompiler::Init ( const unsigned CompileThreads, const ECompilePolicy Wanted, std::string &OutError )
+bool Volt::Backend::Jit::JitCompiler::Init ( const SessionOptions &Wanted, std::string &OutError )
 {
     InitialiseNativeTarget();
 
-    if ( Wanted == ECompilePolicy::Lazy )
+    const llvm::OptimizationLevel Level = Ir::OptimizationLevelOf( Wanted.OptLevel );
+
+    // The TargetMachine's own CodeGenOptLevel is deliberately left alone, and
+    // that is worth stating because it looks like an omission.
+    //
+    // There are two levels, not one: the pass pipeline decides what the IR
+    // looks like, CodeGenOptLevel decides how hard instruction selection and
+    // register allocation then work on it. Volt's `-O` has never meant the
+    // second one — the AOT tail calls createTargetMachine with no level at all
+    // (BackendLlvmIr/Private/Core/ModuleContext.cpp), so `volt build -O0` gets
+    // LLVM's Default there too, and LLJIT's default is the same.
+    //
+    // Setting it here was measured and reverted: it made `volt run -O0` mean
+    // *nothing* optimised, at 364 ms on a benchmark the untouched build ran in
+    // 167 ms. `-O` is one promise across both tails, so if the back-end level
+    // is ever to follow it, both tails have to move together — this is not the
+    // file that gets to decide it alone.
+    if ( Wanted.Policy == ECompilePolicy::Lazy )
     {
         llvm::orc::LLLazyJITBuilder Builder;
-        Builder.setNumCompileThreads( CompileThreads );
+        Builder.setNumCompileThreads( Wanted.CompileThreads );
         Builder.setLazyCompileFailureAddr( llvm::orc::ExecutorAddr::fromPtr( &LazyCompileFailed ) );
 
         if ( llvm::Expected<std::unique_ptr<llvm::orc::LLLazyJIT>> Built = Builder.create() )
@@ -312,6 +374,7 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const unsigned CompileThreads, cons
             P->Lazy->setPartitionFunction( PartitionWithCallees );
             P->Jit           = std::move( *Built );
             P->CompilePolicy = ECompilePolicy::Lazy;
+            InstallPipeline( Level );
             return true;
         }
         else
@@ -325,7 +388,7 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const unsigned CompileThreads, cons
     }
 
     llvm::orc::LLJITBuilder Builder;
-    Builder.setNumCompileThreads( CompileThreads );
+    Builder.setNumCompileThreads( Wanted.CompileThreads );
 
     llvm::Expected<std::unique_ptr<llvm::orc::LLJIT>> Built = Builder.create();
     if ( not Built )
@@ -336,7 +399,60 @@ bool Volt::Backend::Jit::JitCompiler::Init ( const unsigned CompileThreads, cons
 
     P->Jit           = std::move( *Built );
     P->CompilePolicy = ECompilePolicy::Eager;
+    InstallPipeline( Level );
     return true;
+}
+
+void Volt::Backend::Jit::JitCompiler::InstallPipeline ( const llvm::OptimizationLevel Level )
+{
+    // Runs at O0 too, and that is the whole reason this exists rather than
+    // being skipped when nobody asked for optimisation.
+    //
+    // LLJIT's IR transform layer is the identity by default, so until now the
+    // JIT handed instruction selection exactly what the emitter wrote — and
+    // what the emitter writes is an alloca per local, in the entry block, with
+    // no SSA anywhere (BackendLLVM/Private/Target/Optimizer.cpp says the same
+    // thing from the other tail). mem2reg lives in PassBuilder's O0 pipeline,
+    // so the ahead-of-time build has always had it and the JIT never did.
+    //
+    // The whole-program prologue that tail runs first — InternalizePass, then
+    // GlobalDCE — is deliberately absent here, and it is not an oversight: a
+    // JIT module is a *fragment*. Under PerUnit every other unit's code is in
+    // another module, and under Lazy a partition is a fragment of that, so
+    // "nothing outside this module reaches this symbol" is false for almost
+    // everything in it. Internalising on that basis would delete bodies the
+    // next module is about to call.
+    P->Jit->getIRTransformLayer().setTransform(
+        [Level] ( llvm::orc::ThreadSafeModule Tsm,
+                  const llvm::orc::MaterializationResponsibility & ) -> llvm::Expected<llvm::orc::ThreadSafeModule>
+        {
+            // withModuleDo takes the context lock, which is the contract
+            // IRTransformLayer states: with compile threads, two modules of one
+            // build are optimised at once and llvm::Type is context-owned.
+            Tsm.withModuleDo(
+                [Level] ( llvm::Module &Mod )
+                {
+                    PinPromisedSymbols( Mod );
+
+                    llvm::LoopAnalysisManager LAM;
+                    llvm::FunctionAnalysisManager FAM;
+                    llvm::CGSCCAnalysisManager CGAM;
+                    llvm::ModuleAnalysisManager MAM;
+
+                    llvm::PassBuilder PB;
+                    PB.registerModuleAnalyses( MAM );
+                    PB.registerCGSCCAnalyses( CGAM );
+                    PB.registerFunctionAnalyses( FAM );
+                    PB.registerLoopAnalyses( LAM );
+                    PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
+
+                    llvm::ModulePassManager MPM = Level == llvm::OptimizationLevel::O0
+                                                      ? PB.buildO0DefaultPipeline( Level )
+                                                      : PB.buildPerModuleDefaultPipeline( Level );
+                    MPM.run( Mod, MAM );
+                } );
+            return Tsm;
+        } );
 }
 
 Volt::Backend::Jit::ECompilePolicy Volt::Backend::Jit::JitCompiler::Policy () const

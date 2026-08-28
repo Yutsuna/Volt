@@ -11,6 +11,7 @@
 // only ever opens one; hot reload and the REPL are what the concept is for.
 
 #include "Volt/BackendLlvmIr/LlvmAccess.hpp"
+#include "Volt/BackendLlvmIr/OptimizationLevel.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -53,6 +54,26 @@ namespace Backend
             Lazy,
         };
 
+        // What the session is built with. A struct rather than four
+        // parameters because two of them are bare integers, and `Init( 0, 2 )`
+        // is not something anyone should have to decode at a call site.
+        struct SessionOptions
+        {
+
+            // 0 keeps compilation synchronous.
+            unsigned CompileThreads = 0;
+
+            // A request, not a guarantee — see Init.
+            ECompilePolicy Policy = ECompilePolicy::Eager;
+
+            // What `-O<n>` asked for, meaning the same thing it means to
+            // `volt build` (Ir::OptimizationLevelOf). Two separate things
+            // follow from it, and both are off by default in LLJIT: the
+            // TargetMachine's codegen level, and whether any IR pass runs at
+            // all before instruction selection.
+            std::uint8_t OptLevel = 0;
+        };
+
         class JitCompiler
         {
 
@@ -67,11 +88,11 @@ namespace Backend
             // Builds the LLJIT. False with OutError set on failure — an ORC
             // Error is consumed here and never allowed to escape as one.
             //
-            // `Wanted` is a request, not a guarantee: Lazy needs
+            // `Wanted.Policy` is a request, not a guarantee: Lazy needs
             // target-specific trampolines, and an architecture LLVM has none
             // for falls back to Eager rather than refusing to run. Ask
             // `Policy()` for what was actually built.
-            [[nodiscard]] bool Init ( unsigned CompileThreads, ECompilePolicy Wanted, std::string &OutError );
+            [[nodiscard]] bool Init ( const SessionOptions &Wanted, std::string &OutError );
 
             // What Init settled on. Differs from what was asked for only when
             // the fallback above fired, and a caller that reports timings wants
@@ -163,6 +184,11 @@ namespace Backend
             [[nodiscard]] std::string Disassemble ( std::uintptr_t Address, std::size_t MaxBytes, std::string &OutError ) const;
 
         private:
+
+            // Point LLJIT's IR transform layer — the identity until now — at
+            // PassBuilder's pipeline for `Level`. Called by Init once the JIT
+            // exists, whichever of the two it ended up building.
+            void InstallPipeline ( llvm::OptimizationLevel Level );
 
             struct Impl;
             std::unique_ptr<Impl> P;
