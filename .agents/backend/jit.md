@@ -235,6 +235,64 @@ code in the middle of the user's program; it reports and aborts. LLVM's default
 for that address is 0, which would be a bare SIGSEGV. `bVerify` is what keeps
 it unreachable in practice.
 
+## `-O` — the pass pipeline, and what a transform layer may not do
+
+LLJIT's IR transform layer is the identity by default, so for a long time the
+JIT handed instruction selection exactly what the emitter wrote: an alloca per
+local, in the entry block, no SSA anywhere. `JitOptions::OptLevel` was declared
+and never read — `volt run -O2` accepted the flag and did nothing with it.
+
+`JitCompiler::InstallPipeline` points that layer at PassBuilder, at the level
+`Ir::OptimizationLevelOf` reports. That function lives in `BackendLlvmIr` rather
+than in either tail because `volt build -O2` and `volt run -O2` are one promise;
+the pipelines built around it differ, and legitimately so — see below.
+
+Measured, alternating the two builds inside one loop (never sequentially —
+`EPIC_132.md` §10 says why):
+
+| | flag ignored | `-O0` | `-O3` |
+| --- | --- | --- | --- |
+| run-bound (300k Collatz) | 130 ms | 132 ms | **84 ms** |
+| compile-bound (150 fns, all called) | 366 ms | 347 ms | 789 ms |
+
+So `-O0` is a wash on both axes — the O0 pipeline is essentially mem2reg, and
+the benefit it would buy is already recovered by the TargetMachine, which
+optimises at its own default level whatever `-O` said. It stays on anyway,
+because it costs nothing and makes the two tails emit the same IR. `-O1` and up
+now buy real speed for real compile time, which is the trade a user asking for
+`-O3` is making on purpose.
+
+Two rules the JIT's pipeline follows and the AOT one does not:
+
+**No whole-program prologue.** The AOT tail runs `InternalizePass` then
+`GlobalDCE` first, because its module holds `main` and the set of entry points
+is closed. A JIT module is a *fragment*: under PerUnit every other unit is in
+another module, and under Lazy a partition is a fragment of that. Internalising
+on that basis deletes bodies the next module is about to call.
+
+**Nothing promised may be deleted.** ORC reads a module's symbol table when the
+module is *added* and promises exactly that set; the transform runs afterwards,
+and materialisation fails outright — `Missing definitions in module ...` — if a
+promised symbol is gone. Volt's mergeable bodies are `linkonce_odr`, which is
+discardable *and* externally reachable: the O0 pipeline's AlwaysInliner inlines
+one at every call site in the module and then drops the out-of-line copy. That
+is correct for a translation unit and fatal here — it broke all 87 `jit-whole`
+tests. `PinPromisedSymbols` raises `linkonce` to `weak` before the pipeline
+runs, which is exactly what `IrOptions::bRetainMergeableBodies` does at
+emission, for the same reason, one layer earlier. Internal and private
+definitions are left alone: ORC never promised those, so deleting one is the
+pipeline doing its job.
+
+The back end's own `CodeGenOptLevel` is deliberately *not* set from `-O`, and
+that is worth stating because it looks like an omission. There are two levels —
+what the IR looks like, and how hard instruction selection then works on it —
+and Volt's `-O` has only ever meant the first: the AOT tail calls
+`createTargetMachine` with no level at all (`Core/ModuleContext.cpp`), so
+`volt build -O0` gets LLVM's `Default` there too. Setting it on the JIT side
+alone was tried and reverted: it made `volt run -O0` mean *nothing* optimised,
+at 364 ms on the benchmark above. If the back-end level is ever to follow `-O`,
+both tails move together.
+
 ## Hot reload — the indirection table is the seam
 
 This is `vm.md`'s `FunctionTable`, transposed. Under `ELinkage::Indirect`, a
