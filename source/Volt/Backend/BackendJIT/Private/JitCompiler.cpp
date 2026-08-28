@@ -159,6 +159,20 @@ void CollectReferenced ( const llvm::Value *From, std::vector<const llvm::Functi
     }
 }
 
+// -Wnull-dereference is on for the whole project on purpose, and this is the
+// one place it is wrong. At -O3 GCC inlines llvm::Instruction's intrusive-list
+// iterator (`ilist_iterator_w_bits::operator++`, ADT/ilist_node_base.h) far
+// enough to see the list sentinel's null `Next` and reports walking a basic
+// block as a null dereference. The sentinel is never dereferenced — it is what
+// `end()` compares against — and no spelling of the loop avoids it, block-by-
+// block included: the iterator itself is what GCC cannot follow.
+//
+// Scoped to this function rather than added to meson/meson.build's one global
+// exception (-Wno-maybe-uninitialized), because the warning is worth having
+// everywhere else.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+
 // What one lazy compile compiles, gathered transitively.
 std::optional<llvm::orc::IRPartitionLayer::GlobalValueSet>
 PartitionWithCallees ( llvm::orc::IRPartitionLayer::GlobalValueSet Requested )
@@ -205,6 +219,8 @@ PartitionWithCallees ( llvm::orc::IRPartitionLayer::GlobalValueSet Requested )
     }
     return Partition;
 }
+
+#pragma GCC diagnostic pop
 
 // A module holding only declarations resolves nothing and materialises
 // nothing, so adding it to a dylib costs a symbol-table scan and buys an entry

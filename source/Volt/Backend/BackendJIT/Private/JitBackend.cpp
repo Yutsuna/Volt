@@ -33,6 +33,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -114,6 +115,13 @@ struct Volt::Backend::Jit::JitBackend::State
     // reading the compiler's own would be reading a different program's
     // exception state (UnwindTransport.hpp explains why there is only ever
     // one copy that matters).
+    //
+    // Cached across calls, and *that* is only sound because the one caller of
+    // ExceptionTag is EvalUnit — a REPL, which evaluates every line on the
+    // thread it read it from. The table is per-thread; whoever gives EvalUnit
+    // a thread of its own has to resolve the accessor each time instead of
+    // remembering what it returned. Run needs none of this: a program's own
+    // raise never crosses back out to the host.
     void **Transport = nullptr;
 
     std::string Error;
@@ -225,8 +233,17 @@ struct Volt::Backend::Jit::JitBackend::State
 
             // One aligned pointer store, so a thread calling through this slot
             // right now reads either the old address or the new one and never a
-            // mixture of the two.
-            *reinterpret_cast<std::uintptr_t *>( Slot ) = Address; // NOLINT(performance-no-int-to-ptr)
+            // mixture of the two. Relaxed is the whole ordering that is wanted:
+            // the emitted `load ptr @volt.fn.<sym>` is an ordinary load with no
+            // acquire to pair with, and the code it will jump to was published
+            // by ORC's own materialisation before this address existed.
+            //
+            // atomic_ref rather than a bare store because a bare store to
+            // memory another thread reads is a data race by the letter of the
+            // standard, whatever the machine does with it. This is the only
+            // window in the mechanism (jit.md) and it is worth spelling.
+            std::atomic_ref<std::uintptr_t>( *reinterpret_cast<std::uintptr_t *>( Slot ) ) // NOLINT(performance-no-int-to-ptr)
+                .store( Address, std::memory_order_relaxed );
             ++OutPatched;
         }
         return true;
@@ -270,7 +287,9 @@ struct Volt::Backend::Jit::JitBackend::State
             // One aligned pointer store, exactly as PatchSlots does and for
             // exactly the same reason: a thread dispatching through this entry
             // right now reads either address and never a mixture.
-            reinterpret_cast<std::uintptr_t *>( Base )[Entry.Slot] = Address; // NOLINT(performance-no-int-to-ptr)
+            std::atomic_ref<std::uintptr_t>(
+                reinterpret_cast<std::uintptr_t *>( Base )[Entry.Slot] ) // NOLINT(performance-no-int-to-ptr)
+                .store( Address, std::memory_order_relaxed );
         }
         return true;
     }
