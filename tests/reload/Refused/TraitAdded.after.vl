@@ -1,0 +1,21 @@
+# ... and this one does, so it needs an array the running program never built.
+mixin Shape
+  abstract def area -> Int32
+end
+
+class Rectangle
+  include Shape
+
+  def initialize
+  end
+
+  def area -> Int32
+    7
+  end
+end
+
+def __volt_entry -> Int32
+  r = Rectangle.new
+  d : Dynamic<Shape> = r
+  d.area
+end

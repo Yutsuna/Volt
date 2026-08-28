@@ -240,9 +240,12 @@ if jit_enabled
     reload_cases = [
         ['Ok/BodyChanged', 'exit 7'],
         ['Ok/CalleeChanged', 'exit 10'],
+        ['Ok/DynamicCalleeChanged', 'exit 7'],
         ['Refused/SignatureChanged', 'changed shape'],
         ['Refused/LayoutChanged', 'changed size, alignment or existence'],
         ['Refused/DoesNotCompile', 'keeping the running code'],
+        ['Refused/TraitAdded', 'never built'],
+        ['Refused/VTableReordered', 'reads the old slot number'],
     ]
 
     foreach reload_case : reload_cases
