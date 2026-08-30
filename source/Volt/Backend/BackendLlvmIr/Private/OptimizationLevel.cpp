@@ -148,4 +148,3 @@ bool Volt::Backend::Ir::IsCandidateForOptimization ( const llvm::Function &Fn )
 }
 
 #pragma GCC diagnostic pop
-
