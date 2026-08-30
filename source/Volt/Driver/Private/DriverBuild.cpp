@@ -178,15 +178,33 @@ Volt::Driver::BuildResult Volt::Driver::Driver::Build ( const BuildOptions &Opti
     {
         EmitOpts.Stage = Backend::Llvm::EEmitStage::Ir;
     }
+    else if ( EmitLower == "asm" or EmitLower == "assembly" )
+    {
+        EmitOpts.Stage = Backend::Llvm::EEmitStage::Assembly;
+    }
     else if ( EmitLower == "obj" )
     {
         EmitOpts.Stage = Backend::Llvm::EEmitStage::Object;
     }
     else if ( not EmitLower.empty() )
     {
-        return BuildResult{
-            .bOk = false, .Artifact = {}, .Message = "Unsupported --emit '" + Options.Emit + "': expected 'ir' or 'obj'" };
+        return BuildResult{ .bOk      = false,
+                            .Artifact = {},
+                            .Message  = "Unsupported --emit '" + Options.Emit + "': expected 'ir', 'asm', or 'obj'" };
     }
+
+    std::string SyntaxLower = Options.AsmSyntax;
+    std::ranges::transform( SyntaxLower, SyntaxLower.begin(),
+                            [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+
+    if ( not SyntaxLower.empty() and SyntaxLower != "att" and SyntaxLower != "intel" and SyntaxLower != "arm" and
+         SyntaxLower != "default" )
+    {
+        return BuildResult{ .bOk      = false,
+                            .Artifact = {},
+                            .Message  = "Unsupported --syntax '" + Options.AsmSyntax + "': expected 'att', 'intel', or 'arm'" };
+    }
+    EmitOpts.AsmSyntax = SyntaxLower;
 
     // Two questions, and the stage answers only the second one.
     //
