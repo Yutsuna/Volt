@@ -53,6 +53,12 @@ void Volt::Backend::Ir::RunOptimizationPipeline ( llvm::Module &Mod,
     MPM.run( Mod, MAM );
 }
 
+// -Wnull-dereference is on for the whole project on purpose. At -O3 GCC inlines
+// LLVM intrusive-list iterators / accessors (ilist_node_base.h) and falsely
+// warns on list sentinels. Scoped locally to avoid suppressing real warnings elsewhere.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wnull-dereference"
+
 bool Volt::Backend::Ir::HasLoop ( const llvm::Function &Fn )
 {
     if ( Fn.empty() )
@@ -140,3 +146,6 @@ bool Volt::Backend::Ir::IsCandidateForOptimization ( const llvm::Function &Fn )
     }
     return false;
 }
+
+#pragma GCC diagnostic pop
+
