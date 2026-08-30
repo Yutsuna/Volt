@@ -141,10 +141,12 @@ namespace Driver
         // below, so the stdlib artifact invalidates on its own.
         std::uint8_t OptLevel = 2;
         bool bLto             = false;
-        // "", "ir", or "obj" — stop after that intermediate artifact; empty
+        // "", "ir", "asm", or "obj" — stop after that intermediate artifact; empty
         // runs the whole way to a linked artifact (mirrors
         // Backend::Llvm::EEmitStage).
         std::string Emit;
+        // Assembly syntax dialect: "intel", "att", "arm", etc.
+        std::string AsmSyntax;
         std::string EntrySymbol = "main";
 
         // --- Issue #61: the native stdlib artifact cache (Phase 3/4) ------
@@ -152,7 +154,7 @@ namespace Driver
         // *native* artifact rather than the frontend one — kept separate
         // because it invalidates on different things (NativeCacheKey vs
         // FrontendCacheKey) and only applies when Emit is empty (a full
-        // link): an intermediate `ir`/`obj` artifact never reaches the
+        // link): an intermediate `ir`/`asm`/`obj` artifact never reaches the
         // linker these apply to.
         bool bStdlibArtifactNoCache = false;
         bool bStdlibArtifactFresh   = false;

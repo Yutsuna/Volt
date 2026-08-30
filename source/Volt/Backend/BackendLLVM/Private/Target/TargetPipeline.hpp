@@ -50,6 +50,9 @@ namespace Backend
             // Write the module as textual IR to Path — the `--emit ir` artifact.
             [[nodiscard]] bool EmitIrFile ( std::string_view Path );
 
+            // Write the module as native assembly to Path — the `--emit asm` artifact.
+            [[nodiscard]] bool EmitAssemblyFile ( std::string_view Path );
+
             // TargetMachine::addPassesToEmitFile — the `--emit obj` artifact, and
             // the input LinkerDriver hands to the system linker when `--emit` is
             // unset.

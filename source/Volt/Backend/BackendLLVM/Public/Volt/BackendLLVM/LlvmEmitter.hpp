@@ -25,22 +25,24 @@ namespace Backend
     namespace Llvm
     {
 
-        // How far Finalize takes the module. `--emit ir`/`--emit obj` stop
+        // How far Finalize takes the module. `--emit ir`/`--emit asm`/`--emit obj` stop
         // early; the default (Link) runs the whole way to a linked artifact.
         // Plain data — no LLVM type appears here, so this stays in the public
         // header for `volt build` (BuildCommand) to fill in from its CLI flags.
         enum class EEmitStage : std::uint8_t
         {
 
-            Ir     = 0,
-            Object = 1,
-            Link   = 2,
+            Ir       = 0,
+            Assembly = 1,
+            Object   = 2,
+            Link     = 3,
         };
 
         struct EmitOptions
         {
 
-            EEmitStage Stage      = EEmitStage::Link;
+            EEmitStage Stage = EEmitStage::Link;
+            std::string AsmSyntax;
             std::uint8_t OptLevel = 0;
             bool bLto             = false;
             bool bDebugInfo       = true;
