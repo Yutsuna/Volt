@@ -136,6 +136,16 @@ Volt::Backend::EmitResult Volt::Backend::Llvm::LlvmBackend::Finalize ()
         return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = Path, .Message = {} };
     }
 
+    if ( Impl->Options.Stage == EEmitStage::Assembly )
+    {
+        const std::string Path = Impl->Options.OutputPath.empty() ? BaseName + ".s" : Impl->Options.OutputPath;
+        if ( not Impl->Pipeline->EmitAssemblyFile( Path ) )
+        {
+            return MakeFailure();
+        }
+        return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = Path, .Message = {} };
+    }
+
     if ( Impl->Options.Stage == EEmitStage::Object )
     {
         const std::string Path = Impl->Options.OutputPath.empty() ? BaseName + ".o" : Impl->Options.OutputPath;
