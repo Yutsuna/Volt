@@ -70,7 +70,8 @@ Usage: volt build [options] [input_file]
     -o OUTPUT, --output OUTPUT       Output artifact path
     --target TARGET                  Code generation target (native|wasm)
     -O LEVEL                         Optimization level (0|1|2|3, default 2)
-    --emit KIND                      Stop after an intermediate artifact (ast|ir|obj)
+    --emit KIND                      Stop after an intermediate artifact (ast|ir|asm|obj)
+    --syntax SYNTAX                  Assembly syntax dialect (att|intel|arm)
     --lto                            Enable link-time optimization (native only)
     -h, --help                       Show help
 
