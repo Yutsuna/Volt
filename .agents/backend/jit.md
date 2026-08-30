@@ -155,6 +155,144 @@ Monomorphisation crosses modules unchanged: the queue is build-wide and
 deduplicates on `Key()`, so an instantiation is emitted into the module of
 whichever unit asked first, and every other module sees a declaration.
 
+**Splitting into modules is not what makes a run lazy.** It is tempting to read
+`PerUnit` as "the code a run never reaches costs nothing", and that is wrong.
+ORC materialises a whole module the first time anything in it is looked up, and
+resolution is transitive: a resolved relocation drags in the callee's entire
+module, and `_V_init_all` names every unit that has top-level statements. Under
+`PerUnit` a plain run therefore compiles essentially everything it can reach,
+which is essentially everything. Deferring a single *function* is what the next
+section is for.
+
+## Lazy compilation — one function at a time
+
+`JitOptions::bLazyCompilation` swaps `LLJIT` for `LLLazyJIT`, whose
+`CompileOnDemandLayer` replaces each function in an added module with a lazy
+re-export stub and compiles the body the first time that stub is **called**.
+The partition policy is Volt's own, `PartitionWithCallees`, and choosing it is
+what makes the feature worth having — see below.
+
+The two indirections stack and do not interfere. `@volt.fn.<sym>` is Volt's,
+and serves reloading; the stub is ORC's, and serves laziness. They compose
+because `CompileOnDemandLayer` puts the target dylib at the front of the
+implementation dylib's link order, so the slot's initialiser `&Fn` resolves to
+the *stub* rather than to a body — the slot stays a slot, and nothing is
+compiled to fill it in.
+
+**The partition policy is the whole design.** LLVM ships two and neither works
+here. `compileWholeModule` is eager with extra steps. `compileRequested` — one
+function per partition — is the obvious reading of "lazy" and it turns the
+feature into a gamble: each partition clones the module skeleton, so compiling
+*n* functions one at a time costs more than compiling them together. Measured on
+100 defined functions, varying how many the program calls (best of 7,
+interleaved, `scripts/jit_lazy_bench.bash crossover`):
+
+| called | eager | `compileRequested` | `PartitionWithCallees` |
+|---|---|---|---|
+| 0 % | 246 ms | 82 ms (−72 %) | 72 ms (**−70 %**) |
+| 25 % | 253 ms | 253 ms (−37 %) | 120 ms (**−52 %**) |
+| 50 % | 257 ms | 330 ms (−9 %) | 166 ms (**−35 %**) |
+| 100 % | 263 ms | 660 ms (**+68 %**) | 266 ms (**+1 %**) |
+
+`PartitionWithCallees` takes the requested function plus every function this
+module defines that its code *names*, transitively. The winning case is
+untouched — a module nothing reaches is still never compiled, a function nothing
+names is still never compiled — while the losing case flattens to noise, because
+a reached module is compiled as one call tree instead of *n* separate partitions.
+
+The line it draws is "named by an instruction". A direct callee qualifies; so
+does the body half of a closure pair, whose address is taken by a store in the
+block that goes on to call it. A function named only by a **global initialiser**
+does not — that is a vtable, and which entry a `dyn Trait` reaches is precisely
+what is unknown until it is reached. Those keep their stubs, so dynamic dispatch
+pays only for the methods it actually dispatches to.
+
+A never-called function costs 2.19 ms eagerly and 0.16 ms lazily; the residue is
+IR emission, which laziness does not touch. On 400 defined and one called, that
+is 799 ms against 114 ms (**−85 %**).
+
+What remains is closure-heavy code whose closures are reached through
+monomorphisations in `volt.shared`: a partition cannot cross a module, so those
+fragment. `samples/Bench/Benchmarks.vl` is the worst case in the tree at +18 %.
+`volt run` is lazy by default; `--no-lazy` is the way out.
+
+Three things want the eager answer and get it unconditionally:
+
+- **`:asm`** disassembles the bytes at a symbol's address, and under Lazy that
+  address is a stub — a jump, not a function.
+- **`:bench`** drops its generation afterwards, and a lazy batch has no
+  `ResourceTracker` to drop: `LLLazyJIT::addLazyIRModule` takes a `JITDylib`
+  and nothing else.
+- **`Reload`** stores a *body's* address into a slot.
+
+The first two are the REPL, which runs eager end to end. The third is why
+`OpenReplacement` is eager whatever the session policy — a lazy `volt run` that
+reloads gets a lazy boot generation and eager replacements, which is the
+intended mix.
+
+A lazy compile that fails lands on `LazyCompileFailed`, reached from JIT-ed
+code in the middle of the user's program; it reports and aborts. LLVM's default
+for that address is 0, which would be a bare SIGSEGV. `bVerify` is what keeps
+it unreachable in practice.
+
+## `-O` — the pass pipeline, and what a transform layer may not do
+
+LLJIT's IR transform layer is the identity by default, so for a long time the
+JIT handed instruction selection exactly what the emitter wrote: an alloca per
+local, in the entry block, no SSA anywhere. `JitOptions::OptLevel` was declared
+and never read — `volt run -O2` accepted the flag and did nothing with it.
+
+`JitCompiler::InstallPipeline` points that layer at PassBuilder, at the level
+`Ir::OptimizationLevelOf` reports. That function lives in `BackendLlvmIr` rather
+than in either tail because `volt build -O2` and `volt run -O2` are one promise;
+the pipelines built around it differ, and legitimately so — see below.
+
+Measured, alternating the two builds inside one loop (never sequentially —
+`EPIC_132.md` §10 says why):
+
+| | flag ignored | `-O0` | `-O3` |
+| --- | --- | --- | --- |
+| run-bound (300k Collatz) | 130 ms | 132 ms | **84 ms** |
+| compile-bound (150 fns, all called) | 366 ms | 347 ms | 789 ms |
+
+So `-O0` is a wash on both axes — the O0 pipeline is essentially mem2reg, and
+the benefit it would buy is already recovered by the TargetMachine, which
+optimises at its own default level whatever `-O` said. It stays on anyway,
+because it costs nothing and makes the two tails emit the same IR. `-O1` and up
+now buy real speed for real compile time, which is the trade a user asking for
+`-O3` is making on purpose.
+
+Two rules the JIT's pipeline follows and the AOT one does not:
+
+**No whole-program prologue.** The AOT tail runs `InternalizePass` then
+`GlobalDCE` first, because its module holds `main` and the set of entry points
+is closed. A JIT module is a *fragment*: under PerUnit every other unit is in
+another module, and under Lazy a partition is a fragment of that. Internalising
+on that basis deletes bodies the next module is about to call.
+
+**Nothing promised may be deleted.** ORC reads a module's symbol table when the
+module is *added* and promises exactly that set; the transform runs afterwards,
+and materialisation fails outright — `Missing definitions in module ...` — if a
+promised symbol is gone. Volt's mergeable bodies are `linkonce_odr`, which is
+discardable *and* externally reachable: the O0 pipeline's AlwaysInliner inlines
+one at every call site in the module and then drops the out-of-line copy. That
+is correct for a translation unit and fatal here — it broke all 87 `jit-whole`
+tests. `PinPromisedSymbols` raises `linkonce` to `weak` before the pipeline
+runs, which is exactly what `IrOptions::bRetainMergeableBodies` does at
+emission, for the same reason, one layer earlier. Internal and private
+definitions are left alone: ORC never promised those, so deleting one is the
+pipeline doing its job.
+
+The back end's own `CodeGenOptLevel` is deliberately *not* set from `-O`, and
+that is worth stating because it looks like an omission. There are two levels —
+what the IR looks like, and how hard instruction selection then works on it —
+and Volt's `-O` has only ever meant the first: the AOT tail calls
+`createTargetMachine` with no level at all (`Core/ModuleContext.cpp`), so
+`volt build -O0` gets LLVM's `Default` there too. Setting it on the JIT side
+alone was tried and reverted: it made `volt run -O0` mean *nothing* optimised,
+at 364 ms on the benchmark above. If the back-end level is ever to follow `-O`,
+both tails move together.
+
 ## Hot reload — the indirection table is the seam
 
 This is `vm.md`'s `FunctionTable`, transposed. Under `ELinkage::Indirect`, a
@@ -185,10 +323,37 @@ Reload of an edited file:
 4. For each symbol the unit defines, look up the materialised address and store
    it into that symbol's `@volt.fn.*` slot.
 
-Step 4's store is the only race, and it is a single aligned pointer write: a
-concurrent thread reads either the old address or the new one, never a mixture.
-That is the same guarantee `vm.md` phrased as "the patch window is between two
-instructions".
+Step 4's store is the only race, and it is a single aligned pointer write
+(`std::atomic_ref`, relaxed — the emitted `load ptr @volt.fn.<sym>` is an
+ordinary load with no acquire to pair with): a concurrent thread reads either
+the old address or the new one, never a mixture. That is the same guarantee
+`vm.md` phrased as "the patch window is between two instructions".
+
+### The program runs on its own thread
+
+"A concurrent thread" is not hypothetical. `volt run --watch` starts the program
+on a thread of its own (`ProgramThread`, DriverRun.cpp) and begins polling
+immediately, without waiting for it to return.
+
+That is what makes a hot reload mean anything for the two programs it is
+actually for. With the program on the watch thread, the loop was only reached
+*after* the program returned — a server or an event loop never reached it at
+all, and the only thing "reload" could mean was "run the whole program again".
+
+Which of the two happens is decided by the program, not by an option:
+
+| at reload time | what happens |
+| --- | --- |
+| still running | nothing restarts it; the slots it calls through now point at the new bodies, so the change lands at its next call and everything it holds in memory survives |
+| already returned | started again, exactly as before #125 — for a script that is the only sensible reading of "reload" |
+
+Liveness is sampled twice, before the emission and after the patch, and either
+yes counts. Neither moment alone is right: a program can end during the second a
+replacement takes to compile, and a program can end *because of* the patch — a
+loop whose condition just became false exits before the store returns.
+`jit-reload/Ok/LiveReload` is exactly that program, and its `.after.vl` never
+returns when started from scratch, so the test can only pass by patching a
+live one.
 
 **The old generation is never removed.** `ResourceTracker::remove()` unmaps
 executable memory, and a live frame executing there would take a SIGSEGV.
@@ -202,6 +367,41 @@ Refusals are stricter than `vm.md`'s, deliberately. `vm.md` refused a signature
 change *for a function with live frames*; the JIT cannot inspect the stack, so
 it refuses any signature change. Never wrong, sometimes conservative. The
 fallback is a full restart, which this target makes cheap.
+
+### The vtable is the caller a slot does not reach
+
+A `dyn Trait` call does not load `@volt.fn.<sym>`. It loads the address out of
+`@_VTable_<Concrete>_<Trait>`, and that array *holds* the address — nothing
+stands between the two to repoint. Patching the slots therefore moved every
+direct call and left every dynamic dispatch running the old body.
+
+Three changes fix it, all confined to `ELinkage::Indirect`:
+
+- The array is emitted **writable** (`VTableRegistry`). Constant is what a
+  vtable is, and giving that up costs an AOT build its read-only placement and
+  its devirtualisation — so the AOT build does not give it up. Indirect
+  linkage is the announcement that this program will be reloaded, and it is the
+  only thing that flips the bit.
+- There is **one array per (concrete, trait) pair in the whole session**. A
+  later emission — a replacement unit, a REPL line — asks
+  `IrOptions::IsAlreadyDefined` and, when the answer is yes, declares the array
+  instead of building a second one. A second copy would be a second answer to
+  the same dispatch, and only one of the two would ever be patched.
+- `IrGenerator::VTableEntries()` reports every `(array, index, symbol)` the
+  emission named, and `JitBackend::PatchVTables` writes the new address into
+  each entry whose symbol the reload moved. Same single aligned store as step 4
+  above, same guarantee.
+
+Two failures cannot be repaired by writing into the array, so they are refused
+alongside the signature and layout checks:
+
+| the new unit | why no store helps |
+| --- | --- |
+| upcasts to a trait nothing had upcast to | there is no array; the running program was compiled without one |
+| moves a method's position in its trait | the slot index is a constant in every dispatch already compiled |
+
+Both are the same one-sided doctrine as the other refusals: sometimes
+needlessly strict, never wrong.
 
 ## REPL
 

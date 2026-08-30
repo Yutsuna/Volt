@@ -178,13 +178,19 @@ namespace Backend
 
             // "Do you already have a definition of this symbol?"
             //
-            // Asked of *monomorphised* bodies only, and only by a consumer that
-            // emits repeatedly into one live program. Under PerUnit an
+            // Asked of *monomorphised* bodies and of vtables, and only by a
+            // consumer that emits repeatedly into one live program. Under PerUnit an
             // instantiation keeps external linkage on purpose, because other
             // modules name it, so a second emission of `Int32#to_string` is a
             // duplicate definition rather than a mergeable copy. SkipUnitsBelow
             // cannot answer this: an instantiation belongs to no unit, it
             // belongs to the call site that first asked for it.
+            //
+            // A vtable asks the same question for the same reason, one level
+            // out: the array is the *storage* dynamic dispatch reads from, so a
+            // second definition of one is a second copy of the pointers, and
+            // repointing the running program's copy would leave the new code
+            // reading its own untouched one.
             //
             // Empty (the default) means "nothing exists yet", which is what a
             // build that emits once is. A true answer leaves the declaration
@@ -297,6 +303,32 @@ namespace Backend
             // emitting repeatedly into one live program feeds back through
             // IrOptions::IsAlreadyDefined.
             [[nodiscard]] std::vector<std::string> DefinedSymbols () const;
+
+            // One entry of one vtable: the array, the index into it, and the
+            // symbol whose address belongs there.
+            //
+            // A direct call reaches its callee through `@volt.fn.<sym>` and is
+            // therefore movable by one store. A `dyn Trait` call does not: it
+            // loads the address out of the vtable, and the vtable holds the
+            // address itself, put there when the array was built. Nothing
+            // stands between the two to repoint, so a hot reload has to write
+            // into the array — which is why, and only why, this is reported.
+            struct VTableEntry
+            {
+
+                std::string VTable;
+                std::uint32_t Slot = 0;
+                std::string Function;
+
+                [[nodiscard]] bool operator==( const VTableEntry & ) const = default;
+            };
+
+            // Every vtable entry this emission named, whether it defined the
+            // array or found it already defined. Empty under ELinkage::Direct,
+            // which is also the linkage that keeps the arrays constant: a build
+            // nobody will reload has no reason to give up the read-only
+            // placement, and no reason to be told where its pointers are.
+            [[nodiscard]] std::vector<VTableEntry> VTableEntries () const;
 
             // Incomplete here on purpose — this is what keeps LLVM out of
             // this header. LlvmAccess.hpp completes it for the two consumers

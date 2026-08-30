@@ -1,0 +1,20 @@
+# Nothing here upcasts, so the running program built no vtable at all.
+mixin Shape
+  abstract def area -> Int32
+end
+
+class Rectangle
+  include Shape
+
+  def initialize
+  end
+
+  def area -> Int32
+    3
+  end
+end
+
+def __volt_entry -> Int32
+  r = Rectangle.new
+  r.area
+end

@@ -33,6 +33,7 @@
 #include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -73,6 +74,16 @@ struct Volt::Backend::Jit::JitBackend::State
     // slot never moves, which is the entire point of it.
     std::map<std::string, std::uintptr_t> Slots;
 
+    // Where dynamic dispatch reads its callees, and the address of each array,
+    // resolved once for the same reason Slots is.
+    //
+    // A vtable is the one caller a slot does not cover: it holds the callee's
+    // address rather than a pointer to somewhere the address lives, so nothing
+    // about it moves when `@volt.fn.<sym>` is repointed. Every `dyn Trait`
+    // call in the program would keep running the old body.
+    std::vector<Ir::IrGenerator::VTableEntry> VTables;
+    std::map<std::string, std::uintptr_t> VTableAddresses;
+
     // Every symbol this session has already defined, so a line can be asked the
     // one question that decides where its module goes: does it redefine
     // something? A line that does not is added to the main dylib like anything
@@ -104,6 +115,13 @@ struct Volt::Backend::Jit::JitBackend::State
     // reading the compiler's own would be reading a different program's
     // exception state (UnwindTransport.hpp explains why there is only ever
     // one copy that matters).
+    //
+    // Cached across calls, and *that* is only sound because the one caller of
+    // ExceptionTag is EvalUnit — a REPL, which evaluates every line on the
+    // thread it read it from. The table is per-thread; whoever gives EvalUnit
+    // a thread of its own has to resolve the accessor each time instead of
+    // remembering what it returned. Run needs none of this: a program's own
+    // raise never crosses back out to the host.
     void **Transport = nullptr;
 
     std::string Error;
@@ -215,9 +233,63 @@ struct Volt::Backend::Jit::JitBackend::State
 
             // One aligned pointer store, so a thread calling through this slot
             // right now reads either the old address or the new one and never a
-            // mixture of the two.
-            *reinterpret_cast<std::uintptr_t *>( Slot ) = Address; // NOLINT(performance-no-int-to-ptr)
+            // mixture of the two. Relaxed is the whole ordering that is wanted:
+            // the emitted `load ptr @volt.fn.<sym>` is an ordinary load with no
+            // acquire to pair with, and the code it will jump to was published
+            // by ORC's own materialisation before this address existed.
+            //
+            // atomic_ref rather than a bare store because a bare store to
+            // memory another thread reads is a data race by the letter of the
+            // standard, whatever the machine does with it. This is the only
+            // window in the mechanism (jit.md) and it is worth spelling.
+            std::atomic_ref<std::uintptr_t>( *reinterpret_cast<std::uintptr_t *>( Slot ) ) // NOLINT(performance-no-int-to-ptr)
+                .store( Address, std::memory_order_relaxed );
             ++OutPatched;
+        }
+        return true;
+    }
+
+    // The same window, for the callers a slot cannot reach: write the new
+    // address into every vtable entry that named one of these symbols.
+    //
+    // The arrays are emitted writable under indirect linkage precisely so this
+    // can happen (VTableRegistry), and there is exactly one of each in the
+    // session — a later emission that would have built a second is told the
+    // symbol already exists and declares it instead, so this store is seen by
+    // every `dyn Trait` call in the program rather than by one module's copy.
+    [[nodiscard]] bool
+    PatchVTables ( GenerationId Into, const std::vector<Ir::IrGenerator::UnitSymbol> &Symbols, std::string &OutError )
+    {
+        for ( const Ir::IrGenerator::VTableEntry &Entry : VTables )
+        {
+            const auto Moved =
+                std::find_if( Symbols.begin(), Symbols.end(),
+                              [&Entry] ( const Ir::IrGenerator::UnitSymbol &Symbol ) { return Symbol.Name == Entry.Function; } );
+            if ( Moved == Symbols.end() )
+            {
+                continue;
+            }
+
+            std::uintptr_t &Base = VTableAddresses[Entry.VTable];
+            if ( Base == 0 and not Compiler.Lookup( Entry.VTable, Base, OutError ) )
+            {
+                OutError = "jit: '" + Entry.VTable + "' holds a pointer to '" + Entry.Function +
+                           "' and cannot be found to repoint it: " + OutError;
+                return false;
+            }
+
+            std::uintptr_t Address = 0;
+            if ( not Compiler.LookupIn( Into, Entry.Function, Address, OutError ) )
+            {
+                return false;
+            }
+
+            // One aligned pointer store, exactly as PatchSlots does and for
+            // exactly the same reason: a thread dispatching through this entry
+            // right now reads either address and never a mixture.
+            std::atomic_ref<std::uintptr_t>(
+                reinterpret_cast<std::uintptr_t *>( Base )[Entry.Slot] ) // NOLINT(performance-no-int-to-ptr)
+                .store( Address, std::memory_order_relaxed );
         }
         return true;
     }
@@ -291,7 +363,10 @@ void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
     }
 
     std::string Error;
-    if ( not Impl->Compiler.Init( Impl->Options.CompileThreads, Error ) )
+    const SessionOptions Wanted{ .CompileThreads = Impl->Options.CompileThreads,
+                                 .Policy         = Impl->Options.bLazyCompilation ? ECompilePolicy::Lazy : ECompilePolicy::Eager,
+                                 .OptLevel       = Impl->Options.OptLevel };
+    if ( not Impl->Compiler.Init( Wanted, Error ) )
     {
         static_cast<void>( Impl->Fail( std::move( Error ) ) );
         return;
@@ -350,6 +425,11 @@ Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
     {
         Impl->Defined.insert( Symbol );
     }
+
+    // Build-wide, unlike UnitSymbols: a vtable belongs to the (type, trait)
+    // pair rather than to a unit, and the module it lands in is only whichever
+    // one first upcast to that trait.
+    Impl->VTables = Impl->Gen->VTableEntries();
 
     // Order matters. A named dylib is consulted before the process, so a
     // precompiled stdlib's definition of __volt_unwind_slots wins over the
@@ -509,6 +589,31 @@ Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const Backe
                        "' changed size, alignment or existence — instances of it are already laid out the old way" );
     }
 
+    // The third one-sided check, and the vtable's own. Its two failures are
+    // both "the array the running program holds is not the array this code was
+    // compiled against": a trait implemented here for the first time has no
+    // array at all, and a trait whose method set moved has one whose slots now
+    // mean something else. Neither can be repaired by writing into it, which is
+    // all a reload can do.
+    for ( const Ir::IrGenerator::VTableEntry &Now : Replacement.VTableEntries() )
+    {
+        const auto Was =
+            std::find_if( Impl->VTables.begin(), Impl->VTables.end(), [&Now] ( const Ir::IrGenerator::VTableEntry &Held )
+                          { return Held.VTable == Now.VTable and Held.Slot == Now.Slot; } );
+        if ( Was == Impl->VTables.end() )
+        {
+            return Refuse( "jit: '" + std::string( Unit.Path ) + "' needs slot " + std::to_string( Now.Slot ) + " of '" +
+                           Now.VTable +
+                           "', which the running program never built — a trait implemented for the first "
+                           "time cannot be reached by a program compiled before it existed" );
+        }
+        if ( Was->Function != Now.Function )
+        {
+            return Refuse( "jit: slot " + std::to_string( Now.Slot ) + " of '" + Now.VTable + "' held '" + Was->Function +
+                           "' and now holds '" + Now.Function + "' — every dispatch already compiled reads the old slot number" );
+        }
+    }
+
     // --- Swap it in ----------------------------------------------------------
     GenerationId Gen = 0;
     std::string Error;
@@ -527,6 +632,10 @@ Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const Backe
     // reload — and it is the right trade against a crash.
     std::size_t Patched = 0;
     if ( not Impl->PatchSlots( Gen, NewSymbols, Patched, Error ) )
+    {
+        return Failed( std::move( Error ) );
+    }
+    if ( not Impl->PatchVTables( Gen, NewSymbols, Error ) )
     {
         return Failed( std::move( Error ) );
     }
@@ -622,6 +731,21 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const Backen
         if ( not Impl->PatchSlots( Gen, Symbols, Patched, Error ) )
         {
             return Failed( std::move( Error ) );
+        }
+        if ( not Impl->PatchVTables( Gen, Symbols, Error ) )
+        {
+            return Failed( std::move( Error ) );
+        }
+    }
+
+    // A line that upcasts to a trait nothing had upcast to yet built the array
+    // for it; every later line finds it already defined and only names it. Both
+    // report the same entries, so this is a union rather than an append.
+    for ( const Ir::IrGenerator::VTableEntry &Entry : Line.VTableEntries() )
+    {
+        if ( std::find( Impl->VTables.begin(), Impl->VTables.end(), Entry ) == Impl->VTables.end() )
+        {
+            Impl->VTables.push_back( Entry );
         }
     }
 

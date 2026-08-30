@@ -19,6 +19,7 @@
 #include "Target/TargetPipeline.hpp"
 
 #include "Volt/BackendCore/UnwindTransport.hpp"
+#include "Volt/BackendLlvmIr/OptimizationLevel.hpp"
 #include "Volt/Core/Support/CompilerSeams.hpp"
 
 #include <llvm/Analysis/CGSCCPassManager.h>
@@ -43,21 +44,14 @@ namespace
 // build to start"), so there is nothing outside this module to link against yet.
 // A later per-unit-module change is what would make this a real ThinLTO
 // pipeline.
+//
+// The level itself is Ir::OptimizationLevelOf's to decide, not this file's:
+// `volt build -O2` and `volt run -O2` are the same promise, and the JIT asks
+// the same question (BackendJIT/JitCompiler.cpp). Only the LTO override is
+// local, because only an ahead-of-time build has one.
 [[nodiscard]] llvm::OptimizationLevel OptimizationLevelOf ( std::uint8_t OptLevel, bool bLto )
 {
-    if ( bLto or OptLevel >= 3 )
-    {
-        return llvm::OptimizationLevel::O3;
-    }
-    if ( OptLevel == 2 )
-    {
-        return llvm::OptimizationLevel::O2;
-    }
-    if ( OptLevel == 1 )
-    {
-        return llvm::OptimizationLevel::O1;
-    }
-    return llvm::OptimizationLevel::O0;
+    return bLto ? llvm::OptimizationLevel::O3 : Volt::Backend::Ir::OptimizationLevelOf( OptLevel );
 }
 
 // Every symbol something outside this module still reaches by name, and the
@@ -131,22 +125,7 @@ namespace
 
 void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
 {
-    llvm::LoopAnalysisManager LAM;
-    llvm::FunctionAnalysisManager FAM;
-    llvm::CGSCCAnalysisManager CGAM;
-    llvm::ModuleAnalysisManager MAM;
-
-    llvm::PassBuilder PB( Services->Machine );
-
-    PB.registerModuleAnalyses( MAM );
-    PB.registerCGSCCAnalyses( CGAM );
-    PB.registerFunctionAnalyses( FAM );
-    PB.registerLoopAnalyses( LAM );
-    PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
-
     const llvm::OptimizationLevel Level = OptimizationLevelOf( Services->Options->OptLevel, Services->Options->bLto );
-
-    llvm::ModulePassManager MPM;
 
     // An entry symbol is what makes this module a program rather than a library:
     // a library build (the precompiled stdlib artifact, either kind) clears it
@@ -157,6 +136,20 @@ void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
 
     if ( bWholeProgram )
     {
+        llvm::LoopAnalysisManager LAM;
+        llvm::FunctionAnalysisManager FAM;
+        llvm::CGSCCAnalysisManager CGAM;
+        llvm::ModuleAnalysisManager MAM;
+
+        llvm::PassBuilder PB( Services->Machine );
+        PB.registerModuleAnalyses( MAM );
+        PB.registerCGSCCAnalyses( CGAM );
+        PB.registerFunctionAnalyses( FAM );
+        PB.registerLoopAnalyses( LAM );
+        PB.crossRegisterProxies( LAM, FAM, CGAM, MAM );
+
+        llvm::ModulePassManager MPM;
+
         // Before the pipeline, not after: internal linkage is an input to
         // inlining, argument promotion and constant propagation, so a body that
         // survives the cut is optimised knowing every one of its call sites.
@@ -167,9 +160,8 @@ void Volt::Backend::Llvm::TargetPipeline::RunOptimizationPipeline () const
         // pipelines but not the O0 one, and at -O0 the dead bodies are exactly
         // the ones there is no point handing to the object emitter.
         MPM.addPass( llvm::GlobalDCEPass() );
+        MPM.run( *Services->Mod, MAM );
     }
 
-    MPM.addPass( Level == llvm::OptimizationLevel::O0 ? PB.buildO0DefaultPipeline( Level )
-                                                      : PB.buildPerModuleDefaultPipeline( Level ) );
-    MPM.run( *Services->Mod, MAM );
+    Volt::Backend::Ir::RunOptimizationPipeline( *Services->Mod, Level, Services->Machine );
 }

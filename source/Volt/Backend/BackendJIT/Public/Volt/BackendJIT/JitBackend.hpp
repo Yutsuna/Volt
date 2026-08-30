@@ -59,10 +59,32 @@ namespace Backend
             // default path is running the path --watch and the REPL take, and
             // a divergence between them cannot hide.
             //
-            // It also starts faster: ORC materialises a module the first time
-            // something in it is looked up, so splitting the build lets the
-            // code a run never reaches go through no codegen at all.
+            // It also starts faster — though far less than it looks. ORC
+            // materialises a module the first time anything in it is looked
+            // up, so splitting the build only defers a module nothing
+            // *references*: `_V_init_all` names every unit that has top-level
+            // statements, and a resolved relocation drags in the callee's
+            // whole module. Deferring a single function is bLazyCompilation's
+            // job, not this one's.
             bool bPerUnitModules = true;
+
+            // Compile a function the first time it is called rather than when
+            // its module is first reached, through ORC's CompileOnDemandLayer.
+            //
+            // The measurement that motivates it: on a program of 400 functions
+            // whose entry point reaches one, materialisation costs 773 ms, of
+            // which 745 ms is codegen for code that never runs — 1.87 ms per
+            // never-called function, linear, against a 28 ms floor.
+            //
+            // Off by default because it is not free and not universal. It
+            // costs a stub and a call-through per function, so a program that
+            // does call everything pays for the machinery and gets nothing;
+            // a lazy generation cannot be dropped; and the address a symbol
+            // resolves to is a stub rather than a body, which is the wrong
+            // answer for `:asm` and for a reload patching a slot. `volt run`
+            // turns it on, and everything holding one of those three
+            // requirements leaves it off.
+            bool bLazyCompilation = false;
 
             // Reach every callee this build defines through `@volt.fn.<sym>`
             // rather than by a direct relocation, so a reload can repoint a

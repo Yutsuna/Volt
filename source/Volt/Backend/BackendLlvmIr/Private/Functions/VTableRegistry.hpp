@@ -1,12 +1,14 @@
 #pragma once
 
 #include "Core/EmitterServices.hpp"
+#include "Volt/BackendLlvmIr/IrGenerator.hpp"
 #include "Volt/MiddleEnd/TypeSystem/TypeStore.hpp"
 
 #include "Core/LlvmFwd.hpp"
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace Volt
 {
@@ -32,10 +34,19 @@ namespace Backend
             [[nodiscard]] llvm::GlobalVariable *GetOrCreateVTable ( MiddleEnd::TypeSystem::NominalId Concrete,
                                                                     MiddleEnd::TypeSystem::NominalId Trait );
 
+            // Where every pointer this emission put in a vtable lives, for a
+            // consumer that will later have to move one (IrGenerator::VTableEntry
+            // says why nothing else can). Recorded under indirect linkage only.
+            [[nodiscard]] const std::vector<Ir::IrGenerator::VTableEntry> &Entries () const
+            {
+                return Recorded;
+            }
+
         private:
 
             EmitterServices *Services;
             std::unordered_map<std::string, llvm::GlobalVariable *> Cache;
+            std::vector<Ir::IrGenerator::VTableEntry> Recorded;
         };
 
     } // namespace Llvm

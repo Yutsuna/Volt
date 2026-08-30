@@ -62,6 +62,7 @@ namespace CLI
         bool bVerbose       = false;
         bool bWholeModule   = false;
         bool bIndirectCalls = false;
+        bool bNoLazy        = false;
         bool bWatch         = false;
 
         FStdlibCacheFlags StdlibFlags;

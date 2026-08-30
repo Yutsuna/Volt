@@ -1,0 +1,27 @@
+# The slot a method occupies is its position in the trait's declaration order,
+# and every dispatch already compiled carries that number as a constant.
+mixin Greeter
+  abstract def hello -> Int32
+  abstract def bye -> Int32
+end
+
+class Human
+  include Greeter
+
+  def initialize
+  end
+
+  def hello -> Int32
+    1
+  end
+
+  def bye -> Int32
+    2
+  end
+end
+
+def __volt_entry -> Int32
+  h = Human.new
+  d : Dynamic<Greeter> = h
+  d.hello + d.bye
+end
