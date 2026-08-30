@@ -52,13 +52,33 @@ std::vector<Volt::CLI::FOption> Volt::CLI::FBuildCommand::GetOptions ()
             [this] ( std::string_view Val ) { this->OptLevel = Val; }
         },
         {
-            "", "--emit", "KIND", "Stop after an intermediate artifact (ir|obj)",
+            "", "--emit", "KIND", "Stop after an intermediate artifact (ast|ir|asm|obj)",
             [this] ( std::string_view Val )
             {
                 std::string Lower( Val );
                 std::transform( Lower.begin(), Lower.end(), Lower.begin(),
                                 [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
                 this->Emit = std::move( Lower );
+            }
+        },
+        {
+            "", "--syntax", "SYNTAX", "Assembly syntax dialect (att|intel|arm)",
+            [this] ( std::string_view Val )
+            {
+                std::string Lower( Val );
+                std::transform( Lower.begin(), Lower.end(), Lower.begin(),
+                                [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+                this->AsmSyntax = std::move( Lower );
+            }
+        },
+        {
+            "", "--asm-syntax", "SYNTAX", "Assembly syntax dialect (att|intel|arm)",
+            [this] ( std::string_view Val )
+            {
+                std::string Lower( Val );
+                std::transform( Lower.begin(), Lower.end(), Lower.begin(),
+                                [] ( unsigned char C ) { return static_cast<char>( std::tolower( C ) ); } );
+                this->AsmSyntax = std::move( Lower );
             }
         },
         {
@@ -154,6 +174,7 @@ std::int32_t Volt::CLI::FBuildCommand::Execute ( std::span<const std::string_vie
     BuildOpts.OutputPath             = Output;
     BuildOpts.bLto                   = bLto;
     BuildOpts.Emit                   = Emit;
+    BuildOpts.AsmSyntax              = AsmSyntax;
     BuildOpts.bStdlibArtifactNoCache = StdlibFlags.bNoStdlibCache;
     BuildOpts.bStdlibArtifactFresh   = StdlibFlags.bFreshStdlib;
     BuildOpts.StdlibArtifactKind     = StdlibFlags.Artifact;
