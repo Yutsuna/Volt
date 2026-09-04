@@ -242,7 +242,7 @@ JIT handed instruction selection exactly what the emitter wrote: an alloca per
 local, in the entry block, no SSA anywhere. `JitOptions::OptLevel` was declared
 and never read — `volt run -O2` accepted the flag and did nothing with it.
 
-`JitCompiler::InstallPipeline` points that layer at PassBuilder, at the level
+`OrcJitQueue::InstallPipeline` points that layer at PassBuilder, at the level
 `Ir::OptimizationLevelOf` reports. That function lives in `BackendLlvmIr` rather
 than in either tail because `volt build -O2` and `volt run -O2` are one promise;
 the pipelines built around it differ, and legitimately so — see below.
@@ -420,7 +420,7 @@ arena, and each line's module reaches it by absolute symbol:
 
 ```
 Addr = JitRuntime::AllocateBinding( Mangled, Size, Align )   // sizes from LayoutEngine
-JitCompiler::DefineAbsolute( { { Mangled, Addr } } )
+OrcJitQueue::DefineAbsolute( { { Mangled, Addr } } )
 ```
 
 `vm.md` put these in a synthetic "session globals" aggregate re-offset per line
@@ -438,6 +438,28 @@ already answer the escape question upstream.
 
 An exception left in flight by a line is read through `__volt_unwind_slots`,
 reported, and the tag reset to `NoExceptionTag`. The session continues.
+
+## IJitQueue & Direct Machine Codegen Architecture (Issue #137)
+
+As investigated in Issue #137, profiling confirmed that lazy compilation eliminates 70–85% of startup compilation when dead functions are present. However, when functions are actually called, LLVM ORC machine code generation accounts for 85–92% of compile-time overhead across varying function counts ($N \in \{10, 50, 100, 300\}$) and call ratios ($K \in \{1, 25, 50, 100, 300\}$).
+
+To decouple the JIT orchestration layer (lifetime management, hot reload validation, indirection slots, REPL sessions) from the concrete compilation backend, `BackendJIT` introduces an abstract interface:
+
+```
+[ JitBackend ] (Lifecycle, reload, slots, symbols)
+       |
+       v
+  [ IJitQueue ] (Abstract interface: target machine, generations, linking, lookup)
+       |
+       +---> [ OrcJitQueue ] (LLVM ORC JIT default backend)
+       |
+       +---> [ Future Direct Machine JIT Queue ]
+```
+
+### Key Principles:
+1. **Zero LLVM Headers in `JitBackend`**: `JitBackend.cpp` and `JitBackend.hpp` interact strictly with `IJitQueue` and `CompiledUnitMeta`, containing zero direct LLVM includes.
+2. **`IJitQueue` Interface**: Manages target machine layout, symbol lookups, dynamic generation lifetimes (`OpenGeneration`, `DropGeneration`), unit compilation (`EmitUnit`, `CompileBenchUnit`, `CompileEvalUnit`), and two-phase reload replacement (`PrepareReplacement`, `CommitReplacement`, `DiscardReplacement`).
+3. **Pluggable Backend**: The active queue can be injected via `JitBackend::SetQueue(std::unique_ptr<IJitQueue>)`, paving the way for a lightweight direct-to-machine-code backend without altering JIT or reload semantics.
 
 ## What this backend does not decide
 
