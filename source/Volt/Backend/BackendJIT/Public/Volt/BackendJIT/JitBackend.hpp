@@ -33,6 +33,8 @@ namespace Backend
     namespace Jit
     {
 
+        class IJitQueue;
+
         struct JitOptions
         {
 
@@ -117,6 +119,7 @@ namespace Backend
             JitBackend &operator=( JitBackend && ) noexcept;
 
             void SetOptions ( JitOptions InOptions );
+            void SetQueue ( std::unique_ptr<IJitQueue> InQueue );
 
             // --- TargetBackend ----------------------------------------------
             [[nodiscard]] std::string_view Name () const override
