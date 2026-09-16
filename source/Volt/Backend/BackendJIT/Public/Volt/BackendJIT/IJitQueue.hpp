@@ -122,7 +122,7 @@ namespace Backend
             // Initial program compilation (Begin / EmitUnit / Finalize)
             virtual void Begin ( const BackendInput &Input, const JitOptions &Options )                    = 0;
             [[nodiscard]] virtual EEmitStatus EmitUnit ( const UnitView &Unit, CompiledUnitMeta &OutMeta ) = 0;
-            [[nodiscard]] virtual EmitResult Finalize ( GenerationId Gen )                                 = 0;
+            [[nodiscard]] virtual EmitResult Finalize ( GenerationId Gen, CompiledUnitMeta &OutMeta )      = 0;
             [[nodiscard]] virtual std::size_t UnwindStorageSize () const                                   = 0;
 
             // Incremental compilation

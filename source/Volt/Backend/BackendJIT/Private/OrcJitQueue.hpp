@@ -51,7 +51,7 @@ namespace Backend
 
             void Begin ( const BackendInput &Input, const JitOptions &Options ) override;
             [[nodiscard]] EEmitStatus EmitUnit ( const UnitView &Unit, CompiledUnitMeta &OutMeta ) override;
-            [[nodiscard]] EmitResult Finalize ( GenerationId Gen ) override;
+            [[nodiscard]] EmitResult Finalize ( GenerationId Gen, CompiledUnitMeta &OutMeta ) override;
             [[nodiscard]] std::size_t UnwindStorageSize () const override;
 
             [[nodiscard]] bool PrepareReplacement ( const BackendInput &Build,

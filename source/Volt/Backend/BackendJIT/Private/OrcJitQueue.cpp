@@ -743,7 +743,7 @@ Volt::Backend::EEmitStatus Volt::Backend::Jit::OrcJitQueue::EmitUnit ( const Uni
     return Status;
 }
 
-Volt::Backend::EmitResult Volt::Backend::Jit::OrcJitQueue::Finalize ( GenerationId GenId )
+Volt::Backend::EmitResult Volt::Backend::Jit::OrcJitQueue::Finalize ( GenerationId GenId, CompiledUnitMeta &OutMeta )
 {
     if ( not P->Gen )
     {
@@ -755,6 +755,8 @@ Volt::Backend::EmitResult Volt::Backend::Jit::OrcJitQueue::Finalize ( Generation
     {
         return EmitResult{ .Status = Finished, .Artifact = {}, .Message = std::string( P->Gen->Error() ) };
     }
+
+    HarvestMeta( *P->Gen, OutMeta );
 
     std::string Error;
     const Volt::Core::PhaseScope Timing( "backend.jit.add" );
