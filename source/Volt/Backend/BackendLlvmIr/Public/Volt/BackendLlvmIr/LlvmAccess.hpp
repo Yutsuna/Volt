@@ -51,6 +51,25 @@ namespace Backend
 
             std::unique_ptr<llvm::LLVMContext> Context;
             std::vector<std::unique_ptr<llvm::Module>> Modules;
+
+            OwnedModules ()                                = default;
+            OwnedModules ( OwnedModules &&Other ) noexcept = default;
+            OwnedModules &operator=( OwnedModules &&Other ) noexcept
+            {
+                if ( this != &Other )
+                {
+                    Modules.clear();
+                    Context.reset();
+                    Context = std::move( Other.Context );
+                    Modules = std::move( Other.Modules );
+                }
+                return *this;
+            }
+            ~OwnedModules ()
+            {
+                Modules.clear();
+                Context.reset();
+            }
         };
 
         // Move the finished emission out. The generator emits nothing

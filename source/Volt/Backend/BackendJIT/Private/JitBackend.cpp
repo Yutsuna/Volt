@@ -1,36 +1,25 @@
-// JitBackend.cpp — the protocol, over BackendLlvmIr and JitCompiler.
+// JitBackend.cpp — the execution and reload coordinator, over IJitQueue.
 //
 // Begin / EmitUnit / Finalize are the same three phases every backend has; what
-// differs is the tail. Instead of optimising a module and writing an object,
-// this one moves the module into ORC and calls into it.
+// differs is the tail. Instead of writing an object, this backend executes the code
+// in-process via an IJitQueue engine (LLVM ORC, or an alternative execution queue).
 //
-// Three emission options are what make the IR runnable in-process, and each is
-// forced by something ORC does rather than chosen:
+// This coordinator manages:
+//   - Process execution, entry point invocation, argument marshaling
+//   - Unwind exception buffer storage & transport accessors
+//   - Indirection slot tables (@volt.fn.*) and atomic store patching
+//   - Dynamic dispatch mutable vtables and vtable patching
+//   - Reload verification (signature equality, type layout stability)
+//   - REPL evaluation & incremental session state
 //
-//   - the triple and data layout come from LLJIT, because the code has to be
-//     typed for the machine that will actually execute it;
-//   - no TargetMachine, because nothing here runs addPassesToEmitFile;
-//   - ETlsAccess::Accessor, because JIT-linked code cannot carry TLS
-//     relocations without an ORC runtime whose version is not ours to pin
-//     (UnwindTransport.hpp states the contract, jit.md the reasoning).
-//
-// Verification *is* turned on here, unlike the AOT path: BackendLLVM has its own
-// verify step that names the offending function, and a JIT has nowhere to report
-// from — a malformed module handed to ORC crashes inside the JIT rather than
-// producing a diagnostic.
+// ZERO LLVM headers: the queue abstraction isolates all machine compilation details.
 
 #include "Volt/BackendJIT/JitBackend.hpp"
 
-#include "JitCompiler.hpp"
-
 #include "Volt/BackendCore/InitAllSynthesizer.hpp"
 #include "Volt/BackendCore/UnwindTransport.hpp"
-#include "Volt/BackendLlvmIr/IrGenerator.hpp"
-#include "Volt/BackendLlvmIr/LlvmAccess.hpp"
+#include "Volt/BackendJIT/IJitQueue.hpp"
 #include "Volt/Core/Support/PhaseTimer.hpp"
-
-#include <llvm/IR/Function.h>
-#include <llvm/Support/raw_ostream.h>
 
 #include <algorithm>
 #include <atomic>
@@ -56,8 +45,7 @@ struct Volt::Backend::Jit::JitBackend::State
     JitOptions Options;
     const BackendInput *Build = nullptr;
 
-    JitCompiler Compiler;
-    std::optional<Ir::IrGenerator> Gen;
+    std::unique_ptr<IJitQueue> Queue;
 
     GenerationId Generation = 0;
     bool bMaterialised      = false;
@@ -66,159 +54,49 @@ struct Volt::Backend::Jit::JitBackend::State
     // that unit has something to compare its replacement against. Recorded per
     // unit rather than per build because that is the granularity a reload
     // works at.
-    std::map<std::uint32_t, std::vector<Ir::IrGenerator::UnitSymbol>> UnitSymbols;
-    std::map<std::uint32_t, std::vector<Ir::IrGenerator::UnitShape>> UnitShapes;
+    std::map<std::uint32_t, std::vector<CompiledUnitMeta::SymbolDef>> UnitSymbols;
+    std::map<std::uint32_t, std::vector<CompiledUnitMeta::TypeShape>> UnitShapes;
 
     // The slot address for a symbol, resolved once. A reload writes through it
     // and a later reload of the same symbol writes through the same one — the
     // slot never moves, which is the entire point of it.
-    std::map<std::string, std::uintptr_t> Slots;
+    std::map<std::string, std::uintptr_t, std::less<>> Slots;
 
     // Where dynamic dispatch reads its callees, and the address of each array,
     // resolved once for the same reason Slots is.
-    //
-    // A vtable is the one caller a slot does not cover: it holds the callee's
-    // address rather than a pointer to somewhere the address lives, so nothing
-    // about it moves when `@volt.fn.<sym>` is repointed. Every `dyn Trait`
-    // call in the program would keep running the old body.
-    std::vector<Ir::IrGenerator::VTableEntry> VTables;
-    std::map<std::string, std::uintptr_t> VTableAddresses;
+    std::vector<CompiledUnitMeta::VTableEntry> VTables;
+    std::map<std::string, std::uintptr_t, std::less<>> VTableAddresses;
 
     // Every symbol this session has already defined, so a line can be asked the
     // one question that decides where its module goes: does it redefine
-    // something? A line that does not is added to the main dylib like anything
-    // else and every later line reaches it by ordinary lookup. A line that does
-    // needs a dylib of its own, because ORC rejects a duplicate definition
-    // inside one dylib — and then nothing reaches the new body by name at all,
-    // only through the slot this patches.
-    std::set<std::string> Defined;
+    // something?
+    std::set<std::string, std::less<>> Defined;
 
     // The subset of Defined that carries an indirection slot: everything this
-    // session emitted itself, and nothing that came out of a dylib. A later
-    // line calls through the slot for these and by relocation for the rest.
-    std::set<std::string> Slotted;
+    // session emitted itself, and nothing that came out of a dylib.
+    std::set<std::string, std::less<>> Slotted;
 
     // How wide the in-flight-exception buffer was when the session started.
-    //
-    // Kept because it cannot be changed afterwards. The provider allocates the
-    // buffer the first time a thread calls the accessor (UnwindSlots.cpp, or
-    // the equivalent inside a precompiled stdlib), reading the requested size
-    // at that moment; a later SetUnwindStorageSize grows the request for a
-    // thread that has not asked yet and does nothing at all for one that has.
-    // A REPL has always asked by the time it evaluates a line, so this is the
-    // width for the whole session and a line needing more has to be refused.
     std::size_t BootUnwindStorage = 0;
 
-    // The calling thread's transport slot table, resolved through the JIT
-    // rather than by calling this process's own accessor: a session that
-    // loaded a precompiled stdlib reaches *that* copy of the slots, and
-    // reading the compiler's own would be reading a different program's
-    // exception state (UnwindTransport.hpp explains why there is only ever
-    // one copy that matters).
-    //
-    // Cached across calls, and *that* is only sound because the one caller of
-    // ExceptionTag is EvalUnit — a REPL, which evaluates every line on the
-    // thread it read it from. The table is per-thread; whoever gives EvalUnit
-    // a thread of its own has to resolve the accessor each time instead of
-    // remembering what it returned. Run needs none of this: a program's own
-    // raise never crosses back out to the host.
+    // The calling thread's transport slot table, resolved through the JIT.
     void **Transport = nullptr;
 
     std::string Error;
 
-    // Everything the emission needs to be runnable in-process, in one place:
-    // a reload builds a second emission and every one of these has to match,
-    // or the replacement is compiled for a different machine than the code it
-    // is replacing.
-    [[nodiscard]] Ir::IrOptions MakeIrOptions () const
-    {
-        Ir::IrOptions Opts;
-        Opts.Granularity = Options.bPerUnitModules ? Ir::EModuleGranularity::PerUnit : Ir::EModuleGranularity::Whole;
-        Opts.Tls         = Ir::ETlsAccess::Accessor;
-        Opts.Linkage     = Options.bIndirectLinkage ? Ir::ELinkage::Indirect : Ir::ELinkage::Direct;
-
-        // No inline-eligible exception to the skip: a skipped unit's code is in a
-        // dylib and the JIT calls it there. The AOT path wants the opposite because
-        // it can inline across the boundary; nothing here can.
-        Opts.SkipUnitsBelow             = Options.SkipUnitsBelow;
-        Opts.bDefineInlineEligibleBelow = false;
-
-        // The artifact is loaded, not linked, so any seam it contains was filled
-        // in for its own build and cannot be reused.
-        Opts.bDefineCompilerSeamUnits = true;
-
-        Opts.TargetTriple       = Compiler.TargetTriple();
-        Opts.DataLayout         = Compiler.DataLayoutString();
-        Opts.bNeedTargetMachine = false;
-
-        Opts.EntryFunction = Options.EntryFunction;
-        Opts.EntrySymbol   = Options.EntrySymbol;
-        Opts.bVerify       = true;
-
-        return Opts;
-    }
-
-    // One unit, emitted alone against an already-running session: every other
-    // unit declared, nothing else defined, no entry point and no seam.
-    //
-    // Shared by Reload and EvalUnit because they differ in exactly one bit.
-    // A reload *replaces* a unit the running program already owns, so its
-    // module-level storage is declared rather than defined (bReplaceUnit); an
-    // evaluated line is a unit the session has never seen, so its storage is
-    // its own to define, and every line before it is below the skip line.
-    [[nodiscard]] Ir::IrOptions OneUnitOptions ( std::uint32_t Ordinal, bool bReplacing ) const
-    {
-        Ir::IrOptions Opts       = MakeIrOptions();
-        Opts.bReplaceUnit        = bReplacing;
-        Opts.EntrySymbol         = {};
-        Opts.bDefineSlotAccessor = false;
-
-        // The running program already has both seams filled in, and its copies
-        // are the ones every unit calls. A second definition here would be dead
-        // code at best and a divergent symbol table at worst.
-        Opts.bDefineCompilerSeamUnits = false;
-
-        // A replacement redefines a unit that is already below nothing — its
-        // ordinal is wherever it always was. A new line is the highest ordinal
-        // there is, so everything before it is code the session already holds.
-        Opts.SkipUnitsBelow = bReplacing ? Opts.SkipUnitsBelow : Ordinal;
-
-        // Monomorphisations are the one thing SkipUnitsBelow cannot cover: an
-        // instantiation belongs to no unit, so an `Array<Int32>#push` first
-        // reached on line 4 would be emitted again by every later line that
-        // reaches it. Under PerUnit those carry external linkage, which makes
-        // the second one a duplicate definition rather than a mergeable copy.
-        Opts.IsAlreadyDefined = [this] ( std::string_view Symbol ) { return Defined.contains( std::string( Symbol ) ); };
-
-        // Every earlier line sits below the skip line, but its code is resident
-        // here rather than in an artifact, and it has a slot. Say so, or a
-        // redefinition typed at the prompt never reaches its callers.
-        Opts.HasIndirectionSlot = [this] ( std::string_view Symbol ) { return Slotted.contains( std::string( Symbol ) ); };
-        return Opts;
-    }
-
-    // Point every named symbol's indirection slot at its definition inside
-    // `Gen`. The one and only window in the whole mechanism, for a reload and
-    // for a redefinition typed at a prompt alike.
     [[nodiscard]] bool PatchSlots ( GenerationId Into,
-                                    const std::vector<Ir::IrGenerator::UnitSymbol> &Symbols,
+                                    const std::vector<CompiledUnitMeta::SymbolDef> &Symbols,
                                     std::size_t &OutPatched,
                                     std::string &OutError )
     {
-        for ( const Ir::IrGenerator::UnitSymbol &Symbol : Symbols )
+        for ( const CompiledUnitMeta::SymbolDef &Symbol : Symbols )
         {
             std::uintptr_t &Slot = Slots[Symbol.Name];
 
-            // Resolved once per symbol and then remembered, because after the
-            // first time it is not findable by search: a slot is defined
-            // beside the *first* definition of its function, so a redefinition
-            // arriving in a dylib of its own would look for it in the wrong
-            // place. The cache is not an optimisation here, it is the only
-            // thing that still knows where the slot is.
             if ( Slot == 0 )
             {
-                const std::string SlotName = Ir::SlotNameOf( Symbol.Name );
-                if ( not Compiler.LookupIn( Into, SlotName, Slot, OutError ) and not Compiler.Lookup( SlotName, Slot, OutError ) )
+                const std::string SlotName = "volt.fn." + Symbol.Name;
+                if ( not Queue->LookupIn( Into, SlotName, Slot, OutError ) and not Queue->Lookup( SlotName, Slot, OutError ) )
                 {
                     OutError = "jit: '" + Symbol.Name + "' has no indirection slot to repoint: " + OutError;
                     return false;
@@ -226,22 +104,11 @@ struct Volt::Backend::Jit::JitBackend::State
             }
 
             std::uintptr_t Address = 0;
-            if ( not Compiler.LookupIn( Into, Symbol.Name, Address, OutError ) )
+            if ( not Queue->LookupIn( Into, Symbol.Name, Address, OutError ) )
             {
                 return false;
             }
 
-            // One aligned pointer store, so a thread calling through this slot
-            // right now reads either the old address or the new one and never a
-            // mixture of the two. Relaxed is the whole ordering that is wanted:
-            // the emitted `load ptr @volt.fn.<sym>` is an ordinary load with no
-            // acquire to pair with, and the code it will jump to was published
-            // by ORC's own materialisation before this address existed.
-            //
-            // atomic_ref rather than a bare store because a bare store to
-            // memory another thread reads is a data race by the letter of the
-            // standard, whatever the machine does with it. This is the only
-            // window in the mechanism (jit.md) and it is worth spelling.
             std::atomic_ref<std::uintptr_t>( *reinterpret_cast<std::uintptr_t *>( Slot ) ) // NOLINT(performance-no-int-to-ptr)
                 .store( Address, std::memory_order_relaxed );
             ++OutPatched;
@@ -249,29 +116,21 @@ struct Volt::Backend::Jit::JitBackend::State
         return true;
     }
 
-    // The same window, for the callers a slot cannot reach: write the new
-    // address into every vtable entry that named one of these symbols.
-    //
-    // The arrays are emitted writable under indirect linkage precisely so this
-    // can happen (VTableRegistry), and there is exactly one of each in the
-    // session — a later emission that would have built a second is told the
-    // symbol already exists and declares it instead, so this store is seen by
-    // every `dyn Trait` call in the program rather than by one module's copy.
     [[nodiscard]] bool
-    PatchVTables ( GenerationId Into, const std::vector<Ir::IrGenerator::UnitSymbol> &Symbols, std::string &OutError )
+    PatchVTables ( GenerationId Into, const std::vector<CompiledUnitMeta::SymbolDef> &Symbols, std::string &OutError )
     {
-        for ( const Ir::IrGenerator::VTableEntry &Entry : VTables )
+        for ( const CompiledUnitMeta::VTableEntry &Entry : VTables )
         {
             const auto Moved =
                 std::find_if( Symbols.begin(), Symbols.end(),
-                              [&Entry] ( const Ir::IrGenerator::UnitSymbol &Symbol ) { return Symbol.Name == Entry.Function; } );
+                              [&Entry] ( const CompiledUnitMeta::SymbolDef &Symbol ) { return Symbol.Name == Entry.Function; } );
             if ( Moved == Symbols.end() )
             {
                 continue;
             }
 
             std::uintptr_t &Base = VTableAddresses[Entry.VTable];
-            if ( Base == 0 and not Compiler.Lookup( Entry.VTable, Base, OutError ) )
+            if ( Base == 0 and not Queue->Lookup( Entry.VTable, Base, OutError ) )
             {
                 OutError = "jit: '" + Entry.VTable + "' holds a pointer to '" + Entry.Function +
                            "' and cannot be found to repoint it: " + OutError;
@@ -279,14 +138,11 @@ struct Volt::Backend::Jit::JitBackend::State
             }
 
             std::uintptr_t Address = 0;
-            if ( not Compiler.LookupIn( Into, Entry.Function, Address, OutError ) )
+            if ( not Queue->LookupIn( Into, Entry.Function, Address, OutError ) )
             {
                 return false;
             }
 
-            // One aligned pointer store, exactly as PatchSlots does and for
-            // exactly the same reason: a thread dispatching through this entry
-            // right now reads either address and never a mixture.
             std::atomic_ref<std::uintptr_t>(
                 reinterpret_cast<std::uintptr_t *>( Base )[Entry.Slot] ) // NOLINT(performance-no-int-to-ptr)
                 .store( Address, std::memory_order_relaxed );
@@ -294,16 +150,13 @@ struct Volt::Backend::Jit::JitBackend::State
         return true;
     }
 
-    // The in-flight exception tag of the calling thread, or NoExceptionTag.
-    // Null until the session has run something, which is also the only point
-    // at which the accessor is guaranteed to resolve.
     [[nodiscard]] std::uint32_t *ExceptionTag ()
     {
         if ( Transport == nullptr )
         {
             std::uintptr_t Accessor = 0;
             std::string Ignored;
-            if ( not Compiler.Lookup( UnwindTransport::SlotAccessorSymbol, Accessor, Ignored ) )
+            if ( not Queue->Lookup( UnwindTransport::SlotAccessorSymbol, Accessor, Ignored ) )
             {
                 return nullptr;
             }
@@ -313,38 +166,22 @@ struct Volt::Backend::Jit::JitBackend::State
         return static_cast<std::uint32_t *>( Transport[UnwindTransport::SlotTableTagIndex] );
     }
 
-    [[nodiscard]] bool Failed () const
+    void ResetExceptionTag ()
     {
-        return not Error.empty() or ( Gen.has_value() and Gen->Failed() );
-    }
-
-    [[nodiscard]] std::string Message () const
-    {
-        if ( not Error.empty() )
+        if ( std::uint32_t *Tag = ExceptionTag() )
         {
-            return Error;
+            *Tag = UnwindTransport::NoExceptionTag;
         }
-        return Gen.has_value() ? std::string( Gen->Error() ) : std::string{};
-    }
-
-    EEmitStatus Fail ( std::string InMessage )
-    {
-        if ( Error.empty() )
-        {
-            Error = std::move( InMessage );
-        }
-        return EEmitStatus::Error;
     }
 };
 
 Volt::Backend::Jit::JitBackend::JitBackend () : Impl( std::make_unique<State>() )
 {
+    Impl->Queue = CreateOrcJitQueue();
 }
 
-Volt::Backend::Jit::JitBackend::~JitBackend () = default;
-
-Volt::Backend::Jit::JitBackend::JitBackend ( JitBackend && ) noexcept = default;
-
+Volt::Backend::Jit::JitBackend::~JitBackend ()                                                      = default;
+Volt::Backend::Jit::JitBackend::JitBackend ( JitBackend && ) noexcept                               = default;
 Volt::Backend::Jit::JitBackend &Volt::Backend::Jit::JitBackend::operator=( JitBackend && ) noexcept = default;
 
 void Volt::Backend::Jit::JitBackend::SetOptions ( JitOptions InOptions )
@@ -352,143 +189,149 @@ void Volt::Backend::Jit::JitBackend::SetOptions ( JitOptions InOptions )
     Impl->Options = std::move( InOptions );
 }
 
+void Volt::Backend::Jit::JitBackend::SetQueue ( std::unique_ptr<IJitQueue> InQueue )
+{
+    Impl->Queue = std::move( InQueue );
+}
+
 void Volt::Backend::Jit::JitBackend::Begin ( const BackendInput &Input )
 {
-    Impl->Build = &Input;
-
-    if ( Input.Types == nullptr )
+    if ( not Impl->Queue )
     {
-        static_cast<void>( Impl->Fail( "jit: the build carries no TypeStore" ) );
-        return;
+        Impl->Queue = CreateOrcJitQueue();
     }
+
+    Impl->Build = &Input;
+    Impl->Error.clear();
+    Impl->VTables.clear();
+
+    SessionOptions Wanted;
+    Wanted.CompileThreads = Impl->Options.CompileThreads;
+    Wanted.Policy         = Impl->Options.bLazyCompilation ? ECompilePolicy::Lazy : ECompilePolicy::Eager;
+    Wanted.OptLevel       = Impl->Options.OptLevel;
 
     std::string Error;
-    const SessionOptions Wanted{ .CompileThreads = Impl->Options.CompileThreads,
-                                 .Policy         = Impl->Options.bLazyCompilation ? ECompilePolicy::Lazy : ECompilePolicy::Eager,
-                                 .OptLevel       = Impl->Options.OptLevel };
-    if ( not Impl->Compiler.Init( Wanted, Error ) )
+    if ( not Impl->Queue->Init( Wanted, Error ) )
     {
-        static_cast<void>( Impl->Fail( std::move( Error ) ) );
+        Impl->Error = Error;
         return;
     }
 
-    Ir::IrOptions Gen = Impl->MakeIrOptions();
+    for ( const std::string &Path : Impl->Options.Dylibs )
+    {
+        if ( not Impl->Queue->AddDylib( Path, Error ) )
+        {
+            Impl->Error = Error;
+            return;
+        }
+    }
 
-    Impl->Gen.emplace( std::move( Gen ) );
-    Impl->Gen->Begin( Input );
+    if ( not Impl->Queue->AddProcessSymbols( Error ) )
+    {
+        Impl->Error = Error;
+        return;
+    }
+
+    Impl->Queue->Begin( Input, Impl->Options );
+    Impl->BootUnwindStorage = Impl->Queue->UnwindStorageSize();
 }
 
 Volt::Backend::EEmitStatus Volt::Backend::Jit::JitBackend::EmitUnit ( const UnitView &Unit )
 {
-    if ( Impl->Failed() or not Impl->Gen.has_value() )
+    if ( not Impl->Error.empty() or not Impl->Queue )
     {
         return EEmitStatus::Error;
     }
 
-    const EEmitStatus Status = Impl->Gen->EmitUnit( Unit );
-    if ( Status == EEmitStatus::Ok )
+    CompiledUnitMeta Meta;
+    const EEmitStatus Status = Impl->Queue->EmitUnit( Unit, Meta );
+    if ( Status != EEmitStatus::Ok )
     {
-        Impl->UnitSymbols[Unit.Ordinal] = Impl->Gen->LastUnitSymbols();
-        Impl->UnitShapes[Unit.Ordinal]  = Impl->Gen->LastUnitShapes();
-        for ( const Ir::IrGenerator::UnitSymbol &Symbol : Impl->UnitSymbols[Unit.Ordinal] )
-        {
-            Impl->Defined.insert( Symbol.Name );
-            Impl->Slotted.insert( Symbol.Name );
-        }
+        return Status;
     }
-    return Status;
+
+    Impl->UnitSymbols[Unit.Ordinal] = std::move( Meta.Symbols );
+    Impl->UnitShapes[Unit.Ordinal]  = std::move( Meta.Shapes );
+    for ( auto &VTab : Meta.VTables )
+    {
+        Impl->VTables.push_back( std::move( VTab ) );
+    }
+    return EEmitStatus::Ok;
 }
 
 Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
 {
-    const auto MakeFailure = [this] ()
-    { return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Message() }; };
-
-    if ( Impl->Failed() or not Impl->Gen.has_value() )
+    if ( not Impl->Error.empty() )
     {
-        return MakeFailure();
+        return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Impl->Error };
+    }
+    if ( not Impl->Queue )
+    {
+        return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = "jit: queue was not created" };
     }
 
-    if ( Impl->Gen->Finish() != EEmitStatus::Ok )
+    Impl->Generation = Impl->Queue->OpenGeneration();
+    CompiledUnitMeta Meta;
+    const EmitResult Emitted = Impl->Queue->Finalize( Impl->Generation, Meta );
+    if ( Emitted.Status != EEmitStatus::Ok )
     {
-        return MakeFailure();
+        return Emitted;
     }
 
-    // Before anything runs: the accessor's provider is this process, and the
-    // width of the in-flight-exception buffer is a fact only the emission knows.
-    Backend::SetUnwindStorageSize( Impl->Gen->UnwindStorageSize() );
-    Impl->BootUnwindStorage = Impl->Gen->UnwindStorageSize();
+    Backend::SetUnwindStorageSize( Impl->Queue->UnwindStorageSize() );
+    Impl->BootUnwindStorage = Impl->Queue->UnwindStorageSize();
 
-    // Per-unit lists miss `volt.shared` entirely, and that is where every
-    // monomorphisation lives — exactly what a later line must not emit again.
-    for ( const std::string &Symbol : Impl->Gen->DefinedSymbols() )
+    for ( const std::string &Symbol : Meta.DefinedSymbols )
     {
         Impl->Defined.insert( Symbol );
     }
 
-    // Build-wide, unlike UnitSymbols: a vtable belongs to the (type, trait)
-    // pair rather than to a unit, and the module it lands in is only whichever
-    // one first upcast to that trait.
-    Impl->VTables = Impl->Gen->VTableEntries();
-
-    // Order matters. A named dylib is consulted before the process, so a
-    // precompiled stdlib's definition of __volt_unwind_slots wins over the
-    // compiler's own — which is what keeps JIT-ed code and that stdlib sharing
-    // one copy of the transport state.
-    std::string Error;
-    for ( const std::string &Path : Impl->Options.Dylibs )
+    for ( const auto &[Ordinal, Syms] : Impl->UnitSymbols )
     {
-        if ( not Impl->Compiler.AddDylib( Path, Error ) )
+        for ( const auto &Sym : Syms )
         {
-            static_cast<void>( Impl->Fail( std::move( Error ) ) );
-            return MakeFailure();
+            Impl->Defined.insert( Sym.Name );
+            if ( Impl->Options.bIndirectLinkage )
+            {
+                Impl->Slotted.insert( Sym.Name );
+            }
         }
     }
-    if ( not Impl->Compiler.AddProcessSymbols( Error ) )
+
+    for ( const auto &VTab : Meta.VTables )
     {
-        static_cast<void>( Impl->Fail( std::move( Error ) ) );
-        return MakeFailure();
+        Impl->VTables.push_back( VTab );
     }
 
-    const Volt::Core::PhaseScope Timing( "backend.jit.add" );
-
-    Impl->Generation = Impl->Compiler.OpenGeneration();
-    if ( not Impl->Compiler.AddModules( Impl->Generation, Ir::TakeModules( *Impl->Gen ), Error ) )
+    if ( not Impl->Options.EntrySymbol.empty() )
     {
-        static_cast<void>( Impl->Fail( std::move( Error ) ) );
-        return MakeFailure();
+        std::uintptr_t Address = 0;
+        std::string Error;
+        const Volt::Core::PhaseScope Timing( "backend.jit.materialize" );
+        if ( not Impl->Queue->Lookup( Impl->Options.EntrySymbol, Address, Error ) )
+        {
+            return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = Error };
+        }
     }
 
     Impl->bMaterialised = true;
-
-    // A JIT build's artifact is the resident code itself: there is no file to
-    // name, and naming one would be a lie the caller could act on.
-    return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = {}, .Message = {} };
+    return EmitResult{ .Status = EEmitStatus::Ok, .Artifact = "<jit>", .Message = {} };
 }
 
 Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::Run ( std::span<const std::string_view> ProgramArgs )
 {
-    if ( not Impl->bMaterialised )
+    if ( not Impl->bMaterialised or not Impl->Queue )
     {
-        return RunResult{
-            .bOk = false, .Code = 1, .Message = Impl->Message().empty() ? "jit: nothing was materialised" : Impl->Message() };
+        return RunResult{ .bOk = false, .Code = 1, .Message = "jit: Run called before Finalize" };
     }
 
     std::uintptr_t Address = 0;
     std::string Error;
+    if ( not Impl->Queue->Lookup( Impl->Options.EntrySymbol, Address, Error ) )
     {
-        // ORC compiles lazily: this lookup is what forces the whole module
-        // through codegen, so it is where a JIT's real cost shows up. Timed
-        // separately from emission for exactly that reason.
-        const Volt::Core::PhaseScope Timing( "backend.jit.materialize" );
-        if ( not Impl->Compiler.Lookup( Impl->Options.EntrySymbol, Address, Error ) )
-        {
-            return RunResult{ .bOk = false, .Code = 1, .Message = std::move( Error ) };
-        }
+        return RunResult{ .bOk = false, .Code = 1, .Message = Error };
     }
 
-    // argv has to outlive the call and be NUL-terminated in both senses: each
-    // string, and the array. string_view guarantees neither, so it is copied.
     std::vector<std::string> Owned;
     Owned.reserve( ProgramArgs.size() );
     for ( const std::string_view Arg : ProgramArgs )
@@ -505,9 +348,6 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::Run ( std::span<const s
     Argv.push_back( nullptr );
 
     using EntryFn = int ( * )( int, char ** );
-
-    // The one unavoidable cast in the module: ORC hands back an address, and
-    // calling it is the entire point.
     EntryFn Entry = reinterpret_cast<EntryFn>( Address ); // NOLINT(performance-no-int-to-ptr)
 
     const int Code = Entry( static_cast<int>( Owned.size() ), Argv.data() );
@@ -521,7 +361,7 @@ Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const Backe
     const auto Failed = [] ( std::string Why )
     { return ReloadResult{ .Status = EReloadStatus::Error, .Message = std::move( Why ), .PatchedSymbols = 0 }; };
 
-    if ( not Impl->bMaterialised )
+    if ( not Impl->bMaterialised or not Impl->Queue )
     {
         return Failed( "jit: nothing has been materialised, so there is nothing to reload into" );
     }
@@ -536,72 +376,50 @@ Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const Backe
         return Refuse( "jit: unit " + std::to_string( Unit.Ordinal ) + " was never emitted by this session" );
     }
 
-    // --- Emit the replacement ------------------------------------------------
-    //
-    // A whole IrGenerator, not a reuse of the running one: the running one was
-    // built over the old type store and gave its modules and its context to ORC
-    // at Finalize. This is a second, complete emission that happens to define
-    // one unit's bodies and declare everything else.
-    Ir::IrGenerator Replacement( Impl->OneUnitOptions( Unit.Ordinal, /*bReplacing=*/true ) );
-    Replacement.Begin( Build );
-    if ( Replacement.EmitUnit( Unit ) != EEmitStatus::Ok or Replacement.Finish() != EEmitStatus::Ok )
+    CompiledUnitMeta NewMeta;
+    std::string Error;
+    const auto IsAlreadyDefined   = [this] ( std::string_view Sym ) { return Impl->Defined.contains( Sym ); };
+    const auto HasIndirectionSlot = [this] ( std::string_view Sym ) { return Impl->Slotted.contains( Sym ); };
+
+    if ( not Impl->Queue->PrepareReplacement( Build, Unit, IsAlreadyDefined, HasIndirectionSlot, NewMeta, Error ) )
     {
-        return Failed( "jit: the replacement for '" + std::string( Unit.Path ) +
-                       "' did not emit: " + std::string( Replacement.Error() ) );
+        return Failed( "jit: the replacement for '" + std::string( Unit.Path ) + "' did not emit: " + Error );
     }
 
-    // --- Decide whether it may be swapped in ---------------------------------
-    //
-    // Both checks are one-sided on purpose. The JIT cannot inspect the stack,
-    // so it cannot know whether a frame of the old code is live or whether an
-    // instance of a changed type exists. It answers the stricter question it
-    // *can* answer, and is therefore sometimes needlessly refusing and never
-    // wrongly accepting. The fallback is a full restart, which this target
-    // makes cheap.
-    const std::vector<Ir::IrGenerator::UnitSymbol> NewSymbols = Replacement.LastUnitSymbols();
-    for ( const Ir::IrGenerator::UnitSymbol &Was : KnownSymbols->second )
+    for ( const CompiledUnitMeta::SymbolDef &Was : KnownSymbols->second )
     {
-        const auto Still = std::find_if( NewSymbols.begin(), NewSymbols.end(),
-                                         [&Was] ( const Ir::IrGenerator::UnitSymbol &Now ) { return Now.Name == Was.Name; } );
-        if ( Still == NewSymbols.end() )
+        const auto Still = std::find_if( NewMeta.Symbols.begin(), NewMeta.Symbols.end(),
+                                         [&Was] ( const CompiledUnitMeta::SymbolDef &Now ) { return Now.Name == Was.Name; } );
+        if ( Still == NewMeta.Symbols.end() )
         {
-            // Every caller elsewhere in the build still reaches this symbol
-            // through its slot, and there is nothing left to point the slot at.
+            Impl->Queue->DiscardReplacement();
             return Refuse( "jit: '" + Was.Name + "' is gone from the new '" + std::string( Unit.Path ) +
                            "' — a function callers already resolved cannot simply disappear" );
         }
         if ( Still->Signature != Was.Signature )
         {
-            // The callers that were *not* recompiled still push the old shape
-            // onto the stack. Nothing here can find them — a JIT cannot walk
-            // the callers of a symbol any more than it can walk live frames —
-            // so this refuses on the signature alone, with no condition
-            // attached: stricter than it has to be, and never wrong.
+            Impl->Queue->DiscardReplacement();
             return Refuse( "jit: '" + Was.Name + "' changed shape (" + Was.Signature + " -> " + Still->Signature +
                            ") — callers compiled against the old one are still running" );
         }
     }
 
     const auto KnownShapes = Impl->UnitShapes.find( Unit.Ordinal );
-    if ( KnownShapes != Impl->UnitShapes.end() and Replacement.LastUnitShapes() != KnownShapes->second )
+    if ( KnownShapes != Impl->UnitShapes.end() and NewMeta.Shapes != KnownShapes->second )
     {
+        Impl->Queue->DiscardReplacement();
         return Refuse( "jit: a type declared in '" + std::string( Unit.Path ) +
                        "' changed size, alignment or existence — instances of it are already laid out the old way" );
     }
 
-    // The third one-sided check, and the vtable's own. Its two failures are
-    // both "the array the running program holds is not the array this code was
-    // compiled against": a trait implemented here for the first time has no
-    // array at all, and a trait whose method set moved has one whose slots now
-    // mean something else. Neither can be repaired by writing into it, which is
-    // all a reload can do.
-    for ( const Ir::IrGenerator::VTableEntry &Now : Replacement.VTableEntries() )
+    for ( const CompiledUnitMeta::VTableEntry &Now : NewMeta.VTables )
     {
         const auto Was =
-            std::find_if( Impl->VTables.begin(), Impl->VTables.end(), [&Now] ( const Ir::IrGenerator::VTableEntry &Held )
+            std::find_if( Impl->VTables.begin(), Impl->VTables.end(), [&Now] ( const CompiledUnitMeta::VTableEntry &Held )
                           { return Held.VTable == Now.VTable and Held.Slot == Now.Slot; } );
         if ( Was == Impl->VTables.end() )
         {
+            Impl->Queue->DiscardReplacement();
             return Refuse( "jit: '" + std::string( Unit.Path ) + "' needs slot " + std::to_string( Now.Slot ) + " of '" +
                            Now.VTable +
                            "', which the running program never built — a trait implemented for the first "
@@ -609,39 +427,38 @@ Volt::Backend::ReloadResult Volt::Backend::Jit::JitBackend::Reload ( const Backe
         }
         if ( Was->Function != Now.Function )
         {
+            Impl->Queue->DiscardReplacement();
             return Refuse( "jit: slot " + std::to_string( Now.Slot ) + " of '" + Now.VTable + "' held '" + Was->Function +
-                           "' and now holds '" + Now.Function + "' — every dispatch already compiled reads the old slot number" );
+                           "', but the replacement puts '" + Now.Function +
+                           "' there — dynamic dispatch compiled against the old array reads the old slot number" );
         }
     }
 
-    // --- Swap it in ----------------------------------------------------------
     GenerationId Gen = 0;
-    std::string Error;
-    if ( not Impl->Compiler.OpenReplacement( Gen, Error ) )
+    if ( not Impl->Queue->OpenReplacement( Gen, Error ) )
     {
+        Impl->Queue->DiscardReplacement();
         return Failed( std::move( Error ) );
     }
-    if ( not Impl->Compiler.AddModules( Gen, Ir::TakeModules( Replacement ), Error ) )
+
+    if ( not Impl->Queue->CommitReplacement( Gen, Error ) )
     {
         return Failed( std::move( Error ) );
     }
 
-    // The old generation is deliberately *not* dropped. Removing it would unmap
-    // its executable memory, and a frame still running there would die on the
-    // next instruction. The cost is resident memory — tens of kilobytes per
-    // reload — and it is the right trade against a crash.
     std::size_t Patched = 0;
-    if ( not Impl->PatchSlots( Gen, NewSymbols, Patched, Error ) )
+    if ( not Impl->PatchSlots( Gen, NewMeta.Symbols, Patched, Error ) )
     {
         return Failed( std::move( Error ) );
     }
-    if ( not Impl->PatchVTables( Gen, NewSymbols, Error ) )
+    if ( not Impl->PatchVTables( Gen, NewMeta.Symbols, Error ) )
     {
         return Failed( std::move( Error ) );
     }
 
-    Impl->UnitSymbols[Unit.Ordinal] = NewSymbols;
-    Impl->UnitShapes[Unit.Ordinal]  = Replacement.LastUnitShapes();
+    Impl->UnitSymbols[Unit.Ordinal] = std::move( NewMeta.Symbols );
+    Impl->UnitShapes[Unit.Ordinal]  = std::move( NewMeta.Shapes );
+
     return ReloadResult{ .Status = EReloadStatus::Ok, .Message = {}, .PatchedSymbols = Patched };
 }
 
@@ -649,99 +466,39 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const Backen
 {
     const auto Failed = [] ( std::string Why ) { return RunResult{ .bOk = false, .Code = 1, .Message = std::move( Why ) }; };
 
-    if ( not Impl->bMaterialised )
+    if ( not Impl->bMaterialised or not Impl->Queue )
     {
-        return Failed( "jit: the session was never materialised, so there is nothing to evaluate into" );
-    }
-    if ( not Impl->Options.bPerUnitModules or not Impl->Options.bIndirectLinkage )
-    {
-        return Failed( "jit: incremental evaluation needs per-unit modules and indirect linkage; "
-                       "this session was built with neither" );
+        return Failed( "jit: EvalUnit called before Finalize" );
     }
 
-    // --- Emit this line, and nothing else ------------------------------------
-    //
-    // Everything below this unit's ordinal is a line the session has already
-    // run: its code is resident, its module-level storage holds values the user
-    // put there, and both are reached by declaration. That is precisely what
-    // the skip line means, so a REPL needs no notion of its own.
-    Ir::IrGenerator Line( Impl->OneUnitOptions( Unit.Ordinal, /*bReplacing=*/false ) );
-    Line.Begin( Build );
-    if ( Line.EmitUnit( Unit ) != EEmitStatus::Ok or Line.Finish() != EEmitStatus::Ok )
-    {
-        return Failed( "jit: this line did not emit: " + std::string( Line.Error() ) );
-    }
-
-    // --- Refuse what the session cannot carry --------------------------------
-    //
-    // The transport buffer was sized when the session started and cannot grow
-    // afterwards (State::BootUnwindStorage says why). A line that raises
-    // something wider would copy past the end of it, so it is refused before it
-    // is ever added — the same one-sided doctrine as Reload's refusals:
-    // sometimes needlessly strict, never wrong.
-    if ( Line.UnwindStorageSize() > Impl->BootUnwindStorage )
-    {
-        return Failed( "repl: this line can raise a value of " + std::to_string( Line.UnwindStorageSize() ) +
-                       " bytes, wider than the session's unwind buffer of " + std::to_string( Impl->BootUnwindStorage ) +
-                       " bytes, which was fixed when the session started.\n"
-                       "       -> :reset reopens a session sized for it, or declare the type in a file loaded at startup." );
-    }
-
-    // --- Add it, in the dylib the answer to one question picks ---------------
-    //
-    // Almost every line defines only names nobody has used yet — a fresh
-    // `_V_init_N`, a fresh `_V_global_N_x`, a function typed for the first
-    // time — and belongs in the main dylib, where every later line finds it by
-    // ordinary lookup and nothing needs a search order at all.
-    //
-    // A line that *redefines* something cannot go there: ORC rejects a
-    // duplicate definition inside one dylib. It gets a dylib of its own, and
-    // then nothing reaches the new body by name — only the indirection slot
-    // does, which is exactly what makes redefinition work for callers that
-    // were compiled long ago and will never be recompiled.
-    const std::vector<Ir::IrGenerator::UnitSymbol> Symbols = Line.LastUnitSymbols();
-
-    const bool bRedefines = std::any_of( Symbols.begin(), Symbols.end(), [this] ( const Ir::IrGenerator::UnitSymbol &Symbol )
-                                         { return Impl->Defined.contains( Symbol.Name ); } );
+    const auto IsAlreadyDefined   = [this] ( std::string_view Sym ) { return Impl->Defined.contains( Sym ); };
+    const auto HasIndirectionSlot = [this] ( std::string_view Sym ) { return Impl->Slotted.contains( Sym ); };
 
     GenerationId Gen = 0;
+    bool bRedefines  = false;
+    CompiledUnitMeta Meta;
     std::string Error;
-    if ( bRedefines )
-    {
-        if ( not Impl->Compiler.OpenReplacement( Gen, Error ) )
-        {
-            return Failed( std::move( Error ) );
-        }
-    }
-    else
-    {
-        Gen = Impl->Compiler.OpenGeneration();
-    }
 
-    if ( not Impl->Compiler.AddModules( Gen, Ir::TakeModules( Line ), Error ) )
+    if ( not Impl->Queue->CompileEvalUnit( Build, Unit, Gen, bRedefines, IsAlreadyDefined, HasIndirectionSlot, Meta,
+                                           Impl->BootUnwindStorage, Error ) )
     {
         return Failed( std::move( Error ) );
     }
 
-    // Only a redefinition has a slot to move. A symbol defined here for the
-    // first time has its slot defined beside it, already pointing at it.
     if ( bRedefines )
     {
         std::size_t Patched = 0;
-        if ( not Impl->PatchSlots( Gen, Symbols, Patched, Error ) )
+        if ( not Impl->PatchSlots( Gen, Meta.Symbols, Patched, Error ) )
         {
             return Failed( std::move( Error ) );
         }
-        if ( not Impl->PatchVTables( Gen, Symbols, Error ) )
+        if ( not Impl->PatchVTables( Gen, Meta.Symbols, Error ) )
         {
             return Failed( std::move( Error ) );
         }
     }
 
-    // A line that upcasts to a trait nothing had upcast to yet built the array
-    // for it; every later line finds it already defined and only names it. Both
-    // report the same entries, so this is a union rather than an append.
-    for ( const Ir::IrGenerator::VTableEntry &Entry : Line.VTableEntries() )
+    for ( const CompiledUnitMeta::VTableEntry &Entry : Meta.VTables )
     {
         if ( std::find( Impl->VTables.begin(), Impl->VTables.end(), Entry ) == Impl->VTables.end() )
         {
@@ -749,62 +506,33 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const Backen
         }
     }
 
-    for ( const std::string &Symbol : Line.DefinedSymbols() )
+    for ( const std::string &Symbol : Meta.DefinedSymbols )
     {
         Impl->Defined.insert( Symbol );
     }
-    for ( const Ir::IrGenerator::UnitSymbol &Symbol : Symbols )
+    for ( const CompiledUnitMeta::SymbolDef &Symbol : Meta.Symbols )
     {
         Impl->Slotted.insert( Symbol.Name );
     }
 
-    // --- Run its top-level statements ----------------------------------------
-    //
-    // When it has any: a line that declared a method and nothing else leaves an
-    // empty top level, and nothing emits an initializer for one
-    // (Backend::UnitHasInit). Looking the symbol up anyway would fail on an
-    // absence that means "nothing to run", which is not an error.
-    std::uint32_t *Tag = Impl->ExceptionTag();
     if ( UnitHasInit( Unit ) )
     {
         const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
-
-        std::uintptr_t Address = 0;
-        if ( not Impl->Compiler.LookupIn( Gen, InitSymbol, Address, Error ) )
+        std::uintptr_t Address       = 0;
+        if ( not Impl->Queue->LookupIn( Gen, InitSymbol, Address, Error ) )
         {
-            return Failed( std::move( Error ) );
-        }
-
-        if ( Tag != nullptr )
-        {
-            // Whatever a previous line left behind is not this line's business,
-            // and a stale tag would make this one look like it raised.
-            *Tag = UnwindTransport::NoExceptionTag;
+            return Failed( "repl: initialiser '" + InitSymbol + "' did not resolve: " + Error );
         }
 
         using InitFn = void ( * )();
         reinterpret_cast<InitFn>( Address )(); // NOLINT(performance-no-int-to-ptr)
     }
 
-    Impl->UnitSymbols[Unit.Ordinal] = Symbols;
-    Impl->UnitShapes[Unit.Ordinal]  = Line.LastUnitShapes();
-
-    // A raise that nobody rescued unwound out of the unit init and left the tag
-    // set. It ends the *line*, never the session — that difference is the whole
-    // point of a REPL, and it is why this returns a message rather than letting
-    // the caller treat a non-zero code as fatal.
-    if ( Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
+    if ( const std::uint32_t *Tag = Impl->ExceptionTag(); Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
     {
-        const std::uint32_t Raised = *Tag;
-        *Tag                       = UnwindTransport::NoExceptionTag;
-
-        std::string Named = "an exception";
-        if ( Build.Types != nullptr and Raised < Build.Types->TypeCount() )
-        {
-            const MiddleEnd::TypeSystem::NominalId Id{ Raised };
-            Named = "'" + std::string( Build.Types->Text( Build.Types->Type( Id ).Name ) ) + "'";
-        }
-        return Failed( "repl: " + Named + " was raised and never rescued" );
+        const std::uint32_t Value = *Tag;
+        Impl->ResetExceptionTag();
+        return Failed( "unhandled exception (tag " + std::to_string( Value ) + ")" );
     }
 
     return RunResult{ .bOk = true, .Code = 0, .Message = {} };
@@ -812,13 +540,13 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const Backen
 
 std::uintptr_t Volt::Backend::Jit::JitBackend::LookupSymbol ( std::string_view Mangled )
 {
-    std::uintptr_t Address = 0;
-    std::string Error;
-    if ( not Impl->Compiler.Lookup( Mangled, Address, Error ) )
+    if ( not Impl->bMaterialised or not Impl->Queue )
     {
         return 0;
     }
-    return Address;
+    std::uintptr_t Address = 0;
+    std::string Ignored;
+    return Impl->Queue->Lookup( Mangled, Address, Ignored ) ? Address : 0;
 }
 
 bool Volt::Backend::Jit::JitBackend::ProbeUnit ( const BackendInput &Build,
@@ -826,195 +554,109 @@ bool Volt::Backend::Jit::JitBackend::ProbeUnit ( const BackendInput &Build,
                                                  std::string *OutIr,
                                                  std::string &OutError )
 {
-    if ( not Impl->bMaterialised )
+    if ( not Impl->Queue )
     {
-        OutError = "jit: the session was never materialised, so there is nothing to probe against";
+        OutError = "jit: queue not initialized";
         return false;
     }
-
-    // The same generator EvalUnit builds, with the same options, so that what
-    // this reports is what evaluating the line would actually produce.
-    Ir::IrGenerator Line( Impl->OneUnitOptions( Unit.Ordinal, /*bReplacing=*/false ) );
-    Line.Begin( Build );
-    if ( Line.EmitUnit( Unit ) != EEmitStatus::Ok or Line.Finish() != EEmitStatus::Ok )
-    {
-        OutError = "jit: this line did not emit: " + std::string( Line.Error() );
-        return false;
-    }
-
-    if ( OutIr != nullptr )
-    {
-        // TakeModules moves the context out with them, which is exactly what is
-        // wanted: the modules and the LLVMContext that types them die together
-        // at the end of this scope, and nothing was ever added to a dylib.
-        const Ir::OwnedModules Emitted = Ir::TakeModules( Line );
-
-        // Only the modules that define a body. Under per-unit granularity most
-        // of an emission is declaration — every unit whose code is already
-        // resident — and printing those would bury the one module the question
-        // was about.
-        const auto DefinesABody = [] ( const llvm::Module &Mod )
-        {
-            for ( const llvm::Function &Fn : Mod )
-            {
-                if ( not Fn.isDeclaration() )
-                {
-                    return true;
-                }
-            }
-            return false;
-        };
-
-        llvm::raw_string_ostream Text( *OutIr );
-        for ( const std::unique_ptr<llvm::Module> &Mod : Emitted.Modules )
-        {
-            if ( Mod != nullptr and DefinesABody( *Mod ) )
-            {
-                Mod->print( Text, nullptr );
-            }
-        }
-    }
-
-    // No OpenGeneration, no OpenReplacement, no AddModules. The generator goes
-    // out of scope here, abandoned, and the destruction order inside it is what
-    // makes that safe (IrGeneratorState.hpp). That is the whole contract of a
-    // probe: a question about a line costs the compilation and nothing else.
-    return true;
+    return Impl->Queue->ProbeUnit( Build, Unit, OutIr, OutError );
 }
 
 std::string Volt::Backend::Jit::JitBackend::LastUnitIr () const
 {
-    return Impl->Compiler.LastIr();
+    return Impl->Queue ? Impl->Queue->LastIr() : std::string{};
 }
 
-void Volt::Backend::Jit::JitBackend::RecordIr ( const bool bEnable )
+void Volt::Backend::Jit::JitBackend::RecordIr ( bool bEnable )
 {
-    Impl->Compiler.RecordIr( bEnable );
+    if ( Impl->Queue )
+    {
+        Impl->Queue->RecordIr( bEnable );
+    }
 }
 
-std::string Volt::Backend::Jit::JitBackend::Disassemble ( const std::uintptr_t Address, const std::size_t MaxBytes )
+std::string Volt::Backend::Jit::JitBackend::Disassemble ( std::uintptr_t Address, std::size_t MaxBytes )
 {
+    if ( not Impl->Queue )
+    {
+        return {};
+    }
     std::string Ignored;
-    return Impl->Compiler.Disassemble( Address, MaxBytes, Ignored );
-}
-
-std::size_t Volt::Backend::Jit::JitBackend::LiveGenerations () const
-{
-    return Impl->Compiler.LiveGenerations();
+    return Impl->Queue->Disassemble( Address, MaxBytes, Ignored );
 }
 
 Volt::Backend::IJitBackend::BenchResult
-Volt::Backend::Jit::JitBackend::BenchUnit ( const BackendInput &Build, const UnitView &Unit, const std::size_t Iterations )
+Volt::Backend::Jit::JitBackend::BenchUnit ( const BackendInput &Build, const UnitView &Unit, std::size_t Iterations )
 {
     const auto Failed = [] ( std::string Why )
     { return BenchResult{ .bOk = false, .Message = std::move( Why ), .Iterations = 0, .TotalNanos = 0, .BestNanos = 0 }; };
 
-    if ( not Impl->bMaterialised )
+    if ( not Impl->bMaterialised or not Impl->Queue )
     {
-        return Failed( "jit: the session was never materialised, so there is nothing to run against" );
+        return Failed( "jit: BenchUnit called before Finalize" );
     }
     if ( Iterations == 0 )
     {
-        return Failed( "jit: a benchmark of zero iterations measures nothing" );
+        return Failed( "repl: iteration count must be greater than zero" );
     }
     if ( not UnitHasInit( Unit ) )
     {
         return Failed( "jit: this unit has no top-level statements to run" );
     }
 
-    Ir::IrGenerator Line( Impl->OneUnitOptions( Unit.Ordinal, /*bReplacing=*/false ) );
-    Line.Begin( Build );
-    if ( Line.EmitUnit( Unit ) != EEmitStatus::Ok or Line.Finish() != EEmitStatus::Ok )
-    {
-        return Failed( "jit: this line did not emit: " + std::string( Line.Error() ) );
-    }
-    if ( Line.UnwindStorageSize() > Impl->BootUnwindStorage )
-    {
-        return Failed( "repl: this line can raise a value wider than the session's unwind buffer" );
-    }
+    const auto IsAlreadyDefined   = [this] ( std::string_view Sym ) { return Impl->Defined.contains( Sym ); };
+    const auto HasIndirectionSlot = [this] ( std::string_view Sym ) { return Impl->Slotted.contains( Sym ); };
 
-    // A dylib of its own, always — not because the unit redefines anything,
-    // but because this generation is going away, and a generation that shares
-    // the main dylib takes its symbol table entries with it when it goes.
     GenerationId Gen = 0;
     std::string Error;
-    if ( not Impl->Compiler.OpenReplacement( Gen, Error ) )
+    if ( not Impl->Queue->CompileBenchUnit( Build, Unit, Gen, IsAlreadyDefined, HasIndirectionSlot, Error ) )
     {
         return Failed( std::move( Error ) );
     }
-
-    // Everything below is on the path to DropGeneration, including every early
-    // return: a benchmark that fails halfway must not leave a generation behind,
-    // which is the one property `:bench` is asked to prove.
-    const auto Drop = [&] ()
-    {
-        std::string Ignored;
-        ( void )Impl->Compiler.DropGeneration( Gen, Ignored );
-    };
-
-    if ( not Impl->Compiler.AddModules( Gen, Ir::TakeModules( Line ), Error ) )
-    {
-        Drop();
-        return Failed( std::move( Error ) );
-    }
-
-    // Nothing is recorded in Defined or Slotted. Those sets say what the
-    // session *has*, and after the drop below it will have none of this — a
-    // later line that reaches the same monomorphisation has to emit it again,
-    // and would fail to resolve it if this claimed otherwise.
 
     const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
-
-    std::uintptr_t Address = 0;
-    if ( not Impl->Compiler.LookupIn( Gen, InitSymbol, Address, Error ) )
+    std::uintptr_t Address       = 0;
+    if ( not Impl->Queue->LookupIn( Gen, InitSymbol, Address, Error ) )
     {
-        Drop();
-        return Failed( std::move( Error ) );
+        std::string Ignored;
+        ( void )Impl->Queue->DropGeneration( Gen, Ignored );
+        return Failed( "repl: initialiser '" + InitSymbol + "' did not resolve: " + Error );
     }
 
-    using InitFn       = void ( * )();
-    const InitFn Body  = reinterpret_cast<InitFn>( Address ); // NOLINT(performance-no-int-to-ptr)
-    std::uint32_t *Tag = Impl->ExceptionTag();
+    using InitFn = void ( * )();
+    auto Init    = reinterpret_cast<InitFn>( Address ); // NOLINT(performance-no-int-to-ptr)
 
-    BenchResult Out;
-    Out.bOk        = true;
-    Out.Iterations = Iterations;
-    Out.BestNanos  = std::numeric_limits<std::uint64_t>::max();
+    std::uint64_t TotalNanos = 0;
+    std::uint64_t BestNanos  = std::numeric_limits<std::uint64_t>::max();
 
-    // One untimed call first. It pays for the lazy materialisation ORC does on
-    // first lookup, which would otherwise land entirely in iteration one and
-    // make every other number look like an improvement.
-    if ( Tag != nullptr )
+    for ( std::size_t I = 0; I < Iterations; ++I )
     {
-        *Tag = UnwindTransport::NoExceptionTag;
-    }
-    Body();
-    if ( Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
-    {
-        *Tag = UnwindTransport::NoExceptionTag;
-        Drop();
-        return Failed( "repl: the benchmarked expression raised and never rescued" );
-    }
+        const auto Before = std::chrono::steady_clock::now();
+        Init();
+        const auto After = std::chrono::steady_clock::now();
 
-    for ( std::size_t Round = 0; Round < Iterations; ++Round )
-    {
-        const std::chrono::steady_clock::time_point Started = std::chrono::steady_clock::now();
-        Body();
-        const std::chrono::steady_clock::time_point Ended = std::chrono::steady_clock::now();
-
-        if ( Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
+        if ( const std::uint32_t *Tag = Impl->ExceptionTag(); Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
         {
-            *Tag = UnwindTransport::NoExceptionTag;
-            Drop();
-            return Failed( "repl: the benchmarked expression raised and never rescued" );
+            const std::uint32_t Value = *Tag;
+            Impl->ResetExceptionTag();
+            std::string Ignored;
+            ( void )Impl->Queue->DropGeneration( Gen, Ignored );
+            return Failed( "unhandled exception during benchmark (tag " + std::to_string( Value ) + ")" );
         }
 
-        const auto Elapsed =
-            static_cast<std::uint64_t>( std::chrono::duration_cast<std::chrono::nanoseconds>( Ended - Started ).count() );
-        Out.TotalNanos += Elapsed;
-        Out.BestNanos = std::min( Out.BestNanos, Elapsed );
+        const auto Nanos =
+            static_cast<std::uint64_t>( std::chrono::duration_cast<std::chrono::nanoseconds>( After - Before ).count() );
+        TotalNanos += Nanos;
+        BestNanos = std::min( BestNanos, Nanos );
     }
 
-    Drop();
-    return Out;
+    std::string Ignored;
+    ( void )Impl->Queue->DropGeneration( Gen, Ignored );
+
+    return BenchResult{ .bOk = true, .Message = {}, .Iterations = Iterations, .TotalNanos = TotalNanos, .BestNanos = BestNanos };
+}
+
+std::size_t Volt::Backend::Jit::JitBackend::LiveGenerations () const
+{
+    return Impl->Queue ? Impl->Queue->LiveGenerations() : 0;
 }
