@@ -270,7 +270,7 @@ Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
         return EmitResult{ .Status = EEmitStatus::Error, .Artifact = {}, .Message = "jit: queue was not created" };
     }
 
-    Impl->Generation         = Impl->Queue->OpenGeneration();
+    Impl->Generation = Impl->Queue->OpenGeneration();
     CompiledUnitMeta Meta;
     const EmitResult Emitted = Impl->Queue->Finalize( Impl->Generation, Meta );
     if ( Emitted.Status != EEmitStatus::Ok )
