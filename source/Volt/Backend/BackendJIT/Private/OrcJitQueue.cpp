@@ -17,8 +17,8 @@
 #include <llvm/ExecutionEngine/Orc/ExecutionUtils.h>
 #include <llvm/ExecutionEngine/Orc/IRPartitionLayer.h>
 #include <llvm/ExecutionEngine/Orc/IRTransformLayer.h>
-#include <llvm/ExecutionEngine/Orc/IndirectionUtils.h>
 #include <llvm/ExecutionEngine/Orc/InProcessMemoryAccess.h>
+#include <llvm/ExecutionEngine/Orc/IndirectionUtils.h>
 #include <llvm/ExecutionEngine/Orc/JITLinkRedirectableSymbolManager.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/LazyReexports.h>
@@ -621,8 +621,17 @@ bool Volt::Backend::Jit::OrcJitQueue::AddProcessSymbols ( std::string &OutError 
 {
     const char Prefix = P->Layout.getGlobalPrefix();
 
+    // GCC -O3 false positive: Prefix is initialized above, but the optimizer
+    // incorrectly warns about it being used uninitialized in GetForCurrentProcess
+#if defined( __GNUC__ ) && !defined( __clang__ )
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
     llvm::Expected<std::unique_ptr<llvm::orc::DynamicLibrarySearchGenerator>> Gen =
         llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess( Prefix );
+#if defined( __GNUC__ ) && !defined( __clang__ )
+#    pragma GCC diagnostic pop
+#endif
     if ( not Gen )
     {
         OutError = "jit: could not open the process's own symbols: " + Consume( Gen.takeError() );
