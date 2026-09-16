@@ -271,10 +271,19 @@ Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
     }
 
     Impl->Generation         = Impl->Queue->OpenGeneration();
-    const EmitResult Emitted = Impl->Queue->Finalize( Impl->Generation );
+    CompiledUnitMeta Meta;
+    const EmitResult Emitted = Impl->Queue->Finalize( Impl->Generation, Meta );
     if ( Emitted.Status != EEmitStatus::Ok )
     {
         return Emitted;
+    }
+
+    Backend::SetUnwindStorageSize( Impl->Queue->UnwindStorageSize() );
+    Impl->BootUnwindStorage = Impl->Queue->UnwindStorageSize();
+
+    for ( const std::string &Symbol : Meta.DefinedSymbols )
+    {
+        Impl->Defined.insert( Symbol );
     }
 
     for ( const auto &[Ordinal, Syms] : Impl->UnitSymbols )
@@ -287,6 +296,11 @@ Volt::Backend::EmitResult Volt::Backend::Jit::JitBackend::Finalize ()
                 Impl->Slotted.insert( Sym.Name );
             }
         }
+    }
+
+    for ( const auto &VTab : Meta.VTables )
+    {
+        Impl->VTables.push_back( VTab );
     }
 
     if ( not Impl->Options.EntrySymbol.empty() )
@@ -501,15 +515,18 @@ Volt::Backend::RunResult Volt::Backend::Jit::JitBackend::EvalUnit ( const Backen
         Impl->Slotted.insert( Symbol.Name );
     }
 
-    const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
-    std::uintptr_t Address       = 0;
-    if ( not Impl->Queue->LookupIn( Gen, InitSymbol, Address, Error ) )
+    if ( UnitHasInit( Unit ) )
     {
-        return Failed( "repl: initialiser '" + InitSymbol + "' did not resolve: " + Error );
-    }
+        const std::string InitSymbol = "_V_init_" + std::to_string( Unit.Ordinal );
+        std::uintptr_t Address       = 0;
+        if ( not Impl->Queue->LookupIn( Gen, InitSymbol, Address, Error ) )
+        {
+            return Failed( "repl: initialiser '" + InitSymbol + "' did not resolve: " + Error );
+        }
 
-    using InitFn = void ( * )();
-    reinterpret_cast<InitFn>( Address )(); // NOLINT(performance-no-int-to-ptr)
+        using InitFn = void ( * )();
+        reinterpret_cast<InitFn>( Address )(); // NOLINT(performance-no-int-to-ptr)
+    }
 
     if ( const std::uint32_t *Tag = Impl->ExceptionTag(); Tag != nullptr and *Tag != UnwindTransport::NoExceptionTag )
     {
@@ -581,6 +598,10 @@ Volt::Backend::Jit::JitBackend::BenchUnit ( const BackendInput &Build, const Uni
     if ( Iterations == 0 )
     {
         return Failed( "repl: iteration count must be greater than zero" );
+    }
+    if ( not UnitHasInit( Unit ) )
+    {
+        return Failed( "jit: this unit has no top-level statements to run" );
     }
 
     const auto IsAlreadyDefined   = [this] ( std::string_view Sym ) { return Impl->Defined.contains( Sym ); };
