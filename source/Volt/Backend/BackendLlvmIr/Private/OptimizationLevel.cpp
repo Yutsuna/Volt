@@ -68,11 +68,11 @@ bool Volt::Backend::Ir::HasLoop ( const llvm::Function &Fn )
     if ( Fn.size() == 1 )
     {
         const llvm::BasicBlock &Entry = Fn.getEntryBlock();
-        const llvm::Instruction *Term = Entry.getTerminator();
-        if ( Term == nullptr )
+        if ( not Entry.hasTerminator() )
         {
             return false;
         }
+        const llvm::Instruction *Term = Entry.getTerminator();
         for ( unsigned I = 0; I < Term->getNumSuccessors(); ++I )
         {
             if ( Term->getSuccessor( I ) == &Entry )
@@ -98,9 +98,8 @@ bool Volt::Backend::Ir::HasLoop ( const llvm::Function &Fn )
 
     while ( not DfsStack.empty() )
     {
-        DfsFrame &Frame               = DfsStack.back();
-        const llvm::Instruction *Term = Frame.BB->getTerminator();
-        const unsigned NumSuccs       = Term != nullptr ? Term->getNumSuccessors() : 0;
+        DfsFrame &Frame         = DfsStack.back();
+        const unsigned NumSuccs = Frame.BB->hasTerminator() ? Frame.BB->getTerminator()->getNumSuccessors() : 0;
 
         if ( Frame.SuccIndex >= NumSuccs )
         {
@@ -109,7 +108,7 @@ bool Volt::Backend::Ir::HasLoop ( const llvm::Function &Fn )
             continue;
         }
 
-        const llvm::BasicBlock *Succ = Term->getSuccessor( Frame.SuccIndex++ );
+        const llvm::BasicBlock *Succ = Frame.BB->getTerminator()->getSuccessor( Frame.SuccIndex++ );
         const auto [It, Inserted]    = State.try_emplace( Succ, std::uint8_t{ 0 } );
         if ( It->second == 1 )
         {

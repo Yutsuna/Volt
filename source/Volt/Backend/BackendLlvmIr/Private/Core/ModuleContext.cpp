@@ -123,5 +123,5 @@ bool Volt::Backend::Llvm::ModuleContext::Terminated () const
         return true;
     }
     llvm::BasicBlock *Block = Build->GetInsertBlock();
-    return Block == nullptr or Block->getTerminator() != nullptr;
+    return Block == nullptr or Block->hasTerminator();
 }

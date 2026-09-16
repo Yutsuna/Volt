@@ -18,6 +18,7 @@
 #include <llvm/ExecutionEngine/Orc/IRPartitionLayer.h>
 #include <llvm/ExecutionEngine/Orc/IRTransformLayer.h>
 #include <llvm/ExecutionEngine/Orc/IndirectionUtils.h>
+#include <llvm/ExecutionEngine/Orc/InProcessMemoryAccess.h>
 #include <llvm/ExecutionEngine/Orc/JITLinkRedirectableSymbolManager.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/LazyReexports.h>
@@ -506,8 +507,11 @@ struct Volt::Backend::Jit::OrcJitQueue::Impl
             return false;
         }
 
+        const bool bIs64Bit = Jit->getTargetTriple().isArch64Bit();
+        auto MemAccess      = std::make_unique<llvm::orc::InProcessMemoryAccess>( bIs64Bit );
+
         llvm::Expected<std::unique_ptr<llvm::orc::RedirectableSymbolManager>> RedirectMgr =
-            llvm::orc::JITLinkRedirectableSymbolManager::Create( *Objects );
+            llvm::orc::JITLinkRedirectableSymbolManager::Create( *Objects, *MemAccess );
         if ( not RedirectMgr )
         {
             llvm::consumeError( RedirectMgr.takeError() );
@@ -978,7 +982,7 @@ Volt::Backend::Jit::OrcJitQueue::Disassemble ( std::uintptr_t Address, std::size
         return {};
     }
 
-    llvm::MCContext Context( TheTriple, AsmInfo.get(), Registers.get(), Subtarget.get() );
+    llvm::MCContext Context( TheTriple, *AsmInfo, *Registers, *Subtarget );
     const std::unique_ptr<llvm::MCDisassembler> Decoder( Machine->createMCDisassembler( *Subtarget, Context ) );
     const std::unique_ptr<llvm::MCInstPrinter> Printer(
         Machine->createMCInstPrinter( TheTriple, AsmInfo->getAssemblerDialect(), *AsmInfo, *Instructions, *Registers ) );
