@@ -123,5 +123,22 @@ bool Volt::Backend::Llvm::ModuleContext::Terminated () const
         return true;
     }
     llvm::BasicBlock *Block = Build->GetInsertBlock();
-    return Block == nullptr or Block->hasTerminator();
+    if ( Block == nullptr )
+    {
+        return true;
+    }
+    if ( Block->empty() )
+    {
+        return false;
+    }
+    // GCC -O3 false positive: hasTerminator() and getTerminator() are safe to call
+    // on a non-empty block, but the optimizer incorrectly warns about null dereference
+#if defined( __GNUC__ ) && !defined( __clang__ )
+#    pragma GCC diagnostic push
+#    pragma GCC diagnostic ignored "-Wnull-dereference"
+#endif
+    return Block->hasTerminator();
+#if defined( __GNUC__ ) && !defined( __clang__ )
+#    pragma GCC diagnostic pop
+#endif
 }
