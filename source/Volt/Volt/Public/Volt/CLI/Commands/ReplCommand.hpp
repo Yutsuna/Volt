@@ -1,13 +1,20 @@
 #pragma once
 
+#include "Volt/CLI/CommandInputs.hpp"
 #include "Volt/CLI/GenericCommand.hpp"
 #include "Volt/CLI/StdlibCache.hpp"
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
 namespace Volt
 {
+
+namespace Repl
+{
+    class Evaluator;
+} // namespace Repl
 
 namespace CLI
 {
@@ -15,13 +22,19 @@ namespace CLI
     /**
      * @class FReplCommand
      * @usage
-     *        volt repl [options]
+     *        volt repl [options] [input_file]
      * @description
      *        Start an interactive session: read a line, compile it into a
      *        Driver that stays alive, and evaluate it through BackendJIT.
      *        Like every other command here, it never includes a Backend*
      *        header — Repl::Evaluator is the one place a target resolves to a
      *        concrete backend.
+     *
+     *        When a file is provided (via -i or as a positional argument),
+     *        its contents are loaded into the session before the interactive
+     *        prompt appears. A directory containing a Project.vl manifest is
+     *        loaded as a circuit: each source file is compiled and evaluated
+     *        in dependency order.
      *
      *        Two front ends, chosen by what standard input is. On a terminal
      *        the session is handed to Repl::Tui: raw mode, live syntax
@@ -36,6 +49,7 @@ namespace CLI
      *        can ask them, and the tests that pin their answers run where
      *        there is no colour to strip out of a golden file.
      * @options
+     *        -i INPUT, --input INPUT          File or circuit to load first
      *        -O LEVEL                         Optimization level (0|1|2|3, default 0)
      *        -e EXPR, --eval EXPR             Evaluate one line and exit
      *        -v, --verbose                    Enable verbose output
@@ -59,6 +73,20 @@ namespace CLI
         [[nodiscard]] std::vector<FOption> GetOptions () override;
 
     private:
+
+        /// Load a single .vl file into the running REPL session, feeding
+        /// complete statements one at a time. Returns ExitSuccess on
+        /// success, ExitFailure if any statement fails to compile or run.
+        [[nodiscard]] std::int32_t LoadFile ( Repl::Evaluator &Session,
+                                              const std::filesystem::path &FilePath );
+
+        /// Load a circuit by compiling its source files through the Driver
+        /// and feeding each unit into the REPL session. ManifestPath is the
+        /// path to Project.vl. Returns ExitSuccess on success.
+        [[nodiscard]] std::int32_t LoadCircuit ( Repl::Evaluator &Session,
+                                                 const std::filesystem::path &ManifestPath );
+
+        FInputFlags InputFlags;
 
         std::string OptLevel;
         std::vector<std::string> EvalLines;
